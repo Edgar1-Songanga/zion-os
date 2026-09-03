@@ -1,187 +1,238 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 export default function Sidebar() {
 
-  const sections = [
-    {
-      title: "Core",
-      items: [
-        {
-          name: "Dashboard",
-          path: "/dashboard",
-        },
-        {
-          name: "RESA",
-          path: "/resa",
-        },
-      ],
-    },
-
-    {
-      title: "Spiritual",
-      items: [
-        {
-          name: "Bible Engine",
-          path: "/bible-engine",
-        },
-        {
-          name: "Communities",
-          path: "/communities",
-        },
-      ],
-    },
-
-    {
-      title: "Management",
-      items: [
-        {
-          name: "Finance",
-          path: "/finance",
-        },
-        {
-          name: "Administration",
-          path: "/admin",
-        },
-        {
-          name: "Reports",
-          path: "/reports",
-        },
-      ],
-    },
-  ];
+const pathname = usePathname();
 
 
-  return (
+const sections = [
 
-    <aside
-      className="
-      min-h-screen
-      w-72
-      bg-[#0C1A3D]
-      text-white
-      p-6
-      "
-    >
+{
+title:"CORE",
+items:[
+{
+name:"Dashboard",
+path:"/dashboard"
+},
+{
+name:"RESA",
+path:"/resa"
+}
+]
+},
+
+{
+title:"SPIRITUAL EXPERIENCE",
+items:[
+{
+name:"Bible Engine",
+path:"/bible-engine"
+},
+{
+name:"Communities",
+path:"/communities"
+},
+{
+name:"Spiritual Chat",
+path:"/spiritual-chat"
+}
+]
+},
+
+{
+title:"ORGANIZATION",
+items:[
+{
+name:"Administration",
+path:"/admin"
+},
+{
+name:"Finance",
+path:"/finance"
+},
+{
+name:"Reports",
+path:"/reports"
+}
+]
+}
+
+];
 
 
-      {/* Logo */}
+return (
 
-      <div>
-
-        <h1
-          className="
-          text-3xl
-          font-bold
-          tracking-wide
-          "
-        >
-          ZION
-          <span className="text-[#D4AF37]">
-            OS
-          </span>
-
-        </h1>
+<aside
+className="
+min-h-screen
+w-80
+bg-[#0C1A3D]
+text-white
+px-8
+py-10
+"
+>
 
 
-        <p className="text-sm text-slate-300 mt-1">
-          Global Digital Ecosystem
-        </p>
+<div>
+
+<h1
+className="
+text-4xl
+font-semibold
+tracking-wide
+"
+>
+ZION
+<span
+className="
+text-[#D4AF37]
+"
+>
+OS
+</span>
+
+</h1>
 
 
-      </div>
+<p
+className="
+mt-2
+text-sm
+text-slate-300
+"
+>
+Global Digital Ecosystem
+</p>
 
-
-
-      {/* Profile */}
-
-      <div
-        className="
-        mt-8
-        bg-white/10
-        rounded-2xl
-        p-4
-        "
-      >
-
-        <p className="font-semibold">
-          Edgar
-        </p>
-
-        <p className="text-xs text-slate-300">
-          Global Administrator
-        </p>
-
-      </div>
+</div>
 
 
 
-      {/* Menu */}
+<div
+className="
+mt-10
+rounded-3xl
+bg-white/10
+border
+border-white/10
+p-5
+"
+>
 
-      <nav className="mt-8">
-
-
-      {sections.map(section => (
-
-        <div
-        key={section.title}
-        className="mb-6"
-        >
-
-
-          <p
-          className="
-          text-xs
-          uppercase
-          text-slate-400
-          mb-3
-          "
-          >
-            {section.title}
-          </p>
+<p
+className="
+font-semibold
+"
+>
+Edgar
+</p>
 
 
-
-          {section.items.map(item => (
-
-            <Link
-
-            key={item.name}
-
-            href={item.path}
-
-            className="
-            block
-            rounded-xl
-            px-4
-            py-3
-            mb-2
-            text-sm
-            hover:bg-white/10
-            transition
-            "
-
-            >
-
-            {item.name}
-
-            </Link>
+<p
+className="
+text-sm
+text-slate-300
+mt-1
+"
+>
+Global Administrator
+</p>
 
 
-          ))}
+</div>
 
 
 
-        </div>
+<nav
+className="
+mt-10
+"
+>
 
 
-      ))}
+{sections.map(section=>(
+
+<div
+key={section.title}
+className="
+mb-8
+"
+>
 
 
-      </nav>
+<p
+className="
+text-xs
+tracking-widest
+text-slate-400
+mb-4
+"
+>
+{section.title}
+</p>
 
 
-    </aside>
 
-  );
+{section.items.map(item=>{
+
+
+const active =
+pathname===item.path;
+
+
+return (
+
+<Link
+
+key={item.path}
+
+href={item.path}
+
+className={`
+block
+px-5
+py-3
+rounded-2xl
+mb-2
+transition-all
+duration-300
+
+${
+active
+?
+"bg-[#D4AF37] text-[#0C1A3D] font-semibold shadow-lg"
+:
+"text-slate-200 hover:bg-white/10"
+}
+
+`}
+
+>
+
+{item.name}
+
+</Link>
+
+)
+
+})}
+
+
+
+</div>
+
+))}
+
+
+</nav>
+
+
+</aside>
+
+)
 
 }

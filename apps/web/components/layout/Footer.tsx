@@ -1,51 +1,100 @@
 export default function Footer() {
 
-  return (
+return (
 
-    <footer
-      className="
-      border-t
-      border-slate-200
-      bg-white
-      px-8
-      py-6
-      text-center
-      "
-    >
+<footer
 
-      <p className="text-sm text-slate-500">
+className="
+border-t
+border-slate-200
+bg-white
+px-10
+py-8
+"
 
-        © {new Date().getFullYear()} ZION OS
-
-      </p>
+>
 
 
-      <p
-        className="
-        mt-2
-        text-sm
-        text-slate-400
-        "
-      >
+<div
 
-        Powered by{" "}
+className="
+flex
+items-center
+justify-between
+"
 
-        <span
-          className="
-          font-semibold
-          text-[#0C1A3D]
-          "
-        >
-
-          Magestade Pura Digital
-
-        </span>
-
-      </p>
+>
 
 
-    </footer>
+<div>
 
-  );
+<p
+
+className="
+text-sm
+font-semibold
+text-[#0C1A3D]
+"
+
+>
+ZION OS
+</p>
+
+
+<p
+
+className="
+text-xs
+text-slate-500
+mt-1
+"
+
+>
+Global Adventist Digital Ecosystem
+</p>
+
+
+</div>
+
+
+
+<div>
+
+<p
+
+className="
+text-sm
+text-slate-500
+"
+
+>
+© {new Date().getFullYear()} ZION OS
+</p>
+
+
+<p
+
+className="
+text-xs
+text-slate-400
+mt-1
+text-right
+"
+
+>
+Powered by Magestade Pura Digital
+</p>
+
+
+</div>
+
+
+
+</div>
+
+
+</footer>
+
+)
 
 }

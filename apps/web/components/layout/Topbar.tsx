@@ -1,5 +1,6 @@
-import LanguageSelector
-from "@/components/language/LanguageSelector";
+"use client";
+
+import LanguageSelector from "@/components/language/LanguageSelector";
 
 
 export default function Topbar(){
@@ -10,13 +11,14 @@ return (
 <header
 
 className="
-h-20
+h-24
 bg-white
 border-b
+border-slate-200
+px-10
 flex
 items-center
 justify-between
-px-8
 "
 
 >
@@ -26,9 +28,10 @@ px-8
 
 <h2
 className="
-font-bold
-text-xl
+text-2xl
+font-semibold
 text-[#0C1A3D]
+tracking-wide
 "
 >
 ZION OS
@@ -39,6 +42,7 @@ ZION OS
 className="
 text-sm
 text-slate-500
+mt-1
 "
 >
 Global Adventist Digital Ecosystem
@@ -49,12 +53,15 @@ Global Adventist Digital Ecosystem
 
 
 
+
 <div
+
 className="
 flex
 items-center
-gap-4
+gap-6
 "
+
 >
 
 
@@ -63,24 +70,65 @@ gap-4
 
 
 <div
+
 className="
-w-10
-h-10
+flex
+items-center
+gap-4
+"
+
+>
+
+
+<div
+
+className="
+h-12
+w-12
 rounded-full
 bg-[#0C1A3D]
-text-white
 flex
 items-center
 justify-center
+text-white
+font-semibold
 "
+
 >
 E
 </div>
 
 
+<div>
+
+<p
+className="
+text-sm
+font-semibold
+text-[#0C1A3D]
+"
+>
+Edgar
+</p>
+
+
+<p
+className="
+text-xs
+text-slate-500
+"
+>
+Administrator
+</p>
+
 
 </div>
 
+
+</div>
+
+
+</div>
 
 
 </header>
