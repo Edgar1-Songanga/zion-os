@@ -1,39 +1,79 @@
+"use client";
+
 export default function DashboardHero(){
 
 return (
 
 <section
 className="
-bg-gradient-to-r
-from-[#0C1A3D]
-to-[#2563EB]
-rounded-3xl
+relative
+overflow-hidden
+rounded-[36px]
 p-10
-text-white
-shadow-xl
+bg-white/10
+backdrop-blur-2xl
+border
+border-white/20
+shadow-2xl
 "
 >
+
+<div
+className="
+absolute
+inset-0
+bg-gradient-to-br
+from-[#0C1A3D]
+via-[#162B63]
+to-[#D4AF37]/30
+opacity-90
+"
+/>
+
+
+<div
+className="
+relative
+z-10
+"
+>
+
+
+<p
+className="
+uppercase
+tracking-[0.35em]
+text-sm
+text-white/60
+"
+>
+ZION OS COMMAND CENTER
+</p>
 
 
 <h1
 className="
-text-4xl
+mt-4
+text-5xl
 font-bold
+text-white
 "
 >
-Welcome to ZION OS
+A Global Digital Ecosystem
 </h1>
 
 
 <p
 className="
-mt-3
-text-slate-200
+mt-5
+max-w-2xl
 text-lg
+text-white/70
 "
 >
-Global Adventist Digital Ecosystem
+Connecting churches, ministries, communities and people through one intelligent institutional platform.
 </p>
+
 
 
 <div
@@ -41,42 +81,55 @@ className="
 mt-8
 flex
 gap-4
+flex-wrap
 "
 >
 
 <div
 className="
+rounded-2xl
+px-6
+py-4
 bg-white/10
-rounded-xl
-px-5
-py-3
+border
+border-white/20
+text-white
 "
 >
-🌍 Global Platform
+Global Community
 </div>
 
 
 <div
 className="
+rounded-2xl
+px-6
+py-4
 bg-white/10
-rounded-xl
-px-5
-py-3
+border
+border-white/20
+text-white
 "
 >
-🙏 Spiritual Growth
+Spiritual Growth
 </div>
 
 
 <div
 className="
+rounded-2xl
+px-6
+py-4
 bg-white/10
-rounded-xl
-px-5
-py-3
+border
+border-white/20
+text-white
 "
 >
-🚀 Innovation
+Digital Mission
+</div>
+
+
 </div>
 
 

@@ -1,8 +1,8 @@
-import HeroCard from "@/components/dashboard/HeroCard";
-import StatsGrid from "@/components/dashboard/StatsGrid";
-import ActivityFeed from "@/components/dashboard/ActivityFeed";
-import ReputationCard from "@/components/dashboard/ReputationCard";
 import DashboardExperience from "@/components/dashboard/DashboardExperience";
+import DashboardHero from "@/components/dashboard/DashboardHero";
+import Metrics from "@/components/dashboard/Metrics";
+import ActivityPanel from "@/components/dashboard/ActivityPanel";
+import ReputationCard from "@/components/dashboard/ReputationCard";
 
 
 export default function Dashboard(){
@@ -13,24 +13,36 @@ return (
 <DashboardExperience>
 
 
-<HeroCard />
+<div
+className="
+space-y-8
+"
+>
 
 
-<StatsGrid />
+<DashboardHero />
+
+
+<Metrics />
 
 
 <div
 className="
 grid
-grid-cols-2
+grid-cols-1
+xl:grid-cols-2
 gap-8
-mt-8
 "
 >
 
-<ActivityFeed />
+<ActivityPanel />
+
 
 <ReputationCard />
+
+
+</div>
+
 
 </div>
 

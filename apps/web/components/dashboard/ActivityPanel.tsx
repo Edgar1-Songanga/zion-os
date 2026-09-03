@@ -1,61 +1,134 @@
-export default function ActivityPanel(){
+"use client";
 
-const activities=[
 
-"New church organization registered",
+const activities = [
 
-"500 members joined RESA",
+{
+title:"New organization registered",
+time:"2 minutes ago"
+},
 
-"Monthly report submitted",
+{
+title:"New RESA community created",
+time:"15 minutes ago"
+},
 
-"Bible study completed"
+{
+title:"Monthly institutional report submitted",
+time:"1 hour ago"
+},
+
+{
+title:"New spiritual testimony published",
+time:"3 hours ago"
+},
+
+{
+title:"New member connected",
+time:"Today"
+}
 
 ];
+
+
+export default function ActivityPanel(){
 
 
 return (
 
 <div
 className="
-bg-white
-rounded-3xl
+rounded-[32px]
 p-8
+bg-white/10
+backdrop-blur-2xl
 border
-border-slate-200
-mt-8
+border-white/20
+shadow-xl
 "
 >
 
+
 <h2
 className="
-text-xl
-font-bold
-text-[#0C1A3D]
+text-2xl
+font-semibold
+text-white
 "
 >
-Recent Activity
+Ecosystem Activity
 </h2>
+
+
+<p
+className="
+mt-2
+text-white/60
+"
+>
+Real-time movement across the ZION global network.
+</p>
+
 
 
 <div
 className="
-mt-6
+mt-8
 space-y-4
 "
 >
 
-{activities.map(activity=>(
+{activities.map((activity)=>(
 
 <div
-key={activity}
+key={activity.title}
 className="
-bg-slate-50
-rounded-xl
+flex
+items-center
+justify-between
+rounded-2xl
 p-4
+bg-white/5
+border
+border-white/10
 "
 >
 
-{activity}
+
+<div>
+
+<p
+className="
+text-white
+font-medium
+"
+>
+{activity.title}
+</p>
+
+
+<p
+className="
+text-sm
+text-white/50
+mt-1
+"
+>
+{activity.time}
+</p>
+
+</div>
+
+
+<div
+className="
+h-3
+w-3
+rounded-full
+bg-[#D4AF37]
+"
+/>
+
 
 </div>
 

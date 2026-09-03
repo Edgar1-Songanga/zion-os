@@ -1,32 +1,36 @@
-export default function Metrics(){
+"use client";
 
-const metrics=[
+
+const metrics = [
 
 {
 title:"Members",
 value:"12.5M",
-icon:"👥"
+description:"Registered community members"
 },
 
 {
 title:"Organizations",
 value:"180K",
-icon:"🏛️"
+description:"Churches and institutions"
 },
 
 {
 title:"RESA Users",
 value:"2.4M",
-icon:"🌐"
+description:"Connected communities"
 },
 
 {
 title:"Bible Studies",
 value:"850K",
-icon:"📖"
+description:"Active spiritual journeys"
 }
 
 ];
+
+
+export default function Metrics(){
 
 
 return (
@@ -34,40 +38,61 @@ return (
 <div
 className="
 grid
-grid-cols-4
+grid-cols-1
+md:grid-cols-2
+xl:grid-cols-4
 gap-6
 mt-8
 "
 >
 
-{metrics.map(item=>(
+{metrics.map((item)=>(
 
 <div
 key={item.title}
 className="
-bg-white
-rounded-3xl
+relative
+overflow-hidden
+rounded-[32px]
 p-6
-shadow-sm
+bg-white/10
+backdrop-blur-2xl
 border
-border-slate-200
+border-white/20
+shadow-xl
+transition-all
+duration-500
+hover:scale-[1.02]
 "
 >
 
 
 <div
 className="
-text-3xl
+absolute
+inset-0
+bg-gradient-to-br
+from-[#D4AF37]/20
+via-transparent
+to-transparent
+"
+/>
+
+
+<div
+className="
+relative
+z-10
 "
 >
-{item.icon}
-</div>
 
 
 <p
 className="
-mt-4
-text-slate-500
+text-sm
+uppercase
+tracking-[0.25em]
+text-white/50
 "
 >
 {item.title}
@@ -76,14 +101,28 @@ text-slate-500
 
 <h2
 className="
-text-3xl
+mt-4
+text-4xl
 font-bold
-text-[#0C1A3D]
-mt-2
+text-white
 "
 >
 {item.value}
 </h2>
+
+
+<p
+className="
+mt-3
+text-sm
+text-white/60
+"
+>
+{item.description}
+</p>
+
+
+</div>
 
 
 </div>
