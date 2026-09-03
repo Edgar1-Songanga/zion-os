@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+
+:root {
+
+  /* ZION Colors */
+
+  --zion-primary: #0C1A3D;
+
+  --zion-gold: #D4AF37;
+
+  --zion-blue: #3B82F6;
+
+  --zion-light: #F8FAFC;
+
+  --zion-dark: #020617;
+
+
+  /* Surfaces */
+
+  --card: #FFFFFF;
+
+  --border: #E2E8F0;
+
+
+  /* Text */
+
+  --text-primary: #0F172A;
+
+  --text-secondary: #64748B;
+
+}
+
+
+
+body {
+
+  background: var(--zion-light);
+
+  color: var(--text-primary);
+
+  font-family: Arial, Helvetica, sans-serif;
+
+}
+:root {
+
+--zion-primary:#0C1A3D;
+--zion-gold:#D4AF37;
+--zion-blue:#2563EB;
+
+}
+
+
+body{
+
+background:
+linear-gradient(
+135deg,
+#F8FAFC 0%,
+#EEF2FF 100%
+);
+
+}
