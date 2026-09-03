@@ -1,57 +1,152 @@
+"use client";
+
+
 import StatCard from "@/components/ui/StatCard";
 
 
-export default function StatsGrid(){
+interface DashboardMetric {
 
-const stats=[
+label:string;
+
+value:string;
+
+description:string;
+
+trend?:string;
+
+}
+
+
+const metrics:DashboardMetric[] = [
 
 {
-title:"Members",
-value:"12.5M"
+label:"People Connected",
+value:"12.5M",
+description:"Members across the global ZION ecosystem",
+trend:"+8.4%"
 },
 
 {
-title:"Organizations",
-value:"245K"
+label:"Organizations",
+value:"245K",
+description:"Churches, missions and institutions connected",
+trend:"+5.2%"
 },
 
 {
-title:"Countries",
-value:"180"
+label:"Countries",
+value:"180",
+description:"Countries reached by the digital platform",
+trend:"+12"
 },
 
 {
-title:"RESA Communities",
-value:"98K"
+label:"RESA Communities",
+value:"98K",
+description:"Active spiritual communities",
+trend:"+6.7%"
 }
 
 ];
 
 
+
+export default function StatsGrid(){
+
+
 return (
 
-<div
+<section
+
 className="
-grid
-grid-cols-4
-gap-6
-mt-8
+mt-10
 "
+
 >
 
-{stats.map(stat=>(
+
+<div
+
+className="
+mb-6
+"
+
+>
+
+<h2
+
+className="
+text-2xl
+font-semibold
+text-white
+"
+
+>
+
+Global Impact
+
+</h2>
+
+
+<p
+
+className="
+text-white/70
+mt-2
+"
+
+>
+
+Real-time vision of the ZION global ecosystem
+
+</p>
+
+
+</div>
+
+
+
+<div
+
+className="
+grid
+grid-cols-1
+md:grid-cols-2
+xl:grid-cols-4
+gap-6
+"
+
+>
+
+
+{metrics.map((metric)=>(
+
 
 <StatCard
-key={stat.title}
-title={stat.title}
-value={stat.value}
+
+key={metric.label}
+
+label={metric.label}
+
+value={metric.value}
+
+description={
+
+`${metric.description} ${metric.trend ?? ""}`
+
+}
+
 />
+
 
 ))}
 
 
 </div>
 
-)
+
+</section>
+
+);
 
 }

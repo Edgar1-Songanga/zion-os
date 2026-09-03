@@ -3,24 +3,15 @@
 
 interface StatCardProps {
 
-
-title?:string;
-
-
-label?:string;
-
+label:string;
 
 value:string;
 
-
 description?:string;
-
 
 icon?:React.ReactNode;
 
-
 className?:string;
-
 
 }
 
@@ -28,65 +19,40 @@ className?:string;
 
 export default function StatCard({
 
-
-title,
-
-
 label,
-
 
 value,
 
-
 description,
-
 
 icon,
 
-
 className=""
-
 
 }:StatCardProps){
 
 
-const heading = title || label || "";
-
-
-
 return (
-
 
 <div
 
 className={`
-
+group
 relative
-
 overflow-hidden
-
-rounded-[28px]
-
-p-6
-
-backdrop-blur-xl
-
+rounded-[32px]
+p-7
+min-h-[220px]
 bg-white/10
-
+backdrop-blur-2xl
 border
-
 border-white/20
-
-shadow-xl
-
+shadow-2xl
 transition-all
-
 duration-500
-
-hover:scale-[1.02]
-
+hover:-translate-y-2
+hover:bg-white/15
 ${className}
-
 `}
 
 >
@@ -95,19 +61,13 @@ ${className}
 <div
 
 className="
-
 absolute
-
 inset-0
-
 bg-gradient-to-br
-
 from-white/20
-
+via-transparent
 to-transparent
-
-pointer-events-none
-
+opacity-70
 "
 
 />
@@ -117,11 +77,32 @@ pointer-events-none
 <div
 
 className="
+absolute
+-right-20
+-top-20
+h-40
+w-40
+rounded-full
+bg-white/20
+blur-3xl
+group-hover:scale-150
+transition-transform
+duration-700
+"
 
+/>
+
+
+
+<div
+
+className="
 relative
-
 z-10
-
+flex
+flex-col
+justify-between
+h-full
 "
 
 >
@@ -131,7 +112,10 @@ z-10
 
 <div
 
-className="mb-4 text-2xl"
+className="
+text-3xl
+mb-5
+"
 
 >
 
@@ -143,25 +127,52 @@ className="mb-4 text-2xl"
 
 
 
-<h3 className="text-sm text-slate-500">
+<p
 
-{heading}
+className="
+uppercase
+tracking-[0.25em]
+text-xs
+text-white/60
+"
 
-</h3>
+>
 
-
-
-<p className="text-3xl font-bold text-[#0C1A3D]">
-
-{value}
+{label}
 
 </p>
 
 
 
+<h3
+
+className="
+mt-4
+text-5xl
+font-bold
+text-white
+"
+
+>
+
+{value}
+
+</h3>
+
+
+
 {description && (
 
-<p className="mt-2 text-sm text-slate-500">
+<p
+
+className="
+mt-5
+text-sm
+text-white/70
+leading-relaxed
+"
+
+>
 
 {description}
 
@@ -175,8 +186,6 @@ className="mb-4 text-2xl"
 
 </div>
 
-
 );
-
 
 }
