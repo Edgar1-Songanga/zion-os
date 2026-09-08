@@ -1,3 +1,16 @@
+export type MinistryStatus = "ACTIVE" | "INACTIVE";
+
+export type ProgramStatus =
+  | "ACTIVE"
+  | "COMPLETED"
+  | "PLANNED";
+
+export type ReportStatus =
+  | "PENDING"
+  | "APPROVED"
+  | "REJECTED";
+
+
 export interface MinistryOrganization {
   church?: string;
   district?: string;
@@ -7,7 +20,8 @@ export interface MinistryOrganization {
   generalConference?: string;
 }
 
-export interface MinistryLeadership {
+
+export interface MinistryLeader {
   id: string;
   name: string;
   role: string;
@@ -15,19 +29,24 @@ export interface MinistryLeadership {
   verified?: boolean;
 }
 
+
 export interface MinistryProgram {
   id: string;
   name: string;
   description?: string;
-  status: "ACTIVE" | "COMPLETED" | "PLANNED";
+  status: ProgramStatus;
+  startDate?: string;
+  endDate?: string;
 }
+
 
 export interface MinistryReport {
   id: string;
   title: string;
-  status: "PENDING" | "APPROVED" | "REJECTED";
-  date: string;
+  status: ReportStatus;
+  submittedAt?: string;
 }
+
 
 export interface MinistryMetrics {
   members: number;
@@ -38,19 +57,20 @@ export interface MinistryMetrics {
   impact: number;
 }
 
+
 export interface Ministry {
   id: string;
 
   name: string;
   department: string;
   description: string;
-  status: "ACTIVE" | "INACTIVE";
+  status: MinistryStatus;
 
   organization: MinistryOrganization;
 
   metrics: MinistryMetrics;
 
-  leadership: MinistryLeadership[];
+  leadership: MinistryLeader[];
 
   programs: MinistryProgram[];
 
