@@ -1,133 +1,175 @@
 "use client";
 
-
 import Card from "../ui/Card";
-
 import Badge from "../ui/Badge";
 
 
-
-interface ActivityCardProps {
-
-
-title:string;
-
-type:string;
-
-date:string;
-
-location:string;
-
-participants:number;
-
-status?:string;
-
+interface MinistryActivity {
+  id: string;
+  title: string;
+  description?: string;
+  category: string;
+  date: string;
+  location?: string;
+  participants: number;
+  status: "PLANNED" | "ACTIVE" | "COMPLETED";
 }
 
+
+interface ActivityCardProps {
+  activity: MinistryActivity;
+}
 
 
 export default function ActivityCard({
+  activity,
+}: ActivityCardProps) {
 
-title,
+  return (
+    <Card>
 
-type,
-
-date,
-
-location,
-
-participants,
-
-status="ACTIVE"
-
-}:ActivityCardProps){
+      <div className="space-y-5">
 
 
-
-return (
-
-<Card>
-
-
-<div className="
-flex
-justify-between
-items-start
-">
+        <div className="
+          flex
+          justify-between
+          items-start
+          gap-4
+        ">
 
 
-<div>
+          <div>
+
+            <p className="
+              text-sm
+              uppercase
+              tracking-wide
+              text-[#D4AF37]
+              font-semibold
+            ">
+              {activity.category}
+            </p>
 
 
-<h3 className="
-text-2xl
-font-bold
-text-[#0C1A3D]
-">
-
-{title}
-
-</h3>
-
+            <h3 className="
+              mt-2
+              text-xl
+              font-bold
+              text-[#0C1A3D]
+            ">
+              {activity.title}
+            </h3>
 
 
-<p className="mt-2 text-slate-500">
-
-{type}
-
-</p>
+          </div>
 
 
-</div>
+          <Badge
+            label={activity.status}
+            type="gold"
+          />
+
+
+        </div>
 
 
 
-<Badge
+        {activity.description && (
 
-label={status}
+          <p className="
+            text-slate-500
+          ">
+            {activity.description}
+          </p>
 
-type="success"
-
-/>
-
-
-</div>
-
+        )}
 
 
-<div className="
-mt-6
-space-y-2
-text-slate-600
-">
+
+        <div className="
+          grid
+          md:grid-cols-3
+          gap-4
+          pt-4
+          border-t
+        ">
 
 
-<p>
+          <div>
 
-📅 {date}
-
-</p>
-
-
-<p>
-
-📍 {location}
-
-</p>
+            <p className="
+              text-xs
+              text-slate-400
+            ">
+              Data
+            </p>
 
 
-<p>
+            <p className="
+              mt-1
+              font-semibold
+              text-[#0C1A3D]
+            ">
+              {activity.date}
+            </p>
 
-👥 {participants} participantes
 
-</p>
-
-
-</div>
+          </div>
 
 
-</Card>
 
-);
+          <div>
 
-}
+            <p className="
+              text-xs
+              text-slate-400
+            ">
+              Participantes
+            </p>
+
+
+            <p className="
+              mt-1
+              font-semibold
+              text-[#0C1A3D]
+            ">
+              {activity.participants}
+            </p>
+
+
+          </div>
+
+
+
+          <div>
+
+            <p className="
+              text-xs
+              text-slate-400
+            ">
+              Local
+            </p>
+
+
+            <p className="
+              mt-1
+              font-semibold
+              text-[#0C1A3D]
+            ">
+              {activity.location ?? "-"}
+            </p>
+
+
+          </div>
+
+
+        </div>
+
+
+      </div>
+
+
+    </Card>
+  );
+              }
