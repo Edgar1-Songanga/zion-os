@@ -1,128 +1,207 @@
 "use client";
 
-
 import Card from "../ui/Card";
-
 import Badge from "../ui/Badge";
 
+import { Ministry } from "./types";
 
 
 interface MinistryCardProps {
-
-
-name:string;
-
-description:string;
-
-leader:string;
-
-members:number;
-
-status?:string;
-
+  ministry: Ministry;
+  onOpen?: (ministry: Ministry) => void;
 }
 
 
-
 export default function MinistryCard({
+  ministry,
+  onOpen,
+}: MinistryCardProps) {
 
-name,
+  return (
+    <Card>
 
-description,
-
-leader,
-
-members,
-
-status="ACTIVE"
-
-}:MinistryCardProps){
+      <div className="space-y-6">
 
 
-return (
-
-<Card>
+        <div className="flex justify-between items-start gap-4">
 
 
-<div className="flex justify-between items-start">
+          <div>
+
+            <p className="
+              text-sm
+              uppercase
+              tracking-wide
+              text-[#D4AF37]
+              font-semibold
+            ">
+              {ministry.department}
+            </p>
 
 
-<div>
+            <h2 className="
+              mt-2
+              text-2xl
+              font-bold
+              text-[#0C1A3D]
+            ">
+              {ministry.name}
+            </h2>
 
 
-<h2 className="text-2xl font-bold text-[#0C1A3D]">
-
-{name}
-
-</h2>
-
-
-<p className="mt-2 text-slate-500">
-
-{description}
-
-</p>
+            <p className="
+              mt-2
+              text-slate-500
+              line-clamp-2
+            ">
+              {ministry.description}
+            </p>
 
 
-</div>
-
-
-<Badge
-
-label={status}
-
-type="gold"
-
-/>
-
-
-</div>
+          </div>
 
 
 
-<div className="mt-6 space-y-3">
+          <Badge
+            label={ministry.status}
+            type="gold"
+          />
 
 
-<p>
-
-<strong>Líder:</strong> {leader}
-
-</p>
-
-
-<p>
-
-<strong>Membros:</strong> {members}
-
-</p>
-
-
-</div>
+        </div>
 
 
 
-<button
-
-className="
-mt-6
-px-6
-py-3
-rounded-full
-bg-[#0C1A3D]
-text-white
-transition
-hover:scale-105
-"
-
->
-
-Abrir Ministério
-
-</button>
+        <div className="
+          grid
+          grid-cols-3
+          gap-4
+        ">
 
 
-</Card>
+          <div>
 
-);
+            <p className="
+              text-xs
+              text-slate-400
+            ">
+              Membros
+            </p>
 
+
+            <p className="
+              mt-1
+              text-xl
+              font-bold
+              text-[#0C1A3D]
+            ">
+              {ministry.metrics.members}
+            </p>
+
+          </div>
+
+
+
+          <div>
+
+            <p className="
+              text-xs
+              text-slate-400
+            ">
+              Líderes
+            </p>
+
+
+            <p className="
+              mt-1
+              text-xl
+              font-bold
+              text-[#0C1A3D]
+            ">
+              {ministry.metrics.leaders}
+            </p>
+
+          </div>
+
+
+
+          <div>
+
+            <p className="
+              text-xs
+              text-slate-400
+            ">
+              Programas
+            </p>
+
+
+            <p className="
+              mt-1
+              text-xl
+              font-bold
+              text-[#0C1A3D]
+            ">
+              {ministry.metrics.programs}
+            </p>
+
+          </div>
+
+
+        </div>
+
+
+
+        <div className="
+          border-t
+          pt-4
+        ">
+
+
+          <p className="
+            text-sm
+            text-slate-400
+          ">
+            Organização
+          </p>
+
+
+          <p className="
+            mt-1
+            font-medium
+            text-[#0C1A3D]
+          ">
+
+            {ministry.organization.church ?? "Organização não definida"}
+
+          </p>
+
+
+        </div>
+
+
+
+        <button
+          type="button"
+          onClick={() => onOpen?.(ministry)}
+          className="
+            w-full
+            rounded-xl
+            bg-[#0C1A3D]
+            px-6
+            py-3
+            text-white
+            font-semibold
+            transition
+            hover:opacity-90
+          "
+        >
+          Abrir Ministério
+        </button>
+
+
+      </div>
+
+
+    </Card>
+  );
 }
