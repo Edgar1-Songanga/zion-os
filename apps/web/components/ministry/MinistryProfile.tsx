@@ -1,171 +1,216 @@
 "use client";
 
-
 import Card from "../ui/Card";
-
 import Badge from "../ui/Badge";
 
+import { Ministry } from "./types";
 
 
 interface MinistryProfileProps {
-
-
-name:string;
-
-mission:string;
-
-leader:string;
-
-department:string;
-
-members:number;
-
+  ministry: Ministry;
 }
-
 
 
 export default function MinistryProfile({
+  ministry,
+}: MinistryProfileProps) {
 
-name,
+  return (
+    <div className="space-y-6">
 
-mission,
 
-leader,
+      <Card>
 
-department,
+        <div>
 
-members
+          <Badge
+            label={ministry.department}
+            type="gold"
+          />
 
-}:MinistryProfileProps){
 
+          <h1 className="
+            mt-4
+            text-4xl
+            font-bold
+            text-[#0C1A3D]
+          ">
+            {ministry.name}
+          </h1>
 
 
-return (
+          <p className="
+            mt-4
+            text-lg
+            text-slate-600
+            max-w-3xl
+          ">
+            {ministry.description}
+          </p>
 
-<div className="space-y-6">
 
+          <div className="mt-6">
 
-<Card>
+            <Badge
+              label={ministry.status}
+              type="gold"
+            />
 
+          </div>
 
-<div>
 
+        </div>
 
-<Badge
+      </Card>
 
-label={department}
 
-type="gold"
 
-/>
+      <div className="
+        grid
+        md:grid-cols-3
+        gap-6
+      ">
 
 
+        <Card>
 
-<h1 className="
-mt-4
-text-4xl
-font-bold
-text-[#0C1A3D]
-">
+          <h3 className="font-bold text-[#0C1A3D]">
+            Liderança
+          </h3>
 
-{name}
 
-</h1>
+          <p className="mt-3 text-slate-600">
 
+            {ministry.leadership.length} líderes registados.
 
+          </p>
 
-<p className="
-mt-4
-text-slate-600
-text-lg
-">
+        </Card>
 
-{mission}
 
-</p>
 
+        <Card>
 
-</div>
+          <h3 className="font-bold text-[#0C1A3D]">
+            Membros
+          </h3>
 
 
-</Card>
+          <p className="
+            mt-3
+            text-3xl
+            font-bold
+            text-[#0C1A3D]
+          ">
 
+            {ministry.metrics.members}
 
+          </p>
 
-<div className="
-grid
-md:grid-cols-3
-gap-6
-">
+        </Card>
 
 
-<Card>
 
+        <Card>
 
-<h3 className="font-bold">
+          <h3 className="font-bold text-[#0C1A3D]">
+            Estado
+          </h3>
 
-Liderança
 
-</h3>
+          <p className="mt-3 text-slate-600">
 
+            {ministry.status}
 
-<p className="mt-3">
+          </p>
 
-{leader}
+        </Card>
 
-</p>
 
+      </div>
 
-</Card>
 
 
+      <Card>
 
-<Card>
+        <h2 className="
+          text-xl
+          font-bold
+          text-[#0C1A3D]
+        ">
+          Organizational Network
+        </h2>
 
 
-<h3 className="font-bold">
+        <div className="
+          mt-5
+          grid
+          md:grid-cols-2
+          gap-4
+        ">
 
-Membros
 
-</h3>
+          <div>
 
+            <p className="text-sm text-slate-400">
+              Igreja Local
+            </p>
 
-<p className="mt-3 text-3xl font-bold">
+            <p className="font-semibold">
+              {ministry.organization.church ?? "-"}
+            </p>
 
-{members}
+          </div>
 
-</p>
 
 
-</Card>
+          <div>
 
+            <p className="text-sm text-slate-400">
+              Distrito
+            </p>
 
+            <p className="font-semibold">
+              {ministry.organization.district ?? "-"}
+            </p>
 
-<Card>
+          </div>
 
 
-<h3 className="font-bold">
 
-Estado
+          <div>
 
-</h3>
+            <p className="text-sm text-slate-400">
+              Conferência
+            </p>
 
+            <p className="font-semibold">
+              {ministry.organization.conference ?? "-"}
+            </p>
 
-<p className="mt-3">
+          </div>
 
-Activo
 
-</p>
 
+          <div>
 
-</Card>
+            <p className="text-sm text-slate-400">
+              Divisão
+            </p>
 
+            <p className="font-semibold">
+              {ministry.organization.division ?? "-"}
+            </p>
 
-</div>
+          </div>
 
 
-</div>
+        </div>
 
-);
 
-}
+      </Card>
+
+
+    </div>
+  );
+            }
