@@ -66,6 +66,31 @@ export class GovernanceController {
     return this.gov.recordRoomEvent(this.token(a), m, b.event_type, b.payload);
   }
 
+  @Get('meetings/:meetingId/controls')
+  controls(@Headers('authorization') a: string | undefined, @Param('meetingId') m: string) {
+    return this.gov.controls(this.token(a), m);
+  }
+
+  @Post('meetings/:meetingId/controls/self')
+  setSelfControl(@Headers('authorization') a: string | undefined, @Param('meetingId') m: string, @Body() b: any) {
+    return this.gov.setSelfControl(this.token(a), m, b);
+  }
+
+  @Post('meetings/:meetingId/controls/:userId')
+  moderateParticipant(@Headers('authorization') a: string | undefined, @Param('meetingId') m: string, @Param('userId') u: string, @Body() b: any) {
+    return this.gov.moderateParticipant(this.token(a), m, u, b);
+  }
+
+  @Post('meetings/:meetingId/room/lock')
+  lockRoom(@Headers('authorization') a: string | undefined, @Param('meetingId') m: string, @Body() b: { locked: boolean; reason?: string }) {
+    return this.gov.lockRoom(this.token(a), m, b.locked, b.reason);
+  }
+
+  @Post('meetings/:meetingId/room/recording')
+  prepareRecording(@Headers('authorization') a: string | undefined, @Param('meetingId') m: string, @Body() b: { enabled: boolean }) {
+    return this.gov.prepareRecording(this.token(a), m, b.enabled);
+  }
+
   @Get('meetings/:meetingId/chat')
   chat(@Headers('authorization') a: string | undefined, @Param('meetingId') m: string) {
     return this.gov.chat(this.token(a), m);
