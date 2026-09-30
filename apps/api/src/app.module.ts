@@ -6,12 +6,20 @@ import { GovernanceModule } from './governance/governance.module';
 import { IdentityModule } from './identity/identity.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { PlatformModule } from './platform/platform.module';
+import { ResaModule } from './resa/resa.module';
+import { SpiritualModule } from './spiritual/spiritual.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { AiModule } from './ai/ai.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
     PlatformModule,
     IdentityModule,
+    SpiritualModule,
+    ResaModule,
+    NotificationsModule,
+    AiModule,
     OrganizationsModule,
     GovernanceModule,
     AuditModule,
