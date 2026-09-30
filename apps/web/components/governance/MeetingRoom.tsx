@@ -28,6 +28,7 @@ export default function MeetingRoom({ meetingId }: Props) {
 
   useEffect(() => {
     let active = true;
+    let controlsTimer: number | undefined;
     async function start() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -92,8 +93,7 @@ export default function MeetingRoom({ meetingId }: Props) {
           setCamera(mine.camera_enabled);
         };
         await syncControls();
-        const controlsTimer = window.setInterval(() => { void syncControls(); }, 2000);
-        return () => window.clearInterval(controlsTimer);
+        controlsTimer = window.setInterval(() => { void syncControls(); }, 2000);
       } catch (cause) {
         if (!active) return;
         setError(cause instanceof Error ? cause.message : "Não foi possível iniciar a reunião.");
@@ -103,6 +103,7 @@ export default function MeetingRoom({ meetingId }: Props) {
     void start();
     return () => {
       active = false;
+      if (controlsTimer !== undefined) window.clearInterval(controlsTimer);
       void sessionRef.current?.close();
       sessionRef.current = null;
       void realtimeRef.current?.unsubscribe();
