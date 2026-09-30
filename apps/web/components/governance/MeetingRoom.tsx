@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { createMeetingRealtime } from "@/lib/governance/meeting-realtime";
 import { getMeetingIceConfig } from "@/lib/governance/ice";
 import { WebRtcSession } from "@/lib/governance/webrtc-session";
+import { getMeetingParticipants, moderateMeetingParticipant, setSelfMeetingControl, type MeetingParticipant } from "@/lib/governance/meeting-api";
 
 type Props = { meetingId: string };
 
@@ -19,6 +20,8 @@ export default function MeetingRoom({ meetingId }: Props) {
   const [sharing, setSharing] = useState(false);
   const [status, setStatus] = useState("A preparar a sala…");
   const [error, setError] = useState<string | null>(null);
+  const [participants, setParticipants] = useState<MeetingParticipant[]>([]);
+  const [isModerator, setIsModerator] = useState(false);
 
   const supabase = useMemo(() => createClient(), []);
 
@@ -28,6 +31,10 @@ export default function MeetingRoom({ meetingId }: Props) {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.user) throw new Error("Sessão de autenticação não encontrada.");
+
+        const participantRows = await getMeetingParticipants(meetingId);
+        setParticipants(participantRows);
+        setIsModerator(participantRows.some((p) => p.user_id === session.user.id && ["HOST", "MODERATOR"].includes(p.participant_role) && ["INVITED", "ACCEPTED", "PRESENT"].includes(p.status)));
 
         const realtime = await createMeetingRealtime(meetingId);
         if (!active) { await realtime.unsubscribe(); return; }
@@ -88,6 +95,7 @@ export default function MeetingRoom({ meetingId }: Props) {
     sessionRef.current?.setAudioEnabled(next);
     setMic(next);
     void realtimeRef.current?.trackPresence({ mic: next, camera, sharing });
+    void setSelfMeetingControl(meetingId, { mic_muted: !next }).catch((cause) => setError(cause instanceof Error ? cause.message : "Falha ao guardar o microfone."));
   }
 
   function toggleCamera() {
@@ -95,6 +103,7 @@ export default function MeetingRoom({ meetingId }: Props) {
     sessionRef.current?.setVideoEnabled(next);
     setCamera(next);
     void realtimeRef.current?.trackPresence({ mic, camera: next, sharing });
+    void setSelfMeetingControl(meetingId, { camera_enabled: next }).catch((cause) => setError(cause instanceof Error ? cause.message : "Falha ao guardar a câmara."));
   }
 
   async function toggleScreenShare() {
@@ -103,10 +112,12 @@ export default function MeetingRoom({ meetingId }: Props) {
         await sessionRef.current?.stopScreenShare();
         setSharing(false);
         void realtimeRef.current?.trackPresence({ mic, camera, sharing: false });
+        void setSelfMeetingControl(meetingId, { screen_sharing: false });
       } else {
         await sessionRef.current?.startScreenShare();
         setSharing(true);
         void realtimeRef.current?.trackPresence({ mic, camera, sharing: true });
+        void setSelfMeetingControl(meetingId, { screen_sharing: true });
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Não foi possível partilhar o ecrã.");
@@ -154,6 +165,31 @@ export default function MeetingRoom({ meetingId }: Props) {
             {sharing ? "Parar partilha" : "Partilhar ecrã"}
           </button>
         </div>
+
+        {isModerator && (
+          <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold">Controlo do moderador</h2>
+              <span className="text-xs text-slate-400">{participants.length} participante(s)</span>
+            </div>
+            <div className="space-y-2">
+              {participants.filter((p) => p.user_id !== (sessionRef.current ? undefined : "")).map((participant) => (
+                <div key={participant.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/10 px-3 py-2">
+                  <div>
+                    <p className="text-sm">{participant.user_id.slice(0, 8)}</p>
+                    <p className="text-xs text-slate-500">{participant.participant_role} · {participant.status}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => void moderateMeetingParticipant(meetingId, participant.user_id, { mic_muted: true }).then(() => setStatus("Microfone do participante silenciado")).catch((cause) => setError(cause instanceof Error ? cause.message : "Falha ao moderar."))} className="rounded-lg border border-white/10 px-3 py-2 text-xs">Silenciar</button>
+                    <button onClick={() => void moderateMeetingParticipant(meetingId, participant.user_id, { camera_enabled: false }).then(() => setStatus("Câmara do participante desligada")).catch((cause) => setError(cause instanceof Error ? cause.message : "Falha ao moderar."))} className="rounded-lg border border-white/10 px-3 py-2 text-xs">Desligar câmara</button>
+                    <button onClick={() => void moderateMeetingParticipant(meetingId, participant.user_id, { removed: true }).then(() => setStatus("Participante removido")).catch((cause) => setError(cause instanceof Error ? cause.message : "Falha ao moderar."))} className="rounded-lg border border-red-400/20 px-3 py-2 text-xs text-red-200">Remover</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )
+      </div>
       </div>
     </main>
   );
