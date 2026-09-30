@@ -111,3 +111,30 @@ create index if not exists idx_role_permissions_permission on public.role_permis
 
 -- RLS and policy definitions are maintained with the live foundation setup.
 -- This file is the versioned source snapshot and should be updated alongside future migrations.
+
+
+-- Identity bootstrap RLS
+create policy "memberships_insert_owner_bootstrap"
+on public.organization_memberships
+for insert
+to authenticated
+with check (
+  user_id = (select auth.uid())
+  and exists (
+    select 1 from public.organizations o
+    where o.id = organization_id
+      and o.created_by = (select auth.uid())
+  )
+);
+
+create policy "audit_insert_actor"
+on public.audit_logs
+for insert
+to authenticated
+with check (
+  actor_user_id = (select auth.uid())
+  and (
+    organization_id is null
+    or private.is_org_member(organization_id)
+  )
+);
