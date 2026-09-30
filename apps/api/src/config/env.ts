@@ -1,7 +1,11 @@
-export type ZionIceServer = { urls: string | string[]; username?: string; credential?: string };\n\nexport const env = {
+export type ZionIceServer = { urls: string | string[]; username?: string; credential?: string };
+
+export const env = {
   supabaseUrl: process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
   supabasePublishableKey: process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '',
   iceServersJson: process.env.ZION_ICE_SERVERS_JSON ?? '',
+  sfuUrl: process.env.ZION_SFU_URL ?? '',
+  sfuControlSecret: process.env.ZION_SFU_CONTROL_SECRET ?? '',
 };
 
 export function assertSupabaseConfig(): void {
