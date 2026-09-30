@@ -110,13 +110,119 @@ export class GovernanceService {
   async recordRoomEvent(token: string, meetingId: string, eventType: string, payload: unknown = {}) {
     const a = await this.actor(token);
     const allowed = [
-      'JOINED','LEFT','MUTED','UNMUTED','CAMERA_ON','CAMERA_OFF',
+      'ROOM_OPENED','ROOM_CLOSED','JOINED','LEFT','MUTED','UNMUTED','CAMERA_ON','CAMERA_OFF',
       'HAND_RAISED','HAND_LOWERED','SCREEN_SHARE_STARTED','SCREEN_SHARE_STOPPED',
       'MODERATOR_ACTION',
     ];
     if (!allowed.includes(eventType)) throw new BadRequestException('Invalid room event');
     const rows = await this.db.post<any[]>('governance_meeting_room_events', token, {
       meeting_id: meetingId, user_id: a.id, event_type: eventType, payload,
+    });
+    return rows[0];
+  }
+
+  async controls(token: string, meetingId: string) {
+    return this.db.get('governance_meeting_participant_controls', token,
+      `?select=*&meeting_id=eq.${meetingId}&order=created_at.asc`);
+  }
+
+  async setSelfControl(token: string, meetingId: string, input: {
+    mic_muted?: boolean;
+    camera_enabled?: boolean;
+    screen_sharing?: boolean;
+    hand_raised?: boolean;
+  }) {
+    const a = await this.actor(token);
+    const participant = (await this.db.get<any[]>('governance_meeting_participants', token,
+      `?select=id,status,participant_role&meeting_id=eq.${meetingId}&user_id=eq.${a.id}&limit=1`))[0];
+    if (!participant || !['INVITED','ACCEPTED','PRESENT'].includes(participant.status)) {
+      throw new BadRequestException('You are not an active meeting participant');
+    }
+    const body: Record<string, unknown> = {
+      meeting_id: meetingId,
+      user_id: a.id,
+      updated_by: a.id,
+    };
+    for (const key of ['mic_muted','camera_enabled','screen_sharing','hand_raised'] as const) {
+      if (input[key] !== undefined) body[key] = input[key];
+    }
+    const rows = await this.db.upsert<any[]>('governance_meeting_participant_controls', token, body,
+      '?on_conflict=meeting_id,user_id');
+    return rows[0];
+  }
+
+  async moderateParticipant(token: string, meetingId: string, targetUserId: string, input: {
+    mic_muted?: boolean;
+    camera_enabled?: boolean;
+    removed?: boolean;
+  }) {
+    const a = await this.actor(token);
+    const actor = (await this.db.get<any[]>('governance_meeting_participants', token,
+      `?select=id,participant_role,status&meeting_id=eq.${meetingId}&user_id=eq.${a.id}&limit=1`))[0];
+    if (!actor || !['HOST','MODERATOR'].includes(actor.participant_role) ||
+        !['INVITED','ACCEPTED','PRESENT'].includes(actor.status)) {
+      throw new BadRequestException('Host or moderator privileges are required');
+    }
+    const target = (await this.db.get<any[]>('governance_meeting_participants', token,
+      `?select=id,status&meeting_id=eq.${meetingId}&user_id=eq.${targetUserId}&limit=1`))[0];
+    if (!target) throw new BadRequestException('Target participant was not found');
+
+    const body: Record<string, unknown> = {
+      meeting_id: meetingId,
+      user_id: targetUserId,
+      updated_by: a.id,
+    };
+    for (const key of ['mic_muted','camera_enabled','removed'] as const) {
+      if (input[key] !== undefined) body[key] = input[key];
+    }
+    const rows = await this.db.upsert<any[]>('governance_meeting_participant_controls', token, body,
+      '?on_conflict=meeting_id,user_id');
+
+    if (input.removed === true) {
+      await this.db.patch('governance_meeting_participants', token,
+        { status: 'REMOVED', left_at: new Date().toISOString() },
+        `?meeting_id=eq.${meetingId}&user_id=eq.${targetUserId}`);
+    }
+
+    await this.recordRoomEvent(token, meetingId, 'MODERATOR_ACTION', {
+      action: 'PARTICIPANT_CONTROL',
+      target_user_id: targetUserId,
+      changes: input,
+    });
+    return rows[0];
+  }
+
+  async lockRoom(token: string, meetingId: string, locked: boolean, reason?: string) {
+    const a = await this.actor(token);
+    const actor = (await this.db.get<any[]>('governance_meeting_participants', token,
+      `?select=participant_role,status&meeting_id=eq.${meetingId}&user_id=eq.${a.id}&limit=1`))[0];
+    if (!actor || !['HOST','MODERATOR'].includes(actor.participant_role) ||
+        !['INVITED','ACCEPTED','PRESENT'].includes(actor.status)) {
+      throw new BadRequestException('Host or moderator privileges are required');
+    }
+    const rows = await this.db.patch<any[]>('governance_meeting_rooms', token,
+      { locked, lock_reason: locked ? (reason?.trim() || 'Room locked by moderator') : null },
+      `?meeting_id=eq.${meetingId}`);
+    await this.recordRoomEvent(token, meetingId, 'MODERATOR_ACTION', {
+      action: locked ? 'ROOM_LOCKED' : 'ROOM_UNLOCKED',
+      reason: locked ? (reason?.trim() || null) : null,
+    });
+    return rows[0];
+  }
+
+  async prepareRecording(token: string, meetingId: string, enabled: boolean) {
+    const a = await this.actor(token);
+    const actor = (await this.db.get<any[]>('governance_meeting_participants', token,
+      `?select=participant_role,status&meeting_id=eq.${meetingId}&user_id=eq.${a.id}&limit=1`))[0];
+    if (!actor || !['HOST','MODERATOR'].includes(actor.participant_role) ||
+        !['INVITED','ACCEPTED','PRESENT'].includes(actor.status)) {
+      throw new BadRequestException('Host or moderator privileges are required');
+    }
+    const rows = await this.db.patch<any[]>('governance_meeting_rooms', token,
+      { recording_enabled: enabled, recording_status: enabled ? 'READY' : 'DISABLED' },
+      `?meeting_id=eq.${meetingId}`);
+    await this.recordRoomEvent(token, meetingId, 'MODERATOR_ACTION', {
+      action: enabled ? 'RECORDING_PREPARED' : 'RECORDING_DISABLED',
     });
     return rows[0];
   }
