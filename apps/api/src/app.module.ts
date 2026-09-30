@@ -11,6 +11,7 @@ import { SpiritualModule } from './spiritual/spiritual.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AiModule } from './ai/ai.module';
 import { UsersModule } from './users/users.module';
+import { MediaModule } from './media/media.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { UsersModule } from './users/users.module';
     GovernanceModule,
     AuditModule,
     UsersModule,
+    MediaModule,
   ],
   controllers: [AppController],
   providers: [AppService],
