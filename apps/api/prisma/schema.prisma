@@ -6,6 +6,11 @@ datasource db {
   provider = "postgresql"
 }
 
+// Transitional API-domain models.
+// Supabase Auth is the identity authority; this schema must not be used to
+// introduce a second password/credential system. The ZION foundation schema
+// lives in Supabase and is the source of truth for production identity and
+// organization relationships.
 
 model User {
   id           String   @id @default(uuid())
@@ -21,14 +26,13 @@ model User {
   updatedAt    DateTime @updatedAt
 }
 
-
 model Profile {
   id          String   @id @default(uuid())
   userId      String   @unique
 
   firstName   String
   lastName    String
-  photo
+  photo       String?
   country     String?
   language    String?  @default("pt")
 
@@ -38,10 +42,8 @@ model Profile {
   updatedAt   DateTime @updatedAt
 }
 
-
 model Organization {
   id          String   @id @default(uuid())
-
   name        String
   type        OrganizationType
 
@@ -56,10 +58,8 @@ model Organization {
   updatedAt   DateTime @updatedAt
 }
 
-
 model Membership {
   id              String   @id @default(uuid())
-
   userId          String
   organizationId  String
   roleId          String
@@ -71,35 +71,27 @@ model Membership {
   createdAt       DateTime @default(now())
 }
 
-
 model Role {
   id          String @id @default(uuid())
-
   name        String
   level       Int
 
   memberships Membership[]
 }
 
-
 model Department {
-  id              String @id @default(uuid())
-
+  id              String   @id @default(uuid())
   name            String
   organizationId  String
 
   organization    Organization @relation(fields: [organizationId], references: [id])
 }
 
-
 model Family {
-  id          String @id @default(uuid())
-
+  id          String   @id @default(uuid())
   name        String
-
   createdAt   DateTime @default(now())
 }
-
 
 enum OrganizationType {
   GENERAL_CONFERENCE
