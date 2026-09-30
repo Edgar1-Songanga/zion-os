@@ -192,3 +192,62 @@ with check (
 
 create index if not exists idx_unit_memberships_unit
 on public.unit_memberships(unit_id);
+
+
+-- Governance core
+create table if not exists public.governance_councils (
+ id uuid primary key default gen_random_uuid(), organization_id uuid not null references public.organizations(id) on delete cascade,
+ unit_id uuid references public.organization_units(id) on delete set null, name text not null, description text,
+ quorum_type text not null default 'MAJORITY_PRESENT', quorum_value integer not null default 50,
+ is_active boolean not null default true, created_by uuid not null references auth.users(id) on delete restrict,
+ created_at timestamptz not null default now(), updated_at timestamptz not null default now()
+);
+create table if not exists public.governance_council_members (
+ id uuid primary key default gen_random_uuid(), council_id uuid not null references public.governance_councils(id) on delete cascade,
+ membership_id uuid not null references public.organization_memberships(id) on delete cascade,
+ member_role text not null default 'MEMBER', is_voting_member boolean not null default true,
+ status text not null default 'ACTIVE', created_at timestamptz not null default now(), unique(council_id,membership_id)
+);
+create table if not exists public.governance_meetings (
+ id uuid primary key default gen_random_uuid(), council_id uuid not null references public.governance_councils(id) on delete cascade,
+ title text not null, description text, scheduled_at timestamptz not null, started_at timestamptz, ended_at timestamptz,
+ status text not null default 'SCHEDULED', visibility text not null default 'PRIVATE',
+ host_user_id uuid references auth.users(id) on delete set null, recording_url text,
+ created_by uuid not null references auth.users(id) on delete restrict, created_at timestamptz not null default now(), updated_at timestamptz not null default now()
+);
+create table if not exists public.governance_agenda_items (
+ id uuid primary key default gen_random_uuid(), meeting_id uuid not null references public.governance_meetings(id) on delete cascade,
+ position integer not null, title text not null, description text, item_type text not null default 'DISCUSSION',
+ created_at timestamptz not null default now(), unique(meeting_id,position)
+);
+create table if not exists public.governance_motions (
+ id uuid primary key default gen_random_uuid(), meeting_id uuid not null references public.governance_meetings(id) on delete cascade,
+ agenda_item_id uuid references public.governance_agenda_items(id) on delete set null,
+ proposed_by_membership_id uuid references public.organization_memberships(id) on delete set null,
+ title text not null, body text not null, status text not null default 'OPEN',
+ created_at timestamptz not null default now(), updated_at timestamptz not null default now()
+);
+create table if not exists public.governance_votes (
+ id uuid primary key default gen_random_uuid(), motion_id uuid not null references public.governance_motions(id) on delete cascade,
+ council_member_id uuid not null references public.governance_council_members(id) on delete cascade,
+ choice text not null, cast_at timestamptz not null default now(), unique(motion_id,council_member_id)
+);
+create table if not exists public.governance_decisions (
+ id uuid primary key default gen_random_uuid(), motion_id uuid not null unique references public.governance_motions(id) on delete cascade,
+ outcome text not null, yes_count integer not null default 0, no_count integer not null default 0,
+ abstain_count integer not null default 0, quorum_met boolean not null default false,
+ decided_at timestamptz not null default now(), decided_by uuid references auth.users(id) on delete set null
+);
+create table if not exists public.governance_minutes (
+ id uuid primary key default gen_random_uuid(), meeting_id uuid not null unique references public.governance_meetings(id) on delete cascade,
+ status text not null default 'DRAFT', content text, approved_at timestamptz,
+ approved_by uuid references auth.users(id) on delete set null,
+ created_by uuid not null references auth.users(id) on delete restrict, created_at timestamptz not null default now(), updated_at timestamptz not null default now()
+);
+create index if not exists idx_gov_councils_org on public.governance_councils(organization_id);
+create index if not exists idx_gov_council_members_council on public.governance_council_members(council_id);
+create index if not exists idx_gov_meetings_council_time on public.governance_meetings(council_id,scheduled_at);
+create index if not exists idx_gov_agenda_meeting on public.governance_agenda_items(meeting_id,position);
+create index if not exists idx_gov_motions_meeting on public.governance_motions(meeting_id);
+create index if not exists idx_gov_votes_motion on public.governance_votes(motion_id);
+create index if not exists idx_gov_minutes_meeting on public.governance_minutes(meeting_id);
