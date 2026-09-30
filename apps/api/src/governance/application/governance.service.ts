@@ -23,6 +23,13 @@ export class GovernanceService {
     await this.audit(token,orgId,a.id,'council.created','governance_council',row.id); return row;
   }
 
+  async councilMembers(token:string,councilId:string){return this.db.get('governance_council_members',token,`?select=*&council_id=eq.${councilId}&order=created_at.asc`);}
+
+  async addCouncilMember(token:string,councilId:string,membershipId:string,input:{member_role?:string;is_voting_member?:boolean}) {
+    const rows=await this.db.post<any[]>('governance_council_members',token,{council_id:councilId,membership_id:membershipId,member_role:input.member_role||'MEMBER',is_voting_member:input.is_voting_member!==false});
+    const row=rows[0]; if(!row) throw new BadRequestException('Council member was not added'); return row;
+  }
+
   async meetings(token: string, councilId: string) {
     return this.db.get('governance_meetings',token,`?select=*&council_id=eq.${councilId}&order=scheduled_at.desc`);
   }
