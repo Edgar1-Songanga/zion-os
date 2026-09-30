@@ -18,6 +18,7 @@ export class WebRtcSession {
   private readonly options: WebRtcSessionOptions;
   private localStream: MediaStream | null = null;
   private screenStream: MediaStream | null = null;
+  private reconnecting = new Set<string>();
   private unsubscribeSignal: (() => void) | null = null;
 
   constructor(options: WebRtcSessionOptions) {
@@ -131,7 +132,14 @@ export class WebRtcSession {
     peer.onconnectionstatechange = () => {
       const state = peer.connectionState;
       this.options.onConnectionStateChange?.(peerId, state);
-      if (["failed", "closed", "disconnected"].includes(state)) {
+      if (state === "failed") void this.restartIce(peerId);
+      if (state === "disconnected") {
+        window.setTimeout(() => {
+          const current = this.peers.get(peerId);
+          if (current?.connectionState === "disconnected") void this.restartIce(peerId);
+        }, 1500);
+      }
+      if (state === "closed") {
         this.peers.delete(peerId);
         this.pendingCandidates.delete(peerId);
         this.streams.delete(peerId);
@@ -185,7 +193,20 @@ export class WebRtcSession {
     }
   }
 
-  private async flushPendingCandidates(peerId: string, peer: RTCPeerConnection): Promise<void> {
+  private async restartIce(peerId: string): Promise<void> {
+    const peer = this.peers.get(peerId);
+    if (!peer || this.reconnecting.has(peerId)) return;
+    this.reconnecting.add(peerId);
+    try {
+      const offer = await peer.createOffer({ iceRestart: true });
+      await peer.setLocalDescription(offer);
+      await this.send({ type: "offer", peerId: this.options.peerId, targetPeerId: peerId, sdp: offer });
+    } finally {
+      this.reconnecting.delete(peerId);
+    }
+  }
+
+  private async flushPendingCandidates(peerId: string, peer: RTCPeerConnection): Promise<void>
     const queue = this.pendingCandidates.get(peerId);
     if (!queue?.length) return;
     for (const candidate of queue) await peer.addIceCandidate(candidate);
