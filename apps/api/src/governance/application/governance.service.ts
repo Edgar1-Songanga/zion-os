@@ -73,7 +73,6 @@ export class GovernanceService {
     });
     const row = rows[0];
     if (!row) throw new BadRequestException('Meeting was not created');
-    await this.audit(token, '', a.id, 'meeting.created', 'governance_meeting', row.id);
     return row;
   }
 
@@ -188,7 +187,7 @@ export class GovernanceService {
     }
 
     const motion = (await this.db.get<any[]>('governance_motions', token,
-      `?select=id,meeting_id& id=eq.${motionId}`))[0];
+      `?select=id,meeting_id&id=eq.${motionId}`))[0];
     if (!motion) throw new BadRequestException('Motion was not found');
 
     const meeting = (await this.db.get<any[]>('governance_meetings', token,
@@ -196,7 +195,7 @@ export class GovernanceService {
     if (!meeting) throw new BadRequestException('Meeting was not found');
 
     const council = (await this.db.get<any[]>('governance_councils', token,
-      `?select=id,quorum_type,quorum_value& id=eq.${meeting.council_id}`))[0];
+      `?select=id,quorum_type,quorum_value&id=eq.${meeting.council_id}`))[0];
     if (!council) throw new BadRequestException('Council was not found');
 
     const members = await this.db.get<any[]>('governance_council_members', token,
