@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { MediaProvider, MediaRoom } from './media-provider';
+import { getIceServers } from '../../config/env';
+import { MediaJoinConfig, MediaProvider, MediaRoom } from './media-provider';
 
 @Injectable()
 export class ZionMeetingProvider implements MediaProvider {
@@ -11,12 +12,20 @@ export class ZionMeetingProvider implements MediaProvider {
     };
   }
 
-  async openRoom(_input: { meetingId: string; providerRoomId?: string | null }): Promise<void> {
-    // The room lifecycle is owned by ZION Governance.
-    // Native WebRTC/SFU transport will attach to this provider later.
-  }
+  async openRoom(_input: { meetingId: string; providerRoomId?: string | null }): Promise<void> {}
+  async closeRoom(_input: { meetingId: string; providerRoomId?: string | null }): Promise<void> {}
 
-  async closeRoom(_input: { meetingId: string; providerRoomId?: string | null }): Promise<void> {
-    // The room lifecycle is owned by ZION Governance.
+  async createJoinConfig(input: {
+    meetingId: string;
+    providerRoomId?: string | null;
+    userId: string;
+  }): Promise<MediaJoinConfig> {
+    return {
+      mode: 'P2P',
+      provider: 'ZION_INTERNAL',
+      roomId: input.providerRoomId ?? `zion-room:${input.meetingId}`,
+      joinUrl: `/meetings/${input.meetingId}/room`,
+      iceServers: getIceServers(),
+    };
   }
 }
