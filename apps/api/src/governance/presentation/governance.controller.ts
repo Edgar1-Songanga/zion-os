@@ -41,6 +41,41 @@ export class GovernanceController {
     return this.gov.createMeeting(this.token(a), c, b);
   }
 
+  @Get('meetings/:meetingId/room')
+  room(@Headers('authorization') a: string | undefined, @Param('meetingId') m: string) {
+    return this.gov.room(this.token(a), m);
+  }
+
+  @Post('meetings/:meetingId/room/open')
+  openRoom(@Headers('authorization') a: string | undefined, @Param('meetingId') m: string) {
+    return this.gov.openRoom(this.token(a), m);
+  }
+
+  @Post('meetings/:meetingId/room/close')
+  closeRoom(@Headers('authorization') a: string | undefined, @Param('meetingId') m: string) {
+    return this.gov.closeRoom(this.token(a), m);
+  }
+
+  @Get('meetings/:meetingId/room/events')
+  roomEvents(@Headers('authorization') a: string | undefined, @Param('meetingId') m: string) {
+    return this.gov.roomEvents(this.token(a), m);
+  }
+
+  @Post('meetings/:meetingId/room/events')
+  recordRoomEvent(@Headers('authorization') a: string | undefined, @Param('meetingId') m: string, @Body() b: { event_type: string; payload?: unknown }) {
+    return this.gov.recordRoomEvent(this.token(a), m, b.event_type, b.payload);
+  }
+
+  @Get('meetings/:meetingId/chat')
+  chat(@Headers('authorization') a: string | undefined, @Param('meetingId') m: string) {
+    return this.gov.chat(this.token(a), m);
+  }
+
+  @Post('meetings/:meetingId/chat')
+  sendChat(@Headers('authorization') a: string | undefined, @Param('meetingId') m: string, @Body() b: { body: string }) {
+    return this.gov.sendChat(this.token(a), m, b.body);
+  }
+
   @Post('meetings/:meetingId/start')
   startMeeting(@Headers('authorization') a: string | undefined, @Param('meetingId') m: string) {
     return this.gov.startMeeting(this.token(a), m);
