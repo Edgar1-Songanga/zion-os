@@ -6,6 +6,9 @@ export const env = {
   iceServersJson: process.env.ZION_ICE_SERVERS_JSON ?? '',
   sfuUrl: process.env.ZION_SFU_URL ?? '',
   sfuControlSecret: process.env.ZION_SFU_CONTROL_SECRET ?? '',
+  livekitUrl: process.env.ZION_LIVEKIT_URL ?? '',
+  livekitApiKey: process.env.ZION_LIVEKIT_API_KEY ?? '',
+  livekitApiSecret: process.env.ZION_LIVEKIT_API_SECRET ?? '',
 };
 
 export function assertSupabaseConfig(): void {
