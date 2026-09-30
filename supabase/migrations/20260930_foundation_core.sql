@@ -138,3 +138,57 @@ with check (
     or private.is_org_member(organization_id)
   )
 );
+
+
+-- Organization unit membership management
+create policy "unit_memberships_insert_admin"
+on public.unit_memberships
+for insert
+to authenticated
+with check (
+  exists (
+    select 1
+    from public.organization_units u
+    join public.organization_memberships m on m.organization_id = u.organization_id
+    where u.id = unit_memberships.unit_id
+      and m.id = unit_memberships.membership_id
+      and private.has_org_permission(u.organization_id, 'membership.manage')
+  )
+);
+
+create policy "unit_memberships_delete_admin"
+on public.unit_memberships
+for delete
+to authenticated
+using (
+  exists (
+    select 1
+    from public.organization_units u
+    where u.id = unit_memberships.unit_id
+      and private.has_org_permission(u.organization_id, 'membership.manage')
+  )
+);
+
+create policy "unit_memberships_update_admin"
+on public.unit_memberships
+for update
+to authenticated
+using (
+  exists (
+    select 1
+    from public.organization_units u
+    where u.id = unit_memberships.unit_id
+      and private.has_org_permission(u.organization_id, 'membership.manage')
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.organization_units u
+    where u.id = unit_memberships.unit_id
+      and private.has_org_permission(u.organization_id, 'membership.manage')
+  )
+);
+
+create index if not exists idx_unit_memberships_unit
+on public.unit_memberships(unit_id);
