@@ -9,6 +9,10 @@ export class GovernanceController {
  councils(@Headers('authorization') a:string|undefined,@Param('organizationId') o:string){return this.gov.councils(this.token(a),o);}
  @Post('organizations/:organizationId/councils')
  createCouncil(@Headers('authorization')a:string|undefined,@Param('organizationId')o:string,@Body()b:any){return this.gov.createCouncil(this.token(a),o,b);}
+ @Get('councils/:councilId/members')
+ councilMembers(@Headers('authorization')a:string|undefined,@Param('councilId')c:string){return this.gov.councilMembers(this.token(a),c);}
+ @Post('councils/:councilId/members')
+ addCouncilMember(@Headers('authorization')a:string|undefined,@Param('councilId')c:string,@Body()b:{membership_id:string;member_role?:string;is_voting_member?:boolean}){return this.gov.addCouncilMember(this.token(a),c,b.membership_id,b);}
  @Get('councils/:councilId/meetings')
  meetings(@Headers('authorization')a:string|undefined,@Param('councilId')c:string){return this.gov.meetings(this.token(a),c);}
  @Post('councils/:councilId/meetings')
