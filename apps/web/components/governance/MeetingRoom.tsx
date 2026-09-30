@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { createMeetingRealtime } from "@/lib/governance/meeting-realtime";
 import { getMeetingIceConfig } from "@/lib/governance/ice";
 import { WebRtcSession } from "@/lib/governance/webrtc-session";
-import { getMeetingParticipants, moderateMeetingParticipant, setSelfMeetingControl, type MeetingParticipant } from "@/lib/governance/meeting-api";
+import { getMeetingControls, getMeetingParticipants, moderateMeetingParticipant, setSelfMeetingControl, type MeetingParticipant } from "@/lib/governance/meeting-api";
 
 type Props = { meetingId: string };
 
@@ -22,6 +22,7 @@ export default function MeetingRoom({ meetingId }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [participants, setParticipants] = useState<MeetingParticipant[]>([]);
   const [isModerator, setIsModerator] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const supabase = useMemo(() => createClient(), []);
 
@@ -32,6 +33,7 @@ export default function MeetingRoom({ meetingId }: Props) {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.user) throw new Error("Sessão de autenticação não encontrada.");
 
+        setCurrentUserId(session.user.id);
         const participantRows = await getMeetingParticipants(meetingId);
         setParticipants(participantRows);
         setIsModerator(participantRows.some((p) => p.user_id === session.user.id && ["HOST", "MODERATOR"].includes(p.participant_role) && ["INVITED", "ACCEPTED", "PRESENT"].includes(p.status)));
@@ -74,6 +76,24 @@ export default function MeetingRoom({ meetingId }: Props) {
         realtime.channel.on("presence", { event: "sync" }, () => void connectPeers());
         realtime.channel.on("presence", { event: "join" }, () => void connectPeers());
         await connectPeers();
+
+        const syncControls = async () => {
+          const controls = await getMeetingControls(meetingId);
+          const mine = controls.find((control) => control.user_id === session.user.id);
+          if (!mine || !sessionRef.current) return;
+          if (mine.removed) {
+            setError("Você foi removido desta reunião.");
+            await sessionRef.current.close();
+            return;
+          }
+          sessionRef.current.setAudioEnabled(!mine.mic_muted);
+          sessionRef.current.setVideoEnabled(mine.camera_enabled);
+          setMic(!mine.mic_muted);
+          setCamera(mine.camera_enabled);
+        };
+        await syncControls();
+        const controlsTimer = window.setInterval(() => { void syncControls(); }, 2000);
+        return () => window.clearInterval(controlsTimer);
       } catch (cause) {
         if (!active) return;
         setError(cause instanceof Error ? cause.message : "Não foi possível iniciar a reunião.");
@@ -173,7 +193,7 @@ export default function MeetingRoom({ meetingId }: Props) {
               <span className="text-xs text-slate-400">{participants.length} participante(s)</span>
             </div>
             <div className="space-y-2">
-              {participants.filter((p) => p.user_id !== (sessionRef.current ? undefined : "")).map((participant) => (
+              {participants.filter((p) => p.user_id !== currentUserId).map((participant) => (
                 <div key={participant.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/10 px-3 py-2">
                   <div>
                     <p className="text-sm">{participant.user_id.slice(0, 8)}</p>
