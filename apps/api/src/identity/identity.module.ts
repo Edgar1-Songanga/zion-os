@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
-import { IdentityService } from './application/identity.service';
 import { IdentityController } from './presentation/identity.controller';
+import { ProfileController } from './presentation/profile.controller';
+import { IdentityService } from './application/identity.service';
+import { ProfileService } from './application/profile.service';
 
 @Module({
-  controllers: [IdentityController],
-  providers: [IdentityService],
+  controllers: [IdentityController, ProfileController],
+  providers: [IdentityService, ProfileService],
   exports: [IdentityService],
 })
 export class IdentityModule {}
