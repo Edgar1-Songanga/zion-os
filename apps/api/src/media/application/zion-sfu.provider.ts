@@ -1,89 +1,72 @@
 import { BadGatewayException, Injectable } from '@nestjs/common';
+import { AccessToken, RoomServiceClient, VideoGrant } from 'livekit-server-sdk';
 import { env } from '../../config/env';
 import { MediaJoinConfig, MediaProvider, MediaRoom } from './media-provider';
 
-type SfuRoomResponse = { room_id?: string; room_url?: string };
-type SfuJoinResponse = { token?: string; join_url?: string };
-
 @Injectable()
 export class ZionSfuProvider implements MediaProvider {
-  private readonly baseUrl = env.sfuUrl.replace(/\/$/, '');
+  private configured() {
+    return Boolean(env.livekitUrl && env.livekitApiKey && env.livekitApiSecret);
+  }
 
-  private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
-    if (!this.baseUrl || !env.sfuControlSecret) {
-      throw new BadGatewayException('ZION SFU is not configured');
-    }
-    let response: Response;
-    try {
-      response = await fetch(`${this.baseUrl}${path}`, {
-        ...init,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${env.sfuControlSecret}`,
-          ...(init.headers ?? {}),
-        },
-      });
-    } catch {
-      throw new BadGatewayException('ZION SFU control plane is unreachable');
-    }
-    if (!response.ok) {
-      const body = await response.text();
-      throw new BadGatewayException(body || `ZION SFU request failed with ${response.status}`);
-    }
-    return response.json() as Promise<T>;
+  private client() {
+    if (!this.configured()) throw new BadGatewayException('ZION media server is not configured');
+    return new RoomServiceClient(env.livekitUrl, env.livekitApiKey, env.livekitApiSecret);
   }
 
   async createRoom(input: { meetingId: string; channelName: string }): Promise<MediaRoom> {
-    const result = await this.request<SfuRoomResponse>('/rooms', {
-      method: 'POST',
-      body: JSON.stringify({ meeting_id: input.meetingId, channel_name: input.channelName }),
-    });
-    if (!result.room_id) throw new BadGatewayException('ZION SFU did not return a room id');
-    return {
-      provider: 'ZION_SFU',
-      providerRoomId: result.room_id,
-      providerRoomUrl: result.room_url ?? null,
-    };
+    try {
+      const roomName = `zion-${input.meetingId}`;
+      await this.client().createRoom({
+        name: roomName,
+        emptyTimeout: 10 * 60,
+        maxParticipants: 200,
+        metadata: JSON.stringify({ meeting_id: input.meetingId, channel_name: input.channelName }),
+      });
+      return { provider: 'ZION_SFU', providerRoomId: roomName, providerRoomUrl: env.livekitUrl };
+    } catch (error) {
+      throw new BadGatewayException(error instanceof Error ? error.message : 'ZION media server room creation failed');
+    }
   }
 
-  async openRoom(input: { meetingId: string; providerRoomId?: string | null }): Promise<void> {
-    if (!input.providerRoomId) throw new BadGatewayException('SFU room id is missing');
-    await this.request(`/rooms/${encodeURIComponent(input.providerRoomId)}/open`, {
-      method: 'POST',
-      body: JSON.stringify({ meeting_id: input.meetingId }),
-    });
+  async openRoom(_input: { meetingId: string; providerRoomId?: string | null }): Promise<void> {
+    if (!this.configured()) throw new BadGatewayException('ZION media server is not configured');
   }
 
   async closeRoom(input: { meetingId: string; providerRoomId?: string | null }): Promise<void> {
     if (!input.providerRoomId) throw new BadGatewayException('SFU room id is missing');
-    await this.request(`/rooms/${encodeURIComponent(input.providerRoomId)}/close`, {
-      method: 'POST',
-      body: JSON.stringify({ meeting_id: input.meetingId }),
-    });
+    try {
+      await this.client().deleteRoom(input.providerRoomId);
+    } catch (error) {
+      throw new BadGatewayException(error instanceof Error ? error.message : 'ZION media server room close failed');
+    }
   }
 
-  async createJoinConfig(input: {
-    meetingId: string;
-    providerRoomId?: string | null;
-    userId: string;
-  }): Promise<MediaJoinConfig> {
-    if (!input.providerRoomId) throw new BadGatewayException('SFU room id is missing');
-    const result = await this.request<SfuJoinResponse>(
-      `/rooms/${encodeURIComponent(input.providerRoomId)}/participants/token`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ meeting_id: input.meetingId, user_id: input.userId }),
-      },
-    );
-    if (!result.token || !result.join_url) {
-      throw new BadGatewayException('ZION SFU did not return a join configuration');
+  async createJoinConfig(input: { meetingId: string; providerRoomId?: string | null; userId: string }): Promise<MediaJoinConfig> {
+    if (!input.providerRoomId || !this.configured()) {
+      throw new BadGatewayException('ZION media server is not configured');
     }
-    return {
-      mode: 'SFU',
-      provider: 'ZION_SFU',
-      roomId: input.providerRoomId,
-      joinUrl: result.join_url,
-      token: result.token,
-    };
+    try {
+      const grant: VideoGrant = {
+        roomJoin: true,
+        room: input.providerRoomId,
+        canPublish: true,
+        canSubscribe: true,
+        canPublishData: true,
+      };
+      const token = await new AccessToken(env.livekitApiKey, env.livekitApiSecret, {
+        identity: input.userId,
+        ttl: '1h',
+      }).addGrant(grant).toJwt();
+      return {
+        mode: 'SFU',
+        provider: 'ZION_SFU',
+        roomId: input.providerRoomId,
+        joinUrl: env.livekitUrl,
+        token,
+      };
+    } catch (error) {
+      throw new BadGatewayException(error instanceof Error ? error.message : 'ZION media token creation failed');
+    }
   }
 }
