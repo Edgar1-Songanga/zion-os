@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from "@nestjs/common";
+import { Controller, Get, Param, Query } from "@nestjs/common";
 import { AdventistCanonService } from "./adventist-canon.service";
 import { CanonicalAdventistContentType } from "./adventist-canon.types";
 
@@ -20,7 +20,7 @@ export class AdventistCanonController {
   }
 
   @Get("content/:id")
-  get(id: string) {
+  get(@Param("id") id: string) {
     return this.service.get(id);
   }
 }
