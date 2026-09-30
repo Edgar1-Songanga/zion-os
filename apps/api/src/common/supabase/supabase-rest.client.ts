@@ -36,6 +36,14 @@ export class SupabaseRestClient {
     return this.parse<T>(response);
   }
 
+  async delete<T>(table: string, accessToken: string, query: string): Promise<T> {
+    const response = await fetch(`${env.supabaseUrl}/rest/v1/${table}${query}`, {
+      method: 'DELETE',
+      headers: this.headers(accessToken, { Prefer: 'return=representation' }),
+    });
+    return this.parse<T>(response);
+  }
+
   private async parse<T>(response: Response): Promise<T> {
     const raw = await response.text();
     let payload: unknown = null;
