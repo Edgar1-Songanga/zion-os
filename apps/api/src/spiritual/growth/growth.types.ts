@@ -9,6 +9,11 @@ export interface GrowthEvent {
   metadata?: Record<string, unknown>;
 }
 
+export interface GrowthRepository {
+  record(event: GrowthEvent): Promise<GrowthEvent>;
+  listForUser(userId: string, from?: string, to?: string): Promise<GrowthEvent[]>;
+}
+
 export interface GrowthSnapshot {
   userId: string;
   period: string;
