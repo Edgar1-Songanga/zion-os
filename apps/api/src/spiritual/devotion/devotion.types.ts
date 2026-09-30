@@ -10,5 +10,6 @@ export interface DevotionEntry {
 
 export interface DevotionProvider {
   save(entry: DevotionEntry): Promise<DevotionEntry>;
+  getById(id: string): Promise<DevotionEntry | null>;
   listForUser(userId: string, limit?: number): Promise<DevotionEntry[]>;
 }
