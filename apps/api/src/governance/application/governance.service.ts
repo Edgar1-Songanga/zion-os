@@ -1,11 +1,17 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { IdentityService } from '../../identity/application/identity.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
+import { Inject } from '@nestjs/common';
+import { MEDIA_PROVIDER } from '../../media/media.module';
+import { MediaProvider } from '../../media/application/media-provider';
 
 @Injectable()
 export class GovernanceService {
   private readonly db = new SupabaseRestClient();
-  constructor(private readonly identity: IdentityService) {}
+  constructor(
+    private readonly identity: IdentityService,
+    @Inject(MEDIA_PROVIDER) private readonly media: MediaProvider,
+  ) {}
 
   private async actor(token: string) { return this.identity.getCurrentUser(token); }
 
@@ -73,10 +79,14 @@ export class GovernanceService {
     });
     const row = rows[0];
     if (!row) throw new BadRequestException('Meeting was not created');
+    const channelName = `zion:meeting:${row.id}`;
+    const mediaRoom = await this.media.createRoom({ meetingId: row.id, channelName });
     await this.db.post('governance_meeting_rooms', token, {
       meeting_id: row.id,
-      channel_name: `zion:meeting:${row.id}`,
-      provider: 'EXTERNAL',
+      channel_name: channelName,
+      provider: mediaRoom.provider,
+      provider_room_id: mediaRoom.providerRoomId ?? null,
+      provider_room_url: mediaRoom.providerRoomUrl ?? null,
       status: 'READY',
     });
     return row;
@@ -91,12 +101,18 @@ export class GovernanceService {
   }
 
   async openRoom(token: string, meetingId: string) {
+    const room = (await this.db.get<any[]>('governance_meeting_rooms', token,
+      `?select=provider_room_id&meeting_id=eq.${meetingId}&limit=1`))[0];
+    await this.media.openRoom({ meetingId, providerRoomId: room?.provider_room_id ?? null });
     const rows = await this.db.patch<any[]>('governance_meeting_rooms', token,
       { status: 'OPEN' }, `?meeting_id=eq.${meetingId}`);
     return rows[0];
   }
 
   async closeRoom(token: string, meetingId: string) {
+    const room = (await this.db.get<any[]>('governance_meeting_rooms', token,
+      `?select=provider_room_id&meeting_id=eq.${meetingId}&limit=1`))[0];
+    await this.media.closeRoom({ meetingId, providerRoomId: room?.provider_room_id ?? null });
     const rows = await this.db.patch<any[]>('governance_meeting_rooms', token,
       { status: 'CLOSED' }, `?meeting_id=eq.${meetingId}`);
     return rows[0];
