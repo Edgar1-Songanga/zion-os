@@ -70,7 +70,7 @@ export class WebRtcSession {
     return [...this.peers.keys()];
   }
 
-  async closePeer(peerId: string): Promise<void> {
+  async closePeer(peerId: string, notify = true): Promise<void> {
     const peer = this.peers.get(peerId);
     if (!peer) return;
 
@@ -78,11 +78,13 @@ export class WebRtcSession {
     this.peers.delete(peerId);
     this.streams.delete(peerId);
     this.options.onPeerLeft?.(peerId);
-    await this.send({
-      type: "leave",
-      peerId: this.options.peerId,
-      targetPeerId: peerId,
-    });
+    if (notify) {
+      await this.send({
+        type: "leave",
+        peerId: this.options.peerId,
+        targetPeerId: peerId,
+      });
+    }
   }
 
   async close(): Promise<void> {
@@ -177,7 +179,7 @@ export class WebRtcSession {
       }
 
       case "leave": {
-        await this.closePeer(signal.peerId);
+        await this.closePeer(signal.peerId, false);
         return;
       }
 
