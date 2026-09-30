@@ -100,12 +100,12 @@ export class MembershipsService {
     );
     if (!units[0]) throw new NotFoundException('Organization unit not found');
 
-    await this.db.patch(
+    const removed = await this.db.delete(
       'unit_memberships',
       accessToken,
-      {},
       `?unit_id=eq.${unitId}&membership_id=eq.${membershipId}`,
     );
+    if (!removed.length) throw new NotFoundException('Unit assignment not found');
     await this.audit(accessToken, organizationId, actor.id, 'membership.unit_removed', 'unit_membership', unitId, {
       membership_id: membershipId,
       unit_id: unitId,
