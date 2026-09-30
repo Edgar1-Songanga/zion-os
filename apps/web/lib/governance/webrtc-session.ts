@@ -1,0 +1,196 @@
+import type { RealtimeChannel } from "@supabase/supabase-js";
+import {
+  type MeetingSignal,
+  onMeetingSignal,
+} from "./meeting-realtime";
+
+export type WebRtcSessionOptions = {
+  channel: RealtimeChannel;
+  peerId: string;
+  iceServers?: RTCIceServer[];
+  onRemoteStream?: (peerId: string, stream: MediaStream) => void;
+  onPeerLeft?: (peerId: string) => void;
+};
+
+export class WebRtcSession {
+  private readonly peers = new Map<string, RTCPeerConnection>();
+  private readonly streams = new Map<string, MediaStream>();
+  private readonly options: WebRtcSessionOptions;
+  private localStream: MediaStream | null = null;
+  private unsubscribeSignal: (() => void) | null = null;
+
+  constructor(options: WebRtcSessionOptions) {
+    this.options = options;
+    this.unsubscribeSignal = onMeetingSignal(options.channel, (signal) => {
+      void this.handleSignal(signal);
+    });
+  }
+
+  async startLocalMedia(constraints: MediaStreamConstraints = {
+    audio: true,
+    video: true,
+  }): Promise<MediaStream> {
+    this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    return this.localStream;
+  }
+
+  getLocalStream(): MediaStream | null {
+    return this.localStream;
+  }
+
+  async connectToPeer(peerId: string, initiator = true): Promise<void> {
+    const peer = this.createPeer(peerId);
+
+    if (!initiator) return;
+
+    const offer = await peer.createOffer();
+    await peer.setLocalDescription(offer);
+
+    await this.send({
+      type: "offer",
+      peerId: this.options.peerId,
+      targetPeerId: peerId,
+      sdp: offer,
+    });
+  }
+
+  setAudioEnabled(enabled: boolean): void {
+    this.localStream?.getAudioTracks().forEach((track) => {
+      track.enabled = enabled;
+    });
+  }
+
+  setVideoEnabled(enabled: boolean): void {
+    this.localStream?.getVideoTracks().forEach((track) => {
+      track.enabled = enabled;
+    });
+  }
+
+  getPeerIds(): string[] {
+    return [...this.peers.keys()];
+  }
+
+  async closePeer(peerId: string): Promise<void> {
+    const peer = this.peers.get(peerId);
+    if (!peer) return;
+
+    peer.close();
+    this.peers.delete(peerId);
+    this.streams.delete(peerId);
+    this.options.onPeerLeft?.(peerId);
+    await this.send({
+      type: "leave",
+      peerId: this.options.peerId,
+      targetPeerId: peerId,
+    });
+  }
+
+  async close(): Promise<void> {
+    for (const peer of this.peers.values()) peer.close();
+    this.peers.clear();
+    this.streams.clear();
+
+    this.localStream?.getTracks().forEach((track) => track.stop());
+    this.localStream = null;
+
+    this.unsubscribeSignal?.();
+    this.unsubscribeSignal = null;
+  }
+
+  private createPeer(peerId: string): RTCPeerConnection {
+    const existing = this.peers.get(peerId);
+    if (existing) return existing;
+
+    const peer = new RTCPeerConnection({
+      iceServers: this.options.iceServers ?? [],
+    });
+
+    this.localStream?.getTracks().forEach((track) => {
+      peer.addTrack(track, this.localStream as MediaStream);
+    });
+
+    peer.onicecandidate = (event) => {
+      if (!event.candidate) return;
+      void this.send({
+        type: "ice-candidate",
+        peerId: this.options.peerId,
+        targetPeerId: peerId,
+        candidate: event.candidate.toJSON(),
+      });
+    };
+
+    peer.ontrack = (event) => {
+      const [stream] = event.streams;
+      if (!stream) return;
+
+      this.streams.set(peerId, stream);
+      this.options.onRemoteStream?.(peerId, stream);
+    };
+
+    peer.onconnectionstatechange = () => {
+      if (["failed", "closed", "disconnected"].includes(peer.connectionState)) {
+        this.peers.delete(peerId);
+        this.streams.delete(peerId);
+        this.options.onPeerLeft?.(peerId);
+      }
+    };
+
+    this.peers.set(peerId, peer);
+    return peer;
+  }
+
+  private async handleSignal(signal: MeetingSignal): Promise<void> {
+    if ("targetPeerId" in signal && signal.targetPeerId !== this.options.peerId) {
+      return;
+    }
+
+    if (signal.peerId === this.options.peerId) return;
+
+    switch (signal.type) {
+      case "offer": {
+        const peer = this.createPeer(signal.peerId);
+        await peer.setRemoteDescription(signal.sdp);
+        const answer = await peer.createAnswer();
+        await peer.setLocalDescription(answer);
+
+        await this.send({
+          type: "answer",
+          peerId: this.options.peerId,
+          targetPeerId: signal.peerId,
+          sdp: answer,
+        });
+        return;
+      }
+
+      case "answer": {
+        const peer = this.peers.get(signal.peerId);
+        if (!peer) return;
+        await peer.setRemoteDescription(signal.sdp);
+        return;
+      }
+
+      case "ice-candidate": {
+        const peer = this.peers.get(signal.peerId);
+        if (!peer) return;
+        await peer.addIceCandidate(signal.candidate);
+        return;
+      }
+
+      case "leave": {
+        await this.closePeer(signal.peerId);
+        return;
+      }
+
+      default:
+        return;
+    }
+  }
+
+  private async send(signal: MeetingSignal): Promise<void> {
+    await this.options.channel.send({
+      type: "broadcast",
+      event: "webrtc-signal",
+      payload: signal,
+    });
+  }
+}
