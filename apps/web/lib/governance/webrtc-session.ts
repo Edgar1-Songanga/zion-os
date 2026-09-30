@@ -10,10 +10,12 @@ export type WebRtcSessionOptions = {
   iceServers?: RTCIceServer[];
   onRemoteStream?: (peerId: string, stream: MediaStream) => void;
   onPeerLeft?: (peerId: string) => void;
+  onConnectionStateChange?: (peerId: string, state: RTCPeerConnectionState) => void;
 };
 
 export class WebRtcSession {
   private readonly peers = new Map<string, RTCPeerConnection>();
+  private readonly pendingCandidates = new Map<string, RTCIceCandidateInit[]>();
   private readonly streams = new Map<string, MediaStream>();
   private readonly options: WebRtcSessionOptions;
   private localStream: MediaStream | null = null;
@@ -76,6 +78,7 @@ export class WebRtcSession {
 
     peer.close();
     this.peers.delete(peerId);
+    this.pendingCandidates.delete(peerId);
     this.streams.delete(peerId);
     this.options.onPeerLeft?.(peerId);
     if (notify) {
@@ -90,6 +93,7 @@ export class WebRtcSession {
   async close(): Promise<void> {
     for (const peer of this.peers.values()) peer.close();
     this.peers.clear();
+    this.pendingCandidates.clear();
     this.streams.clear();
 
     this.localStream?.getTracks().forEach((track) => track.stop());
@@ -130,8 +134,10 @@ export class WebRtcSession {
     };
 
     peer.onconnectionstatechange = () => {
+      this.options.onConnectionStateChange?.(peerId, peer.connectionState);
       if (["failed", "closed", "disconnected"].includes(peer.connectionState)) {
         this.peers.delete(peerId);
+        this.pendingCandidates.delete(peerId);
         this.streams.delete(peerId);
         this.options.onPeerLeft?.(peerId);
       }
@@ -152,6 +158,7 @@ export class WebRtcSession {
       case "offer": {
         const peer = this.createPeer(signal.peerId);
         await peer.setRemoteDescription(signal.sdp);
+        await this.flushPendingCandidates(signal.peerId, peer);
         const answer = await peer.createAnswer();
         await peer.setLocalDescription(answer);
 
@@ -168,13 +175,19 @@ export class WebRtcSession {
         const peer = this.peers.get(signal.peerId);
         if (!peer) return;
         await peer.setRemoteDescription(signal.sdp);
+        await this.flushPendingCandidates(signal.peerId, peer);
         return;
       }
 
       case "ice-candidate": {
-        const peer = this.peers.get(signal.peerId);
-        if (!peer) return;
-        await peer.addIceCandidate(signal.candidate);
+        const peer = this.peers.get(signal.peerId) ?? this.createPeer(signal.peerId);
+        if (peer.remoteDescription) {
+          await peer.addIceCandidate(signal.candidate);
+        } else {
+          const queue = this.pendingCandidates.get(signal.peerId) ?? [];
+          queue.push(signal.candidate);
+          this.pendingCandidates.set(signal.peerId, queue);
+        }
         return;
       }
 
@@ -186,6 +199,16 @@ export class WebRtcSession {
       default:
         return;
     }
+  }
+
+  private async flushPendingCandidates(peerId: string, peer: RTCPeerConnection): Promise<void> {
+    const queue = this.pendingCandidates.get(peerId);
+    if (!queue?.length) return;
+
+    for (const candidate of queue) {
+      await peer.addIceCandidate(candidate);
+    }
+    this.pendingCandidates.delete(peerId);
   }
 
   private async send(signal: MeetingSignal): Promise<void> {

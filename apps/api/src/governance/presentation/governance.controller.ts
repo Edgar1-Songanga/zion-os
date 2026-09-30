@@ -41,6 +41,11 @@ export class GovernanceController {
     return this.gov.createMeeting(this.token(a), c, b);
   }
 
+  @Get('meetings/:meetingId/media/ice-config')
+  iceConfig(@Headers('authorization') a: string | undefined, @Param('meetingId') m: string) {
+    return this.gov.iceConfig(this.token(a), m);
+  }
+
   @Get('meetings/:meetingId/room')
   room(@Headers('authorization') a: string | undefined, @Param('meetingId') m: string) {
     return this.gov.room(this.token(a), m);

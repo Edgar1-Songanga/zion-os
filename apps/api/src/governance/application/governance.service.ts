@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { getIceServers } from '../../config/env';
 import { IdentityService } from '../../identity/application/identity.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 import { Inject } from '@nestjs/common';
@@ -99,6 +100,31 @@ export class GovernanceService {
       status: 'READY',
     });
     return row;
+  }
+
+  async iceConfig(token: string, meetingId: string) {
+    const a = await this.actor(token);
+    const room = (await this.db.get<any[]>('governance_meeting_rooms', token,
+      `?select=status,locked,provider&meeting_id=eq.${meetingId}&limit=1`))[0];
+    if (!room) throw new BadRequestException('Meeting room was not initialized');
+    if (room.status !== 'OPEN') throw new BadRequestException('Meeting room is not open');
+    if (room.locked) throw new BadRequestException('Meeting room is locked');
+
+    const participant = (await this.db.get<any[]>('governance_meeting_participants', token,
+      `?select=id,status&meeting_id=eq.${meetingId}&user_id=eq.${a.id}&limit=1`))[0];
+    if (!participant || !['INVITED','ACCEPTED','PRESENT'].includes(participant.status)) {
+      throw new BadRequestException('You are not an active meeting participant');
+    }
+
+    const iceServers = getIceServers();
+    return {
+      transport: iceServers.some((server) => {
+        const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+        return urls.some((url) => String(url).startsWith('turn:') || String(url).startsWith('turns:'));
+      }) ? 'P2P_TURN' : 'P2P_STUN_ONLY',
+      provider: room.provider,
+      iceServers,
+    };
   }
 
   async room(token: string, meetingId: string) {
