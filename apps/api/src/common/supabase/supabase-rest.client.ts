@@ -27,6 +27,17 @@ export class SupabaseRestClient {
     return this.parse<T>(response);
   }
 
+  async upsert<T>(table: string, accessToken: string, body: unknown, query = ''): Promise<T> {
+    const response = await fetch(`${env.supabaseUrl}/rest/v1/${table}${query}`, {
+      method: 'POST',
+      headers: this.headers(accessToken, {
+        Prefer: 'return=representation,resolution=merge-duplicates',
+      }),
+      body: JSON.stringify(body),
+    });
+    return this.parse<T>(response);
+  }
+
   async patch<T>(table: string, accessToken: string, body: unknown, query: string): Promise<T> {
     const response = await fetch(`${env.supabaseUrl}/rest/v1/${table}${query}`, {
       method: 'PATCH',
