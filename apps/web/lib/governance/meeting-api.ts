@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/client";
 
-export type MeetingParticipant = {
+export type MeetingParticipantControl = { meeting_id: string; user_id: string; mic_muted: boolean; camera_enabled: boolean; screen_sharing: boolean; hand_raised: boolean; removed: boolean; };\n\nexport type MeetingParticipant = {
   id: string;
   user_id: string;
   participant_role: string;
@@ -27,7 +27,7 @@ async function request<T>(meetingId: string, path: string, init?: RequestInit): 
   return response.json() as Promise<T>;
 }
 
-export function getMeetingParticipants(meetingId: string) {
+export function getMeetingControls(meetingId: string) {\n  return request<MeetingParticipantControl[]>(meetingId, "controls");\n}\n\nexport function getMeetingParticipants(meetingId: string) {
   return request<MeetingParticipant[]>(meetingId, "participants");
 }
 
