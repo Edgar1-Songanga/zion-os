@@ -84,25 +84,10 @@ using (exists (
     and actor.status in ('INVITED','ACCEPTED','PRESENT')
 ));
 
-create policy "meeting_rooms_lock_manage"
-on public.governance_meeting_rooms for update to authenticated
-using (exists (
-  select 1
-  from public.governance_meetings m
-  join public.governance_councils c on c.id = m.council_id
-  where m.id = governance_meeting_rooms.meeting_id
-    and private.has_org_permission(c.organization_id, 'meeting.manage')
-))
-with check (exists (
-  select 1
-  from public.governance_meetings m
-  join public.governance_councils c on c.id = m.council_id
-  where m.id = governance_meeting_rooms.meeting_id
-    and private.has_org_permission(c.organization_id, 'meeting.manage')
-));
-
 create or replace function private.set_governance_meeting_control_updated_at()
-returns trigger language plpgsql as $$
+returns trigger language plpgsql
+set search_path = pg_catalog
+as $
 begin new.updated_at = now(); return new; end;
 $$;
 
