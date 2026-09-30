@@ -5,14 +5,23 @@ import { createClient } from "@/lib/supabase/client";
 import { createMeetingRealtime } from "@/lib/governance/meeting-realtime";
 import { getMeetingIceConfig } from "@/lib/governance/ice";
 import { WebRtcSession } from "@/lib/governance/webrtc-session";
-import { getMeetingControls, getMeetingParticipants, moderateMeetingParticipant, setSelfMeetingControl, type MeetingParticipant } from "@/lib/governance/meeting-api";
+import { getMeetingControls, getMeetingParticipants, getMeetingMediaJoinConfig, moderateMeetingParticipant, setSelfMeetingControl, type MeetingParticipant } from "@/lib/governance/meeting-api";
+import { LiveKitMeetingSession } from "@/lib/governance/livekit-session";
 
 type Props = { meetingId: string };
+type MeetingSession = {
+  startLocalMedia: () => Promise<MediaStream>;
+  setAudioEnabled: (enabled: boolean) => void;
+  setVideoEnabled: (enabled: boolean) => void;
+  startScreenShare: () => Promise<void>;
+  stopScreenShare: () => Promise<void>;
+  close: () => Promise<void>;
+};
 
 export default function MeetingRoom({ meetingId }: Props) {
   const localVideo = useRef<HTMLVideoElement>(null);
   const remoteVideos = useRef(new Map<string, HTMLVideoElement>());
-  const sessionRef = useRef<WebRtcSession | null>(null);
+  const sessionRef = useRef<MeetingSession | null>(null);
   const realtimeRef = useRef<Awaited<ReturnType<typeof createMeetingRealtime>> | null>(null);
   const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
   const [mic, setMic] = useState(true);
@@ -43,40 +52,54 @@ export default function MeetingRoom({ meetingId }: Props) {
         if (!active) { await realtime.unsubscribe(); return; }
         realtimeRef.current = realtime;
 
-        const ice = await getMeetingIceConfig(meetingId);
-        const rtc = new WebRtcSession({
-          channel: realtime.channel,
-          peerId: session.user.id,
-          iceServers: ice.iceServers,
-          onRemoteStream: (peerId, stream) => setRemoteStreams((current) => ({ ...current, [peerId]: stream })),
-          onPeerLeft: (peerId) => setRemoteStreams((current) => {
-            const next = { ...current }; delete next[peerId]; return next;
-          }),
-          onConnectionStateChange: (_peerId, state) => setStatus(`Ligação: ${state}`),
-          onScreenShareChange: (peerId, enabled) => {
-            setStatus(enabled ? `Participante ${peerId.slice(0, 8)} está a partilhar o ecrã` : "Partilha de ecrã terminada");
-          },
-        });
-        sessionRef.current = rtc;
+        const media = await getMeetingMediaJoinConfig(meetingId);
+        let session: MeetingSession;
+        if (media.mode === "SFU") {
+          const livekit = new LiveKitMeetingSession({
+            onRemoteStream: (peerId, stream) => setRemoteStreams((current) => ({ ...current, [peerId]: stream })),
+            onPeerLeft: (peerId) => setRemoteStreams((current) => {
+              const next = { ...current }; delete next[peerId]; return next;
+            }),
+            onConnectionStateChange: (state) => setStatus(`Ligação: ${state}`),
+          });
+          if (!media.joinUrl || !media.token) throw new Error("Configuração SFU incompleta.");
+          await livekit.connect(media.joinUrl, media.token);
+          session = livekit;
+        } else {
+          const ice = await getMeetingIceConfig(meetingId);
+          const rtc = new WebRtcSession({
+            channel: realtime.channel,
+            peerId: session.user.id,
+            iceServers: ice.iceServers,
+            onRemoteStream: (peerId, stream) => setRemoteStreams((current) => ({ ...current, [peerId]: stream })),
+            onPeerLeft: (peerId) => setRemoteStreams((current) => {
+              const next = { ...current }; delete next[peerId]; return next;
+            }),
+            onConnectionStateChange: (_peerId, state) => setStatus(`Ligação: ${state}`),
+            onScreenShareChange: (peerId, enabled) => {
+              setStatus(enabled ? `Participante ${peerId.slice(0, 8)} está a partilhar o ecrã` : "Partilha de ecrã terminada");
+            },
+          });
+          session = rtc;
+          const connectPeers = async () => {
+            const states = realtime.channel.presenceState() as Record<string, Array<Record<string, unknown>>>;
+            const peerIds = Object.values(states).flat().map((state) => String(state.userId ?? ""))
+              .filter((id) => id && id !== session.user.id);
+            for (const peerId of new Set(peerIds)) {
+              if (session.user.id < peerId) await rtc.connectToPeer(peerId, true);
+            }
+          };
+          realtime.channel.on("presence", { event: "sync" }, () => void connectPeers());
+          realtime.channel.on("presence", { event: "join" }, () => void connectPeers());
+          await connectPeers();
+        }
+        sessionRef.current = session;
 
-        const local = await rtc.startLocalMedia();
+        const local = await session.startLocalMedia();
         if (localVideo.current) localVideo.current.srcObject = local;
 
         await realtime.trackPresence({ userId: session.user.id, mic: true, camera: true, sharing: false });
-        setStatus("Sala ligada");
-
-        const connectPeers = async () => {
-          const states = realtime.channel.presenceState() as Record<string, Array<Record<string, unknown>>>;
-          const peerIds = Object.values(states).flat().map((state) => String(state.userId ?? ""))
-            .filter((id) => id && id !== session.user.id);
-          for (const peerId of new Set(peerIds)) {
-            if (session.user.id < peerId) await rtc.connectToPeer(peerId, true);
-          }
-        };
-
-        realtime.channel.on("presence", { event: "sync" }, () => void connectPeers());
-        realtime.channel.on("presence", { event: "join" }, () => void connectPeers());
-        await connectPeers();
+        setStatus(media.mode === "SFU" ? "Sala ligada via ZION SFU" : "Sala ligada");
 
         const syncControls = async () => {
           const controls = await getMeetingControls(meetingId);
