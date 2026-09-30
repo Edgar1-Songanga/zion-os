@@ -73,7 +73,66 @@ export class GovernanceService {
     });
     const row = rows[0];
     if (!row) throw new BadRequestException('Meeting was not created');
+    await this.db.post('governance_meeting_rooms', token, {
+      meeting_id: row.id,
+      channel_name: `zion:meeting:${row.id}`,
+      provider: 'EXTERNAL',
+      status: 'READY',
+    });
     return row;
+  }
+
+  async room(token: string, meetingId: string) {
+    const rows = await this.db.get<any[]>('governance_meeting_rooms', token,
+      `?select=*&meeting_id=eq.${meetingId}&limit=1`);
+    const row = rows[0];
+    if (!row) throw new BadRequestException('Meeting room was not initialized');
+    return row;
+  }
+
+  async openRoom(token: string, meetingId: string) {
+    const rows = await this.db.patch<any[]>('governance_meeting_rooms', token,
+      { status: 'OPEN' }, `?meeting_id=eq.${meetingId}`);
+    return rows[0];
+  }
+
+  async closeRoom(token: string, meetingId: string) {
+    const rows = await this.db.patch<any[]>('governance_meeting_rooms', token,
+      { status: 'CLOSED' }, `?meeting_id=eq.${meetingId}`);
+    return rows[0];
+  }
+
+  async roomEvents(token: string, meetingId: string) {
+    return this.db.get('governance_meeting_room_events', token,
+      `?select=*&meeting_id=eq.${meetingId}&order=created_at.asc`);
+  }
+
+  async recordRoomEvent(token: string, meetingId: string, eventType: string, payload: unknown = {}) {
+    const a = await this.actor(token);
+    const allowed = [
+      'JOINED','LEFT','MUTED','UNMUTED','CAMERA_ON','CAMERA_OFF',
+      'HAND_RAISED','HAND_LOWERED','SCREEN_SHARE_STARTED','SCREEN_SHARE_STOPPED',
+      'MODERATOR_ACTION',
+    ];
+    if (!allowed.includes(eventType)) throw new BadRequestException('Invalid room event');
+    const rows = await this.db.post<any[]>('governance_meeting_room_events', token, {
+      meeting_id: meetingId, user_id: a.id, event_type: eventType, payload,
+    });
+    return rows[0];
+  }
+
+  async chat(token: string, meetingId: string) {
+    return this.db.get('governance_meeting_chat_messages', token,
+      `?select=*&meeting_id=eq.${meetingId}&is_deleted=eq.false&order=created_at.asc`);
+  }
+
+  async sendChat(token: string, meetingId: string, body: string) {
+    const a = await this.actor(token);
+    if (!body?.trim()) throw new BadRequestException('body is required');
+    const rows = await this.db.post<any[]>('governance_meeting_chat_messages', token, {
+      meeting_id: meetingId, user_id: a.id, body: body.trim(),
+    });
+    return rows[0];
   }
 
   async startMeeting(token: string, meetingId: string) {
@@ -85,6 +144,7 @@ export class GovernanceService {
     }, `?id=eq.${meetingId}`);
     const row = rows[0];
     if (!row) throw new BadRequestException('Meeting was not started');
+    await this.openRoom(token, meetingId);
     return row;
   }
 
@@ -95,6 +155,7 @@ export class GovernanceService {
     }, `?id=eq.${meetingId}`);
     const row = rows[0];
     if (!row) throw new BadRequestException('Meeting was not ended');
+    await this.closeRoom(token, meetingId);
     return row;
   }
 
