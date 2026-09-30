@@ -17,7 +17,6 @@ export type MeetingRealtime = {
   sendSignal: (signal: MeetingSignal) => Promise<void>;
   trackPresence: (state: Record<string, unknown>) => Promise<void>;
   unsubscribe: () => Promise<void>;
-  onPresence: (handler: (states: Record<string, Array<Record<string, unknown>>>) => void) => () => void;
 };
 
 export async function createMeetingRealtime(
@@ -51,11 +50,6 @@ export async function createMeetingRealtime(
     },
     async trackPresence(state) {
       await channel.track(state);
-    },
-    onPresence(handler) {
-      const callback = (states: Record<string, Array<Record<string, unknown>>>) => handler(states);
-      channel.on("presence", { event: "sync" }, () => callback(channel.presenceState()));
-      return () => undefined;
     },
     async unsubscribe() {
       await supabase.removeChannel(channel);
