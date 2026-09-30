@@ -127,6 +127,31 @@ export class GovernanceService {
     };
   }
 
+  async mediaJoinConfig(token: string, meetingId: string) {
+    const a = await this.actor(token);
+    const room = (await this.db.get<any[]>('governance_meeting_rooms', token,
+      `?select=status,locked,provider,provider_room_id&meeting_id=eq.${meetingId}&limit=1`))[0];
+    if (!room) throw new BadRequestException('Meeting room was not initialized');
+    if (room.status !== 'OPEN') throw new BadRequestException('Meeting room is not open');
+    if (room.locked) throw new BadRequestException('Meeting room is locked');
+
+    const participant = (await this.db.get<any[]>('governance_meeting_participants', token,
+      `?select=id,status&meeting_id=eq.${meetingId}&user_id=eq.${a.id}&limit=1`))[0];
+    if (!participant || !['INVITED','ACCEPTED','PRESENT'].includes(participant.status)) {
+      throw new BadRequestException('You are not an active meeting participant');
+    }
+
+    if (!this.media.createJoinConfig) {
+      throw new BadRequestException('Media provider does not expose a join configuration');
+    }
+
+    return this.media.createJoinConfig({
+      meetingId,
+      providerRoomId: room.provider_room_id,
+      userId: a.id,
+    });
+  }
+
   async room(token: string, meetingId: string) {
     const rows = await this.db.get<any[]>('governance_meeting_rooms', token,
       `?select=*&meeting_id=eq.${meetingId}&limit=1`);
