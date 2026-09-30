@@ -79,6 +79,15 @@ export class GovernanceService {
     });
     const row = rows[0];
     if (!row) throw new BadRequestException('Meeting was not created');
+
+    await this.db.post('governance_meeting_participants', token, {
+      meeting_id: row.id,
+      user_id: a.id,
+      participant_role: 'HOST',
+      is_host: true,
+      status: 'ACCEPTED',
+    });
+
     const channelName = `zion:meeting:${row.id}`;
     const mediaRoom = await this.media.createRoom({ meetingId: row.id, channelName });
     await this.db.post('governance_meeting_rooms', token, {
