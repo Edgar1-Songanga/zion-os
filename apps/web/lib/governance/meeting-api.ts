@@ -38,3 +38,19 @@ export function setSelfMeetingControl(meetingId: string, input: Record<string, b
 export function moderateMeetingParticipant(meetingId: string, userId: string, input: Record<string, boolean>) {
   return request(meetingId, `controls/${userId}`, { method: "POST", body: JSON.stringify(input) });
 }
+export type MeetingMediaJoinConfig = {
+  mode: 'P2P' | 'SFU';
+  provider: string;
+  roomId: string;
+  joinUrl?: string | null;
+  token?: string | null;
+  iceServers?: Array<{
+    urls: string | string[];
+    username?: string;
+    credential?: string;
+  }>;
+};
+
+export function getMeetingMediaJoinConfig(meetingId: string) {
+  return request<MeetingMediaJoinConfig>(meetingId, "media/join-config");
+}
