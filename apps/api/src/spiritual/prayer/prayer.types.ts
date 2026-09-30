@@ -12,6 +12,12 @@ export interface PrayerRequest {
   answeredAt?: string;
 }
 
+export interface PrayerRepository {
+  create(request: PrayerRequest): Promise<PrayerRequest>;
+  getById(id: string): Promise<PrayerRequest | null>;
+  markAnswered(id: string, answeredAt: string): Promise<PrayerRequest | null>;
+}
+
 export interface PrayerServicePort {
   create(input: Omit<PrayerRequest, "id" | "status" | "createdAt">): Promise<PrayerRequest>;
   answer(id: string, userId: string): Promise<PrayerRequest>;
