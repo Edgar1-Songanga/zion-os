@@ -123,3 +123,32 @@ create policy resa_shares_delete on public.resa_shares for delete using (user_id
 
 -- Topics are globally readable; writes remain authenticated. Reposts and interactions are
 -- intentionally append-oriented here; moderation/audit hooks will be added in the safety block.
+
+
+-- Mentions create their own in-app notification through a controlled trigger.
+-- No public notification INSERT policy is granted to end users.
+create or replace function public.resa_mention_notification()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.notifications(user_id,type,title,body,channel,priority,data)
+  values (
+    new.mentioned_user_id,
+    'resa.mention',
+    'Você foi mencionado',
+    'Você foi mencionado em uma publicação do RESA.',
+    'in_app',
+    'normal',
+    jsonb_build_object('content_id', new.content_id, 'actor_id', new.mentioned_by)
+  );
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_resa_mention_notification on public.resa_mentions;
+create trigger trg_resa_mention_notification
+after insert on public.resa_mentions
+for each row execute function public.resa_mention_notification();
