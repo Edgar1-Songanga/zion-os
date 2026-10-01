@@ -101,15 +101,6 @@ export class ResaSocialService {
     const rows = await this.db.post<any[]>('resa_mentions', token, {
       content_id: contentId, mentioned_user_id: mentionedUserId, mentioned_by: a.id,
     });
-    await this.db.post('notifications', token, {
-      user_id: mentionedUserId,
-      type: 'resa.mention',
-      title: 'Você foi mencionado',
-      body: 'Você foi mencionado em uma publicação do RESA.',
-      channel: 'in_app',
-      priority: 'normal',
-      data: { content_id: contentId, actor_id: a.id },
-    });
     return rows[0];
   }
 
