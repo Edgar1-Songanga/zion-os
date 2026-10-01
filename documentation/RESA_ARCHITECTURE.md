@@ -1,4 +1,59 @@
-# RESA — Arquitetura de Software e Produto
+# RESA — Arquitectura Consolidada
+
+> **Regra de consolidação:** este documento NÃO substitui a arquitectura já existente do RESA. Ele combina o que já existe no código, contratos, tipos, UI e Supabase com as capacidades novas definidas no conceito visual/funcional. Onde uma capacidade já existe, ela é preservada e refinada. Onde não existe, é acrescentada. Não devem ser criados módulos duplicados.
+
+## Estado de referência existente
+
+A consolidação parte das capacidades já presentes no repositório, incluindo:
+- Content Engine e tipos de conteúdo RESA;
+- perfis multi-identidade;
+- Feed Engine e sinais de ranking;
+- Social Graph;
+- Communities;
+- Discovery;
+- Media;
+- RESA Live;
+- Messaging;
+- Moderation;
+- Notifications;
+- Prayer/RESA spiritual surfaces;
+- Events;
+- Reactions, comments e reply threads;
+- ZION Identity/Organizations como serviços centrais;
+- Supabase RLS e tabelas RESA existentes.
+
+### Capacidades acrescentadas ou explicitadas nesta consolidação
+
+As seguintes capacidades passam a fazer parte do contrato do RESA quando ainda não existirem como domínio/entidade/fluxo:
+- Mentions (@profiles);
+- Hashtags/Topics;
+- Tags;
+- Polls;
+- Q&A;
+- Saves/Bookmarks;
+- Reposts/Shares;
+- Quote posts;
+- Hide/Mute/Block;
+- Stories completas;
+- Drafts;
+- Scheduled publishing;
+- Content collections;
+- Creator Studio;
+- Search/Discovery unificado;
+- Social Intelligence;
+- Recommendation Engine;
+- Event lifecycle completo;
+- Live replay → clips → derived content;
+- audience/privacy controls;
+- accessibility metadata;
+- content rights/provenance;
+- appeals e moderation queues;
+- observability operacional;
+- domain events/idempotency.
+
+**Importante:** esta lista é de lacunas/capacidades a acrescentar ou formalizar, não uma autorização para duplicar componentes já existentes.
+
+---
 
 ## 1. Definição
 
