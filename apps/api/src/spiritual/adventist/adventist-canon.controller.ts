@@ -1,6 +1,6 @@
 import { Controller, Get, Param, Query } from "@nestjs/common";
 import { AdventistCanonService } from "./adventist-canon.service";
-import { CanonicalAdventistContentType } from "./adventist-canon.types";
+import type { CanonicalAdventistContentType } from "./adventist-canon.types";
 
 @Controller("v1/spiritual/adventist")
 export class AdventistCanonController {

@@ -40,20 +40,20 @@ export default function MeetingRoom({ meetingId }: Props) {
     let controlsTimer: number | undefined;
     async function start() {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) throw new Error("Sessão de autenticação não encontrada.");
+        const { data: { session: authSession } } = await supabase.auth.getSession();
+        if (!authSession?.user) throw new Error("Sessão de autenticação não encontrada.");
 
-        setCurrentUserId(session.user.id);
+        setCurrentUserId(authSession.user.id);
         const participantRows = await getMeetingParticipants(meetingId);
         setParticipants(participantRows);
-        setIsModerator(participantRows.some((p) => p.user_id === session.user.id && ["HOST", "MODERATOR"].includes(p.participant_role) && ["INVITED", "ACCEPTED", "PRESENT"].includes(p.status)));
+        setIsModerator(participantRows.some((p) => p.user_id === authSession.user.id && ["HOST", "MODERATOR"].includes(p.participant_role) && ["INVITED", "ACCEPTED", "PRESENT"].includes(p.status)));
 
         const realtime = await createMeetingRealtime(meetingId);
         if (!active) { await realtime.unsubscribe(); return; }
         realtimeRef.current = realtime;
 
         const media = await getMeetingMediaJoinConfig(meetingId);
-        let session: MeetingSession;
+        let meetingSession: MeetingSession;
         if (media.mode === "SFU") {
           const livekit = new LiveKitMeetingSession({
             onRemoteStream: (peerId, stream) => setRemoteStreams((current) => ({ ...current, [peerId]: stream })),
@@ -64,12 +64,12 @@ export default function MeetingRoom({ meetingId }: Props) {
           });
           if (!media.joinUrl || !media.token) throw new Error("Configuração SFU incompleta.");
           await livekit.connect(media.joinUrl, media.token);
-          session = livekit;
+          meetingSession = livekit;
         } else {
           const ice = await getMeetingIceConfig(meetingId);
           const rtc = new WebRtcSession({
             channel: realtime.channel,
-            peerId: session.user.id,
+            peerId: authSession.user.id,
             iceServers: ice.iceServers,
             onRemoteStream: (peerId, stream) => setRemoteStreams((current) => ({ ...current, [peerId]: stream })),
             onPeerLeft: (peerId) => setRemoteStreams((current) => {
@@ -80,30 +80,30 @@ export default function MeetingRoom({ meetingId }: Props) {
               setStatus(enabled ? `Participante ${peerId.slice(0, 8)} está a partilhar o ecrã` : "Partilha de ecrã terminada");
             },
           });
-          session = rtc;
+          meetingSession = rtc;
           const connectPeers = async () => {
             const states = realtime.channel.presenceState() as Record<string, Array<Record<string, unknown>>>;
             const peerIds = Object.values(states).flat().map((state) => String(state.userId ?? ""))
-              .filter((id) => id && id !== session.user.id);
+              .filter((id) => id && id !== authSession.user.id);
             for (const peerId of new Set(peerIds)) {
-              if (session.user.id < peerId) await rtc.connectToPeer(peerId, true);
+              if (authSession.user.id < peerId) await rtc.connectToPeer(peerId, true);
             }
           };
           realtime.channel.on("presence", { event: "sync" }, () => void connectPeers());
           realtime.channel.on("presence", { event: "join" }, () => void connectPeers());
           await connectPeers();
         }
-        sessionRef.current = session;
+        sessionRef.current = meetingSession;
 
-        const local = await session.startLocalMedia();
+        const local = await meetingSession.startLocalMedia();
         if (localVideo.current) localVideo.current.srcObject = local;
 
-        await realtime.trackPresence({ userId: session.user.id, mic: true, camera: true, sharing: false });
+        await realtime.trackPresence({ userId: authSession.user.id, mic: true, camera: true, sharing: false });
         setStatus(media.mode === "SFU" ? "Sala ligada via ZION SFU" : "Sala ligada");
 
         const syncControls = async () => {
           const controls = await getMeetingControls(meetingId);
-          const mine = controls.find((control) => control.user_id === session.user.id);
+          const mine = controls.find((control) => control.user_id === authSession.user.id);
           if (!mine || !sessionRef.current) return;
           if (mine.removed) {
             setError("Você foi removido desta reunião.");
@@ -232,8 +232,7 @@ export default function MeetingRoom({ meetingId }: Props) {
               ))}
             </div>
           </section>
-        )
-      </div>
+        )}
       </div>
     </main>
   );

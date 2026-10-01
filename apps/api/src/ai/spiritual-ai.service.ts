@@ -14,8 +14,7 @@ export class SpiritualAiService {
         request.systemContext ?? "",
         "ZION spiritual AI must distinguish canonical Adventist sources from commentary and user-generated material.",
         "Do not fabricate Bible text, doctrine, official statements, or source citations.",
-      ].filter(Boolean).join("
-"),
+      ].filter(Boolean).join("\n"),
     });
     return { ...result, canonicalReferences: references };
   }

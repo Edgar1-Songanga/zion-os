@@ -23,7 +23,7 @@ export class WebRtcSession {
 
   constructor(options: WebRtcSessionOptions) {
     this.options = options;
-    this.unsubscribeSignal = onMeetingSignal(options.channel, (signal) => {
+    onMeetingSignal(options.channel, (signal) => {
       void this.handleSignal(signal);
     });
   }
@@ -206,7 +206,7 @@ export class WebRtcSession {
     }
   }
 
-  private async flushPendingCandidates(peerId: string, peer: RTCPeerConnection): Promise<void>
+  private async flushPendingCandidates(peerId: string, peer: RTCPeerConnection): Promise<void> {
     const queue = this.pendingCandidates.get(peerId);
     if (!queue?.length) return;
     for (const candidate of queue) await peer.addIceCandidate(candidate);

@@ -1,6 +1,16 @@
 import { createClient } from "@/lib/supabase/client";
 
-export type MeetingParticipantControl = { meeting_id: string; user_id: string; mic_muted: boolean; camera_enabled: boolean; screen_sharing: boolean; hand_raised: boolean; removed: boolean; };\n\nexport type MeetingParticipant = {
+export type MeetingParticipantControl = {
+  meeting_id: string;
+  user_id: string;
+  mic_muted: boolean;
+  camera_enabled: boolean;
+  screen_sharing: boolean;
+  hand_raised: boolean;
+  removed: boolean;
+};
+
+export type MeetingParticipant = {
   id: string;
   user_id: string;
   participant_role: string;
@@ -27,7 +37,11 @@ async function request<T>(meetingId: string, path: string, init?: RequestInit): 
   return response.json() as Promise<T>;
 }
 
-export function getMeetingControls(meetingId: string) {\n  return request<MeetingParticipantControl[]>(meetingId, "controls");\n}\n\nexport function getMeetingParticipants(meetingId: string) {
+export function getMeetingControls(meetingId: string) {
+  return request<MeetingParticipantControl[]>(meetingId, "controls");
+}
+
+export function getMeetingParticipants(meetingId: string) {
   return request<MeetingParticipant[]>(meetingId, "participants");
 }
 
@@ -38,17 +52,14 @@ export function setSelfMeetingControl(meetingId: string, input: Record<string, b
 export function moderateMeetingParticipant(meetingId: string, userId: string, input: Record<string, boolean>) {
   return request(meetingId, `controls/${userId}`, { method: "POST", body: JSON.stringify(input) });
 }
+
 export type MeetingMediaJoinConfig = {
   mode: 'P2P' | 'SFU';
   provider: string;
   roomId: string;
   joinUrl?: string | null;
   token?: string | null;
-  iceServers?: Array<{
-    urls: string | string[];
-    username?: string;
-    credential?: string;
-  }>;
+  iceServers?: Array<{ urls: string | string[]; username?: string; credential?: string }>;
 };
 
 export function getMeetingMediaJoinConfig(meetingId: string) {
