@@ -26,11 +26,8 @@ export default function SignUpPage() {
       },
     });
 
-    if (error) {
-      setError(error.message);
-    } else {
-      setMessage("Conta criada. Verifique o seu email para concluir a ativação.");
-    }
+    if (error) setError(error.message);
+    else setMessage("Conta criada. Verifique o seu email para concluir a ativação.");
 
     setLoading(false);
   }
@@ -45,13 +42,13 @@ export default function SignUpPage() {
         <form onSubmit={handleSubmit} className="mt-8 space-y-5">
           <label className="block">
             <span className="text-sm font-medium text-slate-700">Email</span>
-            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+            <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)}
               className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-[#D4AF37]" />
           </label>
 
           <label className="block">
             <span className="text-sm font-medium text-slate-700">Palavra-passe</span>
-            <input type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)}
+            <input type="password" required minLength={8} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)}
               className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-[#D4AF37]" />
           </label>
 
