@@ -1,11 +1,12 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { IdentityService } from '../../identity/application/identity.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
+import { ResaRecommendationService } from './recommendation.service';
 
 @Injectable()
 export class ResaSocialService {
   private readonly db = new SupabaseRestClient();
-  constructor(private readonly identity: IdentityService) {}
+  constructor(private readonly identity: IdentityService, private readonly recommendations: ResaRecommendationService) {}
   private async actor(token: string) { return this.identity.getCurrentUser(token); }
   private clean(value: unknown, field: string, max = 10000) {
     if (typeof value !== 'string' || !value.trim()) throw new BadRequestException(`${field} is required`);
@@ -17,19 +18,34 @@ export class ResaSocialService {
     return this.db.get('resa_contents', token, `?select=*&order=created_at.desc&limit=${size}${filter}`);
   }
   async feed(token: string, limit = 30) {
-    const a = await this.actor(token); const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
-    const [contents, follows, feedback] = await Promise.all([
-      this.db.get<any[]>('resa_contents', token, '?select=*&visibility=eq.public&order=created_at.desc&limit=100'),
+    const a = await this.actor(token);
+    const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
+    const [contents, follows, feedback, reactions, saves] = await Promise.all([
+      this.db.get<any[]>('resa_contents', token, '?select=*&visibility=eq.public&order=created_at.desc&limit=150'),
       this.db.get<any[]>('resa_follows', token, `?select=followed_id&follower_id=eq.${a.id}`),
       this.db.get<any[]>('resa_feed_feedback', token, `?select=content_id,feedback&user_id=eq.${a.id}`),
+      this.db.get<any[]>('resa_reactions', token, '?select=content_id'),
+      this.db.get<any[]>('resa_saves', token, `?select=content_id&user_id=eq.${a.id}`),
     ]);
     const followed = new Set(follows.map((row) => row.followed_id));
-    const hidden = new Set(feedback.filter((row) => ['not_interested', 'hide_author'].includes(row.feedback)).map((row) => row.content_id));
-    return contents.filter((item) => !hidden.has(item.id)).map((item) => ({
+    const hidden = new Map(feedback.map((row) => [row.content_id, row.feedback]));
+    const reactionCounts = reactions.reduce<Record<string, number>>((counts, row) => {
+      counts[row.content_id] = (counts[row.content_id] ?? 0) + 1;
+      return counts;
+    }, {});
+    const saved = new Set(saves.map((row) => row.content_id));
+    const ranked = this.recommendations.rank(contents.map((item) => ({
       ...item,
-      score: (followed.has(item.author_id) ? 40 : 0) + (['prayer', 'bible_study'].includes(item.type) ? 5 : 0) + Math.max(0, 20 - Math.floor((Date.now() - Date.parse(item.created_at)) / 3600000)),
-    })).sort((left, right) => right.score - left.score || Date.parse(right.created_at) - Date.parse(left.created_at)).slice(0, size);
+      followedAuthor: followed.has(item.author_id),
+      interactionCount: reactionCounts[item.id] ?? 0,
+      saved: saved.has(item.id),
+      feedback: hidden.get(item.id),
+      contentType: item.type,
+      ageHours: Math.max(0, (Date.now() - Date.parse(item.created_at)) / 3600000),
+    })));
+    return ranked.slice(0, size);
   }
+
   async explore(token: string, query?: string, limit = 30) {
     await this.actor(token); const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
     const filter = query?.trim() ? `&or=(title.ilike.*${encodeURIComponent(query.trim())}*,body.ilike.*${encodeURIComponent(query.trim())}*)` : '';
