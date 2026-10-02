@@ -19,12 +19,14 @@ function SignInForm() {
     event.preventDefault();
     setError("");
     setLoading(true);
+
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       setError(error.message);
       setLoading(false);
       return;
     }
+
     window.location.assign(redirectPath);
   }
 
@@ -42,6 +44,11 @@ function SignInForm() {
           onChange={(event) => setPassword(event.target.value)}
           className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-[#D4AF37]" />
       </label>
+      <div className="flex justify-end">
+        <Link href="/auth/forgot-password" className="text-sm font-medium text-[#0C1A3D] underline">
+          Esqueci-me da palavra-passe
+        </Link>
+      </div>
       {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
       <button type="submit" disabled={loading}
         className="w-full rounded-xl bg-[#0C1A3D] px-4 py-3 font-semibold text-white disabled:opacity-60">
