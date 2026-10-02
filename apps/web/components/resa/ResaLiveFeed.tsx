@@ -25,7 +25,7 @@ export default function ResaLiveFeed() {
     setLoading(true);
     setError(null);
     try {
-      setItems(await resaRequest<ResaContent[]>("/v1/resa/content?limit=30"));
+      setItems(await resaRequest<ResaContent[]>("/v1/resa/feed?limit=30"));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível carregar o feed.");
     } finally {

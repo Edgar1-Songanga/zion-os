@@ -54,10 +54,12 @@ export class ZionSfuProvider implements MediaProvider {
         canSubscribe: true,
         canPublishData: true,
       };
-      const token = await new AccessToken(env.livekitApiKey, env.livekitApiSecret, {
+      const accessToken = new AccessToken(env.livekitApiKey, env.livekitApiSecret, {
         identity: input.userId,
         ttl: '1h',
-      }).addGrant(grant).toJwt();
+      });
+      accessToken.addGrant(grant);
+      const token = await accessToken.toJwt();
       return {
         mode: 'SFU',
         provider: 'ZION_SFU',

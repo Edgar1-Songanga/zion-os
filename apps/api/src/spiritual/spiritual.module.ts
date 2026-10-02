@@ -9,12 +9,16 @@ import { AdventistCanonController } from "./adventist/adventist-canon.controller
 import { AdventistCanonService } from "./adventist/adventist-canon.service";
 import { SabbathSchoolController } from "./adventist/sabbath-school.controller";
 import { SabbathSchoolService } from "./adventist/sabbath-school.service";
+import { MinistryController } from "./ministry/ministry.controller";
+import { MINISTRY_DIRECTORY } from "./ministry/ministry.service";
+import { SupabaseMinistryDirectory } from "./ministry/supabase-ministry.directory";
 
 @Module({
   controllers: [
     BibleController,
     AdventistCanonController,
     SabbathSchoolController,
+    MinistryController,
   ],
   providers: [
     BibleService,
@@ -24,6 +28,8 @@ import { SabbathSchoolService } from "./adventist/sabbath-school.service";
     SpiritualMinistryService,
     AdventistCanonService,
     SabbathSchoolService,
+    SupabaseMinistryDirectory,
+    { provide: MINISTRY_DIRECTORY, useExisting: SupabaseMinistryDirectory },
   ],
   exports: [
     BibleService,

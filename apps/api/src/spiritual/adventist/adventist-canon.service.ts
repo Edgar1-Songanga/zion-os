@@ -1,6 +1,8 @@
 import { Inject, Injectable, Optional } from "@nestjs/common";
 import {
   ADVENTIST_CANONICAL_SOURCES,
+} from "./adventist-canon.types";
+import type {
   AdventistCanonicalRecord,
   AdventistCanonRepository,
   CanonicalAdventistContentType,

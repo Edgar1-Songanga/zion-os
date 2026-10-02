@@ -64,6 +64,7 @@ export interface Ministry {
   name: string;
   department: string;
   description: string;
+  philosophy: string;
   status: MinistryStatus;
 
   organization: MinistryOrganization;

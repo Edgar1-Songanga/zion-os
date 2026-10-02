@@ -1,5 +1,5 @@
 import { Inject, Injectable, Optional } from "@nestjs/common";
-import { SabbathSchoolLesson, SabbathSchoolRepository } from "./sabbath-school.types";
+import type { SabbathSchoolLesson, SabbathSchoolRepository } from "./sabbath-school.types";
 
 export const SABBATH_SCHOOL_REPOSITORY = Symbol("SABBATH_SCHOOL_REPOSITORY");
 

@@ -38,6 +38,15 @@ export default function MinistryDashboard({
               {ministry.description}
             </p>
 
+            <div className="mt-5 rounded-2xl border border-[#D4AF37]/30 bg-[#D4AF37]/10 p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8B6F16]">
+                Filosofia do ministério
+              </p>
+              <p className="mt-2 text-lg font-medium leading-relaxed text-[#0C1A3D]">
+                {ministry.philosophy}
+              </p>
+            </div>
+
           </div>
 
 

@@ -10,7 +10,7 @@ export async function getSupabaseUser(accessToken: string): Promise<SupabaseAuth
   if (!env.supabaseUrl || !env.supabasePublishableKey || !accessToken) return null;
 
   const response = await fetch(
-    `${env.supabaseUrl.replace(/\\/$/, '')}/auth/v1/user`,
+    `${env.supabaseUrl.replace(/\/$/, '')}/auth/v1/user`,
     {
       headers: {
         apikey: env.supabasePublishableKey,

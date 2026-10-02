@@ -4,7 +4,7 @@ import { IdentityService } from '../../identity/application/identity.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 import { Inject } from '@nestjs/common';
 import { MEDIA_PROVIDER } from '../../media/media.module';
-import { MediaProvider } from '../../media/application/media-provider';
+import type { MediaProvider } from '../../media/application/media-provider';
 
 @Injectable()
 export class GovernanceService {

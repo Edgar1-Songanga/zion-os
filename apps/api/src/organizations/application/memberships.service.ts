@@ -32,7 +32,7 @@ export class MembershipsService {
     }
     if (!roleId) throw new BadRequestException('Default member role is not configured');
 
-    const created = await this.db.post(
+    const created = await this.db.post<Array<{ id: string; [key: string]: unknown }>>(
       'organization_memberships',
       accessToken,
       { organization_id: organizationId, user_id: input.user_id, role_id: roleId, status: input.status ?? 'ACTIVE' },
@@ -54,7 +54,7 @@ export class MembershipsService {
     if (input.status !== undefined) patch.status = input.status;
     if (!Object.keys(patch).length) throw new BadRequestException('No changes supplied');
 
-    const updated = await this.db.patch(
+    const updated = await this.db.patch<Array<{ id: string; [key: string]: unknown }>>(
       'organization_memberships',
       accessToken,
       patch,
@@ -76,7 +76,7 @@ export class MembershipsService {
     );
     if (!units[0]) throw new NotFoundException('Organization unit not found');
 
-    const rows = await this.db.post(
+    const rows = await this.db.post<Array<{ id: string; [key: string]: unknown }>>(
       'unit_memberships',
       accessToken,
       { unit_id: unitId, membership_id: membershipId },
@@ -100,7 +100,7 @@ export class MembershipsService {
     );
     if (!units[0]) throw new NotFoundException('Organization unit not found');
 
-    const removed = await this.db.delete(
+    const removed = await this.db.delete<Array<{ id: string; [key: string]: unknown }>>(
       'unit_memberships',
       accessToken,
       `?unit_id=eq.${unitId}&membership_id=eq.${membershipId}`,
