@@ -156,10 +156,34 @@ export class ResaOperationalService {
     if ((contentId ? 1 : 0) + (messageId ? 1 : 0) !== 1) throw new BadRequestException('Exactly one report target is required');
     const reason = this.text(input.reason, 'reason', 1, 40);
     if (!REPORT_REASONS.includes(reason as never)) throw new BadRequestException('Invalid report reason');
+    let organizationId: string | null = null;
+    if (contentId) {
+      const content = (await this.db.get<any[]>('resa_contents', token, `?select=organization_id&id=eq.${contentId}&limit=1`))[0];
+      organizationId = content?.organization_id ?? null;
+    }
     const rows = await this.db.post<any[]>('resa_moderation_reports', token, {
-      reporter_id: actor.id, content_id: contentId, message_id: messageId, reason,
+      reporter_id: actor.id, content_id: contentId, message_id: messageId, organization_id: organizationId, reason,
       details: typeof input.details === 'string' ? input.details.trim() || null : null,
     });
+    return rows[0];
+  }
+
+  async moderationQueue(token: string, status = 'open', limit = 50) {
+    await this.actor(token);
+    const size = Math.min(Math.max(Number(limit) || 50, 1), 100);
+    const allowed = ['open', 'reviewing', 'resolved', 'dismissed'];
+    if (!allowed.includes(status)) throw new BadRequestException('Invalid moderation status');
+    return this.db.get('resa_moderation_reports', token, `?select=*&status=eq.${status}&order=created_at.asc&limit=${size}`);
+  }
+
+  async moderateReport(token: string, reportId: string, status: 'reviewing' | 'resolved' | 'dismissed') {
+    const actor = await this.actor(token);
+    if (!['reviewing', 'resolved', 'dismissed'].includes(status)) throw new BadRequestException('Invalid moderation action');
+    const id = this.id(reportId, 'report_id');
+    const rows = await this.db.patch<any[]>('resa_moderation_reports', token, {
+      status, reviewed_by: actor.id, reviewed_at: new Date().toISOString(),
+    }, `?id=eq.${id}`);
+    if (!rows[0]) throw new NotFoundException('Moderation report was not found or access was denied');
     return rows[0];
   }
 
