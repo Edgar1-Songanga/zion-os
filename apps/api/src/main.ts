@@ -10,6 +10,10 @@ async function bootstrap() {
     .map((origin) => origin.trim())
     .filter(Boolean);
 
+  if (process.env.NODE_ENV === "production" && configuredOrigins.length === 0) {
+    throw new Error("ZION_ALLOWED_ORIGINS must be configured in production");
+  }
+
   app.enableCors({
     origin: configuredOrigins.length ? configuredOrigins : true,
     credentials: true,
