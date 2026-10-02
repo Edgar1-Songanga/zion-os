@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Post, Query, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Patch, Post, Query, UnauthorizedException } from '@nestjs/common';
 import { ResaOperationalService } from '../application/resa-operational.service';
 
 @Controller('v1/resa')
@@ -57,6 +57,14 @@ export class ResaOperationalController {
 
   @Post('moderation/reports') report(@Headers('authorization') authorization: string | undefined, @Body() body: any) {
     return this.operational.report(this.token(authorization), body);
+  }
+
+  @Get('moderation/reports') moderationQueue(@Headers('authorization') authorization: string | undefined, @Query('status') status?: string, @Query('limit') limit?: string) {
+    return this.operational.moderationQueue(this.token(authorization), status || 'open', Number(limit) || 50);
+  }
+
+  @Patch('moderation/reports/:reportId') moderateReport(@Headers('authorization') authorization: string | undefined, @Param('reportId') reportId: string, @Body() body: { status: 'reviewing' | 'resolved' | 'dismissed' }) {
+    return this.operational.moderateReport(this.token(authorization), reportId, body.status);
   }
 
   @Get('search') search(@Headers('authorization') authorization: string | undefined, @Query('q') query: string, @Query('type') type?: string, @Query('limit') limit?: string) {
