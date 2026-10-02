@@ -2,6 +2,7 @@ name: ZION CI
 # Production validation is required before the main branch is considered green.
 # Final CI contract verified by GitHub Actions.
 # Production CI trigger checkpoint.
+# PR validation checkpoint.
 
 on:
   push:
