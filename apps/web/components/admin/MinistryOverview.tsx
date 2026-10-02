@@ -1,479 +1,62 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { resaRequest } from "@/lib/resa/api";
 
+type Ministry = {
+  id: string;
+  name: string;
+  department: string;
+  description: string;
+  philosophy: string;
+  status: string;
+  metrics: { members: number; leaders: number; programs: number };
+};
+type Organization = { id: string };
 
-const ministries = [
+export default function MinistryOverview() {
+  const [ministries, setMinistries] = useState<Ministry[]>([]);
+  const [message, setMessage] = useState("A carregar ministérios…");
 
-{
-icon:"YM",
-name:"Youth Ministry",
-area:"Global youth discipleship, leadership development, club systems and spiritual growth initiatives.",
-status:"Operational",
-members:"12,540",
-activity:"Leadership development programs and youth engagement activities are active.",
-leader:"Youth Ministry Director",
-permissions:"Administrator • Manager • Coordinator • Viewer",
-levels:[
-"Local Church",
-"District",
-"Conference",
-"Union",
-"Division",
-"General Conference"
-],
-path:"/youth"
-},
+  useEffect(() => {
+    resaRequest<Organization[]>("/v1/organizations")
+      .then(async (organizations) => {
+        const first = organizations[0];
+        if (!first) { setMessage("Nenhuma organização administrada foi encontrada."); return; }
+        const result = await resaRequest<Ministry[]>(`/v1/ministries/organization/${first.id}`);
+        setMinistries(result);
+        setMessage(result.length ? "" : "Nenhum ministério registado nesta organização.");
+      })
+      .catch((reason: unknown) => setMessage(reason instanceof Error ? reason.message : "Não foi possível carregar os ministérios."));
+  }, []);
 
-
-{
-icon:"SS",
-name:"Sabbath School Ministry",
-area:"Bible study ecosystems, class management, discipleship pathways and spiritual formation.",
-status:"Operational",
-members:"28,430",
-activity:"Weekly study programs and discipleship reporting are active.",
-leader:"Sabbath School Director",
-permissions:"Administrator • Teacher • Coordinator • Viewer",
-levels:[
-"Local Church",
-"District",
-"Conference",
-"Union",
-"Division",
-"General Conference"
-],
-path:"/sabbath-school"
-},
-
-
-{
-icon:"WM",
-name:"Women's Ministry",
-area:"Women empowerment, fellowship networks, mission initiatives and community impact programs.",
-status:"Operational",
-members:"18,200",
-activity:"Mission projects and community initiatives are currently active.",
-leader:"Women's Ministry Director",
-permissions:"Administrator • Manager • Coordinator • Viewer",
-levels:[
-"Local Church",
-"District",
-"Conference",
-"Union",
-"Division",
-"General Conference"
-],
-path:"/women"
-},
-
-
-{
-icon:"HM",
-name:"Health Ministry",
-area:"Health education, wellness programs, preventive care initiatives and community transformation.",
-status:"Operational",
-members:"9,870",
-activity:"Health programs and community outreach initiatives are active.",
-leader:"Health Ministry Director",
-permissions:"Administrator • Health Officer • Coordinator • Viewer",
-levels:[
-"Local Church",
-"District",
-"Conference",
-"Union",
-"Division",
-"General Conference"
-],
-path:"/health"
-},
-
-
-{
-icon:"CM",
-name:"Communication Ministry",
-area:"Digital evangelism, media operations, content management and global communication strategies.",
-status:"Operational",
-members:"6,450",
-activity:"Digital communication campaigns and content operations are active.",
-leader:"Communication Director",
-permissions:"Administrator • Content Manager • Editor • Viewer",
-levels:[
-"Local Church",
-"District",
-"Conference",
-"Union",
-"Division",
-"General Conference"
-],
-path:"/communication"
+  return (
+    <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+      <h2 className="text-2xl font-semibold text-[#0C1A3D]">Centro de ministérios</h2>
+      <p className="mt-2 max-w-3xl text-slate-500">Gestão operacional dos ministérios, liderança e programas.</p>
+      {!ministries.length && <p className="mt-6 rounded-xl bg-slate-50 p-5 text-slate-500">{message}</p>}
+      <div className="mt-8 grid gap-6 md:grid-cols-2">
+        {ministries.map((ministry) => (
+          <article key={ministry.id} className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#8B6F16]">{ministry.department}</p>
+                <h3 className="mt-2 text-xl font-semibold text-[#0C1A3D]">{ministry.name}</h3>
+              </div>
+              <span className="text-xs font-semibold text-emerald-700">{ministry.status}</span>
+            </div>
+            <p className="mt-4 text-sm text-slate-600">{ministry.description}</p>
+            <p className="mt-4 rounded-xl bg-[#D4AF37]/10 p-4 text-sm text-[#0C1A3D]"><strong>Filosofia:</strong> {ministry.philosophy}</p>
+            <div className="mt-5 flex gap-5 text-sm text-slate-600">
+              <span><strong>{ministry.metrics.members}</strong> membros</span>
+              <span><strong>{ministry.metrics.leaders}</strong> líderes</span>
+              <span><strong>{ministry.metrics.programs}</strong> programas</span>
+            </div>
+            <Link href={`/ministry?id=${ministry.id}`} className="mt-6 inline-flex text-sm font-semibold text-[#D4AF37] hover:underline">Abrir centro do ministério →</Link>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
 }
-
-];
-
-
-
-export default function MinistryOverview(){
-
-
-return (
-
-<section
-
-className="
-mt-8
-bg-white
-rounded-3xl
-border
-border-slate-200
-p-8
-shadow-sm
-"
-
->
-
-
-<div className="mb-8">
-
-
-<h2
-
-className="
-text-2xl
-font-semibold
-text-[#0C1A3D]
-"
-
->
-Ministry Ecosystem Command Center
-</h2>
-
-
-<p
-
-className="
-mt-2
-text-slate-500
-max-w-3xl
-"
-
->
-A unified operational environment for managing ministries, leadership structures, member engagement and institutional activities across the global ZION OS network.
-</p>
-
-
-</div>
-
-
-
-
-<div
-
-className="
-grid
-md:grid-cols-2
-gap-6
-"
-
->
-
-
-{ministries.map((ministry)=>(
-
-
-<div
-
-key={ministry.name}
-
-className="
-rounded-3xl
-border
-border-slate-200
-p-6
-bg-slate-50
-hover:shadow-lg
-transition-all
-"
-
->
-
-
-<div
-
-className="
-flex
-justify-between
-items-start
-"
-
->
-
-
-<div
-
-className="
-flex
-items-center
-gap-4
-"
-
->
-
-
-<div
-
-className="
-w-12
-h-12
-rounded-2xl
-bg-[#0C1A3D]
-text-white
-flex
-items-center
-justify-center
-text-sm
-font-bold
-"
-
->
-{ministry.icon}
-</div>
-
-
-<div>
-
-
-<h3
-
-className="
-font-semibold
-text-[#0C1A3D]
-"
-
->
-{ministry.name}
-</h3>
-
-
-<p
-
-className="
-text-xs
-text-slate-500
-mt-1
-"
-
->
-{ministry.area}
-</p>
-
-
-</div>
-
-
-</div>
-
-
-
-
-<span
-
-className="
-text-xs
-font-semibold
-text-green-600
-"
-
->
-{ministry.status}
-</span>
-
-
-</div>
-
-
-
-
-
-<div
-
-className="
-mt-6
-grid
-gap-3
-text-sm
-text-slate-600
-"
-
->
-
-
-<div>
-
-<span className="font-semibold text-[#0C1A3D]">
-Members:
-</span>
-
-{" "}
-{ministry.members}
-
-</div>
-
-
-
-
-<div>
-
-<span className="font-semibold text-[#0C1A3D]">
-Latest Activity:
-</span>
-
-{" "}
-{ministry.activity}
-
-</div>
-
-
-
-
-<div>
-
-<span className="font-semibold text-[#0C1A3D]">
-Leadership:
-</span>
-
-{" "}
-{ministry.leader}
-
-</div>
-
-
-
-
-<div>
-
-<span className="font-semibold text-[#0C1A3D]">
-Access Control:
-</span>
-
-{" "}
-{ministry.permissions}
-
-</div>
-
-
-</div>
-
-
-
-
-
-
-<div
-
-className="
-mt-6
-"
-
->
-
-
-<h4
-
-className="
-text-xs
-font-semibold
-text-[#0C1A3D]
-mb-3
-"
-
->
-Organizational Coverage
-</h4>
-
-
-
-<div
-
-className="
-flex
-flex-wrap
-gap-2
-"
-
->
-
-
-{ministry.levels.map(level=>(
-
-
-<span
-
-key={level}
-
-className="
-px-3
-py-1
-rounded-full
-bg-white
-border
-border-slate-200
-text-xs
-text-slate-600
-"
-
->
-{level}
-</span>
-
-
-))}
-
-
-</div>
-
-
-</div>
-
-
-
-
-
-
-<Link
-
-href={ministry.path}
-
-className="
-mt-6
-inline-flex
-items-center
-text-sm
-font-semibold
-text-[#D4AF37]
-hover:underline
-"
-
->
-Access Ministry Command Center →
-</Link>
-
-
-
-
-
-</div>
-
-
-))}
-
-
-</div>
-
-
-</section>
-
-
-);
-
-  }
