@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: zion-ci-${{ github.workflow }}-${{ github.ref }}
@@ -13,10 +14,11 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    name: Build API and Web
+  validate:
+    name: Validate API and Web
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,5 +41,11 @@ jobs:
       - name: Build API
         run: pnpm --filter api build
 
+      - name: Test API
+        run: pnpm --filter api test -- --runInBand
+
       - name: Build Web
         run: pnpm --filter web build
+
+      - name: Lint Web
+        run: pnpm --filter web lint
