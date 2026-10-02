@@ -166,6 +166,11 @@ export class GovernanceController {
     return this.gov.decide(this.token(a), m, b.outcome);
   }
 
+  @Get('meetings/:meetingId/assistant')
+  meetingAssistant(@Headers('authorization') a: string | undefined, @Param('meetingId') m: string) {
+    return this.gov.meetingAssistant(this.token(a), m);
+  }
+
   @Get('meetings/:meetingId/minutes')
   minutes(@Headers('authorization') a: string | undefined, @Param('meetingId') m: string) {
     return this.gov.minutes(this.token(a), m);
