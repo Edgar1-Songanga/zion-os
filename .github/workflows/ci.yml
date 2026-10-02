@@ -1,4 +1,5 @@
 name: ZION CI
+# Production validation is required before the main branch is considered green.
 
 on:
   push:
