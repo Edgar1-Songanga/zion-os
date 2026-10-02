@@ -1,0 +1,2 @@
+[functions.zion-jobs-worker]
+verify_jwt = false
