@@ -1,0 +1,13 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { resaRequest } from "@/lib/resa/api";
+
+type Report = { id: string; reason: string; details?: string | null; status: string; created_at: string };
+export default function ModerationPage() {
+  const [reports,setReports]=useState<Report[]>([]); const [error,setError]=useState<string|null>(null);
+  const load=()=>{void resaRequest<Report[]>("/v1/resa/moderation/reports").then(setReports).catch(e=>setError(e instanceof Error?e.message:"Sem acesso à fila de moderação."));};
+  useEffect(load,[]);
+  async function action(id:string,status:"reviewing"|"resolved"|"dismissed"){await resaRequest("/v1/resa/moderation/reports/"+id,{method:"PATCH",body:JSON.stringify({status})});load();}
+  return <main className="min-h-screen bg-slate-50 p-8"><div className="mx-auto max-w-6xl"><h1 className="text-3xl font-semibold text-[#0C1A3D]">RESA Moderation</h1><p className="mt-2 text-slate-500">Fila institucional de denúncias e ações de moderação.</p>{error&&<p role="alert" className="mt-6 rounded-2xl bg-red-50 p-5 text-red-700">{error}</p>}<div className="mt-8 space-y-4">{reports.map(r=><article key={r.id} className="rounded-2xl border bg-white p-5"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase text-slate-400">{r.reason} · {r.status}</p><p className="mt-2 text-slate-700">{r.details||"Sem detalhes adicionais."}</p><p className="mt-2 text-xs text-slate-400">{new Date(r.created_at).toLocaleString()}</p></div><div className="flex gap-2"><button onClick={()=>void action(r.id,"reviewing")} className="rounded-xl border px-3 py-2 text-sm">Rever</button><button onClick={()=>void action(r.id,"resolved")} className="rounded-xl border px-3 py-2 text-sm">Resolver</button><button onClick={()=>void action(r.id,"dismissed")} className="rounded-xl border px-3 py-2 text-sm">Dispensar</button></div></div></article>)}{!reports.length&&!error&&<div className="rounded-3xl border border-dashed bg-white p-10 text-center text-slate-500">A fila está vazia.</div>}</div></div></main>;
+}
