@@ -474,6 +474,29 @@ export class GovernanceService {
     return rows[0];
   }
 
+  async meetingAssistant(token: string, meetingId: string) {
+    await this.actor(token);
+    const [meeting, agenda, participants, motions, minutes] = await Promise.all([
+      this.db.get<any[]>('governance_meetings', token, `?select=*&id=eq.${meetingId}&limit=1`),
+      this.db.get<any[]>('governance_agenda_items', token, `?select=*&meeting_id=eq.${meetingId}&order=position.asc`),
+      this.db.get<any[]>('governance_meeting_participants', token, `?select=*&meeting_id=eq.${meetingId}&order=created_at.asc`),
+      this.db.get<any[]>('governance_motions', token, `?select=*&meeting_id=eq.${meetingId}&order=created_at.asc`),
+      this.db.get<any[]>('governance_minutes', token, `?select=*&meeting_id=eq.${meetingId}&limit=1`),
+    ]);
+    const meetingRow = meeting[0];
+    if (!meetingRow) throw new BadRequestException('Meeting was not found');
+    const motionIds = motions.map((motion) => motion.id).filter(Boolean);
+    const resolvedDecisions = motionIds.length
+      ? await this.db.get<any[]>('governance_decisions', token, `?select=*&motion_id=in.(${motionIds.join(',')})&order=created_at.asc`)
+      : [];
+    return {
+      meeting: meetingRow, agenda,
+      attendance: participants.map((participant) => ({ user_id: participant.user_id, role: participant.participant_role, status: participant.status, joined_at: participant.joined_at ?? null, left_at: participant.left_at ?? null })),
+      motions, decisions: resolvedDecisions, minutes: minutes[0] ?? null,
+      assistant: { mode: 'structured', ai_enabled: false, generated_at: new Date().toISOString(), next_action: minutes[0]?.status === 'APPROVED' ? 'meeting_closed' : 'review_and_save_minutes' },
+    };
+  }
+
   async minutes(token: string, meetingId: string) {
     return this.db.get('governance_minutes', token, `?select=*&meeting_id=eq.${meetingId}&limit=1`);
   }
