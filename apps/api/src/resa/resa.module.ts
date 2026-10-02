@@ -10,7 +10,7 @@ import { ResaOperationalController } from './presentation/resa-operational.contr
 @Module({
   imports: [IdentityModule],
   controllers: [ResaController, ResaOperationalController],
-  providers: [ResaEngine, ResaSocialService, ResaOperationalService],
-  exports: [ResaEngine, ResaSocialService, ResaOperationalService],
+  providers: [ResaEngine, ResaSocialService, ResaRecommendationService, ResaOperationalService],
+  exports: [ResaEngine, ResaSocialService, ResaRecommendationService, ResaOperationalService],
 })
 export class ResaModule {}
