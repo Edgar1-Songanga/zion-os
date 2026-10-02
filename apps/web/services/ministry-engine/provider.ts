@@ -5,6 +5,8 @@ const ministries: Record<string, Ministry> = {
     id: "ministry-youth-001",
     name: "Youth Ministry",
     department: "Youth",
+    philosophy:
+      "Salvar do pecado e guiar no serviço, formando jovens discípulos, líderes e missionários comprometidos com Cristo e com a comunidade.",
     description:
       "Centraliza a gestão, acompanhamento e reporting do ministério de jovens.",
     status: "ACTIVE",

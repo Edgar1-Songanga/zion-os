@@ -1,27 +1,11 @@
-import MinistryDashboard from "@/components/ministry/MinistryDashboard";
-import { ministryService } from "@/services/ministry-engine/provider";
+import MinistryLivePage from "@/components/ministry/MinistryLivePage";
 
-
-export default async function MinistryPage() {
-
-  const ministry =
-    await ministryService.getMinistry(
-      "ministry-youth-001"
-    );
-
-
-  if (!ministry) {
-    return (
-      <div>
-        Ministério não encontrado.
-      </div>
-    );
-  }
-
-
+export default function MinistryPage() {
   return (
-    <MinistryDashboard
-      ministry={ministry}
-    />
+    <main className="min-h-screen bg-slate-100 p-8">
+      <div className="mx-auto max-w-7xl">
+        <MinistryLivePage ministryId="ministry-youth-001" />
+      </div>
+    </main>
   );
 }
