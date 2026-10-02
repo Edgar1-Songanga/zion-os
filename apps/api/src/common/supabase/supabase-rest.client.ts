@@ -27,6 +27,15 @@ export class SupabaseRestClient {
     return this.parse<T>(response);
   }
 
+  async rpc<T>(fn: string, accessToken: string, body: Record<string, unknown>): Promise<T> {
+    const response = await fetch(`${env.supabaseUrl}/rest/v1/rpc/${fn}`, {
+      method: 'POST',
+      headers: this.headers(accessToken),
+      body: JSON.stringify(body),
+    });
+    return this.parse<T>(response);
+  }
+
   async upsert<T>(table: string, accessToken: string, body: unknown, query = ''): Promise<T> {
     const response = await fetch(`${env.supabaseUrl}/rest/v1/${table}${query}`, {
       method: 'POST',

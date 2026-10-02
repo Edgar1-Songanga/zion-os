@@ -8,9 +8,7 @@ export class PlatformService {
 
   constructor(private readonly identity: IdentityService) {}
 
-  private async actor(token: string) {
-    return this.identity.getCurrentUser(token);
-  }
+  private async actor(token: string) { return this.identity.getCurrentUser(token); }
 
   private text(value: unknown, field: string, max = 120) {
     if (typeof value !== 'string') throw new BadRequestException(`${field} must be text`);
@@ -50,10 +48,14 @@ export class PlatformService {
 
   async search(token: string, query: unknown, type?: unknown, limit?: unknown) {
     await this.actor(token);
-    const term = this.text(query, 'q', 120).replace(/[(),]/g, ' ');
+    const term = this.text(query, 'q', 120);
     const size = this.limit(limit, 30, 100);
-    const typeFilter = type ? `&entity_type=eq.${encodeURIComponent(this.text(type, 'type', 80).toLowerCase())}` : '';
-    return this.db.get('zion_search_documents', token, `?select=*&or=(title.ilike.*${encodeURIComponent(term)}*,body.ilike.*${encodeURIComponent(term)}*)&order=updated_at.desc&limit=${size}${typeFilter}`);
+    const entityType = type ? this.text(type, 'type', 80).toLowerCase() : null;
+    return this.db.rpc<Array<Record<string, unknown>>>('search_zion_documents', token, {
+      p_query: term,
+      p_entity_type: entityType,
+      p_limit: size,
+    });
   }
 
   async publishEvent(token: string, input: { event_type: unknown; aggregate_type: unknown; aggregate_id: unknown; payload?: unknown }) {
@@ -75,8 +77,7 @@ export class PlatformService {
     const occurredAt = input.occurred_at ? new Date(String(input.occurred_at)) : new Date();
     if (Number.isNaN(occurredAt.getTime())) throw new BadRequestException('occurred_at is invalid');
     const rows = await this.db.post<any[]>('zion_analytics_events', token, {
-      event_name: eventName,
-      actor_user_id: actor.id,
+      event_name: eventName, actor_user_id: actor.id,
       entity_type: input.entity_type ? this.text(input.entity_type, 'entity_type', 80) : null,
       entity_id: input.entity_id ? this.uuid(input.entity_id, 'entity_id') : null,
       properties: input.properties && typeof input.properties === 'object' ? input.properties : {},
