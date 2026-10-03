@@ -6,7 +6,7 @@ userId?:string;
 
 module:string;
 
-data:any;
+data: Record<string, unknown>;
 
 }
 
