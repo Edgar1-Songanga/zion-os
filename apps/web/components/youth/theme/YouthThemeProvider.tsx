@@ -10,13 +10,14 @@ useContext
 import {
 YOUTH_THEMES
 } from "./YouthThemeConfig";
+import type { YouthTheme } from "./YouthThemeConfig";
 
 
 
 interface YouthThemeContextType {
 
 
-theme:any;
+theme: YouthTheme | undefined;
 
 }
 

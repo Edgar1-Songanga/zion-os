@@ -24,7 +24,7 @@ logo?:string;
 
 background?:string;
 
-historyItems:any[];
+historyItems: Array<{ year: string; title: string; description: string }>;
 
 }
 

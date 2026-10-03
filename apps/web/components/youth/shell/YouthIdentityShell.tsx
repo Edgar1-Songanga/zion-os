@@ -2,13 +2,14 @@
 
 
 import YouthExperienceBridge from "../experience/YouthExperienceBridge";
+import type { ZionTheme } from "../../experience/ThemeEngine";
 
 
 
 interface YouthIdentityShellProps {
 
 
-themeName:string;
+themeName: ZionTheme;
 
 children:React.ReactNode;
 

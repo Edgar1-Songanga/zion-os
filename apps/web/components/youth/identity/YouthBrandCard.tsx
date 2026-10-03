@@ -143,7 +143,7 @@ italic
 text-slate-500
 ">
 
-"{motto}"
+&quot;{motto}&quot;
 
 </p>
 

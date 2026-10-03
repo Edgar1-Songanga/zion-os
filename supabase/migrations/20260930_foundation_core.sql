@@ -109,6 +109,48 @@ create index if not exists idx_audit_actor_created on public.audit_logs(actor_us
 create index if not exists idx_organizations_created_by on public.organizations(created_by);
 create index if not exists idx_role_permissions_permission on public.role_permissions(permission_id);
 
+-- Security-definer helpers centralize organization authorization for RLS.
+-- They execute with a controlled search path and are callable only by authenticated users.
+create or replace function private.is_org_member(target_organization_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, private
+as $$
+  select exists (
+    select 1
+    from public.organization_memberships membership
+    where membership.organization_id = target_organization_id
+      and membership.user_id = (select auth.uid())
+      and membership.status = 'ACTIVE'
+  );
+$$;
+
+create or replace function private.has_org_permission(target_organization_id uuid, required_permission text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, private
+as $$
+  select exists (
+    select 1
+    from public.organization_memberships membership
+    join public.role_permissions role_permission on role_permission.role_id = membership.role_id
+    join public.permissions permission on permission.id = role_permission.permission_id
+    where membership.organization_id = target_organization_id
+      and membership.user_id = (select auth.uid())
+      and membership.status = 'ACTIVE'
+      and permission.key = required_permission
+  );
+$$;
+
+revoke all on function private.is_org_member(uuid) from public;
+revoke all on function private.has_org_permission(uuid, text) from public;
+grant execute on function private.is_org_member(uuid) to authenticated;
+grant execute on function private.has_org_permission(uuid, text) to authenticated;
+
 -- RLS and policy definitions are maintained with the live foundation setup.
 -- This file is the versioned source snapshot and should be updated alongside future migrations.
 

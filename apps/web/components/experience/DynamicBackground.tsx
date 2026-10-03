@@ -2,11 +2,7 @@
 
 
 import {
-
 getIdentity,
-
-ZionIdentity
-
 } from "./ImageIdentitySystem";
 
 

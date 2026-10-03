@@ -4,12 +4,13 @@
 import DynamicBackground from "../../experience/DynamicBackground";
 
 import GlassPanel from "../../experience/GlassPanel";
+import type { ZionTheme } from "../../experience/ThemeEngine";
 
 
 interface YouthExperienceBridgeProps {
 
 
-themeName:string;
+themeName: ZionTheme;
 
 
 children:React.ReactNode;
@@ -33,7 +34,7 @@ return (
 
 <DynamicBackground
 
-theme={themeName as any}
+theme={themeName}
 
 >
 

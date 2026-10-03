@@ -20,30 +20,25 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10.32.1
           run_install: false
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
-
+        run: pnpm install --frozen-lockfile
       - name: Build API
         run: pnpm --filter api build
-
       - name: Run API tests
         run: pnpm --filter api exec jest --runInBand
 
   web:
-    name: Web production build
+    name: Web production build and lint
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -53,24 +48,22 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10.32.1
           run_install: false
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
-
+        run: pnpm install --frozen-lockfile
       - name: Build Web
         run: pnpm --filter web build
+      - name: Lint Web
+        run: pnpm --filter web lint
 
   repository:
     name: Repository integrity
@@ -79,15 +72,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Validate migration names
+      - name: Validate migration names and authorization dependencies
         shell: bash
         run: |
           set -euo pipefail
           test -n "$(find supabase/migrations -maxdepth 1 -type f -name '*.sql' -print -quit)"
           names="$(find supabase/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort)"
           test "$(printf '%s\n' "$names" | awk '{print substr($0,1,14)}' | sort | uniq -d | wc -l)" -eq 0
+          grep -q 'create or replace function private.is_org_member' supabase/migrations/20260930_foundation_core.sql
+          grep -q 'create or replace function private.has_org_permission' supabase/migrations/20260930_foundation_core.sql
           printf '%s\n' "$names"
-
       - name: Check whitespace
         run: git diff --check

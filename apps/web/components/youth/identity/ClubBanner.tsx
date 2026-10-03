@@ -139,7 +139,7 @@ italic
 text-white
 ">
 
-"{motto}"
+&quot;{motto}&quot;
 
 </p>
 
