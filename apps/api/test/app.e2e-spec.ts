@@ -4,7 +4,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 
-describe('AppController (e2e)', () => {
+describe('ZION API (e2e)', () => {
   let app: INestApplication<App>;
 
   beforeEach(async () => {
@@ -13,6 +13,7 @@ describe('AppController (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.setGlobalPrefix('api');
     await app.init();
   });
 
@@ -21,6 +22,16 @@ describe('AppController (e2e)', () => {
       .get('/')
       .expect(200)
       .expect('Hello World!');
+  });
+
+  it('/api/health (GET)', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/health')
+      .expect(200);
+
+    expect(response.body.status).toBe('ok');
+    expect(response.body.service).toBe('zion-api');
+    expect(response.body.timestamp).toEqual(expect.any(String));
   });
 
   afterEach(async () => {
