@@ -152,7 +152,12 @@ export class ResaOperationalService {
       if (!parent.length) throw new NotFoundException('Parent message not found');
     }
     const rows = await this.db.post<any[]>('resa_messages', token, { conversation_id: id, sender_id: actor.id, body: this.text(body, 'body', 1, 10000), parent_message_id: parentId });
-    return rows[0];
+    const message = rows[0];
+    const members = await this.db.get<any[]>('resa_conversation_members', token, `?select=user_id&conversation_id=eq.${id}&user_id=neq.${actor.id}`);
+    if (members.length && message?.id) {
+      await this.db.post('resa_notifications', token, members.map((member) => ({ user_id: member.user_id, actor_id: actor.id, type: parentId ? 'message_reply' : 'message', title: parentId ? 'Nova resposta' : 'Nova mensagem', body: this.text(body, 'body', 1, 10000).slice(0, 240), conversation_id: id, message_id: message.id })));
+    }
+    return message;
   }
 
   async listNotifications(token: string, limit = 30) {
