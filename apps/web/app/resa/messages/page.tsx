@@ -165,7 +165,7 @@ export default function MessagesPage() {
             onClick={() => { setNewOpen(true); setError(null); }}
             className="inline-flex items-center gap-2 rounded-2xl bg-[#0C1A3D] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#122858]"
           >
-            <ResaIcon name="plus" size={17} />
+            <ResaIcon name="sparkles" size={17} />
             Nova conversa
           </button>
         </header>
@@ -289,7 +289,7 @@ export default function MessagesPage() {
                 <h2 className="mt-1 text-xl font-semibold text-[#0C1A3D]">Encontre uma pessoa</h2>
                 <p className="mt-1 text-sm text-slate-500">Pesquise pelo nome ou perfil para iniciar uma conversa privada.</p>
               </div>
-              <button onClick={() => setNewOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-500"><ResaIcon name="close" size={16} /></button>
+              <button onClick={() => setNewOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-500"><span aria-hidden="true" className="text-lg leading-none">×</span></button>
             </div>
             <div className="mt-5 flex gap-2">
               <input
