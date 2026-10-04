@@ -17,7 +17,7 @@ const sections = [
     title: "SPIRITUAL EXPERIENCE",
     items: [
       { name: "Bible Engine", path: "/bible-engine" },
-      { name: "Youth Ministry", path: "/ministry" },
+      { name: "Youth Ministry", path: "/youth" },
       { name: "Spiritual Chat", path: "/spiritual-chat" },
     ],
   },
