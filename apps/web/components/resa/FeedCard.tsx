@@ -38,8 +38,46 @@ export default function FeedCard({ content }: { content: ResaContent }) {
   const [comments, setComments] = useState<CommentItem[]>([]);
   const [comment, setComment] = useState("");
   const [showComments, setShowComments] = useState(false);
+  const [showShare, setShowShare] = useState(false);
+  const [shareFeedback, setShareFeedback] = useState("");
 
   const meta = typeMeta[content.type] ?? typeMeta.text;
+  const shareTitle = content.title?.trim() || "Publicação no RESA";
+  const shareText = content.body?.trim() ? `${shareTitle} — ${content.body.trim().slice(0, 180)}` : shareTitle;
+  const shareUrl = typeof window !== "undefined"
+    ? `${window.location.origin}/resa?post=${encodeURIComponent(content.id)}`
+    : `/resa?post=${encodeURIComponent(content.id)}`;
+
+  async function nativeShare() {
+    setShareFeedback("");
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({ title: shareTitle, text: shareText, url: shareUrl });
+        setShareFeedback("Partilhado");
+        return;
+      } catch {}
+    }
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setShareFeedback("Link copiado");
+    } catch {
+      setShareFeedback("Copie o link da publicação");
+    }
+  }
+
+  function openExternalShare(network: "whatsapp" | "facebook" | "messenger" | "telegram" | "x") {
+    const encodedUrl = encodeURIComponent(shareUrl);
+    const encodedText = encodeURIComponent(shareText);
+    const targets = {
+      whatsapp: `https://wa.me/?text=${encodedText}%20${encodedUrl}`,
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
+      messenger: `https://www.facebook.com/dialog/send?link=${encodedUrl}&app_id=0&redirect_uri=${encodedUrl}`,
+      telegram: `https://t.me/share/url?url=${encodedUrl}&text=${encodedText}`,
+      x: `https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedText}`,
+    };
+    window.open(targets[network], "_blank", "noopener,noreferrer");
+    setShareFeedback("Janela de partilha aberta");
+  }
 
   useEffect(() => {
     if (!showComments) return;
@@ -137,6 +175,31 @@ export default function FeedCard({ content }: { content: ResaContent }) {
           <ResaIcon name="repost" size={16} />
           {reposting ? "A repostar…" : "Repostar"}
         </button>
+        <button type="button" onClick={() => { setShowShare((v) => !v); setShareFeedback(""); }} className="inline-flex items-center gap-2 rounded-xl bg-[#0C1A3D] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md" aria-expanded={showShare}>
+          <ResaIcon name="share" size={17} />
+          Partilhar
+        </button>
+
+        {showShare && (
+          <div className="absolute bottom-full right-4 z-20 mb-3 w-[min(360px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_20px_60px_rgba(15,23,42,0.16)]">
+            <div className="px-2 py-1">
+              <p className="text-sm font-semibold text-[#0C1A3D]">Partilhar publicação</p>
+              <p className="mt-0.5 text-xs text-slate-400">Leve este conteúdo para além do RESA.</p>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => openExternalShare("whatsapp")} className="rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50">WhatsApp</button>
+              <button type="button" onClick={() => openExternalShare("facebook")} className="rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50">Facebook</button>
+              <button type="button" onClick={() => openExternalShare("messenger")} className="rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50">Messenger</button>
+              <button type="button" onClick={() => openExternalShare("telegram")} className="rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50">Telegram</button>
+              <button type="button" onClick={() => openExternalShare("x")} className="rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50">X</button>
+              <button type="button" onClick={() => void nativeShare()} className="rounded-xl bg-slate-50 px-3 py-2.5 text-left text-sm font-semibold text-[#0C1A3D] hover:bg-slate-100">Mais opções</button>
+            </div>
+            <div className="mt-2 flex items-center justify-between gap-2 border-t border-slate-100 px-2 pt-2">
+              <button type="button" onClick={() => void navigator.clipboard.writeText(shareUrl).then(() => setShareFeedback("Link copiado")).catch(() => setShareFeedback("Não foi possível copiar"))} className="text-xs font-semibold text-[#0C1A3D]">Copiar link</button>
+              {shareFeedback && <span className="text-xs text-slate-400">{shareFeedback}</span>}
+            </div>
+          </div>
+        )}
       </div>
 
       {showComments && (
