@@ -1,13 +1,19 @@
 import { createClient } from "@/lib/supabase/client";
 
+const RESA_API_URL = process.env.NEXT_PUBLIC_ZION_API_URL?.replace(/\/+$/, "");
+
 export async function resaRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  if (!RESA_API_URL) {
+    throw new Error("NEXT_PUBLIC_ZION_API_URL não está configurada.");
+  }
+
   const supabase = createClient();
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   if (!token) throw new Error("Sessão ZION não encontrada.");
 
   const response = await fetch(
-    `${process.env.NEXT_PUBLIC_ZION_API_URL}${path}`,
+    `${RESA_API_URL}${path.startsWith("/") ? path : `/${path}`}`,
     {
       ...init,
       headers: {
