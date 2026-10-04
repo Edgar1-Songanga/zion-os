@@ -1,0 +1,2 @@
+import ResaNavigation from "@/components/resa/core/ResaNavigation";
+export default function ResaLayout({children}:{children:React.ReactNode}){return <div className="min-h-screen bg-[#f6f8fb]"><div className="mx-auto max-w-[1480px] px-4 pb-8 pt-4 sm:px-6 lg:px-8"><ResaNavigation/>{children}</div></div>}
