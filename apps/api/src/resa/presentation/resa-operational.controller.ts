@@ -55,6 +55,18 @@ export class ResaOperationalController {
     return this.operational.sendMessage(this.token(authorization), conversationId, body.body, body.parent_message_id);
   }
 
+  @Get('notifications') notifications(@Headers('authorization') authorization?: string, @Query('limit') limit?: string) {
+    return this.operational.listNotifications(this.token(authorization), Number(limit) || 30);
+  }
+
+  @Patch('notifications/:notificationId/read') markNotificationRead(@Headers('authorization') authorization: string | undefined, @Param('notificationId') notificationId: string) {
+    return this.operational.markNotificationRead(this.token(authorization), notificationId);
+  }
+
+  @Post('notifications/read-all') markNotificationsRead(@Headers('authorization') authorization: string | undefined) {
+    return this.operational.markNotificationsRead(this.token(authorization));
+  }
+
   @Post('moderation/reports') report(@Headers('authorization') authorization: string | undefined, @Body() body: any) {
     return this.operational.report(this.token(authorization), body);
   }
