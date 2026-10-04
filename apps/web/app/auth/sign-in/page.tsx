@@ -27,7 +27,14 @@ function SignInForm() {
       return;
     }
 
-    window.location.assign(redirectPath);
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !sessionData.session) {
+      setError("A sessão não foi estabelecida. Tente entrar novamente.");
+      setLoading(false);
+      return;
+    }
+
+    window.location.replace(redirectPath);
   }
 
   return (
