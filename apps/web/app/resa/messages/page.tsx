@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import ResaIcon from "@/components/resa/core/ResaIcon";
+import { createClient } from "@/lib/supabase/client";
 
 type Conversation = {
   id: string;
@@ -86,6 +87,19 @@ export default function MessagesPage() {
     const timer = window.setInterval(() => void loadConversations(), 10000);
     return () => window.clearInterval(timer);
   }, [loadConversations]);
+
+  useEffect(() => {
+    if (!selected) return;
+    const supabase = createClient();
+    const channel = supabase.channel("resa-messages-" + selected).on("postgres_changes", { event: "INSERT", schema: "public", table: "resa_messages", filter: "conversation_id=eq." + selected }, (payload) => {
+      const incoming = payload.new as Message;
+      setMessages((current) => current.some((item) => item.id === incoming.id) ? current : [incoming, ...current]);
+      if (incoming.sender_id !== undefined && typeof window !== "undefined") {
+        try { window.dispatchEvent(new CustomEvent("resa-message-received")); } catch {}
+      }
+    }).subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [selected]);
 
   useEffect(() => {
     if (!selected) {
