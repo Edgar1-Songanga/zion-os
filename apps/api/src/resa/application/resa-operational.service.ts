@@ -140,12 +140,12 @@ export class ResaOperationalService {
     return this.db.get('resa_messages', token, `?select=*&conversation_id=eq.${id}&order=created_at.desc&limit=${size}`);
   }
 
-  async sendMessage(token: string, conversationId: string, body: unknown) {
+  async sendMessage(token: string, conversationId: string, body: unknown, parentMessageId?: unknown) {
     const actor = await this.actor(token);
     const id = this.id(conversationId, 'conversation_id');
     const membership = await this.db.get<any[]>('resa_conversation_members', token, `?select=conversation_id&conversation_id=eq.${id}&user_id=eq.${actor.id}&limit=1`);
     if (!membership.length) throw new NotFoundException('Conversation not found');
-    const rows = await this.db.post<any[]>('resa_messages', token, { conversation_id: id, sender_id: actor.id, body: this.text(body, 'body', 1, 10000) });
+    const rows = await this.db.post<any[]>('resa_messages', token, { conversation_id: id, sender_id: actor.id, body: this.text(body, 'body', 1, 10000), parent_message_id: parentMessageId ? this.id(parentMessageId, 'parent_message_id') : null });
     return rows[0];
   }
 
