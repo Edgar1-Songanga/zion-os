@@ -136,6 +136,11 @@ set search_path = public, private
 as $$
   select exists (
     select 1
+    from public.organizations organization
+    where organization.id = target_organization_id
+      and organization.created_by = (select auth.uid())
+  ) or exists (
+    select 1
     from public.organization_memberships membership
     join public.role_permissions role_permission on role_permission.role_id = membership.role_id
     join public.permissions permission on permission.id = role_permission.permission_id

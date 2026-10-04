@@ -12,10 +12,11 @@ import { NotificationsModule } from "./notifications/notifications.module";
 import { AiModule } from "./ai/ai.module";
 import { UsersModule } from "./users/users.module";
 import { MediaModule } from "./media/media.module";
+import { FinanceModule } from "./finance/finance.module";
 import { HealthController } from "./platform/health.controller";
 
 @Module({
-  imports: [PlatformModule, IdentityModule, SpiritualModule, ResaModule, NotificationsModule, AiModule, OrganizationsModule, GovernanceModule, AuditModule, UsersModule, MediaModule],
+  imports: [PlatformModule, IdentityModule, SpiritualModule, ResaModule, NotificationsModule, AiModule, OrganizationsModule, GovernanceModule, AuditModule, UsersModule, MediaModule, FinanceModule],
   controllers: [AppController, HealthController],
   providers: [AppService],
 })
