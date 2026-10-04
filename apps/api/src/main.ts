@@ -7,7 +7,7 @@ async function bootstrap() {
 
   const configuredOrigins = (process.env.ZION_ALLOWED_ORIGINS ?? "")
     .split(",")
-    .map((origin) => origin.trim())
+    .map((origin) => origin.trim().replace(/\/+$/, ""))
     .filter(Boolean);
 
   if (process.env.NODE_ENV === "production" && configuredOrigins.length === 0) {
