@@ -155,6 +155,26 @@ export class ResaOperationalService {
     return rows[0];
   }
 
+  async listNotifications(token: string, limit = 30) {
+    const actor = await this.actor(token);
+    const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
+    return this.db.get('resa_notifications', token, `?select=*&user_id=eq.${actor.id}&order=created_at.desc&limit=${size}`);
+  }
+
+  async markNotificationRead(token: string, notificationId: string) {
+    const actor = await this.actor(token);
+    const id = this.id(notificationId, 'notification_id');
+    const rows = await this.db.patch<any[]>('resa_notifications', token, { read_at: new Date().toISOString() }, `?id=eq.${id}&user_id=eq.${actor.id}`);
+    if (!rows[0]) throw new NotFoundException('Notification not found');
+    return rows[0];
+  }
+
+  async markNotificationsRead(token: string) {
+    const actor = await this.actor(token);
+    await this.db.patch('resa_notifications', token, { read_at: new Date().toISOString() }, `?user_id=eq.${actor.id}&read_at=is.null`);
+    return { read: true };
+  }
+
   async report(token: string, input: { content_id?: unknown; message_id?: unknown; reason: unknown; details?: unknown }) {
     const actor = await this.actor(token);
     const contentId = input.content_id ? this.id(input.content_id, 'content_id') : null;
