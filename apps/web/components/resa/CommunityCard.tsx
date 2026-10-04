@@ -1,45 +1,4 @@
-export default function CommunityCard(){
-
-return (
-
-<div
-className="
-bg-white
-rounded-3xl
-p-6
-border
-border-slate-200
-"
->
-
-<h2 className="font-bold text-xl">
-Comunidades
-</h2>
-
-
-<div className="mt-5 space-y-3">
-
-
-<p>
-🌍 Jovens Adventistas Globais
-</p>
-
-
-<p>
-📖 Estudo Bíblico Diário
-</p>
-
-
-<p>
-🎵 Ministério de Louvor
-</p>
-
-
-</div>
-
-
-</div>
-
-)
-
-}
+import Link from "next/link";
+import ResaIcon from "./core/ResaIcon";
+const communities=[["Jovens Adventistas Globais","users"],["Estudo Bíblico Diário","story"],["Ministério de Louvor","live"]] as const;
+export default function CommunityCard(){return <section className="rounded-[28px] border border-slate-200/80 bg-white p-6 shadow-[0_12px_40px_rgba(15,23,42,0.06)]"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Descobrir</p><h2 className="mt-1 text-xl font-semibold tracking-tight text-[#0C1A3D]">Comunidades</h2></div><Link href="/resa/communities" className="rounded-xl p-2 text-slate-400 hover:bg-slate-50 hover:text-[#0C1A3D]" aria-label="Ver comunidades"><ResaIcon name="search" size={17}/></Link></div><div className="mt-5 space-y-2">{communities.map(([name,icon])=><Link key={name} href="/resa/communities" className="group flex items-center gap-3 rounded-2xl p-3 transition hover:bg-slate-50"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-[#0C1A3D] group-hover:bg-[#0C1A3D] group-hover:text-white"><ResaIcon name={icon}/></span><span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">{name}</span><span className="text-slate-300">→</span></Link>)}</div></section>}
