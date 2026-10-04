@@ -23,7 +23,7 @@ type CommentItem = {
   created_at: string;
 };
 
-const typeMeta: Record<string, { label: string; icon: "sparkles" | "prayer" | "story" }> = {
+const typeMeta: Record<string, { label: string; icon: "sparkles" | "prayer" | "story" | "heart" }> = {
   text: { label: "Publicação", icon: "sparkles" },
   prayer: { label: "Oração", icon: "prayer" },
   bible_study: { label: "Estudo bíblico", icon: "story" },
@@ -74,7 +74,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
     try {
       const created = await resaRequest<CommentItem>(`/v1/resa/content/${content.id}/comments`, {
         method: "POST",
-        body: JSON.stringify({ body: comment.trim(), content: comment.trim() }),
+        body: JSON.stringify({ body: comment.trim() }),
       });
       setComments((v) => [created, ...v]);
       setComment("");
@@ -102,7 +102,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="font-semibold text-[#0C1A3D]">Membro RESA</h3>
+              <h3 className="font-semibold text-[#0C1A3D]">Perfil RESA · {content.author_id.slice(0, 8)}</h3>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-500">
                 <ResaIcon name={meta.icon} size={12} />
                 {meta.label}
