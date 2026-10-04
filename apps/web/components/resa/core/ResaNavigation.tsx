@@ -1,29 +1,6 @@
 "use client";
-
 import Link from "next/link";
-
-const navigation = [
-  { name: "Mural", icon: "🏠", href: "/resa" },
-  { name: "Explorar", icon: "🔎", href: "/resa/explore" },
-  { name: "Comunidades", icon: "👥", href: "/resa/communities" },
-  { name: "Lives", icon: "🔴", href: "/resa" },
-  { name: "Eventos", icon: "📅", href: "/resa/events" },
-  { name: "Oração", icon: "🙏", href: "/resa/prayer" },
-  { name: "Mensagens", icon: "💬", href: "/resa/messages" },
-  { name: "Stories", icon: "◉", href: "/resa/stories" },
-  { name: "Creator Studio", icon: "✦", href: "/resa/creator" },
-];
-
-export default function ResaNavigation() {
-  return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-      <nav className="flex flex-wrap gap-3">
-        {navigation.map((item) => (
-          <Link key={item.name} href={item.href} className="rounded-full bg-slate-50 px-5 py-3 text-sm font-medium transition hover:bg-slate-100">
-            <span>{item.icon}</span>{" "}{item.name}
-          </Link>
-        ))}
-      </nav>
-    </div>
-  );
-}
+import { usePathname } from "next/navigation";
+import ResaIcon from "./ResaIcon";
+const navigation=[["Mural","home","/resa"],["Explorar","search","/resa/explore"],["Comunidades","users","/resa/communities"],["Lives","live","/resa"],["Eventos","calendar","/resa/events"],["Oração","prayer","/resa/prayer"],["Mensagens","message","/resa/messages"],["Stories","story","/resa/stories"],["Creator Studio","creator","/resa/creator"]] as const;
+export default function ResaNavigation(){const pathname=usePathname();return <div className="rounded-[28px] border border-slate-200/80 bg-white/90 p-2 shadow-[0_12px_40px_rgba(15,23,42,0.06)] backdrop-blur"><nav className="flex gap-1 overflow-x-auto">{navigation.map(([name,icon,href])=>{const active=pathname===href||(href!=="/resa"&&pathname.startsWith(href));return <Link key={name} href={href} className={`group flex min-w-fit items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition-all ${active?"bg-[#0C1A3D] text-white shadow-md shadow-slate-900/10":"text-slate-600 hover:bg-slate-50 hover:text-[#0C1A3D]"}`}><span className={`flex h-8 w-8 items-center justify-center rounded-xl ${active?"bg-white/10":"bg-slate-100"}`}><ResaIcon name={icon} size={17}/></span>{name}</Link>})}</nav></div>}
