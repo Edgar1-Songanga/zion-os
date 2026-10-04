@@ -51,8 +51,8 @@ export class ResaOperationalController {
     return this.operational.listMessages(this.token(authorization), conversationId, Number(limit) || 50);
   }
 
-  @Post('conversations/:conversationId/messages') sendMessage(@Headers('authorization') authorization: string | undefined, @Param('conversationId') conversationId: string, @Body() body: { body: string }) {
-    return this.operational.sendMessage(this.token(authorization), conversationId, body.body);
+  @Post('conversations/:conversationId/messages') sendMessage(@Headers('authorization') authorization: string | undefined, @Param('conversationId') conversationId: string, @Body() body: { body: string; parent_message_id?: string }) {
+    return this.operational.sendMessage(this.token(authorization), conversationId, body.body, body.parent_message_id);
   }
 
   @Post('moderation/reports') report(@Headers('authorization') authorization: string | undefined, @Body() body: any) {
