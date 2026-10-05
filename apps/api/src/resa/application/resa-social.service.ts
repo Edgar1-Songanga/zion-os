@@ -58,7 +58,11 @@ export class ResaSocialService {
   async createContent(token: string, input: any) {
     const a = await this.actor(token); const type = this.clean(input.type, 'type', 40); const visibility = input.visibility || 'public';
     if (!['public', 'followers', 'community', 'organization', 'private'].includes(visibility)) throw new BadRequestException('Invalid visibility');
-    const body = { author_id: a.id, type, title: typeof input.title === 'string' ? input.title.trim() || null : null, body: typeof input.body === 'string' ? input.body.trim() || null : null, visibility, language: typeof input.language === 'string' && input.language.trim() ? input.language.trim() : 'pt', organization_id: input.organization_id ?? null, ministry_id: input.ministry_id ?? null, scripture_references: Array.isArray(input.scripture_references) ? input.scripture_references.slice(0, 50) : [] };
+    const mediaType = input.media_type === 'image' || input.media_type === 'video' ? input.media_type : null;
+    const mediaUrl = typeof input.media_url === 'string' && input.media_url.trim() ? input.media_url.trim() : null;
+    const mediaPath = typeof input.media_path === 'string' && input.media_path.trim() ? input.media_path.trim() : null;
+    if (mediaType && !mediaUrl) throw new BadRequestException('media_url is required when media_type is provided');
+    const body = { author_id: a.id, type, title: typeof input.title === 'string' ? input.title.trim() || null : null, body: typeof input.body === 'string' ? input.body.trim() || null : null, visibility, language: typeof input.language === 'string' && input.language.trim() ? input.language.trim() : 'pt', organization_id: input.organization_id ?? null, ministry_id: input.ministry_id ?? null, scripture_references: Array.isArray(input.scripture_references) ? input.scripture_references.slice(0, 50) : [], media_type: mediaType, media_url: mediaUrl, media_path: mediaPath };
     if (!body.body && !body.title) throw new BadRequestException('title or body is required');
     const rows = await this.db.post<any[]>('resa_contents', token, body); return rows[0];
   }
