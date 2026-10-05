@@ -9,6 +9,7 @@ type Staff = { id: string; legal_name: string; employee_number: string; departme
 type PayrollRun = { id: string; period_start: string; period_end: string; currency: string; status: string; total_gross_minor: number; total_deductions_minor: number; total_net_minor: number; external_payment_reference?: string };
 type PayrollItem = { id: string; staff_id: string; gross_minor: number; deductions_minor: number; net_minor: number; status: string; payslip_number: string; paid_at?: string };
 type Summary = { contributions: Contribution[]; staff: Staff[]; payrollRuns: PayrollRun[] };
+type MemberContribution = Contribution & { receipt_number?: string; paid_at?: string; payment_method: string };
 
 const money = (minor: number, currency: string) => new Intl.NumberFormat(undefined, { style: "currency", currency }).format(minor / 100);
 
@@ -21,14 +22,19 @@ export default function FinancePage() {
   const [staff, setStaff] = useState({ legal_name: "", employee_number: "", department: "", base_salary_minor: "", currency: "USD", payment_method: "BANK_TRANSFER" });
   const [payroll, setPayroll] = useState({ period_start: "", period_end: "", currency: "USD", deductions_minor: "0" });
   const [payslips, setPayslips] = useState<PayrollItem[]>([]);
+  const [memberOrganization, setMemberOrganization] = useState<Organization | null>(null);
+  const [memberContributions, setMemberContributions] = useState<MemberContribution[]>([]);
+  const [memberPayment, setMemberPayment] = useState({ contribution_type: "TITHE", amount_minor: "", currency: "USD", payment_method: "CARD" });
 
   async function load() {
     try {
       const organizations = await resaRequest<Organization[]>("/v1/organizations");
       const first = organizations[0];
-      if (!first) { setMessage("Nenhuma organização administrada foi encontrada."); return; }
-      setOrganization(first);
-      setSummary(await resaRequest<Summary>(`/v1/finance/organizations/${first.id}/summary`));
+      const directory = await resaRequest<Organization[]>("/v1/organizations/directory");
+      const memberOrg = directory[0] ?? first;
+      if (memberOrg) { setMemberOrganization(memberOrg); setMemberContributions(await resaRequest<MemberContribution[]>(`/v1/finance/organizations/${memberOrg.id}/my-contributions`)); }
+      if (first) { setOrganization(first); setSummary(await resaRequest<Summary>(`/v1/finance/organizations/${first.id}/summary`)); }
+      if (!memberOrg && !first) { setMessage("Nenhuma organização foi encontrada."); return; }
       setMessage("");
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : "Não foi possível carregar os dados financeiros.");
@@ -65,6 +71,28 @@ export default function FinancePage() {
     finally { setBusy(false); }
   }
 
+  async function submitMemberPayment(event: FormEvent) {
+    event.preventDefault();
+    if (!memberOrganization) return;
+    setBusy(true);
+    try {
+      const result = await resaRequest<{ contribution: MemberContribution; next_step: string }>(`/v1/finance/organizations/${memberOrganization.id}/my-contributions`, { method: "POST", body: JSON.stringify({ ...memberPayment, amount_minor: Number(memberPayment.amount_minor) }) });
+      setMessage(result.next_step);
+      setMemberContributions(await resaRequest<MemberContribution[]>(`/v1/finance/organizations/${memberOrganization.id}/my-contributions`));
+      setMemberPayment((current) => ({ ...current, amount_minor: "" }));
+    } catch (reason) { setMessage(reason instanceof Error ? reason.message : "Não foi possível iniciar o pagamento."); }
+    finally { setBusy(false); }
+  }
+
+  async function downloadReceipt(id: string) {
+    try {
+      const receipt = await resaRequest<{ receipt_number: string; issued_at: string; contribution: MemberContribution }>(`/v1/finance/my-contributions/${id}/receipt`);
+      const item = receipt.contribution;
+      const html = `<html><body style="font-family:Arial;padding:40px"><h1>ZION Contribution Receipt</h1><p><strong>Receipt:</strong> ${receipt.receipt_number}</p><p><strong>Type:</strong> ${item.contribution_type}</p><p><strong>Amount:</strong> ${money(item.amount_minor, item.currency)}</p><p><strong>Payment method:</strong> ${item.payment_method}</p><p><strong>Paid at:</strong> ${new Date(receipt.issued_at).toLocaleString()}</p><p>Thank you for your faithful stewardship.</p></body></html>`;
+      const url = URL.createObjectURL(new Blob([html], { type: "text/html" })); const link = document.createElement("a"); link.href = url; link.download = `${receipt.receipt_number}.html`; link.click(); URL.revokeObjectURL(url);
+    } catch (reason) { setMessage(reason instanceof Error ? reason.message : "Receipt is not available until payment confirmation."); }
+  }
+
   const contributionTotal = useMemo(() => summary?.contributions.filter((item) => item.status === "RECEIVED").reduce((sum, item) => sum + Number(item.amount_minor), 0) ?? 0, [summary]);
   const payrollTotal = useMemo(() => summary?.payrollRuns.filter((item) => item.status !== "CANCELLED").reduce((sum, item) => sum + Number(item.total_net_minor), 0) ?? 0, [summary]);
 
@@ -77,6 +105,20 @@ export default function FinancePage() {
           <p className="mt-3 max-w-3xl text-white/70">Contributions, staff compensation, payroll approval, payslip references and auditable settlement records.</p>
           <p className="mt-4 rounded-xl border border-amber-300/30 bg-amber-300/10 p-4 text-sm text-amber-100">This workspace records and controls finance operations. It does not transfer money to a bank or mobile-money provider until an approved external payment connector is configured.</p>
         </header>
+
+        {memberOrganization && <section className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
+          <form onSubmit={submitMemberPayment} className="rounded-3xl bg-white p-6 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8B6F16]">Member giving</p>
+            <h2 className="mt-2 text-2xl font-bold text-[#0C1A3D]">Tithe, offering or donation</h2>
+            <p className="mt-2 text-sm text-slate-500">Submit a secure payment intent for {memberOrganization.name}. A receipt becomes downloadable immediately after the payment is confirmed.</p>
+            <Select label="Contribution type" value={memberPayment.contribution_type} onChange={(value) => setMemberPayment({ ...memberPayment, contribution_type: value })} options={["TITHE", "OFFERING", "DONATION"]} />
+            <Input label="Amount in minor units" value={memberPayment.amount_minor} onChange={(value) => setMemberPayment({ ...memberPayment, amount_minor: value })} type="number" />
+            <Input label="Currency" value={memberPayment.currency} onChange={(value) => setMemberPayment({ ...memberPayment, currency: value.toUpperCase() })} />
+            <Select label="Payment method" value={memberPayment.payment_method} onChange={(value) => setMemberPayment({ ...memberPayment, payment_method: value })} options={["CARD", "MOBILE_MONEY", "BANK_TRANSFER", "CASH"]} />
+            <button disabled={busy} className="mt-5 rounded-xl bg-[#0C1A3D] px-4 py-3 font-semibold text-white disabled:opacity-50">Start payment</button>
+          </form>
+          <div className="rounded-3xl bg-white p-6 shadow-sm"><h2 className="text-xl font-bold text-[#0C1A3D]">My contributions and receipts</h2><div className="mt-5 space-y-3">{memberContributions.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 p-4"><div><p className="font-semibold text-[#0C1A3D]">{item.contribution_type} · {money(item.amount_minor, item.currency)}</p><p className="text-sm text-slate-500">{item.status} · {item.payment_method}</p>{item.receipt_number && <p className="text-xs text-slate-400">Receipt {item.receipt_number}</p>}</div>{item.status === "RECEIVED" && item.receipt_number && <button onClick={() => void downloadReceipt(item.id)} className="rounded-lg bg-[#D4AF37] px-3 py-2 text-sm font-semibold text-[#0C1A3D]">Download receipt</button>}</div>)}{!memberContributions.length && <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No contributions submitted yet.</p>}</div></div>
+        </section>}
 
         {message && <div className="rounded-2xl border border-slate-200 bg-white p-6 text-slate-600">{message}</div>}
         {summary && <>

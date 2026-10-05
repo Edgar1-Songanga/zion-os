@@ -14,6 +14,8 @@ const modules = [
   { name: "Governance", area: "Organization", path: "/admin", status: "API connected", description: "Councils, meetings, agendas, motions, votes and minutes." },
   { name: "Organizations", area: "Organization", path: "/admin", status: "API connected", description: "Organizations, units, memberships, roles and permissions." },
   { name: "Notifications", area: "Platform", path: "/notifications", status: "API connected", description: "Persistent notification and preference operations." },
+  { name: "Member Services", area: "Membership", path: "/member-services", status: "API connected", description: "Transfers, recommendation letters, child dedications, baptism and pastoral service requests." },
+  { name: "Secretary Office", area: "Administration", path: "/secretary", status: "API connected", description: "Organization-scoped review, approval, rejection and completion of member service requests." },
   { name: "Platform Runtime", area: "Platform", path: "/modules", status: "API connected", description: "Health, search, analytics, events and jobs foundation." },
   { name: "Media and Meetings", area: "Platform", path: "/meetings/demo/room", status: "Configuration required", description: "Meeting rooms and media transport require provider configuration." },
   { name: "Spiritual Growth", area: "Spiritual", path: "/spiritual-chat", status: "Partial", description: "Devotion, prayer and growth interfaces are available; persistence providers are being connected." },

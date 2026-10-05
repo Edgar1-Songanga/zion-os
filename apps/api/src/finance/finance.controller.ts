@@ -20,6 +20,21 @@ export class FinanceController {
     return this.finance.createContribution(this.token(authorization), organizationId, body);
   }
 
+  @Get('organizations/:organizationId/my-contributions')
+  memberContributions(@Headers('authorization') authorization: string | undefined, @Param('organizationId') organizationId: string) {
+    return this.finance.memberContributions(this.token(authorization), organizationId);
+  }
+
+  @Post('organizations/:organizationId/my-contributions')
+  submitMemberContribution(@Headers('authorization') authorization: string | undefined, @Param('organizationId') organizationId: string, @Body() body: { contribution_type: string; amount_minor: number; currency: string; payment_method: string }) {
+    return this.finance.submitMemberContribution(this.token(authorization), organizationId, body);
+  }
+
+  @Get('my-contributions/:contributionId/receipt')
+  contributionReceipt(@Headers('authorization') authorization: string | undefined, @Param('contributionId') contributionId: string) {
+    return this.finance.contributionReceipt(this.token(authorization), contributionId);
+  }
+
   @Post('organizations/:organizationId/staff')
   createStaff(@Headers('authorization') authorization: string | undefined, @Param('organizationId') organizationId: string, @Body() body: Record<string, unknown>) {
     return this.finance.createStaff(this.token(authorization), organizationId, body);

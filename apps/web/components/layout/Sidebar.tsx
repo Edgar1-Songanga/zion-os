@@ -11,6 +11,7 @@ const sections = [
       { name: "Module Directory", path: "/modules" },
       { name: "RESA", path: "/resa" },
       { name: "Notifications", path: "/notifications" },
+      { name: "My Services", path: "/member-services" },
     ],
   },
   {
@@ -25,6 +26,7 @@ const sections = [
     title: "ORGANIZATION",
     items: [
       { name: "Administration", path: "/admin" },
+      { name: "Secretary Office", path: "/secretary" },
       { name: "Finance", path: "/finance" },
       { name: "Profile", path: "/profile" },
     ],

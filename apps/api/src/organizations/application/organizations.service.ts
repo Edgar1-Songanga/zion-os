@@ -27,6 +27,15 @@ export class OrganizationsService {
     );
   }
 
+  async directory(accessToken: string) {
+    await this.identity.getCurrentUser(accessToken);
+    return this.db.get<Organization[]>(
+      'organizations',
+      accessToken,
+      '?select=id,name,slug,organization_type,parent_id,is_active&is_active=eq.true&order=name.asc&limit=200',
+    );
+  }
+
   async create(accessToken: string, input: { name: string; slug: string; organization_type?: string }) {
     const user = await this.identity.getCurrentUser(accessToken);
     const name = input.name?.trim();

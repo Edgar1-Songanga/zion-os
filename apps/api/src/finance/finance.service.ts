@@ -38,6 +38,36 @@ export class FinanceService {
     return rows[0];
   }
 
+  async memberContributions(token: string, organizationId: string) {
+    const user = await this.identity.getCurrentUser(token);
+    return this.db.get<any[]>('finance_contributions', token, `?select=id,organization_id,contribution_type,amount_minor,currency,payment_method,status,occurred_on,receipt_number,paid_at,payment_provider,payment_intent_id,created_at&organization_id=eq.${organizationId}&donor_user_id=eq.${user.id}&order=created_at.desc&limit=100`);
+  }
+
+  async submitMemberContribution(token: string, organizationId: string, input: { contribution_type: string; amount_minor: number; currency: string; payment_method: string }) {
+    const user = await this.identity.getCurrentUser(token);
+    const amount = Number(input.amount_minor);
+    const type = String(input.contribution_type ?? '').toUpperCase();
+    const currency = String(input.currency ?? '').toUpperCase();
+    const method = String(input.payment_method ?? '').toUpperCase();
+    if (!Number.isInteger(amount) || amount <= 0) throw new BadRequestException('amount_minor must be a positive integer');
+    if (!['DONATION', 'TITHE', 'OFFERING'].includes(type)) throw new BadRequestException('Invalid contribution_type');
+    if (!/^[A-Z]{3}$/.test(currency)) throw new BadRequestException('currency must be a three-letter code');
+    if (!['CARD', 'MOBILE_MONEY', 'BANK_TRANSFER', 'CASH'].includes(method)) throw new BadRequestException('Invalid payment_method');
+    const rows = await this.db.post<any[]>('finance_contributions', token, { organization_id: organizationId, donor_user_id: user.id, contribution_type: type, amount_minor: amount, currency, payment_method: method, status: 'PENDING', payment_provider: method === 'CARD' ? 'CONFIGURE_CARD_CONNECTOR' : method === 'MOBILE_MONEY' ? 'CONFIGURE_MOBILE_MONEY_CONNECTOR' : null, payment_intent_id: `pending_${crypto.randomUUID()}`, created_by: user.id });
+    const contribution = rows[0];
+    if (!contribution) throw new BadRequestException('Contribution payment intent was not created');
+    return { contribution, next_step: method === 'CASH' || method === 'BANK_TRANSFER' ? 'Await confirmation by the finance office.' : 'Complete payment through the configured payment connector.' };
+  }
+
+  async contributionReceipt(token: string, contributionId: string) {
+    const user = await this.identity.getCurrentUser(token);
+    const rows = await this.db.get<any[]>('finance_contributions', token, `?select=id,organization_id,donor_user_id,contribution_type,amount_minor,currency,payment_method,status,occurred_on,receipt_number,paid_at,created_at&id=eq.${contributionId}&donor_user_id=eq.${user.id}&limit=1`);
+    const contribution = rows[0];
+    if (!contribution) throw new NotFoundException('Contribution not found');
+    if (contribution.status !== 'RECEIVED' || !contribution.receipt_number) throw new BadRequestException('Receipt is available after payment confirmation');
+    return { receipt_number: contribution.receipt_number, issued_at: contribution.paid_at ?? contribution.created_at, contribution };
+  }
+
   async createStaff(token: string, organizationId: string, input: any) {
     const user = await this.identity.getCurrentUser(token);
     if (!input.legal_name?.trim() || !input.employee_number?.trim()) throw new BadRequestException('legal_name and employee_number are required');

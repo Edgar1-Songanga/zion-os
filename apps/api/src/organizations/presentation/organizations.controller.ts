@@ -16,6 +16,11 @@ export class OrganizationsController {
     return this.organizations.listMine(this.token(authorization));
   }
 
+  @Get('directory')
+  directory(@Headers('authorization') authorization?: string) {
+    return this.organizations.directory(this.token(authorization));
+  }
+
   @Post()
   create(
     @Headers('authorization') authorization: string | undefined,
