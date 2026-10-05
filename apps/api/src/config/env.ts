@@ -1,4 +1,9 @@
-// Production authentication configuration is supplied by Vercel environment variables.\nexport type ZionIceServer = { urls: string | string[]; username?: string; credential?: string };
+// Production authentication configuration is supplied by Vercel environment variables.
+export interface ZionIceServer {
+  urls: string | string[];
+  username?: string;
+  credential?: string;
+}
 
 export const env = {
   supabaseUrl: process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
