@@ -111,6 +111,43 @@ export class ResaOperationalService {
     return rows[0];
   }
 
+  async listLiveSessions(token: string, limit = 30) {
+    const actor = await this.actor(token);
+    const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
+    return this.db.get('resa_live_sessions', token, `?select=*&or=(visibility.eq.public,host_id.eq.${actor.id})&status=neq.ended&order=scheduled_at.asc.nullslast,created_at.desc&limit=${size}`);
+  }
+
+  async createLiveSession(token: string, input: { title: unknown; description?: unknown; visibility?: unknown; scheduled_at?: unknown }) {
+    const actor = await this.actor(token);
+    const visibility = input.visibility ?? 'public';
+    if (!['public', 'followers', 'community', 'organization', 'private'].includes(visibility as string)) {
+      throw new BadRequestException('Invalid live visibility');
+    }
+    const scheduledAt = input.scheduled_at ? this.text(input.scheduled_at, 'scheduled_at', 1, 80) : null;
+    if (scheduledAt && Number.isNaN(Date.parse(scheduledAt))) throw new BadRequestException('scheduled_at is invalid');
+    const rows = await this.db.post<any[]>('resa_live_sessions', token, {
+      host_id: actor.id,
+      title: this.text(input.title, 'title', 2, 160),
+      description: typeof input.description === 'string' ? input.description.trim() || null : null,
+      visibility,
+      scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+      status: 'scheduled',
+    });
+    return rows[0];
+  }
+
+  async updateLiveStatus(token: string, liveId: string, status: 'scheduled' | 'live' | 'ended') {
+    const actor = await this.actor(token);
+    const id = this.id(liveId, 'live_id');
+    if (!['scheduled', 'live', 'ended'].includes(status)) throw new BadRequestException('Invalid live status');
+    const patch: Record<string, string | null> = { status };
+    if (status === 'live') patch.started_at = new Date().toISOString();
+    if (status === 'ended') patch.ended_at = new Date().toISOString();
+    const rows = await this.db.patch<any[]>('resa_live_sessions', token, patch, `?id=eq.${id}&host_id=eq.${actor.id}`);
+    if (!rows[0]) throw new NotFoundException('Live session not found');
+    return rows[0];
+  }
+
   async createConversation(token: string, memberIds: unknown[], title?: unknown) {
     const actor = await this.actor(token);
     if (!Array.isArray(memberIds) || memberIds.length > 0 && memberIds.length > 49) throw new BadRequestException('member_ids is invalid');
