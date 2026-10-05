@@ -39,6 +39,18 @@ export class ResaOperationalController {
     return this.operational.respondToEvent(this.token(authorization), eventId, body.response);
   }
 
+  @Get('live') live(@Headers('authorization') authorization?: string, @Query('limit') limit?: string) {
+    return this.operational.listLiveSessions(this.token(authorization), Number(limit) || 30);
+  }
+
+  @Post('live') createLive(@Headers('authorization') authorization: string | undefined, @Body() body: any) {
+    return this.operational.createLiveSession(this.token(authorization), body);
+  }
+
+  @Patch('live/:liveId/status') updateLiveStatus(@Headers('authorization') authorization: string | undefined, @Param('liveId') liveId: string, @Body() body: { status: 'scheduled' | 'live' | 'ended' }) {
+    return this.operational.updateLiveStatus(this.token(authorization), liveId, body.status);
+  }
+
   @Get('conversations') conversations(@Headers('authorization') authorization?: string) {
     return this.operational.listConversations(this.token(authorization));
   }
