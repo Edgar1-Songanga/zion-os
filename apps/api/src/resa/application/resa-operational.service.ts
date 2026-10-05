@@ -251,15 +251,28 @@ export class ResaOperationalService {
 
   async createConversation(token: string, memberIds: unknown[], title?: unknown) {
     const actor = await this.actor(token);
-    if (!Array.isArray(memberIds) || memberIds.length > 0 && memberIds.length > 49) throw new BadRequestException('member_ids is invalid');
-    const members = [...new Set([actor.id, ...memberIds.map((value) => this.id(value, 'member_id'))])];
+    if (!Array.isArray(memberIds) || memberIds.length < 1 || memberIds.length > 49) throw new BadRequestException('member_ids is invalid');
+    const targetIds = [...new Set(memberIds.map((value) => this.id(value, 'member_id')).filter((id) => id !== actor.id))];
+    if (!targetIds.length) throw new BadRequestException('A conversation requires another member');
+    if (targetIds.length === 1) {
+      const ownMemberships = await this.db.get<any[]>('resa_conversation_members', token, `?select=conversation_id&user_id=eq.${actor.id}`);
+      const ownIds = ownMemberships.map((row) => row.conversation_id).filter(Boolean);
+      if (ownIds.length) {
+        const targetMemberships = await this.db.get<any[]>('resa_conversation_members', token, `?select=conversation_id&user_id=eq.${targetIds[0]}&conversation_id=in.(${ownIds.join(',')})`);
+        const candidateIds = targetMemberships.map((row) => row.conversation_id).filter(Boolean);
+        if (candidateIds.length) {
+          const conversations = await this.db.get<any[]>('resa_conversations', token, `?select=*&id=in.(${candidateIds})&kind=eq.direct&order=updated_at.desc&limit=1`);
+          if (conversations[0]) return conversations[0];
+        }
+      }
+    }
+    const members = [...new Set([actor.id, ...targetIds])];
     const conversationRows = await this.db.post<any[]>('resa_conversations', token, { created_by: actor.id, kind: members.length > 2 ? 'group' : 'direct', title: typeof title === 'string' ? title.trim() || null : null });
     const conversation = conversationRows[0];
     if (!conversation?.id) throw new Error('Conversation could not be created');
     await this.db.post('resa_conversation_members', token, members.map((userId) => ({ conversation_id: conversation.id, user_id: userId, role: userId === actor.id ? 'owner' : 'member' })));
     return conversation;
   }
-
   async listConversations(token: string) {
     const actor = await this.actor(token);
     const members = await this.db.get<any[]>('resa_conversation_members', token, `?select=conversation_id,role,joined_at,last_read_at&user_id=eq.${actor.id}&order=joined_at.desc`);
