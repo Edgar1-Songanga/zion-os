@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import ResaIcon from "@/components/resa/core/ResaIcon";
 import { createClient } from "@/lib/supabase/client";
+import { useSearchParams } from "next/navigation";
 import ResaCallControls from "@/components/resa/messages/ResaCallControls";
 
 type Conversation = {
@@ -26,6 +27,8 @@ type SearchResult = {
   title?: string | null;
   body?: string | null;
   entity_type?: string | null;
+  email?: string | null;
+  avatar_url?: string | null;
 };
 
 function formatDate(value?: string) {
@@ -51,6 +54,8 @@ export default function MessagesPage() {
   const [sending, setSending] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const startedTarget = useRef<string | null>(null);
 
   const selectedConversation = useMemo(
     () => items.find((item) => item.id === selected) ?? null,
@@ -88,6 +93,13 @@ export default function MessagesPage() {
     const timer = window.setInterval(() => void loadConversations(), 10000);
     return () => window.clearInterval(timer);
   }, [loadConversations]);
+
+  useEffect(() => {
+    const target = searchParams.get("to");
+    if (!target || startedTarget.current === target) return;
+    startedTarget.current = target;
+    void startConversation({ id: target, title: "Conversa direta" });
+  }, [searchParams]);
 
   useEffect(() => {
     if (!selected) return;
@@ -330,7 +342,7 @@ export default function MessagesPage() {
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#eef2f8] text-sm font-bold text-[#0C1A3D]">{(person.title || "P").slice(0, 1).toUpperCase()}</div>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-[#0C1A3D]">{person.title || "Perfil"}</p>
-                    <p className="truncate text-xs text-slate-500">{person.body || person.entity_type || "Membro RESA"}</p>
+                    <p className="truncate text-xs text-slate-500">{person.email || person.body || person.entity_type || "Membro RESA"}</p>
                   </div>
                 </button>
               ))}
