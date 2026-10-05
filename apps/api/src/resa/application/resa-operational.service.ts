@@ -39,9 +39,29 @@ export class ResaOperationalService {
   }
 
   async listCommunities(token: string, limit = 30) {
-    await this.actor(token);
+    const actor = await this.actor(token);
     const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
-    return this.db.get('resa_communities', token, `?select=*&status=eq.active&order=created_at.desc&limit=${size}`);
+    const communities = await this.db.get<any[]>(
+      'resa_communities',
+      token,
+      `?select=*&status=eq.active&order=created_at.desc&limit=${size}`,
+    );
+    if (!communities.length) return [];
+    const ids = communities.map((item) => item.id).join(',');
+    const memberships = await this.db.get<any[]>(
+      'resa_community_members',
+      token,
+      `?select=community_id,status,role&community_id=in.(${ids})&user_id=eq.${actor.id}`,
+    );
+    const membershipByCommunity = new Map(memberships.map((item) => [item.community_id, item]));
+    return communities.map((community) => {
+      const membership = membershipByCommunity.get(community.id);
+      return {
+        ...community,
+        membership_status: membership?.status ?? 'not_member',
+        membership_role: membership?.role ?? null,
+      };
+    });
   }
 
   async createCommunity(token: string, input: { name: unknown; slug: unknown; description?: unknown; visibility?: unknown; organization_id?: unknown }) {
@@ -74,9 +94,25 @@ export class ResaOperationalService {
   }
 
   async listEvents(token: string, limit = 30) {
-    await this.actor(token);
+    const actor = await this.actor(token);
     const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
-    return this.db.get('resa_events', token, `?select=*&status=neq.cancelled&order=starts_at.asc&limit=${size}`);
+    const events = await this.db.get<any[]>(
+      'resa_events',
+      token,
+      `?select=*&status=neq.cancelled&order=starts_at.asc&limit=${size}`,
+    );
+    if (!events.length) return [];
+    const ids = events.map((item) => item.id).join(',');
+    const responses = await this.db.get<any[]>(
+      'resa_event_participants',
+      token,
+      `?select=event_id,response&event_id=in.(${ids})&user_id=eq.${actor.id}`,
+    );
+    const responseByEvent = new Map(responses.map((item) => [item.event_id, item.response]));
+    return events.map((event) => ({
+      ...event,
+      my_response: responseByEvent.get(event.id) ?? null,
+    }));
   }
 
   async createEvent(token: string, input: { title: unknown; description?: unknown; starts_at: unknown; ends_at?: unknown; location?: unknown; meeting_url?: unknown; visibility?: unknown; community_id?: unknown; organization_id?: unknown }) {
@@ -114,40 +150,23 @@ export class ResaOperationalService {
   async listPrayerRequests(token: string, limit = 30) {
     const actor = await this.actor(token);
     const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
-    const prayers = await this.db.get<any[]>(
-      'resa_prayer_requests',
-      token,
-      `?select=id,author_id,title,body,visibility,status,created_at,answered_at&status=neq.archived&order=created_at.desc&limit=${size}`,
-    );
+    const prayers = await this.db.get<any[]>('resa_prayer_requests', token, `?select=id,author_id,title,body,visibility,status,created_at,answered_at&status=neq.archived&order=created_at.desc&limit=${size}`);
     if (!prayers.length) return [];
     const ids = prayers.map((p) => p.id).join(',');
-    const intercessions = await this.db.get<any[]>(
-      'resa_prayer_intercessions',
-      token,
-      `?select=prayer_id,user_id&prayer_id=in.(${ids})`,
-    );
+    const intercessions = await this.db.get<any[]>('resa_prayer_intercessions', token, `?select=prayer_id,user_id&prayer_id=in.(${ids})`);
     const own = new Set(intercessions.filter((row) => row.user_id === actor.id).map((row) => row.prayer_id));
     const counts = new Map<string, number>();
     for (const row of intercessions) counts.set(row.prayer_id, (counts.get(row.prayer_id) ?? 0) + 1);
-    return prayers.map((prayer) => ({
-      ...prayer,
-      intercession_count: counts.get(prayer.id) ?? 0,
-      has_interceded: own.has(prayer.id),
-    }));
+    return prayers.map((prayer) => ({ ...prayer, intercession_count: counts.get(prayer.id) ?? 0, has_interceded: own.has(prayer.id) }));
   }
 
   async createPrayerRequest(token: string, input: { title: unknown; body: unknown; visibility?: unknown; organization_id?: unknown }) {
     const actor = await this.actor(token);
     const visibility = input.visibility ?? 'community';
-    if (!['public', 'community', 'organization', 'private'].includes(visibility as string)) {
-      throw new BadRequestException('Invalid prayer visibility');
-    }
+    if (!['public', 'community', 'organization', 'private'].includes(visibility as string)) throw new BadRequestException('Invalid prayer visibility');
     const rows = await this.db.post<any[]>('resa_prayer_requests', token, {
-      author_id: actor.id,
-      title: this.text(input.title, 'title', 3, 160),
-      body: this.text(input.body, 'body', 3, 5000),
-      visibility,
-      organization_id: input.organization_id ? this.id(input.organization_id, 'organization_id') : null,
+      author_id: actor.id, title: this.text(input.title, 'title', 3, 160), body: this.text(input.body, 'body', 3, 5000),
+      visibility, organization_id: input.organization_id ? this.id(input.organization_id, 'organization_id') : null,
     });
     return { ...rows[0], intercession_count: 0, has_interceded: false };
   }
@@ -155,13 +174,10 @@ export class ResaOperationalService {
   async intercedeForPrayer(token: string, prayerId: string) {
     const actor = await this.actor(token);
     const id = this.id(prayerId, 'prayer_id');
-    const prayer = await this.db.get<any[]>('resa_prayer_requests', token, `?select=id,status& id=eq.${id}&limit=1`.replace('?select=id,status& id', '?select=id,status&id'));
+    const prayer = await this.db.get<any[]>('resa_prayer_requests', token, `?select=id,status&id=eq.${id}&limit=1`);
     if (!prayer[0]) throw new NotFoundException('Prayer request not found');
     if (prayer[0].status !== 'active') throw new BadRequestException('This prayer request is no longer active');
-    const rows = await this.db.upsert<any[]>('resa_prayer_intercessions', token, {
-      prayer_id: id,
-      user_id: actor.id,
-    }, '?on_conflict=prayer_id,user_id');
+    const rows = await this.db.upsert<any[]>('resa_prayer_intercessions', token, { prayer_id: id, user_id: actor.id }, '?on_conflict=prayer_id,user_id');
     return { prayer_id: id, user_id: actor.id, interceded: true, record: rows[0] };
   }
 
@@ -189,18 +205,13 @@ export class ResaOperationalService {
   async createLiveSession(token: string, input: { title: unknown; description?: unknown; visibility?: unknown; scheduled_at?: unknown }) {
     const actor = await this.actor(token);
     const visibility = input.visibility ?? 'public';
-    if (!['public', 'followers', 'community', 'organization', 'private'].includes(visibility as string)) {
-      throw new BadRequestException('Invalid live visibility');
-    }
+    if (!['public', 'followers', 'community', 'organization', 'private'].includes(visibility as string)) throw new BadRequestException('Invalid live visibility');
     const scheduledAt = input.scheduled_at ? this.text(input.scheduled_at, 'scheduled_at', 1, 80) : null;
     if (scheduledAt && Number.isNaN(Date.parse(scheduledAt))) throw new BadRequestException('scheduled_at is invalid');
     const rows = await this.db.post<any[]>('resa_live_sessions', token, {
-      host_id: actor.id,
-      title: this.text(input.title, 'title', 2, 160),
+      host_id: actor.id, title: this.text(input.title, 'title', 2, 160),
       description: typeof input.description === 'string' ? input.description.trim() || null : null,
-      visibility,
-      scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
-      status: 'scheduled',
+      visibility, scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null, status: 'scheduled',
     });
     return rows[0];
   }
@@ -221,9 +232,7 @@ export class ResaOperationalService {
     const actor = await this.actor(token);
     if (!Array.isArray(memberIds) || memberIds.length > 0 && memberIds.length > 49) throw new BadRequestException('member_ids is invalid');
     const members = [...new Set([actor.id, ...memberIds.map((value) => this.id(value, 'member_id'))])];
-    const conversationRows = await this.db.post<any[]>('resa_conversations', token, {
-      created_by: actor.id, kind: members.length > 2 ? 'group' : 'direct', title: typeof title === 'string' ? title.trim() || null : null,
-    });
+    const conversationRows = await this.db.post<any[]>('resa_conversations', token, { created_by: actor.id, kind: members.length > 2 ? 'group' : 'direct', title: typeof title === 'string' ? title.trim() || null : null });
     const conversation = conversationRows[0];
     if (!conversation?.id) throw new Error('Conversation could not be created');
     await this.db.post('resa_conversation_members', token, members.map((userId) => ({ conversation_id: conversation.id, user_id: userId, role: userId === actor.id ? 'owner' : 'member' })));
