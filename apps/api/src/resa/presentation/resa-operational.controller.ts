@@ -39,6 +39,26 @@ export class ResaOperationalController {
     return this.operational.respondToEvent(this.token(authorization), eventId, body.response);
   }
 
+  @Get('prayer') prayer(@Headers('authorization') authorization?: string, @Query('limit') limit?: string) {
+    return this.operational.listPrayerRequests(this.token(authorization), Number(limit) || 30);
+  }
+
+  @Post('prayer') createPrayer(@Headers('authorization') authorization: string | undefined, @Body() body: any) {
+    return this.operational.createPrayerRequest(this.token(authorization), body);
+  }
+
+  @Post('prayer/:prayerId/intercede') intercede(@Headers('authorization') authorization: string | undefined, @Param('prayerId') prayerId: string) {
+    return this.operational.intercedeForPrayer(this.token(authorization), prayerId);
+  }
+
+  @Delete('prayer/:prayerId/intercede') removeIntercession(@Headers('authorization') authorization: string | undefined, @Param('prayerId') prayerId: string) {
+    return this.operational.removeIntercession(this.token(authorization), prayerId);
+  }
+
+  @Patch('prayer/:prayerId/answer') answerPrayer(@Headers('authorization') authorization: string | undefined, @Param('prayerId') prayerId: string) {
+    return this.operational.answerPrayerRequest(this.token(authorization), prayerId);
+  }
+
   @Get('live') live(@Headers('authorization') authorization?: string, @Query('limit') limit?: string) {
     return this.operational.listLiveSessions(this.token(authorization), Number(limit) || 30);
   }
