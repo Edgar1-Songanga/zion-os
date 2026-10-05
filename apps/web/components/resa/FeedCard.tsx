@@ -143,7 +143,13 @@ export default function FeedCard({ content }: { content: ResaContent }) {
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="font-semibold text-[#0C1A3D]">Perfil RESA · {content.author_id.slice(0, 8)}</h3>
+              <Link
+                href={"/resa/messages?to=" + encodeURIComponent(content.author_id)}
+                className="font-semibold text-[#0C1A3D] underline-offset-4 hover:underline"
+                aria-label="Abrir conversa com este perfil"
+              >
+                Perfil RESA · {content.author_id.slice(0, 8)}
+              </Link>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-500">
                 <ResaIcon name={meta.icon} size={12} />
                 {meta.label}
@@ -167,6 +173,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
 
       <div className="flex flex-wrap gap-2 border-t border-slate-100 bg-slate-50/50 px-6 py-4 sm:px-7">
         <Link href={"/resa/messages?to=" + encodeURIComponent(content.author_id)} className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-white hover:text-[#0C1A3D]"><ResaIcon name="message" size={16} />Mensagem</Link>
+        <Link href={"/resa/messages?to=" + encodeURIComponent(content.author_id)} className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-white hover:text-[#0C1A3D]" aria-label="Abrir conversa para chamada"><span aria-hidden="true">☎</span>Ligar</Link>
         <button type="button" onClick={() => void toggleReaction()} className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium transition ${
           reaction ? "bg-[#0C1A3D] text-white" : "text-slate-600 hover:bg-white hover:text-[#0C1A3D]"
         }`}>
