@@ -23,3 +23,6 @@ ZION is intentionally structured as a modular monolith first. Infrastructure is 
 Identity · Organizations · Governance · Spiritual · RESA · Notifications · AI · Audit · Platform
 
 See [docs/architecture/repository-architecture.md](docs/architecture/repository-architecture.md) and [docs/architecture/zion-foundation.md](docs/architecture/zion-foundation.md).
+
+
+<!-- production: RESA messaging, notifications and live studio convergence -->
