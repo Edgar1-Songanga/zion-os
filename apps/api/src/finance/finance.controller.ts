@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Headers, Param, Patch, Post, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Patch, Post, Req, UnauthorizedException } from '@nestjs/common';
+import type { Request } from 'express';
 import { FinanceService } from './finance.service';
 
 @Controller('v1/finance')
@@ -26,8 +27,15 @@ export class FinanceController {
   }
 
   @Post('organizations/:organizationId/my-contributions')
-  submitMemberContribution(@Headers('authorization') authorization: string | undefined, @Param('organizationId') organizationId: string, @Body() body: { contribution_type: string; amount_minor: number; currency: string; payment_method: string }) {
+  submitMemberContribution(@Headers('authorization') authorization: string | undefined, @Param('organizationId') organizationId: string, @Body() body: { contribution_type: string; amount_minor: number; currency: string; payment_method: string; idempotency_key?: string }) {
     return this.finance.submitMemberContribution(this.token(authorization), organizationId, body);
+  }
+
+  @Post('webhooks/stripe')
+  stripeWebhook(@Req() request: Request, @Headers('stripe-signature') signature?: string) {
+    const rawBody = (request as Request & { rawBody?: Buffer }).rawBody;
+    if (!rawBody || !signature) throw new UnauthorizedException('Stripe webhook body and signature are required');
+    return this.finance.processStripeWebhook(rawBody, signature);
   }
 
   @Get('my-contributions/:contributionId/receipt')

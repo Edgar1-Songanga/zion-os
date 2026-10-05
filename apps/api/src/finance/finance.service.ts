@@ -1,11 +1,14 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import * as crypto from 'node:crypto';
 import { IdentityService } from '../identity/application/identity.service';
 import { SupabaseRestClient } from '../common/supabase/supabase-rest.client';
+import { env } from '../config/env';
+import { StripePaymentService } from './stripe-payment.service';
 
 @Injectable()
 export class FinanceService {
   private readonly db = new SupabaseRestClient();
-  constructor(private readonly identity: IdentityService) {}
+  constructor(private readonly identity: IdentityService, private readonly stripe: StripePaymentService) {}
 
   async summary(token: string, organizationId: string) {
     await this.identity.getCurrentUser(token);
@@ -43,7 +46,7 @@ export class FinanceService {
     return this.db.get<any[]>('finance_contributions', token, `?select=id,organization_id,contribution_type,amount_minor,currency,payment_method,status,occurred_on,receipt_number,paid_at,payment_provider,payment_intent_id,created_at&organization_id=eq.${organizationId}&donor_user_id=eq.${user.id}&order=created_at.desc&limit=100`);
   }
 
-  async submitMemberContribution(token: string, organizationId: string, input: { contribution_type: string; amount_minor: number; currency: string; payment_method: string }) {
+  async submitMemberContribution(token: string, organizationId: string, input: { contribution_type: string; amount_minor: number; currency: string; payment_method: string; idempotency_key?: string }) {
     const user = await this.identity.getCurrentUser(token);
     const amount = Number(input.amount_minor);
     const type = String(input.contribution_type ?? '').toUpperCase();
@@ -53,10 +56,37 @@ export class FinanceService {
     if (!['DONATION', 'TITHE', 'OFFERING'].includes(type)) throw new BadRequestException('Invalid contribution_type');
     if (!/^[A-Z]{3}$/.test(currency)) throw new BadRequestException('currency must be a three-letter code');
     if (!['CARD', 'MOBILE_MONEY', 'BANK_TRANSFER', 'CASH'].includes(method)) throw new BadRequestException('Invalid payment_method');
-    const rows = await this.db.post<any[]>('finance_contributions', token, { organization_id: organizationId, donor_user_id: user.id, contribution_type: type, amount_minor: amount, currency, payment_method: method, status: 'PENDING', payment_provider: method === 'CARD' ? 'CONFIGURE_CARD_CONNECTOR' : method === 'MOBILE_MONEY' ? 'CONFIGURE_MOBILE_MONEY_CONNECTOR' : null, payment_intent_id: `pending_${crypto.randomUUID()}`, created_by: user.id });
+    const idempotencyKey = input.idempotency_key?.trim() || crypto.randomUUID();
+    const existing = await this.db.get<any[]>('finance_contributions', token, `?select=*&organization_id=eq.${organizationId}&donor_user_id=eq.${user.id}&idempotency_key=eq.${encodeURIComponent(idempotencyKey)}&limit=1`);
+    if (existing[0]) return { contribution: existing[0], checkout_url: existing[0].checkout_url ?? null, next_step: existing[0].status === 'RECEIVED' ? 'Payment already confirmed.' : 'Resume the existing payment.' };
+    const rows = await this.db.post<any[]>('finance_contributions', token, { organization_id: organizationId, donor_user_id: user.id, contribution_type: type, amount_minor: amount, currency, payment_method: method, status: 'PENDING', payment_provider: method === 'CARD' ? 'stripe' : null, payment_intent_id: `pending_${crypto.randomUUID()}`, idempotency_key: idempotencyKey, created_by: user.id });
     const contribution = rows[0];
     if (!contribution) throw new BadRequestException('Contribution payment intent was not created');
-    return { contribution, next_step: method === 'CASH' || method === 'BANK_TRANSFER' ? 'Await confirmation by the finance office.' : 'Complete payment through the configured payment connector.' };
+    if (method !== 'CARD') return { contribution, checkout_url: null, next_step: method === 'CASH' || method === 'BANK_TRANSFER' ? 'Await confirmation by the finance office.' : 'This payment method requires an enabled provider connector.' };
+    const checkout = await this.stripe.createCheckout({ contributionId: contribution.id, amountMinor: amount, currency, contributionType: type, organizationId, idempotencyKey });
+    const updated = await this.db.patch<any[]>('finance_contributions', token, { provider_checkout_id: checkout.id, checkout_url: checkout.url, external_reference: checkout.id, provider_status: 'checkout.session.created' }, `?id=eq.${contribution.id}&donor_user_id=eq.${user.id}`);
+    return { contribution: updated[0] ?? { ...contribution, provider_checkout_id: checkout.id }, checkout_url: checkout.url, next_step: 'Complete payment in the secure Stripe Checkout window.' };
+  }
+
+  async processStripeWebhook(rawBody: Buffer, signature: string) {
+    this.stripe.verifyWebhook(rawBody, signature);
+    const event = JSON.parse(rawBody.toString('utf8')) as { id: string; type: string; data: { object: Record<string, any> } };
+    const serviceToken = env.supabaseServiceRoleKey;
+    if (!serviceToken) throw new ServiceUnavailableException('SUPABASE_SERVICE_ROLE_KEY is required for payment webhooks');
+    const hash = crypto.createHash('sha256').update(rawBody).digest('hex');
+    const existing = await this.db.get<any[]>('finance_payment_events', serviceToken, `?select=id,processed_at&provider=eq.stripe&provider_event_id=eq.${encodeURIComponent(event.id)}&limit=1`);
+    if (existing[0]?.processed_at) return { received: true, duplicate: true };
+    const object = event.data?.object ?? {};
+    const contributionId = String(object.metadata?.contribution_id ?? object.client_reference_id ?? '');
+    const contribution = contributionId ? (await this.db.get<any[]>('finance_contributions', serviceToken, `?select=id,status& id=eq.${contributionId}&limit=1`.replace('& id=', '&id=')))[0] : null;
+    const inserted = existing[0] ? existing : await this.db.post<any[]>('finance_payment_events', serviceToken, { provider: 'stripe', provider_event_id: event.id, event_type: event.type, contribution_id: contribution?.id ?? null, payload_hash: hash, payload: event });
+    if (['checkout.session.completed', 'checkout.session.async_payment_succeeded'].includes(event.type) && contribution?.status !== 'RECEIVED') {
+      await this.db.patch('finance_contributions', serviceToken, { status: 'RECEIVED', paid_at: new Date().toISOString(), provider_status: String(object.payment_status ?? event.type), external_reference: String(object.payment_intent ?? object.id) }, `?id=eq.${contribution.id}&status=eq.PENDING`);
+    } else if (event.type === 'checkout.session.async_payment_failed') {
+      await this.db.patch('finance_contributions', serviceToken, { provider_status: event.type }, `?id=eq.${contribution?.id ?? ''}&status=eq.PENDING`);
+    }
+    if (inserted[0]) await this.db.patch('finance_payment_events', serviceToken, { processed_at: new Date().toISOString() }, `?id=eq.${inserted[0].id}`);
+    return { received: true, duplicate: false };
   }
 
   async contributionReceipt(token: string, contributionId: string) {
@@ -65,7 +95,11 @@ export class FinanceService {
     const contribution = rows[0];
     if (!contribution) throw new NotFoundException('Contribution not found');
     if (contribution.status !== 'RECEIVED' || !contribution.receipt_number) throw new BadRequestException('Receipt is available after payment confirmation');
-    return { receipt_number: contribution.receipt_number, issued_at: contribution.paid_at ?? contribution.created_at, contribution };
+    if (!env.receiptSigningSecret) throw new ServiceUnavailableException('ZION_RECEIPT_SIGNING_SECRET is not configured');
+    const issuedAt = contribution.paid_at ?? contribution.created_at;
+    const canonical = [contribution.id, contribution.receipt_number, contribution.amount_minor, contribution.currency, contribution.contribution_type, issuedAt].join('|');
+    const signature = crypto.createHmac('sha256', env.receiptSigningSecret).update(canonical).digest('hex');
+    return { receipt_number: contribution.receipt_number, issued_at: issuedAt, signature, verification: `ZION:${contribution.receipt_number}:${signature}`, contribution };
   }
 
   async createStaff(token: string, organizationId: string, input: any) {

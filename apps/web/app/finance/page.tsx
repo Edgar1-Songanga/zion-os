@@ -9,7 +9,7 @@ type Staff = { id: string; legal_name: string; employee_number: string; departme
 type PayrollRun = { id: string; period_start: string; period_end: string; currency: string; status: string; total_gross_minor: number; total_deductions_minor: number; total_net_minor: number; external_payment_reference?: string };
 type PayrollItem = { id: string; staff_id: string; gross_minor: number; deductions_minor: number; net_minor: number; status: string; payslip_number: string; paid_at?: string };
 type Summary = { contributions: Contribution[]; staff: Staff[]; payrollRuns: PayrollRun[] };
-type MemberContribution = Contribution & { receipt_number?: string; paid_at?: string; payment_method: string };
+type MemberContribution = Contribution & { receipt_number?: string; paid_at?: string; payment_method: string; checkout_url?: string };
 
 const money = (minor: number, currency: string) => new Intl.NumberFormat(undefined, { style: "currency", currency }).format(minor / 100);
 
@@ -76,8 +76,9 @@ export default function FinancePage() {
     if (!memberOrganization) return;
     setBusy(true);
     try {
-      const result = await resaRequest<{ contribution: MemberContribution; next_step: string }>(`/v1/finance/organizations/${memberOrganization.id}/my-contributions`, { method: "POST", body: JSON.stringify({ ...memberPayment, amount_minor: Number(memberPayment.amount_minor) }) });
+      const result = await resaRequest<{ contribution: MemberContribution; next_step: string; checkout_url?: string }>(`/v1/finance/organizations/${memberOrganization.id}/my-contributions`, { method: "POST", body: JSON.stringify({ ...memberPayment, amount_minor: Number(memberPayment.amount_minor), idempotency_key: window.crypto.randomUUID() }) });
       setMessage(result.next_step);
+      if (result.checkout_url) window.location.assign(result.checkout_url);
       setMemberContributions(await resaRequest<MemberContribution[]>(`/v1/finance/organizations/${memberOrganization.id}/my-contributions`));
       setMemberPayment((current) => ({ ...current, amount_minor: "" }));
     } catch (reason) { setMessage(reason instanceof Error ? reason.message : "Não foi possível iniciar o pagamento."); }
@@ -86,9 +87,9 @@ export default function FinancePage() {
 
   async function downloadReceipt(id: string) {
     try {
-      const receipt = await resaRequest<{ receipt_number: string; issued_at: string; contribution: MemberContribution }>(`/v1/finance/my-contributions/${id}/receipt`);
+      const receipt = await resaRequest<{ receipt_number: string; issued_at: string; signature: string; verification: string; contribution: MemberContribution }>(`/v1/finance/my-contributions/${id}/receipt`);
       const item = receipt.contribution;
-      const html = `<html><body style="font-family:Arial;padding:40px"><h1>ZION Contribution Receipt</h1><p><strong>Receipt:</strong> ${receipt.receipt_number}</p><p><strong>Type:</strong> ${item.contribution_type}</p><p><strong>Amount:</strong> ${money(item.amount_minor, item.currency)}</p><p><strong>Payment method:</strong> ${item.payment_method}</p><p><strong>Paid at:</strong> ${new Date(receipt.issued_at).toLocaleString()}</p><p>Thank you for your faithful stewardship.</p></body></html>`;
+      const html = `<html><body style="font-family:Arial;padding:40px"><h1>ZION Contribution Receipt</h1><p><strong>Receipt:</strong> ${receipt.receipt_number}</p><p><strong>Type:</strong> ${item.contribution_type}</p><p><strong>Amount:</strong> ${money(item.amount_minor, item.currency)}</p><p><strong>Payment method:</strong> ${item.payment_method}</p><p><strong>Paid at:</strong> ${new Date(receipt.issued_at).toLocaleString()}</p><hr/><p><strong>Verification token:</strong> ${receipt.verification}</p><p><strong>Signature:</strong> ${receipt.signature}</p><p>Thank you for your faithful stewardship.</p></body></html>`;
       const url = URL.createObjectURL(new Blob([html], { type: "text/html" })); const link = document.createElement("a"); link.href = url; link.download = `${receipt.receipt_number}.html`; link.click(); URL.revokeObjectURL(url);
     } catch (reason) { setMessage(reason instanceof Error ? reason.message : "Receipt is not available until payment confirmation."); }
   }
@@ -117,7 +118,7 @@ export default function FinancePage() {
             <Select label="Payment method" value={memberPayment.payment_method} onChange={(value) => setMemberPayment({ ...memberPayment, payment_method: value })} options={["CARD", "MOBILE_MONEY", "BANK_TRANSFER", "CASH"]} />
             <button disabled={busy} className="mt-5 rounded-xl bg-[#0C1A3D] px-4 py-3 font-semibold text-white disabled:opacity-50">Start payment</button>
           </form>
-          <div className="rounded-3xl bg-white p-6 shadow-sm"><h2 className="text-xl font-bold text-[#0C1A3D]">My contributions and receipts</h2><div className="mt-5 space-y-3">{memberContributions.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 p-4"><div><p className="font-semibold text-[#0C1A3D]">{item.contribution_type} · {money(item.amount_minor, item.currency)}</p><p className="text-sm text-slate-500">{item.status} · {item.payment_method}</p>{item.receipt_number && <p className="text-xs text-slate-400">Receipt {item.receipt_number}</p>}</div>{item.status === "RECEIVED" && item.receipt_number && <button onClick={() => void downloadReceipt(item.id)} className="rounded-lg bg-[#D4AF37] px-3 py-2 text-sm font-semibold text-[#0C1A3D]">Download receipt</button>}</div>)}{!memberContributions.length && <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No contributions submitted yet.</p>}</div></div>
+          <div className="rounded-3xl bg-white p-6 shadow-sm"><h2 className="text-xl font-bold text-[#0C1A3D]">My contributions and receipts</h2><div className="mt-5 space-y-3">{memberContributions.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 p-4"><div><p className="font-semibold text-[#0C1A3D]">{item.contribution_type} · {money(item.amount_minor, item.currency)}</p><p className="text-sm text-slate-500">{item.status} · {item.payment_method}</p>{item.receipt_number && <p className="text-xs text-slate-400">Receipt {item.receipt_number}</p>}</div>{item.status === "RECEIVED" && item.receipt_number ? <button onClick={() => void downloadReceipt(item.id)} className="rounded-lg bg-[#D4AF37] px-3 py-2 text-sm font-semibold text-[#0C1A3D]">Download receipt</button> : item.checkout_url && item.status === "PENDING" ? <button onClick={() => window.location.assign(item.checkout_url!)} className="rounded-lg bg-[#0C1A3D] px-3 py-2 text-sm font-semibold text-white">Resume payment</button> : null}</div>)}{!memberContributions.length && <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No contributions submitted yet.</p>}</div></div>
         </section>}
 
         {message && <div className="rounded-2xl border border-slate-200 bg-white p-6 text-slate-600">{message}</div>}

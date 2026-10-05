@@ -3,6 +3,13 @@ export type ZionIceServer = { urls: string | string[]; username?: string; creden
 export const env = {
   supabaseUrl: process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
   supabasePublishableKey: process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '',
+  supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+  paymentProvider: process.env.ZION_PAYMENT_PROVIDER ?? '',
+  stripeSecretKey: process.env.STRIPE_SECRET_KEY ?? '',
+  stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? '',
+  paymentSuccessUrl: process.env.ZION_PAYMENT_SUCCESS_URL ?? '',
+  paymentCancelUrl: process.env.ZION_PAYMENT_CANCEL_URL ?? '',
+  receiptSigningSecret: process.env.ZION_RECEIPT_SIGNING_SECRET ?? '',
   iceServersJson: process.env.ZION_ICE_SERVERS_JSON ?? '',
   sfuUrl: process.env.ZION_SFU_URL ?? '',
   sfuControlSecret: process.env.ZION_SFU_CONTROL_SECRET ?? '',
