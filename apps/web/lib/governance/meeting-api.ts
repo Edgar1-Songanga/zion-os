@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/client";
+import { resaRequest } from "@/lib/resa/api";
 
 export type MeetingParticipantControl = {
   meeting_id: string;
@@ -18,23 +18,7 @@ export type MeetingParticipant = {
 };
 
 async function request<T>(meetingId: string, path: string, init?: RequestInit): Promise<T> {
-  const supabase = createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) throw new Error("Authentication is required");
-  const apiBase = process.env.NEXT_PUBLIC_ZION_API_URL;
-  if (!apiBase) throw new Error("NEXT_PUBLIC_ZION_API_URL is not configured");
-
-  const response = await fetch(`${apiBase}/v1/governance/meetings/${meetingId}/${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${session.access_token}`,
-      ...(init?.headers ?? {}),
-    },
-    cache: "no-store",
-  });
-  if (!response.ok) throw new Error((await response.text()) || "Meeting request failed");
-  return response.json() as Promise<T>;
+  return resaRequest<T>(`/v1/governance/meetings/${meetingId}/${path}`, init);
 }
 
 export function getMeetingControls(meetingId: string) {
