@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import ResaIcon from "./core/ResaIcon";
@@ -165,6 +166,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
       </div>
 
       <div className="flex flex-wrap gap-2 border-t border-slate-100 bg-slate-50/50 px-6 py-4 sm:px-7">
+        <Link href={"/resa/messages?to=" + encodeURIComponent(content.author_id)} className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-white hover:text-[#0C1A3D]"><ResaIcon name="message" size={16} />Mensagem</Link>
         <button type="button" onClick={() => void toggleReaction()} className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium transition ${
           reaction ? "bg-[#0C1A3D] text-white" : "text-slate-600 hover:bg-white hover:text-[#0C1A3D]"
         }`}>
