@@ -1,6 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { IdentityService } from '../../identity/application/identity.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
+import { MEDIA_PROVIDER } from '../../media/media.module';
+import type { MediaProvider } from '../../media/application/media-provider';
+import { Inject } from '@nestjs/common';
 
 const COMMUNITY_VISIBILITY = ['public', 'private', 'organization'] as const;
 const EVENT_VISIBILITY = ['public', 'followers', 'community', 'organization', 'private'] as const;
@@ -10,7 +13,10 @@ const REPORT_REASONS = ['spam', 'harassment', 'hate', 'sexual', 'violence', 'mis
 export class ResaOperationalService {
   private readonly db = new SupabaseRestClient();
 
-  constructor(private readonly identity: IdentityService) {}
+  constructor(
+    private readonly identity: IdentityService,
+    @Inject(MEDIA_PROVIDER) private readonly media: MediaProvider,
+  ) {}
 
   private async actor(token: string) {
     const user = await this.identity.getCurrentUser(token);
@@ -228,6 +234,22 @@ export class ResaOperationalService {
     return rows[0];
   }
 
+  async liveJoinConfig(token: string, liveId: string) {
+    const actor = await this.actor(token);
+    const id = this.id(liveId, 'live_id');
+    const rows = await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status,visibility&id=eq.${id}&limit=1`);
+    const live = rows[0];
+    if (!live) throw new NotFoundException('Live session not found');
+    if (live.host_id !== actor.id && live.visibility !== 'public') throw new NotFoundException('Live session not found');
+    if (live.status === 'ended') throw new BadRequestException('Live session has ended');
+    if (!this.media.createJoinConfig) throw new BadRequestException('Media provider does not expose a join configuration');
+    return this.media.createJoinConfig({
+      meetingId: id,
+      providerRoomId: `zion-live-${id}`,
+      userId: actor.id,
+    });
+  }
+
   async createConversation(token: string, memberIds: unknown[], title?: unknown) {
     const actor = await this.actor(token);
     if (!Array.isArray(memberIds) || memberIds.length > 0 && memberIds.length > 49) throw new BadRequestException('member_ids is invalid');
@@ -337,6 +359,9 @@ export class ResaOperationalService {
     await this.actor(token);
     const normalized = this.text(query, 'query', 2, 120).replace(/[(),]/g, ' ');
     const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
+    if (type === 'profile') {
+      return this.db.rpc('resa_search_profiles', token, { p_query: normalized, p_limit: size });
+    }
     const typeFilter = type ? `&entity_type=eq.${encodeURIComponent(this.text(type, 'type', 1, 40))}` : '';
     return this.db.get('zion_search_documents', token, `?select=*&or=(title.ilike.*${encodeURIComponent(normalized)}*,body.ilike.*${encodeURIComponent(normalized)}*)&order=updated_at.desc&limit=${size}${typeFilter}`);
   }
