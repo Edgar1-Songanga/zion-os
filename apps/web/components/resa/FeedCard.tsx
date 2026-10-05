@@ -13,6 +13,8 @@ type ResaContent = {
   visibility: string;
   language: string;
   created_at: string;
+  media_type?: "image" | "video" | null;
+  media_url?: string | null;
 };
 
 type CommentItem = {
@@ -152,7 +154,13 @@ export default function FeedCard({ content }: { content: ResaContent }) {
 
         <div className="mt-6">
           {content.title && <h4 className="mb-2 text-lg font-semibold tracking-tight text-[#0C1A3D]">{content.title}</h4>}
-          <p className="whitespace-pre-wrap text-[15px] leading-7 text-slate-700">{content.body}</p>
+          {content.body && <p className="whitespace-pre-wrap text-[15px] leading-7 text-slate-700">{content.body}</p>}
+          {content.media_type === "image" && content.media_url && (
+            <img src={content.media_url} alt={content.title || "Imagem publicada no RESA"} loading="lazy" className="mt-4 max-h-[620px] w-full rounded-2xl object-cover" />
+          )}
+          {content.media_type === "video" && content.media_url && (
+            <video src={content.media_url} controls playsInline preload="metadata" className="mt-4 max-h-[620px] w-full rounded-2xl bg-slate-950" />
+          )}
         </div>
       </div>
 
