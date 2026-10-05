@@ -25,6 +25,9 @@ type Message = {
 type SearchResult = {
   id: string;
   title?: string | null;
+  display_name?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
   body?: string | null;
   entity_type?: string | null;
   email?: string | null;
@@ -51,6 +54,7 @@ export default function MessagesPage() {
   const [people, setPeople] = useState<SearchResult[]>([]);
   const [newOpen, setNewOpen] = useState(false);
   const [loadingPeople, setLoadingPeople] = useState(false);
+  const [startingPersonId, setStartingPersonId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -142,25 +146,26 @@ export default function MessagesPage() {
   }
 
   async function startConversation(person: SearchResult) {
+    if (startingPersonId === person.id) return;
     setError(null);
+    setStartingPersonId(person.id);
     try {
+      const displayName = person.display_name || person.title || [person.first_name, person.last_name].filter(Boolean).join(" ") || person.email || "Conversa direta";
       const conversation = await resaRequest<Conversation>("/v1/resa/conversations", {
         method: "POST",
-        body: JSON.stringify({
-          member_ids: [person.id],
-          title: person.title || "Nova conversa",
-        }),
+        body: JSON.stringify({ member_ids: [person.id], title: displayName }),
       });
       setNewOpen(false);
       setQuery("");
       setPeople([]);
-      await loadConversations();
       setSelected(conversation.id);
+      await loadConversations();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Não foi possível iniciar a conversa.");
+      setError(e instanceof Error ? e.message : "Não foi possível abrir a conversa.");
+    } finally {
+      setStartingPersonId(null);
     }
   }
-
   async function send() {
     const value = body.trim();
     if (!selected || !value || sending) return;
@@ -337,15 +342,20 @@ export default function MessagesPage() {
               </button>
             </div>
             <div className="mt-4 max-h-72 overflow-y-auto">
-              {people.map((person) => (
-                <button key={person.id} onClick={() => void startConversation(person)} className="flex w-full items-center gap-3 rounded-2xl p-3 text-left transition hover:bg-slate-50">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#eef2f8] text-sm font-bold text-[#0C1A3D]">{(person.title || "P").slice(0, 1).toUpperCase()}</div>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-[#0C1A3D]">{person.title || "Perfil"}</p>
-                    <p className="truncate text-xs text-slate-500">{person.email || person.body || person.entity_type || "Membro RESA"}</p>
-                  </div>
-                </button>
-              ))}
+              {people.map((person) => {
+                const name = person.display_name || person.title || [person.first_name, person.last_name].filter(Boolean).join(" ") || person.email || "Perfil";
+                const busy = startingPersonId === person.id;
+                return (
+                  <button key={person.id} type="button" onClick={() => void startConversation(person)} disabled={Boolean(startingPersonId)} className={"flex w-full items-center gap-3 rounded-2xl border border-transparent p-3 text-left transition hover:border-slate-200 hover:bg-slate-50 " + (busy ? "bg-slate-50" : "")}>
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#eef2f8] text-sm font-bold text-[#0C1A3D]">{name.slice(0, 1).toUpperCase()}</div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-[#0C1A3D]">{name}</p>
+                      <p className="truncate text-xs text-slate-500">{person.email || person.body || "Membro RESA"}</p>
+                    </div>
+                    <span className="shrink-0 rounded-xl bg-[#0C1A3D] px-3 py-2 text-xs font-semibold text-white">{busy ? "A abrir…" : "Abrir"}</span>
+                  </button>
+                );
+              })}
               {query.trim().length >= 2 && !loadingPeople && !people.length && <p className="py-8 text-center text-sm text-slate-400">Nenhum perfil encontrado.</p>}
             </div>
           </div>
