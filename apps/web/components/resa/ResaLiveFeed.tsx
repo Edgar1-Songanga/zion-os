@@ -15,6 +15,8 @@ type ResaContent = {
   visibility: string;
   language: string;
   created_at: string;
+  media_type?: "image" | "video" | null;
+  media_url?: string | null;
 };
 
 export default function ResaLiveFeed() {
