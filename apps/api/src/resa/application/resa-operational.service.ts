@@ -302,30 +302,29 @@ export class ResaOperationalService {
     }
     const rows = await this.db.post<any[]>('resa_messages', token, { conversation_id: id, sender_id: actor.id, body: this.text(body, 'body', 1, 10000), parent_message_id: parentId });
     const message = rows[0];
-    const members = await this.db.get<any[]>('resa_conversation_members', token, `?select=user_id&conversation_id=eq.${id}&user_id=neq.${actor.id}`);
-    if (members.length && message?.id) {
-      await this.db.post('resa_notifications', token, members.map((member) => ({ user_id: member.user_id, actor_id: actor.id, type: parentId ? 'message_reply' : 'message', title: parentId ? 'Nova resposta' : 'Nova mensagem', body: this.text(body, 'body', 1, 10000).slice(0, 240), conversation_id: id, message_id: message.id })));
-    }
+    // Notification delivery is handled transactionally by the database trigger
+    // on public.resa_messages. Keeping one source of truth avoids duplicate
+    // notifications and guarantees that Realtime observes the same row the API reads.
     return message;
   }
 
   async listNotifications(token: string, limit = 30) {
     const actor = await this.actor(token);
     const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
-    return this.db.get('resa_notifications', token, `?select=*&user_id=eq.${actor.id}&order=created_at.desc&limit=${size}`);
+    return this.db.get('notifications', token, `?select=*&user_id=eq.${actor.id}&order=created_at.desc&limit=${size}`);
   }
 
   async markNotificationRead(token: string, notificationId: string) {
     const actor = await this.actor(token);
     const id = this.id(notificationId, 'notification_id');
-    const rows = await this.db.patch<any[]>('resa_notifications', token, { read_at: new Date().toISOString() }, `?id=eq.${id}&user_id=eq.${actor.id}`);
+    const rows = await this.db.patch<any[]>('notifications', token, { read_at: new Date().toISOString() }, `?id=eq.${id}&user_id=eq.${actor.id}`);
     if (!rows[0]) throw new NotFoundException('Notification not found');
     return rows[0];
   }
 
   async markNotificationsRead(token: string) {
     const actor = await this.actor(token);
-    await this.db.patch('resa_notifications', token, { read_at: new Date().toISOString() }, `?user_id=eq.${actor.id}&read_at=is.null`);
+    await this.db.patch('notifications', token, { read_at: new Date().toISOString() }, `?user_id=eq.${actor.id}&read_at=is.null`);
     return { read: true };
   }
 
