@@ -111,6 +111,75 @@ export class ResaOperationalService {
     return rows[0];
   }
 
+  async listPrayerRequests(token: string, limit = 30) {
+    const actor = await this.actor(token);
+    const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
+    const prayers = await this.db.get<any[]>(
+      'resa_prayer_requests',
+      token,
+      `?select=id,author_id,title,body,visibility,status,created_at,answered_at&status=neq.archived&order=created_at.desc&limit=${size}`,
+    );
+    if (!prayers.length) return [];
+    const ids = prayers.map((p) => p.id).join(',');
+    const intercessions = await this.db.get<any[]>(
+      'resa_prayer_intercessions',
+      token,
+      `?select=prayer_id,user_id&prayer_id=in.(${ids})`,
+    );
+    const own = new Set(intercessions.filter((row) => row.user_id === actor.id).map((row) => row.prayer_id));
+    const counts = new Map<string, number>();
+    for (const row of intercessions) counts.set(row.prayer_id, (counts.get(row.prayer_id) ?? 0) + 1);
+    return prayers.map((prayer) => ({
+      ...prayer,
+      intercession_count: counts.get(prayer.id) ?? 0,
+      has_interceded: own.has(prayer.id),
+    }));
+  }
+
+  async createPrayerRequest(token: string, input: { title: unknown; body: unknown; visibility?: unknown; organization_id?: unknown }) {
+    const actor = await this.actor(token);
+    const visibility = input.visibility ?? 'community';
+    if (!['public', 'community', 'organization', 'private'].includes(visibility as string)) {
+      throw new BadRequestException('Invalid prayer visibility');
+    }
+    const rows = await this.db.post<any[]>('resa_prayer_requests', token, {
+      author_id: actor.id,
+      title: this.text(input.title, 'title', 3, 160),
+      body: this.text(input.body, 'body', 3, 5000),
+      visibility,
+      organization_id: input.organization_id ? this.id(input.organization_id, 'organization_id') : null,
+    });
+    return { ...rows[0], intercession_count: 0, has_interceded: false };
+  }
+
+  async intercedeForPrayer(token: string, prayerId: string) {
+    const actor = await this.actor(token);
+    const id = this.id(prayerId, 'prayer_id');
+    const prayer = await this.db.get<any[]>('resa_prayer_requests', token, `?select=id,status& id=eq.${id}&limit=1`.replace('?select=id,status& id', '?select=id,status&id'));
+    if (!prayer[0]) throw new NotFoundException('Prayer request not found');
+    if (prayer[0].status !== 'active') throw new BadRequestException('This prayer request is no longer active');
+    const rows = await this.db.upsert<any[]>('resa_prayer_intercessions', token, {
+      prayer_id: id,
+      user_id: actor.id,
+    }, '?on_conflict=prayer_id,user_id');
+    return { prayer_id: id, user_id: actor.id, interceded: true, record: rows[0] };
+  }
+
+  async removeIntercession(token: string, prayerId: string) {
+    const actor = await this.actor(token);
+    const id = this.id(prayerId, 'prayer_id');
+    await this.db.delete('resa_prayer_intercessions', token, `?prayer_id=eq.${id}&user_id=eq.${actor.id}`);
+    return { prayer_id: id, user_id: actor.id, interceded: false };
+  }
+
+  async answerPrayerRequest(token: string, prayerId: string) {
+    const actor = await this.actor(token);
+    const id = this.id(prayerId, 'prayer_id');
+    const rows = await this.db.patch<any[]>('resa_prayer_requests', token, { status: 'answered', answered_at: new Date().toISOString() }, `?id=eq.${id}&author_id=eq.${actor.id}&status=eq.active`);
+    if (!rows[0]) throw new NotFoundException('Active prayer request not found');
+    return rows[0];
+  }
+
   async listLiveSessions(token: string, limit = 30) {
     const actor = await this.actor(token);
     const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
