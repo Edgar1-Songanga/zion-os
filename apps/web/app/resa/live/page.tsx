@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import ResaIcon from "@/components/resa/core/ResaIcon";
 import { resaRequest } from "@/lib/resa/api";
+import LiveStudio from "@/components/resa/live/LiveStudio";
 
 type LiveSession = {
   id: string;
@@ -22,6 +23,7 @@ export default function LivePage() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [studioLive, setStudioLive] = useState<LiveSession | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -138,8 +140,9 @@ export default function LivePage() {
                         {item.description && <p className="mt-2 text-sm leading-6 text-slate-600">{item.description}</p>}
                         {item.scheduled_at && <p className="mt-3 text-sm text-slate-500">Agendada para {new Date(item.scheduled_at).toLocaleString("pt-PT")}</p>}
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         {item.status === "scheduled" && <button onClick={() => void setStatus(item.id, "live")} className="rounded-xl bg-[#0C1A3D] px-3 py-2 text-sm font-semibold text-white">Iniciar</button>}
+                        {(item.status === "scheduled" || item.status === "live") && <button onClick={() => setStudioLive(item)} className="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white">Abrir Studio</button>}
                         {item.status === "live" && <button onClick={() => void setStatus(item.id, "ended")} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700">Encerrar</button>}
                       </div>
                     </div>
@@ -155,6 +158,7 @@ export default function LivePage() {
           </section>
         </div>
       </div>
+      {studioLive && <LiveStudio liveId={studioLive.id} title={studioLive.title} onClose={() => setStudioLive(null)} />}
     </main>
   );
 }
