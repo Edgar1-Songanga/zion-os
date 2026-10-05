@@ -1,4 +1,4 @@
-import { Controller, Get, Headers, Param, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Patch, Post, UnauthorizedException } from '@nestjs/common';
 import { SpiritualMinistryService } from './ministry.service';
 
 @Controller('v1/ministries')
@@ -16,5 +16,15 @@ export class MinistryController {
   @Get('organization/:organizationId')
   list(@Headers('authorization') authorization: string | undefined, @Param('organizationId') organizationId: string) {
     return this.ministries.list(organizationId, this.token(authorization));
+  }
+
+  @Post('organization/:organizationId')
+  create(@Headers('authorization') authorization: string | undefined, @Param('organizationId') organizationId: string, @Body() body: { name: string; department: string; description: string; philosophy: string }) {
+    return this.ministries.create(organizationId, body, this.token(authorization));
+  }
+
+  @Patch(':id')
+  update(@Headers('authorization') authorization: string | undefined, @Param('id') id: string, @Body() body: Partial<{ name: string; department: string; description: string; philosophy: string; status: 'ACTIVE' | 'INACTIVE' }>) {
+    return this.ministries.update(id, body, this.token(authorization));
   }
 }
