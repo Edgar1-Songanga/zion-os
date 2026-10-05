@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import ResaIcon from "./ResaIcon";
+import NotificationBell from "@/components/notifications/NotificationBell";
 
 const navigation = [
   ["Mural", "home", "/resa"],
@@ -44,6 +45,9 @@ export default function ResaNavigation() {
               </Link>
             );
           })}
+          <div className="ml-auto flex items-center px-1">
+            <NotificationBell />
+          </div>
         </nav>
       </div>
     </header>
