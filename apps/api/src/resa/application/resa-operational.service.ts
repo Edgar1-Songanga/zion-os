@@ -1,9 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { IdentityService } from '../../identity/application/identity.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 import { MEDIA_PROVIDER } from '../../media/media.module';
 import type { MediaProvider } from '../../media/application/media-provider';
-import { Inject } from '@nestjs/common';
 
 const COMMUNITY_VISIBILITY = ['public', 'private', 'organization'] as const;
 const EVENT_VISIBILITY = ['public', 'followers', 'community', 'organization', 'private'] as const;
