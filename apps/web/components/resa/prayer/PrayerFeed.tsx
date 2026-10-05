@@ -1,95 +1,16 @@
-const prayers=[
+"use client";
 
-{
-name:"Maria",
-text:"Peço oração pela minha família.",
-count:24
-},
+import { useEffect, useState } from "react";
+import ResaIcon from "@/components/resa/core/ResaIcon";
+import { resaRequest } from "@/lib/resa/api";
 
-{
-name:"João",
-text:"Preciso de força para uma nova fase.",
-count:51
-},
+type Prayer = { id:string; author_id:string; title:string; body:string; visibility:string; status:"active"|"answered"|"archived"; created_at:string; answered_at?:string|null; intercession_count:number; has_interceded:boolean };
 
-{
-name:"Ana",
-text:"Orem pelo meu ministério.",
-count:18
-}
-
-];
-
-
-export default function PrayerFeed(){
-
-
-return (
-
-<div
-className="
-space-y-5
-"
->
-
-
-{prayers.map(prayer=>(
-
-<div
-key={prayer.name}
-className="
-bg-white
-rounded-3xl
-p-6
-border
-"
->
-
-
-<h3
-className="
-font-bold
-text-[#0C1A3D]
-"
->
-{prayer.name}
-</h3>
-
-
-<p
-className="
-mt-3
-text-slate-600
-"
->
-{prayer.text}
-</p>
-
-
-<button
-
-className="
-mt-5
-bg-[#D4AF37]
-px-5
-py-2
-rounded-full
-text-[#0C1A3D]
-font-semibold
-"
-
->
-🙏 Estou a orar ({prayer.count})
-</button>
-
-
-</div>
-
-))}
-
-
-</div>
-
-)
-
+export default function PrayerFeed({ refreshKey = 0 }: { refreshKey?: number }) {
+  const [prayers,setPrayers]=useState<Prayer[]>([]); const [loading,setLoading]=useState(true); const [error,setError]=useState<string|null>(null); const [busy,setBusy]=useState<string|null>(null);
+  async function load(){setLoading(true);setError(null);try{setPrayers(await resaRequest<Prayer[]>("/v1/resa/prayer?limit=30"));}catch(e){setError(e instanceof Error?e.message:"Não foi possível carregar os pedidos.");}finally{setLoading(false);}}
+  useEffect(()=>{void load();},[refreshKey]);
+  async function toggle(p:Prayer){setBusy(p.id);try{await resaRequest("/v1/resa/prayer/"+p.id+"/intercede",{method:p.has_interceded?"DELETE":"POST"});await load();}catch(e){setError(e instanceof Error?e.message:"Não foi possível atualizar a intercessão.");}finally{setBusy(null);}}
+  async function answer(p:Prayer){setBusy(p.id);try{await resaRequest("/v1/resa/prayer/"+p.id+"/answer",{method:"PATCH"});await load();}catch(e){setError(e instanceof Error?e.message:"Não foi possível atualizar o pedido.");}finally{setBusy(null);}}
+  return <section className="space-y-4"><div className="flex items-end justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Intercessão</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-[#0C1A3D]">Pedidos da comunidade</h2></div><button onClick={()=>void load()} disabled={loading} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 shadow-sm">{loading?"A atualizar...":"Atualizar"}</button></div>{error&&<div role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}{loading&&!prayers.length?<div className="rounded-[28px] border border-slate-200 bg-white p-8 text-sm text-slate-500">A carregar pedidos reais...</div>:prayers.length?prayers.map(p=><article key={p.id} className="rounded-[28px] border border-slate-200/80 bg-white p-6 shadow-[0_18px_55px_rgba(15,23,42,0.06)] sm:p-7"><div className="flex items-start justify-between gap-4"><div className="flex min-w-0 items-center gap-3"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[#0C1A3D]"><ResaIcon name="prayer" size={18}/></div><div className="min-w-0"><p className="truncate text-sm font-semibold text-[#0C1A3D]">Perfil RESA · {p.author_id.slice(0,8)}</p><p className="text-xs text-slate-400">{new Date(p.created_at).toLocaleString("pt-PT")}</p></div></div><span className={p.status==="answered"?"rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700":"rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600"}>{p.status==="answered"?"Respondido":"Ativo"}</span></div><h3 className="mt-5 text-lg font-semibold text-[#0C1A3D]">{p.title}</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-600">{p.body}</p><div className="mt-6 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4"><button onClick={()=>void toggle(p)} disabled={busy===p.id||p.status!=="active"} className={p.has_interceded?"inline-flex items-center gap-2 rounded-xl bg-[#0C1A3D] px-4 py-2.5 text-sm font-semibold text-white":"inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700"}><ResaIcon name="heart" size={16}/>{p.has_interceded?"Estou a orar":"Vou orar"} · {p.intercession_count}</button>{p.status==="active"&&p.has_interceded&&<button onClick={()=>void answer(p)} disabled={busy===p.id} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600">Marcar como respondido</button>}</div></article>):<div className="rounded-[28px] border border-dashed border-slate-300 bg-white p-12 text-center"><div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-[#0C1A3D]"><ResaIcon name="prayer" size={22}/></div><h3 className="mt-5 font-semibold text-[#0C1A3D]">Ainda não existem pedidos visíveis para si</h3><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">Quando alguém publicar um pedido compatível com a sua visibilidade, ele aparecerá aqui.</p></div>}</section>;
 }
