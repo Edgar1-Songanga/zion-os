@@ -1,37 +1,12 @@
+import { resaRequest } from "@/lib/resa/api";
 import type { Ministry } from "@/components/ministry/types";
-
-const ministries: Record<string, Ministry> = {
-  "ministry-youth-001": {
-    id: "ministry-youth-001",
-    name: "Youth Ministry",
-    department: "Youth",
-    philosophy:
-      "Salvar do pecado e guiar no serviço, formando jovens discípulos, líderes e missionários comprometidos com Cristo e com a comunidade.",
-    description:
-      "Centraliza a gestão, acompanhamento e reporting do ministério de jovens.",
-    status: "ACTIVE",
-    organization: {
-      church: "ZION Local Church",
-      district: "Central District",
-      conference: "ZION Conference",
-      union: "ZION Union",
-    },
-    metrics: {
-      members: 0,
-      leaders: 0,
-      programs: 0,
-      participation: 0,
-      growth: 0,
-      impact: 0,
-    },
-    leadership: [],
-    programs: [],
-    reports: [],
-  },
-};
 
 export const ministryService = {
   async getMinistry(id: string): Promise<Ministry | null> {
-    return ministries[id] ?? null;
+    try {
+      return await resaRequest<Ministry>(`/v1/ministries/${encodeURIComponent(id)}`);
+    } catch {
+      return null;
+    }
   },
 };
