@@ -1,83 +1,45 @@
 "use client";
 
-
+import { useEffect, useState } from "react";
+import { resaRequest } from "@/lib/resa/api";
 import NotificationCard from "./NotificationCard";
 
+type NotificationItem = {
+  id: string;
+  title: string;
+  body: string;
+  type: string;
+  read_at?: string | null;
+};
 
+export default function NotificationList() {
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-const notifications=[
+  useEffect(() => {
+    void resaRequest<NotificationItem[]>("/v1/notifications?limit=50")
+      .then(setNotifications)
+      .catch(() => setNotifications([]))
+      .finally(() => setLoading(false));
+  }, []);
 
-{
+  if (loading) return <div className="rounded-2xl bg-white p-6 text-sm text-slate-400">A carregar notificações…</div>;
 
-id:"1",
+  if (!notifications.length) {
+    return <div className="rounded-2xl bg-white p-8 text-center text-sm text-slate-400">Não há notificações neste momento.</div>;
+  }
 
-title:"Novo comentário",
-
-message:"Maria comentou a sua publicação.",
-
-type:"Comentário"
-
-},
-
-
-{
-
-id:"2",
-
-title:"Pedido de oração",
-
-message:"João apoiou o seu pedido de oração.",
-
-type:"Oração"
-
-},
-
-
-{
-
-id:"3",
-
-title:"Nova conquista",
-
-message:"Recebeu o badge Construtor de Comunidade.",
-
-type:"Badge"
-
-}
-
-];
-
-
-
-export default function NotificationList(){
-
-
-return (
-
-<div className="space-y-4">
-
-
-{notifications.map((notification)=>(
-
-
-<NotificationCard
-
-key={notification.id}
-
-title={notification.title}
-
-message={notification.message}
-
-type={notification.type}
-
-/>
-
-
-))}
-
-
-</div>
-
-);
-
+  return (
+    <div className="space-y-4">
+      {notifications.map((notification) => (
+        <div key={notification.id} className={notification.read_at ? "" : "rounded-2xl ring-1 ring-blue-100"}>
+          <NotificationCard
+            title={notification.title}
+            message={notification.body}
+            type={notification.type}
+          />
+        </div>
+      ))}
+    </div>
+  );
 }
