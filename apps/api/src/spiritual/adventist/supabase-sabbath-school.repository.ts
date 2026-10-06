@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { env, assertSupabaseConfig } from "../../config/env";
+import { assertSupabaseConfig } from "../../config/env";
 import { SupabaseRestClient } from "../../common/supabase/supabase-rest.client";
 import type { SabbathSchoolLesson, SabbathSchoolRepository } from "./sabbath-school.types";
 
@@ -14,16 +14,16 @@ type SabbathSchoolRow = {
 export class SupabaseSabbathSchoolRepository implements SabbathSchoolRepository {
   constructor(private readonly db: SupabaseRestClient) {}
 
-  async getById(id: string): Promise<SabbathSchoolLesson | null> {
+  async getById(token: string, id: string): Promise<SabbathSchoolLesson | null> {
     assertSupabaseConfig();
     const rows = await this.db.get<SabbathSchoolRow[]>(
-      "spiritual_sabbath_school_lessons", env.supabasePublishableKey,
+      "spiritual_sabbath_school_lessons", token,
       `?select=*&id=eq.${encodeURIComponent(id)}&limit=1`,
     );
     return rows[0] ? this.map(rows[0]) : null;
   }
 
-  async list(input: { year?: number; quarter?: string; language?: string } = {}): Promise<SabbathSchoolLesson[]> {
+  async list(token: string, input: { year?: number; quarter?: string; language?: string } = {}): Promise<SabbathSchoolLesson[]> {
     assertSupabaseConfig();
     const filters: string[] = ["select=*"];
     if (input.year !== undefined) filters.push(`year=eq.${encodeURIComponent(String(input.year))}`);
@@ -31,7 +31,7 @@ export class SupabaseSabbathSchoolRepository implements SabbathSchoolRepository 
     if (input.language) filters.push(`language=eq.${encodeURIComponent(input.language)}`);
     filters.push("order=year.desc,lesson_number.asc");
     const rows = await this.db.get<SabbathSchoolRow[]>(
-      "spiritual_sabbath_school_lessons", env.supabasePublishableKey, `?${filters.join("&")}`,
+      "spiritual_sabbath_school_lessons", token, `?${filters.join("&")}`,
     );
     return rows.map((row) => this.map(row));
   }
