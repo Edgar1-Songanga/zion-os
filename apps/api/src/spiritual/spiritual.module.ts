@@ -9,9 +9,11 @@ import { SupabaseGrowthRepository } from "./growth/supabase-growth.repository";
 import { SpiritualMinistryService } from "./ministry/ministry.service";
 import { PrayerService } from "./prayer/prayer.service";
 import { AdventistCanonController } from "./adventist/adventist-canon.controller";
-import { AdventistCanonService } from "./adventist/adventist-canon.service";
+import { AdventistCanonService, ADVENTIST_CANON_REPOSITORY } from "./adventist/adventist-canon.service";
+import { SupabaseAdventistCanonRepository } from "./adventist/supabase-adventist-canon.repository";
 import { SabbathSchoolController } from "./adventist/sabbath-school.controller";
-import { SabbathSchoolService } from "./adventist/sabbath-school.service";
+import { SabbathSchoolService, SABBATH_SCHOOL_REPOSITORY } from "./adventist/sabbath-school.service";
+import { SupabaseSabbathSchoolRepository } from "./adventist/supabase-sabbath-school.repository";
 import { MinistryController } from "./ministry/ministry.controller";
 import { MINISTRY_DIRECTORY } from "./ministry/ministry.service";
 import { SupabaseMinistryDirectory } from "./ministry/supabase-ministry.directory";
@@ -34,7 +36,11 @@ import { SpiritualProgressController } from "./spiritual-progress.controller";
     { provide: GROWTH_REPOSITORY, useExisting: SupabaseGrowthRepository },
     SpiritualMinistryService,
     AdventistCanonService,
+    SupabaseAdventistCanonRepository,
+    { provide: ADVENTIST_CANON_REPOSITORY, useExisting: SupabaseAdventistCanonRepository },
     SabbathSchoolService,
+    SupabaseSabbathSchoolRepository,
+    { provide: SABBATH_SCHOOL_REPOSITORY, useExisting: SupabaseSabbathSchoolRepository },
     SupabaseMinistryDirectory,
     { provide: MINISTRY_DIRECTORY, useExisting: SupabaseMinistryDirectory },
   ],
