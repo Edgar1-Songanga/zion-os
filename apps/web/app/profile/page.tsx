@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import { createClient } from "@/lib/supabase/client";
+import ResaSocialNetwork from "@/components/resa/social/ResaSocialNetwork";
 
 type Profile = {
   id: string;
@@ -127,6 +128,8 @@ export default function ProfilePage() {
             <button disabled={saving} type="submit" className="rounded-2xl bg-[#0C1A3D] px-6 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{saving ? "A guardar…" : "Guardar perfil"}</button>
           </div>
         </form>
+
+        {profile.id && <ResaSocialNetwork userId={profile.id} />}
       </div>
     </main>
   );
