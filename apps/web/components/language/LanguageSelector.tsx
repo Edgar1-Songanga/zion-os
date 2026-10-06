@@ -1,81 +1,25 @@
 "use client";
 
+import { useTranslation } from "@/components/i18n";
 
-import { useState } from "react";
+export default function LanguageSelector() {
+  const { locale, locales, localeLabels, setLocale, t } = useTranslation();
 
-
-export default function LanguageSelector(){
-
-
-const [language,setLanguage]=useState("pt");
-
-
-const languages=[
-
-{
-code:"pt",
-name:"Português"
-},
-
-{
-code:"en",
-name:"English"
-},
-
-{
-code:"es",
-name:"Español"
-},
-
-{
-code:"fr",
-name:"Français"
-}
-
-];
-
-
-return (
-
-<select
-
-value={language}
-
-onChange={
-e=>setLanguage(e.target.value)
-}
-
-className="
-border
-rounded-xl
-px-4
-py-2
-bg-white
-"
-
->
-
-
-{
-
-languages.map(lang=>(
-
-<option
-key={lang.code}
-value={lang.code}
->
-
-{lang.name}
-
-</option>
-
-))
-
-}
-
-
-</select>
-
-)
-
+  return (
+    <label className="flex items-center gap-2">
+      <span className="sr-only">{t("selectLanguage")}</span>
+      <select
+        value={locale}
+        onChange={(event) => setLocale(event.target.value as typeof locale)}
+        aria-label={t("language")}
+        className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm"
+      >
+        {locales.map((item) => (
+          <option key={item} value={item}>
+            {localeLabels[item]}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
 }
