@@ -1,7 +1,11 @@
+"use client";
+
 import Link from "next/link";
 import ResaIcon from "./core/ResaIcon";
+import { useTranslation } from "@/components/i18n";
 
 export default function ResaHero() {
+  const { t } = useTranslation();
   return (
     <section
       className="group relative isolate overflow-hidden rounded-[34px] border border-white/10 bg-[#07142f] px-5 py-6 text-white shadow-[0_28px_90px_rgba(7,20,47,0.20)] sm:px-8 sm:py-8 lg:px-10 lg:py-9"
@@ -15,7 +19,7 @@ export default function ResaHero() {
         <div className="min-w-0">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_14px_rgba(110,231,183,0.9)]" />
-            Rede global · fé · comunidade · futuro
+            {t("resaNetwork")}
           </div>
 
           <div className="mt-5 flex items-end gap-4">
@@ -23,13 +27,13 @@ export default function ResaHero() {
               <ResaIcon name="sparkles" size={24} />
             </div>
             <div>
-              <p className="text-xs font-medium uppercase tracking-[0.24em] text-slate-400">Experiência social</p>
+              <p className="text-xs font-medium uppercase tracking-[0.24em] text-slate-400">{t("resaSocialExperience")}</p>
               <h1 id="resa-hero-title" className="text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">RESA</h1>
             </div>
           </div>
 
           <p className="mt-5 max-w-2xl text-[15px] leading-7 text-slate-300 sm:text-base">
-            Um espaço global onde espiritualidade, pessoas, serviço e tecnologia se encontram numa experiência digital viva.
+            {t("resaDescription")}
           </p>
 
           <div className="mt-7 flex flex-wrap gap-2.5">
@@ -49,13 +53,13 @@ export default function ResaHero() {
           <div
             className="relative flex h-full min-h-[234px] items-end overflow-hidden rounded-[22px] border border-white/10 bg-[radial-gradient(circle_at_65%_28%,rgba(125,211,252,0.25),transparent_25%),radial-gradient(circle_at_30%_72%,rgba(250,204,21,0.13),transparent_28%),linear-gradient(145deg,rgba(255,255,255,0.08),rgba(255,255,255,0.015))]"
             data-resa-visual-slot="hero"
-            aria-label="Área visual principal do RESA"
+            aria-label={t("resaVisualArea")}
           >
             <div className="absolute right-8 top-8 h-28 w-28 rounded-full border border-cyan-200/20 bg-cyan-200/[0.04] blur-[1px]" />
             <div className="absolute left-8 top-16 h-20 w-20 rounded-full border border-amber-200/20 bg-amber-200/[0.04]" />
             <div className="relative m-5 w-full rounded-2xl border border-white/10 bg-[#061128]/70 p-4 backdrop-blur-xl">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Visual stage</span>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">{t("visualStage")}</span>
                 <span className="text-[10px] font-medium text-slate-500">RESA / 01</span>
               </div>
               <div className="mt-4 h-2 w-2/3 rounded-full bg-white/10" />
