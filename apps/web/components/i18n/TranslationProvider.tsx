@@ -88,6 +88,15 @@ const sourceStrings = {
   ministryDescription: "Contexto e estruturas ministeriais institucionais.",
   gamificationDescription: "Pontuação factual, progressão e convites baseados em atividade real.",
   spiritualChatDescription: "Assistência para estudo e crescimento espiritual, sem substituir as fontes.",
+  resaNetwork: "Rede global · fé · comunidade · futuro",
+  resaSocialExperience: "Experiência social",
+  resaDescription: "Um espaço global onde espiritualidade, pessoas, serviço e tecnologia se encontram numa experiência digital viva.",
+  explore: "Explorar", communitiesAction: "Comunidades", live: "Ao vivo", visualStage: "Palco visual", resaVisualArea: "Área visual principal do RESA",
+  now: "Agora", communityWall: "Mural da comunidade", refresh: "Atualizar", refreshing: "A atualizar…",
+  feedLoadError: "Não foi possível carregar o feed.", wallUpdateError: "Não foi possível atualizar o mural.", tryAgain: "Tentar novamente",
+  emptyWallTitle: "O mural está à espera da primeira publicação", emptyWallDescription: "Partilhe uma reflexão, uma oração ou um testemunho para iniciar a conversa.",
+  yourPresence: "A sua presença", authenticatedAccount: "Conta autenticada", activeResaIdentity: "Identidade RESA ativa", connectedGlobalNetwork: "Ligado à rede global",
+  discover: "Descobrir", networkActivity: "Atividade da rede", exploreResa: "Explorar RESA", networkPost: "Publicação da rede", emptyDiscovery: "Ainda não existem conteúdos públicos para descobrir.",
 } as const;
 
 type TranslationKey = keyof typeof sourceStrings;
