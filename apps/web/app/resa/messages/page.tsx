@@ -164,11 +164,14 @@ export default function MessagesPage() {
       });
       setQuery("");
       setPeople([]);
-      // Refresh the sidebar first, but do not let its default-selection logic
-      // overwrite the conversation the user just opened.
-      await loadConversations(false);
+      // Select the new conversation immediately so the composer is available
+      // even if the sidebar refresh is slow or temporarily fails.
       setSelected(conversation.id);
       setNewOpen(false);
+      try {
+        await loadConversations(false);
+      } catch {}
+      composerRef.current?.focus();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível abrir a conversa.");
     } finally {
