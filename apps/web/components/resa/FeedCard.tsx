@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import ResaIcon from "./core/ResaIcon";
+import { useTranslation } from "@/components/i18n";
 
 type ResaContent = {
   id: string;
@@ -26,15 +27,16 @@ type CommentItem = {
   created_at: string;
 };
 
-const typeMeta: Record<string, { label: string; icon: "sparkles" | "prayer" | "story" | "heart" }> = {
-  text: { label: "Publicação", icon: "sparkles" },
-  prayer: { label: "Oração", icon: "prayer" },
-  bible_study: { label: "Estudo bíblico", icon: "story" },
-  testimony: { label: "Testemunho", icon: "heart" },
-  sermon: { label: "Sermão", icon: "story" },
+const typeMeta: Record<string, { labelKey: "sparkles" | "prayer" | "story" | "heart" }> = {
+  text: { labelKey: "post", icon: "sparkles" },
+  prayer: { labelKey: "prayer", icon: "prayer" },
+  bible_study: { labelKey: "bibleStudy", icon: "story" },
+  testimony: { labelKey: "testimony", icon: "heart" },
+  sermon: { labelKey: "sermon", icon: "story" },
 };
 
 export default function FeedCard({ content }: { content: ResaContent }) {
+  const { t, locale } = useTranslation();
   const [reaction, setReaction] = useState(false);
   const [saving, setSaving] = useState(false);
   const [reposting, setReposting] = useState(false);
@@ -45,7 +47,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
   const [shareFeedback, setShareFeedback] = useState("");
 
   const meta = typeMeta[content.type] ?? typeMeta.text;
-  const shareTitle = content.title?.trim() || "Publicação no RESA";
+  const shareTitle = content.title?.trim() || t("publicationOnResa");
   const shareText = content.body?.trim() ? `${shareTitle} — ${content.body.trim().slice(0, 180)}` : shareTitle;
   const shareUrl = typeof window !== "undefined"
     ? `${window.location.origin}/resa?post=${encodeURIComponent(content.id)}`
@@ -56,15 +58,15 @@ export default function FeedCard({ content }: { content: ResaContent }) {
     if (typeof navigator !== "undefined" && navigator.share) {
       try {
         await navigator.share({ title: shareTitle, text: shareText, url: shareUrl });
-        setShareFeedback("Partilhado");
+        setShareFeedback(t("share"))
         return;
       } catch {}
     }
     try {
       await navigator.clipboard.writeText(shareUrl);
-      setShareFeedback("Link copiado");
+      setShareFeedback(t("copied"));
     } catch {
-      setShareFeedback("Copie o link da publicação");
+      setShareFeedback(t("copyPrompt"));
     }
   }
 
@@ -79,7 +81,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
       x: `https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedText}`,
     };
     window.open(targets[network], "_blank", "noopener,noreferrer");
-    setShareFeedback("Janela de partilha aberta");
+    setShareFeedback(t("shareWindowOpened"));
   }
 
   useEffect(() => {
@@ -146,16 +148,16 @@ export default function FeedCard({ content }: { content: ResaContent }) {
               <Link
                 href={"/resa/messages?to=" + encodeURIComponent(content.author_id)}
                 className="font-semibold text-[#0C1A3D] underline-offset-4 hover:underline"
-                aria-label="Abrir conversa com este perfil"
+                aria-label={t("openConversation")}
               >
-                Perfil RESA · {content.author_id.slice(0, 8)}
+                {t("resaProfile")} · {content.author_id.slice(0, 8)}
               </Link>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-500">
                 <ResaIcon name={meta.icon} size={12} />
-                {meta.label}
+                {t(meta.labelKey as Parameters<typeof t>[0])}
               </span>
             </div>
-            <p className="mt-1 text-xs text-slate-400">{new Date(content.created_at).toLocaleString("pt-PT")}</p>
+            <p className="mt-1 text-xs text-slate-400">{new Date(content.created_at).toLocaleString(locale)}</p>
           </div>
         </header>
 
@@ -163,7 +165,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
           {content.title && <h4 className="mb-2 text-lg font-semibold tracking-tight text-[#0C1A3D]">{content.title}</h4>}
           {content.body && <p className="whitespace-pre-wrap text-[15px] leading-7 text-slate-700">{content.body}</p>}
           {content.media_type === "image" && content.media_url && (
-            <img src={content.media_url} alt={content.title || "Imagem publicada no RESA"} loading="lazy" className="mt-4 max-h-[620px] w-full rounded-2xl object-cover" />
+            <img src={content.media_url} alt={content.title || t("publishedOnResa")} loading="lazy" className="mt-4 max-h-[620px] w-full rounded-2xl object-cover" />
           )}
           {content.media_type === "video" && content.media_url && (
             <video src={content.media_url} controls playsInline preload="metadata" className="mt-4 max-h-[620px] w-full rounded-2xl bg-slate-950" />
@@ -172,17 +174,17 @@ export default function FeedCard({ content }: { content: ResaContent }) {
       </div>
 
       <div className="flex flex-wrap gap-2 border-t border-slate-100 bg-slate-50/50 px-6 py-4 sm:px-7">
-        <Link href={"/resa/messages?to=" + encodeURIComponent(content.author_id)} className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-white hover:text-[#0C1A3D]"><ResaIcon name="message" size={16} />Mensagem</Link>
-        <Link href={"/resa/messages?to=" + encodeURIComponent(content.author_id)} className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-white hover:text-[#0C1A3D]" aria-label="Abrir conversa para chamada"><span aria-hidden="true">☎</span>Ligar</Link>
+        <Link href={"/resa/messages?to=" + encodeURIComponent(content.author_id)} className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-white hover:text-[#0C1A3D]"><ResaIcon name="message" size={16} />{t("message")}</Link>
+        <Link href={"/resa/messages?to=" + encodeURIComponent(content.author_id)} className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-white hover:text-[#0C1A3D]" aria-label={t("call")}><span aria-hidden="true">☎</span>{t("call")}</Link>
         <button type="button" onClick={() => void toggleReaction()} className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium transition ${
           reaction ? "bg-[#0C1A3D] text-white" : "text-slate-600 hover:bg-white hover:text-[#0C1A3D]"
         }`}>
           <ResaIcon name="heart" size={16} />
-          {reaction ? "Gostei" : "Curtir"}
+          {reaction ? t("liked") : t("like")}
         </button>
         <button type="button" onClick={() => void save()} disabled={saving} className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-white hover:text-[#0C1A3D]">
           <ResaIcon name="bookmark" size={16} />
-          {saving ? "A guardar…" : "Guardar"}
+          {saving ? t("saving") : t("save")}
         </button>
         <button type="button" onClick={() => setShowComments((v) => !v)} className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-white hover:text-[#0C1A3D]">
           <ResaIcon name="comment" size={16} />
@@ -190,7 +192,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
         </button>
         <button type="button" onClick={() => void repost()} disabled={reposting} className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-white hover:text-[#0C1A3D]">
           <ResaIcon name="repost" size={16} />
-          {reposting ? "A repostar…" : "Repostar"}
+          {reposting ? t("reposting") : t("repost")}
         </button>
         <button type="button" onClick={() => { setShowShare((v) => !v); setShareFeedback(""); }} className="inline-flex items-center gap-2 rounded-xl bg-[#0C1A3D] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md" aria-expanded={showShare}>
           <ResaIcon name="share" size={17} />
@@ -200,8 +202,8 @@ export default function FeedCard({ content }: { content: ResaContent }) {
         {showShare && (
           <div className="absolute bottom-full right-4 z-20 mb-3 w-[min(360px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_20px_60px_rgba(15,23,42,0.16)]">
             <div className="px-2 py-1">
-              <p className="text-sm font-semibold text-[#0C1A3D]">Partilhar publicação</p>
-              <p className="mt-0.5 text-xs text-slate-400">Leve este conteúdo para além do RESA.</p>
+              <p className="text-sm font-semibold text-[#0C1A3D]">{t("sharePublication")}</p>
+              <p className="mt-0.5 text-xs text-slate-400">{t("shareBeyondResa")}</p>
             </div>
             <div className="mt-2 grid grid-cols-2 gap-2">
               <button type="button" onClick={() => openExternalShare("whatsapp")} className="rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50">WhatsApp</button>
@@ -209,10 +211,10 @@ export default function FeedCard({ content }: { content: ResaContent }) {
               <button type="button" onClick={() => openExternalShare("messenger")} className="rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50">Messenger</button>
               <button type="button" onClick={() => openExternalShare("telegram")} className="rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50">Telegram</button>
               <button type="button" onClick={() => openExternalShare("x")} className="rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50">X</button>
-              <button type="button" onClick={() => void nativeShare()} className="rounded-xl bg-slate-50 px-3 py-2.5 text-left text-sm font-semibold text-[#0C1A3D] hover:bg-slate-100">Mais opções</button>
+              <button type="button" onClick={() => void nativeShare()} className="rounded-xl bg-slate-50 px-3 py-2.5 text-left text-sm font-semibold text-[#0C1A3D] hover:bg-slate-100">{t("moreOptions")}</button>
             </div>
             <div className="mt-2 flex items-center justify-between gap-2 border-t border-slate-100 px-2 pt-2">
-              <button type="button" onClick={() => void navigator.clipboard.writeText(shareUrl).then(() => setShareFeedback("Link copiado")).catch(() => setShareFeedback("Não foi possível copiar"))} className="text-xs font-semibold text-[#0C1A3D]">Copiar link</button>
+              <button type="button" onClick={() => void navigator.clipboard.writeText(shareUrl).then(() => setShareFeedback("Link copiado")).catch(() => setShareFeedback(t("cannotCopy")))} className="text-xs font-semibold text-[#0C1A3D]">{t("copyLink")}</button>
               {shareFeedback && <span className="text-xs text-slate-400">{shareFeedback}</span>}
             </div>
           </div>
@@ -227,7 +229,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
               onChange={(e) => setComment(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") void submitComment(); }}
               className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:border-[#0C1A3D]/30 focus:bg-white"
-              placeholder="Escreva um comentário…"
+              placeholder={t("commentPlaceholder")}
             />
             <button onClick={() => void submitComment()} className="inline-flex items-center gap-2 rounded-xl bg-[#0C1A3D] px-4 py-2.5 text-sm font-semibold text-white">
               <ResaIcon name="send" size={15} />
