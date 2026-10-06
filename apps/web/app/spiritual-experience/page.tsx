@@ -17,18 +17,6 @@ const items = [
 
 export default function SpiritualExperiencePage() {
   const { t } = useTranslation();
-  const descriptionByKey: Record<string, string> = {
-    bibleEngine: "Pesquisa, estudo e descoberta estruturada das Escrituras.",
-    prayer: "Pedidos, intercessão e acompanhamento de respostas em comunidade.",
-    devotion: "Registo real de estudo, reflexão e oração associado à conta.",
-    spiritualGrowth: "Linha factual de eventos espirituais e áreas de crescimento.",
-    sabbathSchool: "Lições, referências bíblicas e continuidade de estudo.",
-    adventistSources: "Fontes com proveniência, autoridade e separação entre conteúdo e IA.",
-    ministry: "Contexto e estruturas ministeriais institucionais.",
-    gamification: "Pontuação factual, progressão e convites baseados em atividade real.",
-    spiritualChat: "Assistência para estudo e crescimento espiritual, sem substituir as fontes.",
-  };
-
   return (
     <main className="min-h-screen bg-[#f6f8fb] px-4 py-5 sm:px-8 sm:py-8">
       <div className="mx-auto max-w-7xl">
@@ -50,7 +38,7 @@ export default function SpiritualExperiencePage() {
                 <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold text-slate-500 transition group-hover:bg-[#0C1A3D] group-hover:text-white">{t("open")}</span>
               </div>
               <h2 className="mt-5 text-xl font-semibold tracking-tight text-[#0C1A3D]">{t(item.title as never)}</h2>
-              <p className="mt-2 min-h-12 text-sm leading-6 text-slate-500">{descriptionByKey[item.title]}</p>
+              <p className="mt-2 min-h-12 text-sm leading-6 text-slate-500">{t(`${item.title}Description` as never)}</p>
               <div className="mt-6 border-t border-slate-100 pt-4"><p className="text-[11px] font-medium leading-5 text-slate-400">{t(item.state as never)}</p></div>
             </Link>
           ))}
