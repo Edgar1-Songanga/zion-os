@@ -305,7 +305,8 @@ export default function MessagesPage() {
             {selected && (
               <div className="border-t border-slate-100 bg-white p-4">
                 {replyTo && <div className="mb-2 flex items-center justify-between rounded-xl bg-[#eef2f8] px-3 py-2 text-xs text-slate-600"><span className="truncate">A responder: {replyTo.body}</span><button onClick={() => setReplyTo(null)} className="font-semibold text-[#0C1A3D]">Cancelar</button></div>}
-                <div className="flex items-end gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-2 focus-within:border-[#9aa9c6]">
+                <div className="rounded-[22px] border border-slate-200 bg-white p-2 shadow-[0_8px_30px_rgba(12,26,61,0.06)] transition focus-within:border-[#9aa9c6] focus-within:shadow-[0_12px_34px_rgba(12,26,61,0.09)]">
+                  <div className="flex items-end gap-2">
                   <textarea
                     ref={composerRef}
                     value={body}
@@ -316,11 +317,15 @@ export default function MessagesPage() {
                     rows={1}
                     maxLength={10000}
                   />
-                  <button onClick={() => void send()} disabled={!body.trim() || sending} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#0C1A3D] text-white transition hover:bg-[#122858] disabled:cursor-not-allowed disabled:opacity-40" aria-label="Enviar mensagem">
-                    <ResaIcon name="send" size={18} />
+                  <button onClick={() => void send()} disabled={!body.trim() || sending} className="flex h-11 min-w-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#0C1A3D] px-3 text-white transition hover:bg-[#122858] disabled:cursor-not-allowed disabled:opacity-40" aria-label="Enviar mensagem">
+                    {sending ? <span className="text-xs font-semibold">A enviar…</span> : <ResaIcon name="send" size={18} />}
                   </button>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between px-2 text-[10px] text-slate-400">
+                    <span>Enter envia · Shift + Enter cria uma nova linha</span>
+                    <span>{body.length}/10000</span>
+                  </div>
                 </div>
-                <p className="mt-2 px-2 text-[11px] text-slate-400">Enter envia · Shift + Enter cria uma nova linha</p>
               </div>
             )}
           </section>
