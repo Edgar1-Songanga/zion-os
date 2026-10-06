@@ -1,5 +1,14 @@
 export type AutomationTrigger = "scheduled" | "event" | "manual";
 
+export type AutomationAction =
+  | "notification.dispatch"
+  | "spiritual.reminder"
+  | "translation.prefetch"
+  | "analytics.record"
+  | "workflow.continue";
+
+export type AutomationDecision = "run" | "defer" | "ignore" | "require_approval";
+
 export interface AutomationJob {
   id: string;
   tenantId: string;
@@ -21,6 +30,25 @@ export interface AutomationRun {
   startedAt: string;
   finishedAt?: string;
   error?: string;
+}
+
+export interface AutomationSignal {
+  type: string;
+  tenantId: string;
+  subjectId?: string;
+  occurredAt: string;
+  payload: Record<string, unknown>;
+}
+
+export interface AutomationPlan {
+  decision: AutomationDecision;
+  reason: string;
+  actions: Array<{
+    type: AutomationAction;
+    payload: Record<string, unknown>;
+    idempotencyKey: string;
+    availableAt?: string;
+  }>;
 }
 
 export interface AutomationClock {
