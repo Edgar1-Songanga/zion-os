@@ -58,6 +58,7 @@ export default function MessagesPage() {
   const [sending, setSending] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const searchParams = useSearchParams();
   const startedTarget = useRef<string | null>(null);
 
@@ -66,15 +67,21 @@ export default function MessagesPage() {
     [items, selected],
   );
 
-  const loadConversations = useCallback(async () => {
+  const loadConversations = useCallback(async (autoSelect = true) => {
     try {
       const next = await resaRequest<Conversation[]>("/v1/resa/conversations");
       setItems(next);
       setError(null);
-      if (!selected && next[0]) setSelected(next[0].id);
+      if (autoSelect && !selected && next[0]) setSelected(next[0].id);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível carregar as conversas.");
     }
+  }, [selected]);
+
+  useEffect(() => {
+    if (!selected) return;
+    const timer = window.setTimeout(() => composerRef.current?.focus(), 0);
+    return () => window.clearTimeout(timer);
   }, [selected]);
 
   const loadMessages = useCallback(async (conversationId: string) => {
@@ -155,11 +162,13 @@ export default function MessagesPage() {
         method: "POST",
         body: JSON.stringify({ member_ids: [person.id], title: displayName }),
       });
-      setNewOpen(false);
       setQuery("");
       setPeople([]);
+      // Refresh the sidebar first, but do not let its default-selection logic
+      // overwrite the conversation the user just opened.
+      await loadConversations(false);
       setSelected(conversation.id);
-      await loadConversations();
+      setNewOpen(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível abrir a conversa.");
     } finally {
@@ -298,6 +307,7 @@ export default function MessagesPage() {
                 {replyTo && <div className="mb-2 flex items-center justify-between rounded-xl bg-[#eef2f8] px-3 py-2 text-xs text-slate-600"><span className="truncate">A responder: {replyTo.body}</span><button onClick={() => setReplyTo(null)} className="font-semibold text-[#0C1A3D]">Cancelar</button></div>}
                 <div className="flex items-end gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-2 focus-within:border-[#9aa9c6]">
                   <textarea
+                    ref={composerRef}
                     value={body}
                     onChange={(e) => setBody(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); } }}
