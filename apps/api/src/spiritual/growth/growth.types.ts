@@ -10,8 +10,8 @@ export interface GrowthEvent {
 }
 
 export interface GrowthRepository {
-  record(event: GrowthEvent): Promise<GrowthEvent>;
-  listForUser(userId: string, from?: string, to?: string): Promise<GrowthEvent[]>;
+  record(token: string, event: GrowthEvent): Promise<GrowthEvent>;
+  listForUser(token: string, userId: string, from?: string, to?: string): Promise<GrowthEvent[]>;
 }
 
 export interface GrowthSnapshot {
