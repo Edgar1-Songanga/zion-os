@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Headers, Param, Post, Query, UnauthorizedException } from "@nestjs/common";
+import { getSupabaseUser } from "../identity/infrastructure/supabase-auth.client";
 import { DevotionService } from "./devotion/devotion.service";
 import type { DevotionEntry } from "./devotion/devotion.types";
 import { GrowthService } from "./growth/growth.service";
@@ -17,47 +18,57 @@ export class SpiritualProgressController {
     return token;
   }
 
+  private async actor(authorization?: string) {
+    const token = this.token(authorization);
+    const user = await getSupabaseUser(token);
+    if (!user) throw new UnauthorizedException("Invalid or expired Supabase session");
+    return { token, user };
+  }
+
   @Get("devotion")
-  listDevotions(
+  async listDevotions(
     @Headers("authorization") authorization: string | undefined,
-    @Query("userId") userId: string,
     @Query("limit") limit?: string,
   ) {
-    return this.devotion.list(this.token(authorization), userId, Number(limit) || 50);
+    const { token, user } = await this.actor(authorization);
+    return this.devotion.list(token, user.id, Number(limit) || 50);
   }
 
   @Get("devotion/:id")
-  getDevotion(
+  async getDevotion(
     @Headers("authorization") authorization: string | undefined,
     @Param("id") id: string,
   ) {
-    return this.devotion.get(this.token(authorization), id);
+    const { token } = await this.actor(authorization);
+    return this.devotion.get(token, id);
   }
 
   @Post("devotion")
-  completeDevotion(
+  async completeDevotion(
     @Headers("authorization") authorization: string | undefined,
     @Body() body: Omit<DevotionEntry, "id" | "completedAt">,
   ) {
-    return this.devotion.complete(this.token(authorization), body);
+    const { token, user } = await this.actor(authorization);
+    return this.devotion.complete(token, { ...body, userId: user.id });
   }
 
   @Get("growth")
-  growthSnapshot(
+  async growthSnapshot(
     @Headers("authorization") authorization: string | undefined,
-    @Query("userId") userId: string,
     @Query("period") period = "all",
     @Query("from") from?: string,
     @Query("to") to?: string,
   ) {
-    return this.growth.snapshot(this.token(authorization), userId, period, from, to);
+    const { token, user } = await this.actor(authorization);
+    return this.growth.snapshot(token, user.id, period, from, to);
   }
 
   @Post("growth")
-  recordGrowth(
+  async recordGrowth(
     @Headers("authorization") authorization: string | undefined,
     @Body() body: Omit<GrowthEvent, "id" | "occurredAt">,
   ) {
-    return this.growth.record(this.token(authorization), body);
+    const { token, user } = await this.actor(authorization);
+    return this.growth.record(token, { ...body, userId: user.id });
   }
 }
