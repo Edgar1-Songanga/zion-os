@@ -91,6 +91,31 @@ export default function AccountPage() {
     setSavingPassword(false);
   }
 
+  async function signOutOtherSessions() {
+    setError(""); setMessage("");
+    if (!window.confirm("Encerrar todas as outras sessões desta conta? O dispositivo atual permanecerá ligado.")) return;
+    setMfaBusy(true);
+    const supabase = createClient();
+    const { error: signOutError } = await supabase.auth.signOut({ scope: "others" });
+    if (signOutError) setError(signOutError.message);
+    else setMessage("Todas as outras sessões foram encerradas. Este dispositivo permanece ligado.");
+    setMfaBusy(false);
+  }
+
+  async function signOutEverywhere() {
+    setError(""); setMessage("");
+    if (!window.confirm("Encerrar todas as sessões, incluindo este dispositivo? Será necessário entrar novamente.")) return;
+    setMfaBusy(true);
+    const supabase = createClient();
+    const { error: signOutError } = await supabase.auth.signOut({ scope: "global" });
+    if (signOutError) {
+      setError(signOutError.message);
+      setMfaBusy(false);
+      return;
+    }
+    window.location.replace("/auth/sign-in");
+  }
+
   async function beginMfaEnrollment() {
     setError(""); setMessage(""); setMfaBusy(true);
     const supabase = createClient();
@@ -217,6 +242,29 @@ export default function AccountPage() {
               </div>
             </div>
           )}
+        </section>
+
+        <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+          <div className="border-b border-slate-100 pb-5">
+            <h2 className="text-xl font-semibold text-[#0C1A3D]">Sessões e dispositivos</h2>
+            <p className="mt-1 text-sm text-slate-500">Controle o acesso da sua conta sem criar um registo paralelo de sessões. O sistema de autenticação gere as sessões diretamente.</p>
+          </div>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5">
+              <p className="font-semibold text-[#0C1A3D]">Sessão atual</p>
+              <p className="mt-1 text-sm text-slate-500">Este dispositivo continuará autenticado.</p>
+              <button type="button" onClick={signOutOtherSessions} disabled={mfaBusy} className="mt-4 rounded-2xl bg-[#0C1A3D] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">
+                Encerrar outras sessões
+              </button>
+            </div>
+            <div className="rounded-2xl border border-red-100 bg-red-50 p-5">
+              <p className="font-semibold text-red-800">Encerrar em todo o lado</p>
+              <p className="mt-1 text-sm text-red-700">Revoga as sessões da conta, incluindo esta sessão.</p>
+              <button type="button" onClick={signOutEverywhere} disabled={mfaBusy} className="mt-4 rounded-2xl border border-red-200 bg-white px-5 py-3 text-sm font-semibold text-red-700 disabled:opacity-50">
+                Encerrar todas as sessões
+              </button>
+            </div>
+          </div>
         </section>
 
         <div className="flex flex-wrap gap-3">
