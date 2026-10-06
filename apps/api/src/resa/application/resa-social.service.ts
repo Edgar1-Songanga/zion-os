@@ -20,11 +20,13 @@ export class ResaSocialService {
   async feed(token: string, limit = 30) {
     const a = await this.actor(token);
     const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
-    const [contents, follows, feedback, reactions, saves] = await Promise.all([
-      this.db.get<any[]>('resa_contents', token, '?select=*&visibility=eq.public&order=created_at.desc&limit=150'),
+    const contents = await this.db.get<any[]>('resa_contents', token, '?select=*&visibility=eq.public&order=created_at.desc&limit=150');
+    const contentIds = contents.map((item) => item.id).filter(Boolean);
+    const reactionFilter = contentIds.length ? `?select=content_id&content_id=in.(${contentIds.join(',')})` : null;
+    const [follows, feedback, reactions, saves] = await Promise.all([
       this.db.get<any[]>('resa_follows', token, `?select=followed_id&follower_id=eq.${a.id}`),
       this.db.get<any[]>('resa_feed_feedback', token, `?select=content_id,feedback&user_id=eq.${a.id}`),
-      this.db.get<any[]>('resa_reactions', token, '?select=content_id'),
+      reactionFilter ? this.db.get<any[]>('resa_reactions', token, reactionFilter) : Promise.resolve([]),
       this.db.get<any[]>('resa_saves', token, `?select=content_id&user_id=eq.${a.id}`),
     ]);
     const followed = new Set(follows.map((row) => row.followed_id));
@@ -69,7 +71,7 @@ export class ResaSocialService {
   async comment(token: string, contentId: string, input: { body: string; parent_id?: string | null }) {
     const a = await this.actor(token); const rows = await this.db.post<any[]>('resa_comments', token, { content_id: contentId, author_id: a.id, body: this.clean(input.body, 'body', 5000), parent_id: input.parent_id ?? null }); return rows[0];
   }
-  async comments(token: string, contentId: string) { await this.actor(token); return this.db.get('resa_comments', token, `?select=*&content_id=eq.${contentId}&status=eq.active&order=created_at.asc`); }
+  async comments(token: string, contentId: string, limit = 50, before?: string) { await this.actor(token); const size = Math.min(Math.max(Number(limit) || 50, 1), 100); const cursor = before ? `&created_at=gt.${encodeURIComponent(before)}` : ''; return this.db.get('resa_comments', token, `?select=*&content_id=eq.${contentId}&status=eq.active&order=created_at.asc&limit=${size}${cursor}`); }
   async react(token: string, contentId: string, reactionType: string) { const a = await this.actor(token); const rows = await this.db.upsert<any[]>('resa_reactions', token, { content_id: contentId, user_id: a.id, reaction_type: this.clean(reactionType, 'reaction_type', 40).toLowerCase() }, '?on_conflict=content_id,user_id'); return rows[0]; }
   async removeReaction(token: string, contentId: string) { const a = await this.actor(token); await this.db.delete('resa_reactions', token, `?content_id=eq.${contentId}&user_id=eq.${a.id}`); return { removed: true }; }
   async follow(token: string, followedId: string) { const a = await this.actor(token); if (a.id === followedId) throw new BadRequestException('You cannot follow yourself'); const rows = await this.db.post<any[]>('resa_follows', token, { follower_id: a.id, followed_id: followedId }); return rows[0]; }
