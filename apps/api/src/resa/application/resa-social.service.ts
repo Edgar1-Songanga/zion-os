@@ -103,7 +103,6 @@ export class ResaSocialService {
     const followed = new Set(following.map((row) => row.followed_id));
     return profiles.filter((profile) => profile.id !== actor.id && !followed.has(profile.id)).slice(0, size).map((profile) => ({ ...profile, relationship: 'suggested' }));
   }
-  async unfollow(token: string, followedId: string) { const a = await this.actor(token); await this.db.delete('resa_follows', token, `?follower_id=eq.${a.id}&followed_id=eq.${followedId}`); return { removed: true }; }
   async follows(token: string, userId?: string) { const a = await this.actor(token); return this.db.get('resa_follows', token, `?select=*&follower_id=eq.${userId || a.id}&order=created_at.desc`); }
   async mention(token: string, contentId: string, mentionedUserId: string) { const a = await this.actor(token); const rows = await this.db.post<any[]>('resa_mentions', token, { content_id: contentId, mentioned_user_id: mentionedUserId, mentioned_by: a.id }); return rows[0]; }
   async topic(token: string, name: string) { const normalized = this.clean(name, 'name', 80).toLowerCase().replace(/^#/, '').replace(/\s+/g, '-'); const rows = await this.db.upsert<any[]>('resa_topics', token, { name, normalized_name: normalized }, '?on_conflict=normalized_name'); return rows[0]; }
