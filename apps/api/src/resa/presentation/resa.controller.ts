@@ -17,6 +17,8 @@ export class ResaController {
   @Post('profiles/:userId/follow') follow(@Headers('authorization') a: string | undefined, @Param('userId') id: string) { return this.resa.follow(this.token(a), id); }
   @Delete('profiles/:userId/follow') unfollow(@Headers('authorization') a: string | undefined, @Param('userId') id: string) { return this.resa.unfollow(this.token(a), id); }
   @Get('profiles/:userId/following') follows(@Headers('authorization') a: string | undefined, @Param('userId') id: string) { return this.resa.follows(this.token(a), id); }
+  @Get('profiles/:userId/social') social(@Headers('authorization') a: string | undefined, @Param('userId') id: string) { return this.resa.social(this.token(a), id); }
+  @Get('profiles/suggestions') suggestions(@Headers('authorization') a: string | undefined, @Query('limit') limit?: string) { return this.resa.suggestions(this.token(a), Number(limit) || 12); }
   @Post('content/:contentId/mentions') mention(@Headers('authorization') a: string | undefined, @Param('contentId') id: string, @Body() b: { mentioned_user_id: string }) { return this.resa.mention(this.token(a), id, b.mentioned_user_id); }
   @Post('topics') topic(@Headers('authorization') a: string | undefined, @Body() b: { name: string }) { return this.resa.topic(this.token(a), b.name); }
   @Post('content/:contentId/topics') attachTopic(@Headers('authorization') a: string | undefined, @Param('contentId') id: string, @Body() b: { topic_id: string }) { return this.resa.attachTopic(this.token(a), id, b.topic_id); }
