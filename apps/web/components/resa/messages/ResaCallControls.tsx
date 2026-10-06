@@ -80,7 +80,14 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
       peer.onicecandidate=async e=>{if(e.candidate) await supabase.from("resa_call_signals").insert({call_id:c.id,sender_id:userId.current,recipient_id:others[0],kind:"ice",payload:e.candidate.toJSON()});};
       const offer=await peer.createOffer(); await peer.setLocalDescription(offer);
       await supabase.from("resa_call_signals").insert({call_id:c.id,sender_id:userId.current,recipient_id:others[0],kind:"offer",payload:offer});
-    }catch(e){setError(e instanceof Error?e.message:"Não foi possível iniciar a chamada.");}
+    }catch(e){
+      const message = e instanceof DOMException && e.name === "NotAllowedError"
+        ? "Acesso ao microfone/câmara foi bloqueado. Autorize o acesso nas permissões do navegador e tente novamente."
+        : e instanceof DOMException && e.name === "NotFoundError"
+          ? "Não foi encontrada uma câmara ou um microfone disponível neste dispositivo."
+          : e instanceof Error ? e.message : "Não foi possível iniciar a chamada.";
+      setError(message);
+    }
   }
 
   async function accept() {
@@ -102,7 +109,12 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
       await supabase.from("resa_call_signals").insert({call_id:incoming.id,sender_id:userId.current,recipient_id:initiator,kind:"answer",payload:answer});
       await supabase.from("resa_call_participants").upsert({call_id:incoming.id,user_id:userId.current,status:"joined",joined_at:new Date().toISOString()},{onConflict:"call_id,user_id"});
       await supabase.from("resa_calls").update({status:"active",answered_at:new Date().toISOString()}).eq("id",incoming.id);
-    }catch(e){setError(e instanceof Error?e.message:"Não foi possível atender a chamada.");}
+    }catch(e){
+      const message = e instanceof DOMException && e.name === "NotAllowedError"
+        ? "Acesso ao microfone/câmara foi bloqueado. Autorize a permissão para atender a chamada."
+        : e instanceof Error ? e.message : "Não foi possível atender a chamada.";
+      setError(message);
+    }
   }
 
   async function handleSignal(signal:any) {
@@ -124,10 +136,14 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
   function toggleCamera(){const tracks=localStream.current?.getVideoTracks()??[];tracks.forEach(t=>t.enabled=!t.enabled);setCamera(v=>!v);}
 
   return <div className="flex items-center gap-2">
-    <button onClick={()=>void start("audio")} aria-label="Iniciar chamada de áudio" className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-[#0C1A3D] hover:bg-slate-50">☎ Áudio</button>
-    <button onClick={()=>void start("video")} aria-label="Iniciar videochamada" className="rounded-xl bg-[#0C1A3D] px-3 py-2 text-xs font-semibold text-white hover:bg-[#122858]">▣ Vídeo</button>
+    <button onClick={()=>{setError(null);void start("audio");}} aria-label="Iniciar chamada de áudio" title="Chamada de áudio" className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-[#0C1A3D] shadow-sm transition hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-md">
+      <span className="text-base" aria-hidden="true">☎</span><span className="hidden sm:inline">Áudio</span>
+    </button>
+    <button onClick={()=>{setError(null);void start("video");}} aria-label="Iniciar videochamada" title="Videochamada" className="flex h-10 items-center gap-2 rounded-xl bg-[#0C1A3D] px-3 text-xs font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#122858] hover:shadow-md">
+      <span className="text-base" aria-hidden="true">▣</span><span className="hidden sm:inline">Vídeo</span>
+    </button>
     {error&&<span role="alert" className="max-w-[240px] text-xs text-red-600">{error}</span>}
     {incoming&&<div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#061127]/60 p-4 backdrop-blur-md"><div className="w-full max-w-sm rounded-[2rem] bg-white p-6 shadow-2xl"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Chamada recebida</p><h3 className="mt-2 text-2xl font-semibold text-[#0C1A3D]">{incoming.kind==="video"?"Videochamada":"Chamada de áudio"}</h3><div className="mt-6 flex gap-3"><button onClick={()=>setIncoming(null)} className="flex-1 rounded-2xl border px-4 py-3 font-semibold">Recusar</button><button onClick={()=>void accept()} className="flex-1 rounded-2xl bg-[#0C1A3D] px-4 py-3 font-semibold text-white">Atender</button></div></div></div>}
-    {active&&<div className="fixed inset-0 z-[60] bg-[#020817] p-4"><div className="mx-auto flex h-full max-w-6xl flex-col"><div className="flex items-center justify-between text-white"><div><p className="text-xs uppercase tracking-[0.2em] text-slate-400">RESA · Chamada</p><p className="mt-1 font-semibold">{call?.kind==="video"?"Videochamada":"Chamada de áudio"}</p></div><button onClick={()=>void end()} className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold">Terminar</button></div><div className="relative mt-4 min-h-0 flex-1 overflow-hidden rounded-[2rem] bg-slate-900"><video ref={remoteVideo} autoPlay playsInline className={call?.kind==="video"?"h-full w-full object-cover":"hidden"}/><video ref={localVideo} autoPlay playsInline className={call?.kind==="video"?"absolute bottom-5 right-5 h-32 w-52 rounded-2xl border-2 border-white/20 object-cover shadow-2xl":"hidden"}/>{call?.kind==="audio"&&<div className="flex h-full items-center justify-center text-6xl text-white/80">☎</div>}</div><div className="mt-4 flex justify-center gap-3"><button onClick={toggleMute} className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold text-white">{muted?"Ativar microfone":"Silenciar"}</button>{call?.kind==="video"&&<button onClick={toggleCamera} className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold text-white">{camera?"Desligar câmara":"Ligar câmara"}</button>}</div></div></div>}
+    {active&&<div className="fixed inset-0 z-[60] bg-[#020817]/95 p-3 backdrop-blur-md sm:p-5"><div className="mx-auto flex h-full max-w-6xl flex-col"><div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white"><div><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">RESA · Comunicação segura</p><p className="mt-1 font-semibold">{call?.kind==="video"?"Videochamada":"Chamada de áudio"}</p></div><button onClick={()=>void end()} className="rounded-xl bg-red-500/90 px-4 py-2 text-sm font-semibold shadow-lg transition hover:bg-red-500">Terminar</button></div><div className="relative mt-4 min-h-0 flex-1 overflow-hidden rounded-[2rem] bg-slate-900"><video ref={remoteVideo} autoPlay playsInline className={call?.kind==="video"?"h-full w-full object-cover":"hidden"}/><video ref={localVideo} autoPlay playsInline className={call?.kind==="video"?"absolute bottom-5 right-5 h-32 w-52 rounded-2xl border-2 border-white/20 object-cover shadow-2xl":"hidden"}/>{call?.kind==="audio"&&<div className="flex h-full items-center justify-center text-6xl text-white/80">☎</div>}</div><div className="mt-4 flex justify-center gap-3"><button onClick={toggleMute} aria-label={muted?"Ativar microfone":"Silenciar microfone"} className={"rounded-2xl px-5 py-3 text-sm font-semibold text-white shadow-lg transition " + (muted?"bg-red-500/80":"bg-white/10 hover:bg-white/15")}>{muted?"🔇 Ativar":"🎙 Silenciar"}</button>{call?.kind==="video"&&<button onClick={toggleCamera} aria-label={camera?"Desligar câmara":"Ligar câmara"} className={"rounded-2xl px-5 py-3 text-sm font-semibold text-white shadow-lg transition " + (camera?"bg-white/10 hover:bg-white/15":"bg-red-500/80")}>{camera?"📷 Câmara":"🚫 Câmara"}</button>}</div></div></div>}
   </div>;
 }
