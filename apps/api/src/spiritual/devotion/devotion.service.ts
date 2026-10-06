@@ -10,9 +10,9 @@ export class DevotionService {
     private readonly provider?: DevotionProvider,
   ) {}
 
-  async complete(input: Omit<DevotionEntry, "id" | "completedAt">): Promise<DevotionEntry> {
-    if (!input.userId || !input.title.trim() || !input.reflection.trim()) {
-      throw new Error("A completed devotion requires user, title and reflection.");
+  async complete(token: string, input: Omit<DevotionEntry, "id" | "completedAt">): Promise<DevotionEntry> {
+    if (!token || !input.userId || !input.title.trim() || !input.reflection.trim()) {
+      throw new Error("A completed devotion requires authentication, user, title and reflection.");
     }
     const scriptureReferences = [...new Set(input.scriptureReferences.map((reference) => reference.trim()).filter(Boolean))];
     if (!scriptureReferences.length) throw new Error("A devotion requires at least one scripture reference.");
@@ -28,18 +28,18 @@ export class DevotionService {
     };
 
     if (!this.provider) throw new Error("Devotion persistence is not configured.");
-    return this.provider.save(entry);
+    return this.provider.save(token, entry);
   }
 
-  async get(id: string): Promise<DevotionEntry | null> {
-    if (!id) throw new Error("Devotion id is required.");
+  async get(token: string, id: string): Promise<DevotionEntry | null> {
+    if (!token || !id) throw new Error("Authentication and devotion id are required.");
     if (!this.provider) throw new Error("Devotion persistence is not configured.");
-    return this.provider.getById(id);
+    return this.provider.getById(token, id);
   }
 
-  async list(userId: string, limit = 50): Promise<DevotionEntry[]> {
-    if (!userId) throw new Error("User id is required.");
+  async list(token: string, userId: string, limit = 50): Promise<DevotionEntry[]> {
+    if (!token || !userId) throw new Error("Authentication and user id are required.");
     if (!this.provider) throw new Error("Devotion persistence is not configured.");
-    return this.provider.listForUser(userId, Math.min(Math.max(limit, 1), 100));
+    return this.provider.listForUser(token, userId, Math.min(Math.max(limit, 1), 100));
   }
 }
