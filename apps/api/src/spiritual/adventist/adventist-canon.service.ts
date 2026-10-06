@@ -1,35 +1,22 @@
-import { Inject, Injectable, Optional } from "@nestjs/common";
-import {
-  ADVENTIST_CANONICAL_SOURCES,
-} from "./adventist-canon.types";
-import type {
-  AdventistCanonicalRecord,
-  AdventistCanonRepository,
-  CanonicalAdventistContentType,
-  CanonicalSource,
-} from "./adventist-canon.types";
+import { Inject, Injectable } from "@nestjs/common";
+import { ADVENTIST_CANONICAL_SOURCES } from "./adventist-canon.types";
+import type { AdventistCanonicalRecord, AdventistCanonRepository, CanonicalAdventistContentType, CanonicalSource } from "./adventist-canon.types";
 
 export const ADVENTIST_CANON_REPOSITORY = Symbol("ADVENTIST_CANON_REPOSITORY");
 
 @Injectable()
 export class AdventistCanonService {
-  constructor(
-    @Optional()
-    @Inject(ADVENTIST_CANON_REPOSITORY)
-    private readonly repository?: AdventistCanonRepository,
-  ) {}
+  constructor(@Inject(ADVENTIST_CANON_REPOSITORY) private readonly repository: AdventistCanonRepository) {}
 
   sources(): CanonicalSource[] {
     return ADVENTIST_CANONICAL_SOURCES;
   }
 
-  async get(id: string): Promise<AdventistCanonicalRecord | null> {
-    if (!this.repository) return null;
-    return this.repository.getById(id);
+  get(token: string, id: string): Promise<AdventistCanonicalRecord | null> {
+    return this.repository.getById(token, id);
   }
 
-  async list(type?: CanonicalAdventistContentType, language?: string): Promise<AdventistCanonicalRecord[]> {
-    if (!this.repository) return [];
-    return this.repository.list(type, language);
+  list(token: string, type?: CanonicalAdventistContentType, language?: string): Promise<AdventistCanonicalRecord[]> {
+    return this.repository.list(token, type, language);
   }
 }
