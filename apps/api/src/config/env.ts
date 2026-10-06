@@ -14,6 +14,9 @@ export const env = {
   livekitUrl: process.env.ZION_LIVEKIT_URL ?? '',
   livekitApiKey: process.env.ZION_LIVEKIT_API_KEY ?? '',
   livekitApiSecret: process.env.ZION_LIVEKIT_API_SECRET ?? '',
+  aiGatewayApiKey: process.env.AI_GATEWAY_API_KEY ?? '',
+  translationModel: process.env.TRANSLATION_MODEL ?? '',
+  aiGatewayEndpoint: process.env.AI_GATEWAY_ENDPOINT ?? '',
 };
 
 export function assertSupabaseConfig(): void {
