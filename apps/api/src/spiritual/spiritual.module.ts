@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { BibleController } from "./bible/bible.controller";
-import { BibleService } from "./bible/bible.service";
+import { BibleService, BIBLE_PROVIDER } from "./bible/bible.service";
+import { MidvashBibleProvider } from "./bible/midvash-bible.provider";
 import { DEVOTION_PROVIDER, DevotionService } from "./devotion/devotion.service";
 import { SupabaseDevotionProvider } from "./devotion/supabase-devotion.provider";
 import { GROWTH_REPOSITORY, GrowthService } from "./growth/growth.service";
@@ -22,6 +23,8 @@ import { SpiritualProgressController } from "./spiritual-progress.controller";
   providers: [
     SupabaseRestClient,
     BibleService,
+    MidvashBibleProvider,
+    { provide: BIBLE_PROVIDER, useExisting: MidvashBibleProvider },
     PrayerService,
     DevotionService,
     SupabaseDevotionProvider,
