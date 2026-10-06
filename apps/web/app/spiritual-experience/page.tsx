@@ -8,6 +8,7 @@ const items = [
   { title: "Escola Sabatina", eyebrow: "Study", href: "/sabbath-school", description: "Lições, referências bíblicas e continuidade de estudo.", state: "API integrada · conteúdo depende do repositório" },
   { title: "Fontes Adventistas", eyebrow: "Canon", href: "/adventist-canon", description: "Fontes com proveniência, autoridade e separação entre conteúdo e IA.", state: "API integrada · conteúdo depende do repositório" },
   { title: "Ministry", eyebrow: "Ministry", href: "/ministry", description: "Contexto e estruturas ministeriais institucionais.", state: "Motor existente · experiência disponível" },
+  { title: "Progressão ZION", eyebrow: "Growth & Community", href: "/gamification", description: "Pontuação factual, progressão e convites baseados em atividade real.", state: "API integrada · experiência disponível" },
   { title: "Spiritual Chat", eyebrow: "AI", href: "/spiritual-chat", description: "Assistência para estudo e crescimento espiritual, sem substituir as fontes.", state: "Experiência disponível" },
 ];
 
