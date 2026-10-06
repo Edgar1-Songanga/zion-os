@@ -1,9 +1,18 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import ResaIcon from "./ResaIcon";
 import NotificationBell from "@/components/notifications/NotificationBell";
+import { resaRequest } from "@/lib/resa/api";
+
+type ProfilePreview = {
+  display_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  avatar_url: string | null;
+};
 
 const navigation = [
   ["Mural", "home", "/resa"],
@@ -17,8 +26,30 @@ const navigation = [
   ["Creator Studio", "creator", "/resa/creator"],
 ] as const;
 
+function profileName(profile: ProfilePreview | null) {
+  if (!profile) return "Perfil";
+  return profile.display_name?.trim() ||
+    [profile.first_name, profile.last_name].filter(Boolean).join(" ").trim() ||
+    "Perfil";
+}
+
+function profileInitial(profile: ProfilePreview | null) {
+  return profileName(profile).slice(0, 1).toUpperCase() || "Z";
+}
+
 export default function ResaNavigation() {
   const pathname = usePathname();
+  const [profile, setProfile] = useState<ProfilePreview | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    resaRequest<ProfilePreview>("/v1/identity/profile")
+      .then((data) => { if (active) setProfile(data); })
+      .catch(() => { if (active) setProfile(null); });
+    return () => { active = false; };
+  }, []);
+
+  const activeProfile = pathname === "/profile" || pathname.startsWith("/profile");
 
   return (
     <header className="sticky top-2 z-40 mb-5">
@@ -45,8 +76,30 @@ export default function ResaNavigation() {
               </Link>
             );
           })}
-          <div className="ml-auto flex items-center px-1">
+
+          <div className="ml-auto flex shrink-0 items-center gap-1 px-1">
             <NotificationBell />
+            <Link
+              href="/profile"
+              aria-current={activeProfile ? "page" : undefined}
+              aria-label="Abrir o meu perfil"
+              title="Meu perfil"
+              className={
+                "group flex items-center gap-2 rounded-2xl border px-2 py-1.5 transition sm:px-2.5 " +
+                (activeProfile
+                  ? "border-[#091735] bg-[#091735] text-white"
+                  : "border-slate-200 bg-white/90 text-slate-700 hover:border-slate-300 hover:bg-slate-50")
+              }
+            >
+              <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-xs font-bold text-[#091735] ring-1 ring-slate-200">
+                {profile?.avatar_url ? (
+                  <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  profileInitial(profile)
+                )}
+              </span>
+              <span className="hidden max-w-[120px] truncate text-xs font-semibold sm:block">{profileName(profile)}</span>
+            </Link>
           </div>
         </nav>
       </div>
