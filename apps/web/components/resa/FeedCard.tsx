@@ -214,7 +214,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
               <button type="button" onClick={() => void nativeShare()} className="rounded-xl bg-slate-50 px-3 py-2.5 text-left text-sm font-semibold text-[#0C1A3D] hover:bg-slate-100">{t("moreOptions")}</button>
             </div>
             <div className="mt-2 flex items-center justify-between gap-2 border-t border-slate-100 px-2 pt-2">
-              <button type="button" onClick={() => void navigator.clipboard.writeText(shareUrl).then(() => setShareFeedback("Link copiado")).catch(() => setShareFeedback(t("cannotCopy")))} className="text-xs font-semibold text-[#0C1A3D]">{t("copyLink")}</button>
+              <button type="button" onClick={() => void navigator.clipboard.writeText(shareUrl).then(() => setShareFeedback(t("copied"))).catch(() => setShareFeedback(t("cannotCopy")))} className="text-xs font-semibold text-[#0C1A3D]">{t("copyLink")}</button>
               {shareFeedback && <span className="text-xs text-slate-400">{shareFeedback}</span>}
             </div>
           </div>
