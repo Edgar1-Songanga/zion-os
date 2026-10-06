@@ -10,6 +10,7 @@ export interface BibleSearchResult {
   text: string;
   translation: string;
   relevance: number;
+  copyright?: string;
 }
 
 export interface BibleProvider {
