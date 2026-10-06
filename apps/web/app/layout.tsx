@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import AppShell from "@/components/layout/AppShell";
+import { TranslationProvider } from "@/components/i18n";
 
 export const metadata: Metadata = {
   title: "ZION OS",
@@ -15,7 +16,9 @@ export default function RootLayout({
   return (
     <html lang="pt">
       <body className="min-h-screen bg-slate-100">
-        <AppShell>{children}</AppShell>
+        <TranslationProvider>
+          <AppShell>{children}</AppShell>
+        </TranslationProvider>
       </body>
     </html>
   );
