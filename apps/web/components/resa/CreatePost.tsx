@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Upload } from "tus-js-client";
 import { resaRequest } from "@/lib/resa/api";
 import { createClient } from "@/lib/supabase/client";
 import ResaIcon from "./core/ResaIcon";
@@ -22,6 +23,7 @@ export default function CreatePost({ onPublished }: { onPublished?: () => void }
   const [media, setMedia] = useState<File | null>(null);
   const [preview, setPreview] = useState("");
   const [saving, setSaving] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -62,11 +64,34 @@ export default function CreatePost({ onPublished }: { onPublished?: () => void }
       if (media) {
         const extension = media.name.split(".").pop()?.toLowerCase() || "bin";
         const path = `${userData.user.id}/${crypto.randomUUID()}.${extension}`;
-        const upload = await supabase.storage.from("resa-media").upload(path, media, {
-          contentType: media.type,
-          upsert: false,
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError || !sessionData.session) throw new Error(t("sessionUnavailable"));
+
+        await new Promise<void>((resolve, reject) => {
+          const upload = new Upload(media, {
+            endpoint: "https://wwdchvadowqakvrxcnkz.storage.supabase.co/storage/v1/upload/resumable",
+            chunkSize: 6 * 1024 * 1024,
+            retryDelays: [0, 2000, 5000, 10000],
+            headers: {
+              authorization: `Bearer ${sessionData.session.access_token}`,
+            },
+            metadata: {
+              bucketName: "resa-media",
+              objectName: path,
+              contentType: media.type,
+              cacheControl: "3600",
+            },
+            onProgress: (bytesUploaded, bytesTotal) => {
+              setUploadProgress(Math.round((bytesUploaded / bytesTotal) * 100));
+            },
+            onError: (uploadError) => reject(uploadError),
+            onSuccess: () => resolve(),
+          });
+
+          upload.start();
         });
-        if (upload.error) throw new Error(upload.error.message);
+
+        setUploadProgress(null);
         const publicUrl = supabase.storage.from("resa-media").getPublicUrl(path).data.publicUrl;
         mediaPayload = {
           media_type: media.type.startsWith("video/") ? "video" : "image",
@@ -91,6 +116,7 @@ export default function CreatePost({ onPublished }: { onPublished?: () => void }
       setMedia(null);
       onPublished?.();
     } catch (e) {
+      setUploadProgress(null);
       setError(e instanceof Error ? e.message : t("publishError"));
     } finally {
       setSaving(false);
@@ -157,7 +183,7 @@ export default function CreatePost({ onPublished }: { onPublished?: () => void }
           <button type="button" onClick={() => void publish()} disabled={saving || (!body.trim() && !media)}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0C1A3D] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40">
             <ResaIcon name="send" size={15} />
-            {saving ? t("publishing") : t("publish")}
+            {uploadProgress !== null ? `${t("publishing")} ${uploadProgress}%` : saving ? t("publishing") : t("publish")}
           </button>
         </div>
 
