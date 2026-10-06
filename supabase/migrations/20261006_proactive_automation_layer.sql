@@ -31,6 +31,8 @@ create table if not exists public.zion_automation_rules (
 
 create index if not exists zion_automation_rules_event_idx
   on public.zion_automation_rules(event_type, enabled, priority);
+create index if not exists zion_automation_rules_created_by_idx
+  on public.zion_automation_rules(created_by);
 
 alter table public.zion_automation_rules enable row level security;
 
