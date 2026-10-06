@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import ResaIcon from "./core/ResaIcon";
+import { useTranslation } from "@/components/i18n";
 
 type DiscoveryItem = {
   id: string;
@@ -14,6 +15,7 @@ type DiscoveryItem = {
 };
 
 export default function CommunityCard() {
+  const { t } = useTranslation();
   const [items, setItems] = useState<DiscoveryItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -27,13 +29,13 @@ export default function CommunityCard() {
     <section className="rounded-[28px] border border-slate-200/80 bg-white p-6 shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Descobrir</p>
-          <h2 className="mt-1 text-xl font-semibold tracking-tight text-[#0C1A3D]">Atividade da rede</h2>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{t("discover")}</p>
+          <h2 className="mt-1 text-xl font-semibold tracking-tight text-[#0C1A3D]">{t("networkActivity")}</h2>
         </div>
         <Link
           href="/resa/explore"
           className="rounded-xl p-2 text-slate-400 hover:bg-slate-50 hover:text-[#0C1A3D]"
-          aria-label="Explorar RESA"
+          aria-label={t("exploreResa")}
         >
           <ResaIcon name="search" size={17} />
         </Link>
@@ -60,7 +62,7 @@ export default function CommunityCard() {
               </span>
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-slate-700">
-                  {item.title || "Publicação da rede"}
+                  {item.title || t("networkPost")}
                 </p>
                 {item.body && (
                   <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{item.body}</p>
