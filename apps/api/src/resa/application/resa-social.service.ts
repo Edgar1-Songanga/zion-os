@@ -77,16 +77,17 @@ export class ResaSocialService {
   async social(token: string, userId?: string) {
     const actor = await this.actor(token);
     const targetId = userId || actor.id;
-    const [followers, following, profiles] = await Promise.all([
+    const [followers, following, actorFollowingTarget, profiles] = await Promise.all([
       this.db.get<any[]>('resa_follows', token, `?select=follower_id,created_at&followed_id=eq.${targetId}&order=created_at.desc&limit=100`),
       this.db.get<any[]>('resa_follows', token, `?select=followed_id,created_at&follower_id=eq.${targetId}&order=created_at.desc&limit=100`),
+      targetId === actor.id ? Promise.resolve([]) : this.db.get<any[]>('resa_follows', token, `?select=followed_id&follower_id=eq.${actor.id}&followed_id=eq.${targetId}&limit=1`),
       this.db.rpc<any[]>('resa_search_profiles', token, { p_query: '', p_limit: 50 }),
     ]);
     const profileMap = new Map(profiles.map((p) => [p.id, p]));
     const person = (id: string, createdAt: string) => ({ id, created_at: createdAt, ...(profileMap.get(id) || {}) });
     return {
       user_id: targetId,
-      is_following: targetId !== actor.id && following.some((row) => row.followed_id === actor.id),
+      is_following: targetId !== actor.id && actorFollowingTarget.length > 0,
       followers_count: followers.length,
       following_count: following.length,
       followers: followers.map((row) => person(row.follower_id, row.created_at)),
