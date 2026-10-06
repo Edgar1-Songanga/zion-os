@@ -42,6 +42,26 @@ const sourceStrings = {
   administrator: "Administrador",
   language: "Idioma",
   selectLanguage: "Selecionar idioma",
+  core: "NÚCLEO",
+  dashboard: "Painel",
+  resa: "RESA",
+  spiritualExperience: "EXPERIÊNCIA ESPIRITUAL",
+  spiritualVision: "Visão espiritual",
+  bibleEngine: "Bible Engine",
+  prayer: "Oração",
+  devotion: "Devoção",
+  spiritualGrowth: "Crescimento espiritual",
+  sabbathSchool: "Escola Sabatina",
+  adventistSources: "Fontes Adventistas",
+  ministry: "Ministry",
+  spiritualChat: "Spiritual Chat",
+  communities: "Communities",
+  organization: "ORGANIZAÇÃO",
+  administration: "Administração",
+  finance: "Finanças",
+  reports: "Relatórios",
+  globalDigitalEcosystem: "Ecossistema Digital Global",
+  globalAdministrator: "Administrador Global",
 } as const;
 
 type TranslationKey = keyof typeof sourceStrings;
@@ -83,6 +103,59 @@ export function TranslationProvider({ children }: { children: React.ReactNode })
     document.documentElement.lang = locale;
     window.localStorage.setItem(STORAGE_KEY, locale);
   }, [locale]);
+
+  useEffect(() => {
+    if (!ready || locale === SOURCE_LOCALE) return;
+
+    const cachedForLocale = translations[locale] ?? {};
+    const items = Object.entries(sourceStrings)
+      .filter(([, text]) => !cachedForLocale[`${SOURCE_LOCALE}:${locale}:ui:${text}`])
+      .map(([id, text]) => ({ id, text, contentType: "ui" as const }));
+
+    if (!items.length) return;
+
+    void (async () => {
+      try {
+        const supabase = createClient();
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        const apiUrl = process.env.NEXT_PUBLIC_ZION_API_URL;
+        if (!token || !apiUrl) return;
+
+        const response = await fetch(`${apiUrl}/v1/translation/translate/batch`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            sourceLocale: SOURCE_LOCALE,
+            targetLocale: locale,
+            items,
+          }),
+        });
+        if (!response.ok) return;
+
+        const result = (await response.json()) as {
+          items?: Array<{ id: string; text: string }>;
+        };
+        if (!result.items?.length) return;
+
+        setTranslations((current) => {
+          const nextLocale = { ...(current[locale] ?? {}) };
+          for (const item of result.items ?? []) {
+            const source = sourceStrings[item.id as TranslationKey];
+            if (source) nextLocale[`${SOURCE_LOCALE}:${locale}:ui:${source}`] = item.text;
+          }
+          const next = { ...current, [locale]: nextLocale };
+          window.localStorage.setItem(CACHE_KEY, JSON.stringify(next));
+          return next;
+        });
+      } catch {
+        // Source-language fallback remains active.
+      }
+    })();
+  }, [locale, ready]);
 
   const setLocale = useCallback((next: ZionLocale) => {
     setLocaleState(next);
