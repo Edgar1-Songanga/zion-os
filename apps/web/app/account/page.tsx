@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { resaRequest } from "@/lib/resa/api";
 
 type TotpFactor = {
   id: string;
@@ -26,6 +27,7 @@ export default function AccountPage() {
   const [mfaQr, setMfaQr] = useState("");
   const [mfaSecret, setMfaSecret] = useState("");
   const [mfaCode, setMfaCode] = useState("");
+  const [privacy, setPrivacy] = useState({ profile_visibility: "community", bio_visibility: "community", country_visibility: "community", timezone_visibility: "private" });
 
   const loadMfa = async () => {
     setMfaLoading(true);
@@ -49,6 +51,7 @@ export default function AccountPage() {
       setLoading(false);
     });
     void loadMfa();
+    resaRequest<{ privacy?: typeof privacy }>("/v1/identity/profile").then((p) => { if (p.privacy) setPrivacy((x) => ({ ...x, ...p.privacy })); }).catch(() => undefined);
   }, []);
 
   async function updateEmail(event: FormEvent<HTMLFormElement>) {
@@ -67,6 +70,13 @@ export default function AccountPage() {
       setNewEmail("");
     }
     setSavingEmail(false);
+  }
+
+  async function updatePrivacy() {
+    setError(""); setMessage(""); setMfaBusy(true);
+    try { await resaRequest("/v1/identity/profile", { method: "PATCH", body: JSON.stringify({ privacy }) }); setMessage("Preferências de privacidade atualizadas."); }
+    catch (e) { setError(e instanceof Error ? e.message : "Não foi possível atualizar a privacidade."); }
+    finally { setMfaBusy(false); }
   }
 
   async function updatePassword(event: FormEvent<HTMLFormElement>) {
@@ -192,6 +202,11 @@ export default function AccountPage() {
         {error && <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
         {message && <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</div>}
 
+        <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+          <div className="border-b border-slate-100 pb-5"><h2 className="text-xl font-semibold text-[#0C1A3D]">Privacidade</h2><p className="mt-1 text-sm text-slate-500">Defina quem pode ver os seus dados de perfil.</p></div>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">{([["profile_visibility","Perfil"],["bio_visibility","Biografia"],["country_visibility","País"],["timezone_visibility","Fuso horário"]] as const).map(([key,label]) => <label key={key} className="rounded-2xl border border-slate-100 bg-slate-50 p-4"><span className="block text-sm font-semibold text-[#0C1A3D]">{label}</span><select value={privacy[key]} onChange={(e)=>setPrivacy(p=>({...p,[key]:e.target.value}))} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"><option value="public">Público</option><option value="community">Membros ZION</option><option value="private">Privado</option></select></label>)}</div>
+          <button type="button" onClick={updatePrivacy} disabled={mfaBusy} className="mt-5 rounded-2xl bg-[#0C1A3D] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Guardar privacidade</button>
+        </section>
         <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           <div className="border-b border-slate-100 pb-5">
             <h2 className="text-xl font-semibold text-[#0C1A3D]">Email de acesso</h2>
