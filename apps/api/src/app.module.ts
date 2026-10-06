@@ -13,9 +13,10 @@ import { AiModule } from "./ai/ai.module";
 import { UsersModule } from "./users/users.module";
 import { MediaModule } from "./media/media.module";
 import { HealthController } from "./platform/health.controller";
+import { TranslationModule } from "./translation/translation.module";
 
 @Module({
-  imports: [PlatformModule, IdentityModule, SpiritualModule, ResaModule, NotificationsModule, AiModule, OrganizationsModule, GovernanceModule, AuditModule, UsersModule, MediaModule],
+  imports: [PlatformModule, IdentityModule, SpiritualModule, ResaModule, NotificationsModule, AiModule, OrganizationsModule, GovernanceModule, AuditModule, UsersModule, MediaModule, TranslationModule],
   controllers: [AppController, HealthController],
   providers: [AppService],
 })
