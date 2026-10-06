@@ -5,6 +5,7 @@ import CreatePost from "./CreatePost";
 import FeedCard from "./FeedCard";
 import ResaIcon from "./core/ResaIcon";
 import { resaRequest } from "@/lib/resa/api";
+import { useTranslation } from "@/components/i18n";
 
 type ResaContent = {
   id: string;
@@ -20,6 +21,7 @@ type ResaContent = {
 };
 
 export default function ResaLiveFeed() {
+  const { t } = useTranslation();
   const [items, setItems] = useState<ResaContent[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -32,7 +34,7 @@ export default function ResaLiveFeed() {
     try {
       setItems(await resaRequest<ResaContent[]>("/v1/resa/feed?limit=30"));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Não foi possível carregar o feed.");
+      setError(e instanceof Error ? e.message : t("feedLoadError"));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -51,8 +53,8 @@ export default function ResaLiveFeed() {
 
       <div className="flex items-center justify-between px-1">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Agora</p>
-          <h2 className="mt-1 text-xl font-semibold tracking-tight text-[#0C1A3D]">Mural da comunidade</h2>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{t("now")}</p>
+          <h2 className="mt-1 text-xl font-semibold tracking-tight text-[#0C1A3D]">{t("communityWall")}</h2>
         </div>
         <button
           type="button"
@@ -61,7 +63,7 @@ export default function ResaLiveFeed() {
           className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-slate-300 hover:text-[#0C1A3D] disabled:opacity-50"
         >
           <ResaIcon name="sparkles" size={15} />
-          {refreshing ? "A atualizar…" : "Atualizar"}
+          {refreshing ? t("refreshing") : t("refresh")}
         </button>
       </div>
 
@@ -80,7 +82,7 @@ export default function ResaLiveFeed() {
 
       {error && (
         <div className="rounded-[28px] border border-red-200 bg-white p-6">
-          <p className="font-semibold text-red-800">Não foi possível atualizar o mural.</p>
+          <p className="font-semibold text-red-800">{t("wallUpdateError")}</p>
           <p className="mt-1 text-sm text-red-600">{error}</p>
           <button type="button" onClick={() => void load()} className="mt-4 rounded-xl bg-[#0C1A3D] px-4 py-2 text-sm font-semibold text-white">
             Tentar novamente
@@ -93,8 +95,8 @@ export default function ResaLiveFeed() {
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-[#0C1A3D]">
             <ResaIcon name="sparkles" size={20} />
           </div>
-          <h3 className="mt-4 font-semibold text-[#0C1A3D]">O mural está à espera da primeira publicação</h3>
-          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">Partilhe uma reflexão, uma oração ou um testemunho para iniciar a conversa.</p>
+          <h3 className="mt-4 font-semibold text-[#0C1A3D]">{t("emptyWallTitle")}</h3>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">{t("emptyWallDescription")}</p>
         </div>
       )}
 
