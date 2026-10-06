@@ -1,9 +1,11 @@
 "use client";
 
 import LanguageSelector from "@/components/language/LanguageSelector";
+import { useTranslation } from "@/components/i18n";
 
 
 export default function Topbar(){
+  const { t } = useTranslation();
 
 
 return (
@@ -45,7 +47,7 @@ text-slate-500
 mt-1
 "
 >
-Global Adventist Digital Ecosystem
+{t("brandDescription")}
 </p>
 
 
