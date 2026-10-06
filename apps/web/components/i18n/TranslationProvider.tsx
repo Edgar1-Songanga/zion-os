@@ -78,6 +78,16 @@ const sourceStrings = {
   experienceAvailable: "Experiência disponível",
   spiritualIntegrity: "Integridade da experiência",
   spiritualIntegrityDescription: "O ZION não preenche lacunas com dados espirituais fictícios. Quando um motor tem API mas ainda não tem provider ou repositório de produção, essa condição é comunicada de forma explícita.",
+  gamification: "Progressão ZION",
+  bibleEngineDescription: "Pesquisa, estudo e descoberta estruturada das Escrituras.",
+  prayerDescription: "Pedidos, intercessão e acompanhamento de respostas em comunidade.",
+  devotionDescription: "Registo real de estudo, reflexão e oração associado à conta.",
+  spiritualGrowthDescription: "Linha factual de eventos espirituais e áreas de crescimento.",
+  sabbathSchoolDescription: "Lições, referências bíblicas e continuidade de estudo.",
+  adventistSourcesDescription: "Fontes com proveniência, autoridade e separação entre conteúdo e IA.",
+  ministryDescription: "Contexto e estruturas ministeriais institucionais.",
+  gamificationDescription: "Pontuação factual, progressão e convites baseados em atividade real.",
+  spiritualChatDescription: "Assistência para estudo e crescimento espiritual, sem substituir as fontes.",
 } as const;
 
 type TranslationKey = keyof typeof sourceStrings;
