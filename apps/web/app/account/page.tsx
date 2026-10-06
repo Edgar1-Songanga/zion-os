@@ -130,7 +130,7 @@ export default function AccountPage() {
     }
     setMfaQr(data.totp?.qr_code ?? "");
     setMfaSecret(data.totp?.secret ?? "");
-    setMfaFactor({ id: data.id, friendly_name: data.friendly_name, status: data.status });
+    setMfaFactor({ id: data.id, friendly_name: data.friendly_name, status: "unverified" });
     setMfaCode("");
     setMfaBusy(false);
   }
