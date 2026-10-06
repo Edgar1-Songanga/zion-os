@@ -28,16 +28,36 @@ path:"/resa"
 title:"SPIRITUAL EXPERIENCE",
 items:[
 {
+name:"Visão espiritual",
+path:"/spiritual-experience"
+},
+{
 name:"Bible Engine",
 path:"/bible-engine"
 },
 {
-name:"Communities",
-path:"/communities"
+name:"Oração",
+path:"/resa/prayer"
+},
+{
+name:"Escola Sabatina",
+path:"/sabbath-school"
+},
+{
+name:"Fontes Adventistas",
+path:"/adventist-canon"
+},
+{
+name:"Ministry",
+path:"/ministry"
 },
 {
 name:"Spiritual Chat",
 path:"/spiritual-chat"
+},
+{
+name:"Communities",
+path:"/communities"
 }
 ]
 },
