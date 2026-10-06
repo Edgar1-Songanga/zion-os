@@ -14,6 +14,17 @@ type Profile = {
   timezone: string;
 };
 
+const PROFILE_FIELDS = [
+  'display_name',
+  'first_name',
+  'last_name',
+  'avatar_url',
+  'bio',
+  'country_code',
+  'locale',
+  'timezone',
+] as const;
+
 @Injectable()
 export class ProfileService {
   private readonly db = new SupabaseRestClient();
@@ -42,10 +53,31 @@ export class ProfileService {
 
   async update(accessToken: string, input: Partial<Omit<Profile, 'id'>>) {
     const user = await this.identity.getCurrentUser(accessToken);
+
+    const updates = Object.fromEntries(
+      PROFILE_FIELDS
+        .filter((field) => Object.prototype.hasOwnProperty.call(input, field))
+        .map((field) => [field, input[field]]),
+    ) as Partial<Omit<Profile, 'id'>>;
+
+    if ('country_code' in updates && updates.country_code) {
+      updates.country_code = updates.country_code.trim().toUpperCase();
+      if (!/^[A-Z]{2}$/.test(updates.country_code)) {
+        throw new UnauthorizedException('country_code must be a valid ISO alpha-2 code');
+      }
+    }
+
+    for (const field of ['display_name', 'first_name', 'last_name', 'bio'] as const) {
+      const value = updates[field];
+      if (typeof value === 'string' && value.length > (field === 'bio' ? 500 : 120)) {
+        throw new UnauthorizedException(`${field} exceeds the maximum allowed length`);
+      }
+    }
+
     const rows = await this.db.patch<Profile[]>(
       'profiles',
       accessToken,
-      input,
+      updates,
       `?id=eq.${user.id}`,
     );
     return rows[0] ?? null;
