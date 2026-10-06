@@ -19,9 +19,13 @@ import { MINISTRY_DIRECTORY } from "./ministry/ministry.service";
 import { SupabaseMinistryDirectory } from "./ministry/supabase-ministry.directory";
 import { SupabaseRestClient } from "../common/supabase/supabase-rest.client";
 import { SpiritualProgressController } from "./spiritual-progress.controller";
+import { GamificationController } from "../gamification/gamification.controller";
+import { GamificationService } from "../gamification/gamification.service";
+import { ReferralController } from "../referrals/referral.controller";
+import { ReferralRepository } from "../referrals/referral.repository";
 
 @Module({
-  controllers: [BibleController, AdventistCanonController, SabbathSchoolController, MinistryController, SpiritualProgressController],
+  controllers: [BibleController, AdventistCanonController, SabbathSchoolController, MinistryController, SpiritualProgressController, GamificationController, ReferralController],
   providers: [
     SupabaseRestClient,
     BibleService,
@@ -43,6 +47,8 @@ import { SpiritualProgressController } from "./spiritual-progress.controller";
     { provide: SABBATH_SCHOOL_REPOSITORY, useExisting: SupabaseSabbathSchoolRepository },
     SupabaseMinistryDirectory,
     { provide: MINISTRY_DIRECTORY, useExisting: SupabaseMinistryDirectory },
+    GamificationService,
+    ReferralRepository,
   ],
   exports: [BibleService, PrayerService, DevotionService, GrowthService, SpiritualMinistryService, AdventistCanonService, SabbathSchoolService],
 })
