@@ -27,7 +27,7 @@ type CommentItem = {
   created_at: string;
 };
 
-const typeMeta: Record<string, { labelKey: "sparkles" | "prayer" | "story" | "heart" }> = {
+const typeMeta: Record<string, { labelKey: "post" | "prayer" | "bibleStudy" | "testimony" | "sermon"; icon: "sparkles" | "prayer" | "story" | "heart" }> = {
   text: { labelKey: "post", icon: "sparkles" },
   prayer: { labelKey: "prayer", icon: "prayer" },
   bible_study: { labelKey: "bibleStudy", icon: "story" },
