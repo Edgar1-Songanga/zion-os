@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import { createClient } from "@/lib/supabase/client";
 import ResaSocialNetwork from "@/components/resa/social/ResaSocialNetwork";
@@ -29,6 +29,9 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState("");
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -57,17 +60,58 @@ export default function ProfilePage() {
   const initials = displayName.split(/\s+/).filter(Boolean).slice(0, 2)
     .map((part) => part[0]?.toUpperCase()).join("");
 
+  useEffect(() => {
+    if (!avatarFile) {
+      setAvatarPreview("");
+      return;
+    }
+    const previewUrl = URL.createObjectURL(avatarFile);
+    setAvatarPreview(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [avatarFile]);
+
+  function selectAvatar(file?: File) {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Escolha uma imagem para a fotografia de perfil.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError("A fotografia ultrapassa o limite de 5 MB.");
+      return;
+    }
+    setError("");
+    setSaved(false);
+    setAvatarFile(file);
+  }
+
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true); setSaved(false); setError("");
     try {
+      let avatarUrl = profile.avatar_url?.trim() || null;
+      if (avatarFile) {
+        const supabase = createClient();
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+        if (userError || !userData.user) throw new Error("A sessão RESA não está disponível.");
+
+        const extension = avatarFile.name.split(".").pop()?.toLowerCase() || "jpg";
+        const path = `${userData.user.id}/avatar-${crypto.randomUUID()}.${extension}`;
+        const upload = await supabase.storage.from("resa-media").upload(path, avatarFile, {
+          contentType: avatarFile.type,
+          upsert: false,
+        });
+        if (upload.error) throw new Error(upload.error.message);
+        avatarUrl = supabase.storage.from("resa-media").getPublicUrl(path).data.publicUrl;
+      }
+
       const updated = await resaRequest<Profile>("/v1/identity/profile", {
         method: "PATCH",
         body: JSON.stringify({
           display_name: profile.display_name?.trim() || null,
           first_name: profile.first_name?.trim() || null,
           last_name: profile.last_name?.trim() || null,
-          avatar_url: profile.avatar_url?.trim() || null,
+          avatar_url: avatarUrl,
           bio: profile.bio?.trim() || null,
           country_code: profile.country_code?.trim().toUpperCase() || null,
           locale: profile.locale,
@@ -75,6 +119,7 @@ export default function ProfilePage() {
         }),
       });
       setProfile((current) => ({ ...current, ...updated }));
+      setAvatarFile(null);
       setSaved(true);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível guardar o perfil.");
@@ -93,9 +138,10 @@ export default function ProfilePage() {
       <div className="mx-auto max-w-5xl space-y-6">
         <header className="rounded-[28px] bg-[#0C1A3D] p-8 text-white shadow-xl">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
-            <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/10 text-3xl font-semibold ring-1 ring-white/20">
-              {profile.avatar_url ? <img src={profile.avatar_url} alt={`Fotografia de ${displayName}`} className="h-full w-full object-cover" /> : (initials || "Z")}
-            </div>
+            <button type="button" onClick={() => avatarInputRef.current?.click()} className="group relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/10 text-3xl font-semibold ring-1 ring-white/20" aria-label="Alterar fotografia de perfil" title="Alterar fotografia">
+              {(avatarPreview || profile.avatar_url) ? <img src={avatarPreview || profile.avatar_url || ""} alt={`Fotografia de ${displayName}`} className="h-full w-full object-cover" /> : (initials || "Z")}
+              <span className="absolute inset-x-0 bottom-0 bg-black/60 px-2 py-1 text-center text-[10px] font-semibold text-white opacity-0 transition group-hover:opacity-100">Alterar</span>
+            </button>
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Perfil ZION</p>
               <h1 className="mt-2 truncate text-3xl font-semibold">{displayName}</h1>
@@ -117,7 +163,19 @@ export default function ProfilePage() {
             <label className="space-y-2 sm:col-span-2"><span className="text-sm font-medium text-slate-700">Biografia</span><textarea value={profile.bio ?? ""} onChange={(e) => update("bio", e.target.value)} rows={4} className="w-full resize-y rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500" maxLength={500} /></label>
             <label className="space-y-2"><span className="text-sm font-medium text-slate-700">País (código ISO)</span><input value={profile.country_code ?? ""} onChange={(e) => update("country_code", e.target.value)} placeholder="AO" maxLength={2} className="w-full rounded-2xl border border-slate-200 px-4 py-3 uppercase outline-none focus:border-blue-500" autoComplete="country" /></label>
             <label className="space-y-2"><span className="text-sm font-medium text-slate-700">Fuso horário</span><input value={profile.timezone ?? ""} onChange={(e) => update("timezone", e.target.value)} placeholder="Africa/Luanda" className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500" /></label>
-            <label className="space-y-2 sm:col-span-2"><span className="text-sm font-medium text-slate-700">Fotografia (URL)</span><input value={profile.avatar_url ?? ""} onChange={(e) => update("avatar_url", e.target.value)} type="url" placeholder="https://…" className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500" /><span className="block text-xs text-slate-400">Sem imagem fictícia: a fotografia só aparece quando uma imagem real for fornecida.</span></label>
+            <div className="space-y-3 sm:col-span-2">
+              <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:flex-row sm:items-center">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-xl font-bold text-[#0C1A3D] ring-1 ring-slate-200">
+                  {(avatarPreview || profile.avatar_url) ? <img src={avatarPreview || profile.avatar_url || ""} alt="" className="h-full w-full object-cover" /> : (initials || "Z")}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-slate-700">Fotografia de perfil</p>
+                  <p className="mt-1 text-xs text-slate-500">Escolha uma fotografia real. JPG, PNG ou WebP até 5 MB.</p>
+                </div>
+                <input ref={avatarInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={(e) => selectAvatar(e.target.files?.[0])} />
+                <button type="button" onClick={() => avatarInputRef.current?.click()} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">{avatarFile ? "Escolher outra" : "Alterar fotografia"}</button>
+              </div>
+            </div>
           </div>
 
           {error && <div role="alert" className="mt-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
