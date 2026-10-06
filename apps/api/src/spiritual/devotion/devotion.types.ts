@@ -9,7 +9,7 @@ export interface DevotionEntry {
 }
 
 export interface DevotionProvider {
-  save(entry: DevotionEntry): Promise<DevotionEntry>;
-  getById(id: string): Promise<DevotionEntry | null>;
-  listForUser(userId: string, limit?: number): Promise<DevotionEntry[]>;
+  save(token: string, entry: DevotionEntry): Promise<DevotionEntry>;
+  getById(token: string, id: string): Promise<DevotionEntry | null>;
+  listForUser(token: string, userId: string, limit?: number): Promise<DevotionEntry[]>;
 }
