@@ -95,3 +95,40 @@ begin
     alter publication supabase_realtime add table public.resa_live_sessions;
   end if;
 end $$;
+
+
+-- ZION profile privacy controls.
+alter table public.profiles add column if not exists privacy jsonb not null default jsonb_build_object(
+  'profile_visibility','community','bio_visibility','community','country_visibility','community','timezone_visibility','private'
+);
+
+update public.profiles set privacy = jsonb_build_object(
+  'profile_visibility','community','bio_visibility','community','country_visibility','community','timezone_visibility','private'
+) where privacy is null;
+
+create index if not exists idx_profiles_privacy_visibility on public.profiles ((privacy->>'profile_visibility'));
+
+create or replace function public.resa_search_profiles(p_query text, p_limit integer default 20)
+returns table (id uuid, display_name text, first_name text, last_name text, avatar_url text, email text)
+language sql stable security definer set search_path = public, auth as $$
+  select u.id,
+    coalesce(nullif(trim(p.display_name), ''), nullif(trim(concat_ws(' ', p.first_name, p.last_name)), ''), split_part(u.email, '@', 1)),
+    case when coalesce(p.privacy->>'profile_visibility','community') <> 'private' then p.first_name end,
+    case when coalesce(p.privacy->>'profile_visibility','community') <> 'private' then p.last_name end,
+    case when coalesce(p.privacy->>'profile_visibility','community') <> 'private' then p.avatar_url end,
+    case when coalesce(p.privacy->>'profile_visibility','community') = 'public' then u.email else null end
+  from auth.users u left join public.profiles p on p.id = u.id
+  where (select auth.uid()) is not null
+    and coalesce(p.privacy->>'profile_visibility','community') <> 'private'
+    and (
+      lower(coalesce(p.display_name, '')) like '%' || lower(trim(p_query)) || '%'
+      or lower(coalesce(p.first_name, '')) like '%' || lower(trim(p_query)) || '%'
+      or lower(coalesce(p.last_name, '')) like '%' || lower(trim(p_query)) || '%'
+      or lower(coalesce(u.email, '')) like '%' || lower(trim(p_query)) || '%'
+      or lower(u.id::text) like '%' || lower(trim(p_query)) || '%'
+    )
+  order by 2 asc
+  limit least(greatest(coalesce(p_limit,20),1),50);
+$$;
+revoke all on function public.resa_search_profiles(text, integer) from public;
+grant execute on function public.resa_search_profiles(text, integer) to authenticated;
