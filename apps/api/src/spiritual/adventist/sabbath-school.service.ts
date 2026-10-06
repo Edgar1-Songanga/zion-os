@@ -1,23 +1,17 @@
-import { Inject, Injectable, Optional } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import type { SabbathSchoolLesson, SabbathSchoolRepository } from "./sabbath-school.types";
 
 export const SABBATH_SCHOOL_REPOSITORY = Symbol("SABBATH_SCHOOL_REPOSITORY");
 
 @Injectable()
 export class SabbathSchoolService {
-  constructor(
-    @Optional()
-    @Inject(SABBATH_SCHOOL_REPOSITORY)
-    private readonly repository?: SabbathSchoolRepository,
-  ) {}
+  constructor(@Inject(SABBATH_SCHOOL_REPOSITORY) private readonly repository: SabbathSchoolRepository) {}
 
-  async get(id: string): Promise<SabbathSchoolLesson | null> {
-    if (!this.repository) return null;
-    return this.repository.getById(id);
+  get(token: string, id: string): Promise<SabbathSchoolLesson | null> {
+    return this.repository.getById(token, id);
   }
 
-  async list(input: { year?: number; quarter?: string; language?: string } = {}) {
-    if (!this.repository) return [];
-    return this.repository.list(input);
+  list(token: string, input: { year?: number; quarter?: string; language?: string } = {}) {
+    return this.repository.list(token, input);
   }
 }
