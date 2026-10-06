@@ -1,12 +1,16 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { IdentityService } from '../identity/application/identity.service';
 import { SupabaseRestClient } from '../common/supabase/supabase-rest.client';
+import { AutomationPolicyEngine } from '@zion/automation-engine';
 
 @Injectable()
 export class PlatformService {
   private readonly db = new SupabaseRestClient();
 
-  constructor(private readonly identity: IdentityService) {}
+  constructor(
+    private readonly identity: IdentityService,
+    private readonly automation: AutomationPolicyEngine,
+  ) {}
 
   private async actor(token: string) { return this.identity.getCurrentUser(token); }
 
@@ -60,14 +64,37 @@ export class PlatformService {
 
   async publishEvent(token: string, input: { event_type: unknown; aggregate_type: unknown; aggregate_id: unknown; payload?: unknown }) {
     const actor = await this.actor(token);
+    const eventType = this.text(input.event_type, 'event_type');
+    const aggregateType = this.text(input.aggregate_type, 'aggregate_type', 80);
+    const aggregateId = this.uuid(input.aggregate_id, 'aggregate_id');
+    const payload = input.payload && typeof input.payload === 'object' ? input.payload : {};
     const rows = await this.db.post<any[]>('zion_domain_events', token, {
-      event_type: this.text(input.event_type, 'event_type'),
-      aggregate_type: this.text(input.aggregate_type, 'aggregate_type', 80),
-      aggregate_id: this.uuid(input.aggregate_id, 'aggregate_id'),
+      event_type: eventType,
+      aggregate_type: aggregateType,
+      aggregate_id: aggregateId,
       actor_user_id: actor.id,
-      payload: input.payload && typeof input.payload === 'object' ? input.payload : {},
+      payload,
     });
-    return rows[0];
+    const event = rows[0];
+    const plan = this.automation.plan({
+      type: eventType,
+      tenantId: 'platform',
+      subjectId: aggregateId,
+      occurredAt: event?.occurred_at ?? new Date().toISOString(),
+      payload: payload as Record<string, unknown>,
+    });
+    const jobs = await this.db.post<any[]>('zion_jobs', token, {
+      job_type: 'automation.evaluate_event',
+      payload: {
+        event_id: event.id,
+        policy_decision: plan.decision,
+        policy_reason: plan.reason,
+        planned_actions: plan.actions,
+      },
+      idempotency_key: `automation:event:${event.id}`,
+      created_by: actor.id,
+    });
+    return { event, automation: plan, evaluation_job: jobs[0] };
   }
 
   async recordAnalytics(token: string, input: { event_name: unknown; entity_type?: unknown; entity_id?: unknown; properties?: unknown; occurred_at?: unknown }) {
