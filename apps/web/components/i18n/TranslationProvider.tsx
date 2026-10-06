@@ -62,6 +62,22 @@ const sourceStrings = {
   reports: "Relatórios",
   globalDigitalEcosystem: "Ecossistema Digital Global",
   globalAdministrator: "Administrador Global",
+  spiritualLayer: "Camada Espiritual",
+  spiritualExperienceTitle: "Experiência Espiritual",
+  spiritualExperienceDescription: "Um ponto de entrada único para os motores espirituais do ZION. A experiência organiza os serviços existentes sem substituir os seus motores, fontes ou regras de domínio.",
+  scripture: "Escrituras",
+  study: "Estudo",
+  growth: "Crescimento",
+  canon: "Cânone",
+  ai: "IA",
+  growthCommunity: "Crescimento e Comunidade",
+  open: "Abrir",
+  engineAvailable: "Motor existente · experiência disponível",
+  apiIntegrated: "API integrada · experiência disponível",
+  contentRepository: "API integrada · conteúdo depende do repositório",
+  experienceAvailable: "Experiência disponível",
+  spiritualIntegrity: "Integridade da experiência",
+  spiritualIntegrityDescription: "O ZION não preenche lacunas com dados espirituais fictícios. Quando um motor tem API mas ainda não tem provider ou repositório de produção, essa condição é comunicada de forma explícita.",
 } as const;
 
 type TranslationKey = keyof typeof sourceStrings;
