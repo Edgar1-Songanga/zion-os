@@ -3,6 +3,8 @@ import Link from "next/link";
 const items = [
   { title: "Bible Engine", eyebrow: "Scripture", href: "/bible-engine", description: "Pesquisa, estudo e descoberta estruturada das Escrituras.", state: "Motor existente · experiência disponível" },
   { title: "Oração", eyebrow: "Prayer", href: "/resa/prayer", description: "Pedidos, intercessão e acompanhamento de respostas em comunidade.", state: "Motor existente · experiência disponível" },
+  { title: "Devoção", eyebrow: "Devotion", href: "/devotion", description: "Registo real de estudo, reflexão e oração associado à conta.", state: "API integrada · experiência disponível" },
+  { title: "Crescimento espiritual", eyebrow: "Growth", href: "/spiritual-growth", description: "Linha factual de eventos espirituais e áreas de crescimento.", state: "API integrada · experiência disponível" },
   { title: "Escola Sabatina", eyebrow: "Study", href: "/sabbath-school", description: "Lições, referências bíblicas e continuidade de estudo.", state: "API integrada · conteúdo depende do repositório" },
   { title: "Fontes Adventistas", eyebrow: "Canon", href: "/adventist-canon", description: "Fontes com proveniência, autoridade e separação entre conteúdo e IA.", state: "API integrada · conteúdo depende do repositório" },
   { title: "Ministry", eyebrow: "Ministry", href: "/ministry", description: "Contexto e estruturas ministeriais institucionais.", state: "Motor existente · experiência disponível" },
