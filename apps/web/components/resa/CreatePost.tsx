@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Upload } from "tus-js-client";
 import { resaRequest } from "@/lib/resa/api";
 import { createClient } from "@/lib/supabase/client";
 import ResaIcon from "./core/ResaIcon";
@@ -67,29 +66,76 @@ export default function CreatePost({ onPublished }: { onPublished?: () => void }
         const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
         if (sessionError || !sessionData.session) throw new Error(t("sessionUnavailable"));
 
-        await new Promise<void>((resolve, reject) => {
-          const upload = new Upload(media, {
-            endpoint: "https://wwdchvadowqakvrxcnkz.storage.supabase.co/storage/v1/upload/resumable",
-            chunkSize: 6 * 1024 * 1024,
-            retryDelays: [0, 2000, 5000, 10000],
-            headers: {
-              authorization: `Bearer ${sessionData.session.access_token}`,
-            },
-            metadata: {
-              bucketName: "resa-media",
-              objectName: path,
-              contentType: media.type,
-              cacheControl: "3600",
-            },
-            onProgress: (bytesUploaded, bytesTotal) => {
-              setUploadProgress(Math.round((bytesUploaded / bytesTotal) * 100));
-            },
-            onError: (uploadError) => reject(uploadError),
-            onSuccess: () => resolve(),
-          });
+        const tusEndpoint = "https://wwdchvadowqakvrxcnkz.storage.supabase.co/storage/v1/upload/resumable";
+        const chunkSize = 6 * 1024 * 1024;
+        const encodeMetadata = (value: string) => {
+          const bytes = new TextEncoder().encode(value);
+          let binary = "";
+          for (const byte of bytes) binary += String.fromCharCode(byte);
+          return btoa(binary);
+        };
+        const tusMetadata = [
+          `bucketName ${encodeMetadata("resa-media")}`,
+          `objectName ${encodeMetadata(path)}`,
+          `contentType ${encodeMetadata(media.type)}`,
+          `cacheControl ${encodeMetadata("3600")}`,
+        ].join(",");
 
-          upload.start();
+        const createResponse = await fetch(tusEndpoint, {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${sessionData.session.access_token}`,
+            "tus-resumable": "1.0.0",
+            "upload-length": String(media.size),
+            "upload-metadata": tusMetadata,
+            "x-upsert": "false",
+          },
         });
+        if (!createResponse.ok) {
+          throw new Error(`Media upload initialization failed (${createResponse.status})`);
+        }
+
+        const uploadUrl = createResponse.headers.get("location");
+        if (!uploadUrl) throw new Error("Media upload URL was not returned");
+
+        let offset = 0;
+        while (offset < media.size) {
+          const end = Math.min(offset + chunkSize, media.size);
+          const chunk = media.slice(offset, end);
+          let uploaded = false;
+          let lastError: Error | null = null;
+
+          for (const delay of [0, 2000, 5000, 10000]) {
+            if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+            try {
+              const patchResponse = await fetch(uploadUrl, {
+                method: "PATCH",
+                headers: {
+                  authorization: `Bearer ${sessionData.session.access_token}`,
+                  "tus-resumable": "1.0.0",
+                  "upload-offset": String(offset),
+                  "content-type": "application/offset+octet-stream",
+                },
+                body: chunk,
+              });
+              if (!patchResponse.ok) {
+                throw new Error(`Media upload chunk failed (${patchResponse.status})`);
+              }
+              const nextOffset = Number(patchResponse.headers.get("upload-offset") ?? end);
+              if (!Number.isFinite(nextOffset) || nextOffset <= offset) {
+                throw new Error("Media upload returned an invalid offset");
+              }
+              offset = nextOffset;
+              uploaded = true;
+              setUploadProgress(Math.round((offset / media.size) * 100));
+              break;
+            } catch (error) {
+              lastError = error instanceof Error ? error : new Error("Media upload failed");
+            }
+          }
+
+          if (!uploaded) throw lastError ?? new Error("Media upload failed");
+        }
 
         setUploadProgress(null);
         const publicUrl = supabase.storage.from("resa-media").getPublicUrl(path).data.publicUrl;
