@@ -14,8 +14,7 @@
     "react-dom": "19.2.8",
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.117.2",
-    "livekit-client": "^2.22.3",
-    "tus-js-client": "4.3.1"
+    "livekit-client": "^2.22.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
