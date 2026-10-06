@@ -4,17 +4,19 @@ import { useEffect, useRef, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import { createClient } from "@/lib/supabase/client";
 import ResaIcon from "./core/ResaIcon";
+import { useTranslation } from "@/components/i18n";
 
 const types = [
-  { value: "text", label: "Publicação", icon: "sparkles" },
-  { value: "prayer", label: "Oração", icon: "prayer" },
-  { value: "bible_study", label: "Estudo bíblico", icon: "story" },
+  { value: "text", labelKey: "post", icon: "sparkles" },
+  { value: "prayer", labelKey: "prayer", icon: "prayer" },
+  { value: "bible_study", labelKey: "bibleStudy", icon: "story" },
 ] as const;
 
 const mediaAccept = "image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime";
 const MAX_MEDIA_SIZE = 50 * 1024 * 1024;
 
 export default function CreatePost({ onPublished }: { onPublished?: () => void }) {
+  const { t } = useTranslation();
   const [body, setBody] = useState("");
   const [type, setType] = useState<"text" | "prayer" | "bible_study">("text");
   const [media, setMedia] = useState<File | null>(null);
@@ -36,11 +38,11 @@ export default function CreatePost({ onPublished }: { onPublished?: () => void }
   function selectMedia(file?: File) {
     if (!file) return;
     if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
-      setError("Escolha uma imagem ou vídeo compatível.");
+      setError(t("compatibleMedia"));
       return;
     }
     if (file.size > MAX_MEDIA_SIZE) {
-      setError("O ficheiro ultrapassa o limite de 50 MB.");
+      setError(t("mediaTooLarge"));
       return;
     }
     setError(null);
@@ -54,7 +56,7 @@ export default function CreatePost({ onPublished }: { onPublished?: () => void }
     try {
       const supabase = createClient();
       const { data: userData, error: userError } = await supabase.auth.getUser();
-      if (userError || !userData.user) throw new Error("A sessão RESA não está disponível.");
+      if (userError || !userData.user) throw new Error(t("sessionUnavailable"));
 
       let mediaPayload: { media_type: "image" | "video"; media_url: string; media_path: string } | null = null;
       if (media) {
@@ -89,7 +91,7 @@ export default function CreatePost({ onPublished }: { onPublished?: () => void }
       setMedia(null);
       onPublished?.();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Não foi possível publicar.");
+      setError(e instanceof Error ? e.message : t("publishError"));
     } finally {
       setSaving(false);
     }
@@ -100,10 +102,10 @@ export default function CreatePost({ onPublished }: { onPublished?: () => void }
       <div className="border-b border-slate-100 px-6 py-5 sm:px-7">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Partilhar</p>
-            <h2 className="mt-1 text-xl font-semibold tracking-tight text-[#0C1A3D]">O que deseja partilhar?</h2>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{t("share")}</p>
+            <h2 className="mt-1 text-xl font-semibold tracking-tight text-[#0C1A3D]">{t("sharePrompt")}</h2>
           </div>
-          <span className="hidden rounded-full bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500 sm:block">Comunidade global</span>
+          <span className="hidden rounded-full bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500 sm:block">{t("globalCommunity")}</span>
         </div>
       </div>
 
@@ -111,14 +113,14 @@ export default function CreatePost({ onPublished }: { onPublished?: () => void }
         <textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          placeholder="Escreva uma mensagem, testemunho, reflexão ou pedido de oração…"
+          placeholder={t("sharePlaceholder")}
           className="min-h-32 w-full resize-y rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-4 text-[15px] leading-7 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#0C1A3D]/30 focus:bg-white focus:ring-4 focus:ring-[#0C1A3D]/5"
           maxLength={10000}
         />
 
         {preview && media?.type.startsWith("image/") && (
           <div className="relative mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-slate-950">
-            <img src={preview} alt="Pré-visualização da publicação" className="max-h-[420px] w-full object-contain" />
+            <img src={preview} alt={t("previewPublication")} className="max-h-[420px] w-full object-contain" />
           </div>
         )}
         {preview && media?.type.startsWith("video/") && (
@@ -135,7 +137,7 @@ export default function CreatePost({ onPublished }: { onPublished?: () => void }
                 <button key={item.value} type="button" onClick={() => setType(item.value)}
                   className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-medium transition ${active ? "border-[#0C1A3D] bg-[#0C1A3D] text-white shadow-sm" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"}`}>
                   <ResaIcon name={item.icon} size={15} />
-                  {item.label}
+                  {t(item.labelKey as Parameters<typeof t>[0])}
                 </button>
               );
             })}
@@ -155,7 +157,7 @@ export default function CreatePost({ onPublished }: { onPublished?: () => void }
           <button type="button" onClick={() => void publish()} disabled={saving || (!body.trim() && !media)}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0C1A3D] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40">
             <ResaIcon name="send" size={15} />
-            {saving ? "A publicar…" : "Publicar"}
+            {saving ? t("publishing") : t("publish")}
           </button>
         </div>
 
