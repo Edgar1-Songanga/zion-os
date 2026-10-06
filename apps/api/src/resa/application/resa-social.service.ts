@@ -74,6 +74,36 @@ export class ResaSocialService {
   async removeReaction(token: string, contentId: string) { const a = await this.actor(token); await this.db.delete('resa_reactions', token, `?content_id=eq.${contentId}&user_id=eq.${a.id}`); return { removed: true }; }
   async follow(token: string, followedId: string) { const a = await this.actor(token); if (a.id === followedId) throw new BadRequestException('You cannot follow yourself'); const rows = await this.db.post<any[]>('resa_follows', token, { follower_id: a.id, followed_id: followedId }); return rows[0]; }
   async unfollow(token: string, followedId: string) { const a = await this.actor(token); await this.db.delete('resa_follows', token, `?follower_id=eq.${a.id}&followed_id=eq.${followedId}`); return { removed: true }; }
+  async social(token: string, userId?: string) {
+    const actor = await this.actor(token);
+    const targetId = userId || actor.id;
+    const [followers, following, profiles] = await Promise.all([
+      this.db.get<any[]>('resa_follows', token, `?select=follower_id,created_at&followed_id=eq.${targetId}&order=created_at.desc&limit=100`),
+      this.db.get<any[]>('resa_follows', token, `?select=followed_id,created_at&follower_id=eq.${targetId}&order=created_at.desc&limit=100`),
+      this.db.rpc<any[]>('resa_search_profiles', token, { p_query: '', p_limit: 50 }),
+    ]);
+    const profileMap = new Map(profiles.map((p) => [p.id, p]));
+    const person = (id: string, createdAt: string) => ({ id, created_at: createdAt, ...(profileMap.get(id) || {}) });
+    return {
+      user_id: targetId,
+      is_following: targetId !== actor.id && following.some((row) => row.followed_id === actor.id),
+      followers_count: followers.length,
+      following_count: following.length,
+      followers: followers.map((row) => person(row.follower_id, row.created_at)),
+      following: following.map((row) => person(row.followed_id, row.created_at)),
+    };
+  }
+  async suggestions(token: string, limit = 12) {
+    const actor = await this.actor(token);
+    const size = Math.min(Math.max(Number(limit) || 12, 1), 30);
+    const [profiles, following] = await Promise.all([
+      this.db.rpc<any[]>('resa_search_profiles', token, { p_query: '', p_limit: Math.min(size + 10, 50) }),
+      this.db.get<any[]>('resa_follows', token, `?select=followed_id&follower_id=eq.${actor.id}`),
+    ]);
+    const followed = new Set(following.map((row) => row.followed_id));
+    return profiles.filter((profile) => profile.id !== actor.id && !followed.has(profile.id)).slice(0, size).map((profile) => ({ ...profile, relationship: 'suggested' }));
+  }
+  async unfollow(token: string, followedId: string) { const a = await this.actor(token); await this.db.delete('resa_follows', token, `?follower_id=eq.${a.id}&followed_id=eq.${followedId}`); return { removed: true }; }
   async follows(token: string, userId?: string) { const a = await this.actor(token); return this.db.get('resa_follows', token, `?select=*&follower_id=eq.${userId || a.id}&order=created_at.desc`); }
   async mention(token: string, contentId: string, mentionedUserId: string) { const a = await this.actor(token); const rows = await this.db.post<any[]>('resa_mentions', token, { content_id: contentId, mentioned_user_id: mentionedUserId, mentioned_by: a.id }); return rows[0]; }
   async topic(token: string, name: string) { const normalized = this.clean(name, 'name', 80).toLowerCase().replace(/^#/, '').replace(/\s+/g, '-'); const rows = await this.db.upsert<any[]>('resa_topics', token, { name, normalized_name: normalized }, '?on_conflict=normalized_name'); return rows[0]; }
