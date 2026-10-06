@@ -120,7 +120,7 @@ text-xs
 text-slate-500
 "
 >
-Administrator
+{t("administrator")}
 </p>
 
 
