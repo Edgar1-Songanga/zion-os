@@ -17,6 +17,9 @@ create index if not exists zion_translation_cache_lookup_idx
 
 alter table public.zion_translation_cache enable row level security;
 revoke all on public.zion_translation_cache from anon, authenticated;
+drop policy if exists zion_translation_cache_block on public.zion_translation_cache;
+create policy zion_translation_cache_block on public.zion_translation_cache
+for all to authenticated using (false) with check (false);
 
 create or replace function private.set_zion_translation_cache_updated_at()
 returns trigger language plpgsql set search_path = pg_catalog as $$
