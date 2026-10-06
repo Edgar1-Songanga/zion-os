@@ -38,7 +38,9 @@ export default function SabbathSchoolPage() {
       if (!results[0]) {
         setBibleError("A referência não foi encontrada na versão selecionada.");
       } else {
-        setBibleText(`${results[0].text}${results[0].copyright ? `\\n\\n${results[0].copyright}` : ""}`);
+        setBibleText(`${results[0].text}${results[0].copyright ? `
+
+${results[0].copyright}` : ""}`);
       }
     } catch (reason: unknown) {
       setBibleError(reason instanceof Error ? reason.message : "Não foi possível consultar a Bíblia.");
