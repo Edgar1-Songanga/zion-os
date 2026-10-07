@@ -23,7 +23,7 @@ export class OrganizationsService {
     return this.db.get<Organization[]>(
       'organizations',
       accessToken,
-      `?select=id,name,slug,organization_type,parent_id,created_by,is_active&created_by=eq.${user.id}&order=created_at.desc`,
+      `?select=id,name,slug,organization_type,parent_id,created_by,is_active&order=created_at.desc`,
     );
   }
 
