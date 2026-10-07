@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { resaRequest } from "@/lib/resa/api";
 type Run={id:string;period_start:string;period_end:string;status:string;gross_total:number;deduction_total:number;employer_contribution_total:number;net_total:number;currency_code:string};
 export default function Payroll(){
  const [runs,setRuns]=useState<Run[]>([]); const [error,setError]=useState("");
- useEffect(()=>{fetch("/api/hr/payroll/runs",{credentials:"include"}).then(r=>r.ok?r.json():Promise.reject(new Error("Não foi possível carregar o payroll"))).then(setRuns).catch(e=>setError(e.message));},[]);
+ useEffect(()=>{ void resaRequest<{id:string}[]>("/v1/organizations").then(orgs=>{const id=orgs[0]?.id;if(!id)throw new Error("Nenhuma organização administrada encontrada.");return resaRequest<Run[]>(`/v1/hr-payroll/organizations/${id}/payroll/runs`);}).then(setRuns).catch(e=>setError(e instanceof Error?e.message:String(e)));},[]);
  return <main className="min-h-screen bg-[var(--zion-light)] p-6 lg:p-10"><div className="mx-auto max-w-7xl">
  <header className="mb-8"><p className="text-xs font-semibold uppercase tracking-[.2em] text-[var(--zion-gold)]">Finance • People</p><h1 className="mt-2 text-3xl font-semibold text-[var(--zion-dark)]">Payroll</h1><p className="mt-2 text-slate-500">Processamento controlado de salários, deduções, contribuições e pagamentos.</p></header>
  {error&&<div className="mb-4 rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</div>}
