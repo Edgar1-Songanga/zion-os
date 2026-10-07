@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { SupabaseRestClient } from "../common/supabase/supabase-rest.client";
-import { ReferralEngine } from "../../../services/referral-engine/src/referral-engine";
+import { ReferralEngine } from "../../../services/referral-engine/src/referral-engine.js";
 
 type CodeRow = { user_id: string; code: string; created_at: string };
 type ReferralRow = { id: string; referrer_user_id: string; referred_user_id: string | null; code: string; status: "pending" | "qualified" | "rejected"; created_at: string; qualified_at: string | null };
