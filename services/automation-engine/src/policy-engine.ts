@@ -1,4 +1,4 @@
-import type { AutomationAction, AutomationPlan, AutomationSignal } from "./types";
+import type { AutomationAction, AutomationPlan, AutomationSignal } from "./types.js";
 
 const supportedActions = new Set<AutomationAction>([
   "notification.dispatch",
@@ -53,7 +53,7 @@ export class AutomationPolicyEngine {
       reason: actions.length
         ? "A deterministic policy matched the signal."
         : "No registered policy matched the signal.",
-      actions: actions.filter((action) => supportedActions.has(action.type)),
+      actions: actions.filter((action: AutomationPlan["actions"][number]) => supportedActions.has(action.type)),
     };
   }
 }
