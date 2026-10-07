@@ -1,4 +1,4 @@
-import type { TranslationBatchRequest, TranslationBatchResult, TranslationProvider, TranslationRequest, TranslationResult } from "./types";
+import type { TranslationBatchRequest, TranslationBatchResult, TranslationProvider, TranslationRequest, TranslationResult } from "./types.js";
 
 export interface AIGatewayTranslationConfig {
   apiKey: string;
