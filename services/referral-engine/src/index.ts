@@ -1,2 +1,2 @@
 export * from "./types.js";
-export * from "./referral-engine";
+export * from "./referral-engine.js";
