@@ -13,6 +13,12 @@ export type Language =
 "osh" |
 "umb" |
 "kmb" |
+"kg" |
+"cjk" |
+"nyk" |
+"lue" |
+"mck" |
+"kj" |
 "ln" |
 "am" |
 "yo" |
@@ -49,6 +55,18 @@ osh:string;
 umb:string;
 
 kmb:string;
+
+kg:string;
+
+cjk:string;
+
+nyk:string;
+
+lue:string;
+
+mck:string;
+
+kj:string;
 
 ln:string;
 
@@ -158,6 +176,42 @@ region:"Africa"
 code:"kmb",
 name:"Kimbundu",
 region:"Africa"
+},
+
+{
+code:"kg",
+name:"Kikongo",
+region:"Angola / Central Africa"
+},
+
+{
+code:"cjk",
+name:"Cokwe",
+region:"Angola / Zambia / DRC"
+},
+
+{
+code:"nyk",
+name:"Olunyaneka",
+region:"Angola"
+},
+
+{
+code:"lue",
+name:"Luvale",
+region:"Angola / Zambia / DRC"
+},
+
+{
+code:"mck",
+name:"Mbunda",
+region:"Angola / Zambia"
+},
+
+{
+code:"kj",
+name:"Kuanyama / Kwanhama",
+region:"Angola / Namibia"
 },
 
 
