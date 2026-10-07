@@ -1,3 +1,3 @@
-export * from "./types";
-export * from "./translation-engine";
-export * from "./ai-gateway-provider";
+export * from "./types.js";
+export * from "./translation-engine.js";
+export * from "./ai-gateway-provider.js";
