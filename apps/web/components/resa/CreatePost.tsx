@@ -100,14 +100,14 @@ export default function CreatePost({ onPublished }: { onPublished?: () => void }
 
         let offset = 0;
         while (offset < media.size) {
-          const end = Math.min(offset + chunkSize, media.size);
-          const chunk = media.slice(offset, end);
           let uploaded = false;
           let lastError: Error | null = null;
 
           for (const delay of [0, 2000, 5000, 10000]) {
             if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
             try {
+              const end = Math.min(offset + chunkSize, media.size);
+              const chunk = media.slice(offset, end);
               const patchResponse = await fetch(uploadUrl, {
                 method: "PATCH",
                 headers: {
@@ -131,6 +131,29 @@ export default function CreatePost({ onPublished }: { onPublished?: () => void }
               break;
             } catch (error) {
               lastError = error instanceof Error ? error : new Error("Media upload failed");
+
+              try {
+                const headResponse = await fetch(uploadUrl, {
+                  method: "HEAD",
+                  headers: {
+                    authorization: `Bearer ${sessionData.session.access_token}`,
+                    "tus-resumable": "1.0.0",
+                  },
+                });
+                if (headResponse.ok) {
+                  const serverOffset = Number(headResponse.headers.get("upload-offset") ?? offset);
+                  if (Number.isFinite(serverOffset) && serverOffset >= offset && serverOffset <= media.size) {
+                    offset = serverOffset;
+                    setUploadProgress(Math.round((offset / media.size) * 100));
+                    if (offset >= media.size) {
+                      uploaded = true;
+                      break;
+                    }
+                  }
+                }
+              } catch {
+                // Keep the original PATCH error; the next retry remains authoritative.
+              }
             }
           }
 
