@@ -31,6 +31,42 @@ export class HrPayrollController {
     return this.service.createPayrollRun(this.token(a), id, body);
   }
 
+
+  @Get('organizations/:organizationId/employees/:employeeId/contracts')
+  contracts(@Headers('authorization') a: string | undefined, @Param('organizationId') id: string, @Param('employeeId') employeeId: string) {
+    return this.service.listContracts(this.token(a), id, employeeId);
+  }
+
+  @Post('organizations/:organizationId/employees/:employeeId/contracts')
+  createContract(@Headers('authorization') a: string | undefined, @Param('organizationId') id: string, @Param('employeeId') employeeId: string, @Body() body: Record<string, unknown>) {
+    return this.service.createContract(this.token(a), id, employeeId, body);
+  }
+
+  @Get('organizations/:organizationId/leave')
+  leave(@Headers('authorization') a: string | undefined, @Param('organizationId') id: string) {
+    return this.service.listLeaveRequests(this.token(a), id);
+  }
+
+  @Post('organizations/:organizationId/employees/:employeeId/leave')
+  createLeave(@Headers('authorization') a: string | undefined, @Param('organizationId') id: string, @Param('employeeId') employeeId: string, @Body() body: Record<string, unknown>) {
+    return this.service.createLeaveRequest(this.token(a), id, employeeId, body);
+  }
+
+  @Post('organizations/:organizationId/leave/:leaveId/approve')
+  approveLeave(@Headers('authorization') a: string | undefined, @Param('organizationId') id: string, @Param('leaveId') leaveId: string, @Body() body: { approved: boolean }) {
+    return this.service.approveLeave(this.token(a), id, leaveId, body.approved !== false);
+  }
+
+  @Post('organizations/:organizationId/payroll/runs/:runId/approve')
+  approvePayroll(@Headers('authorization') a: string | undefined, @Param('organizationId') id: string, @Param('runId') runId: string) {
+    return this.service.approvePayroll(this.token(a), id, runId);
+  }
+
+  @Get('organizations/:organizationId/payroll/runs/:runId/items')
+  payrollItems(@Headers('authorization') a: string | undefined, @Param('organizationId') id: string, @Param('runId') runId: string) {
+    return this.service.listPayrollItems(this.token(a), id, runId);
+  }
+
   @Post('organizations/:organizationId/payroll/runs/:runId/calculate')
   calculate(@Headers('authorization') a: string | undefined, @Param('organizationId') id: string, @Param('runId') runId: string) {
     return this.service.calculatePayroll(this.token(a), id, runId);
