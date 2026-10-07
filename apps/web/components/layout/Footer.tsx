@@ -1,100 +1,17 @@
 export default function Footer() {
+  return (
+    <footer className="border-t border-[var(--zion-border)] bg-white px-6 py-6 lg:px-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold tracking-wide text-[var(--zion-primary)]">ZION OS</p>
+          <p className="mt-1 text-xs text-[var(--zion-muted)]">Global Adventist Digital Ecosystem</p>
+        </div>
 
-return (
-
-<footer
-
-className="
-border-t
-border-slate-200
-bg-white
-px-10
-py-8
-"
-
->
-
-
-<div
-
-className="
-flex
-items-center
-justify-between
-"
-
->
-
-
-<div>
-
-<p
-
-className="
-text-sm
-font-semibold
-text-[#0C1A3D]
-"
-
->
-ZION OS
-</p>
-
-
-<p
-
-className="
-text-xs
-text-slate-500
-mt-1
-"
-
->
-Global Adventist Digital Ecosystem
-</p>
-
-
-</div>
-
-
-
-<div>
-
-<p
-
-className="
-text-sm
-text-slate-500
-"
-
->
-© {new Date().getFullYear()} ZION OS
-</p>
-
-
-<p
-
-className="
-text-xs
-text-slate-400
-mt-1
-text-right
-"
-
->
-Powered by Magestade Pura Digital
-</p>
-
-
-</div>
-
-
-
-</div>
-
-
-</footer>
-
-)
-
+        <div className="sm:text-right">
+          <p className="text-sm text-[var(--zion-muted)]">© {new Date().getFullYear()} ZION OS</p>
+          <p className="mt-1 text-xs text-[var(--zion-muted)]">Powered by Magestade Pura Digital</p>
+        </div>
+      </div>
+    </footer>
+  );
 }
