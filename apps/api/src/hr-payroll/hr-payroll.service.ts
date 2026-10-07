@@ -62,6 +62,39 @@ export class HrPayrollService {
       `?select=id,period_start,period_end,pay_date,status,gross_total,deduction_total,employer_contribution_total,net_total,currency_code,created_at&organization_id=eq.${organizationId}&order=period_end.desc`);
   }
 
+  async listContracts(accessToken: string, organizationId: string, employeeId: string) {
+    return this.db.get('hr_contracts', accessToken,
+      `?select=id,employee_id,contract_number,contract_type,start_date,end_date,base_salary,currency_code,pay_frequency,probation_end_date,status,terms&employee_id=eq.${employeeId}&order=start_date.desc`);
+  }
+
+  async createContract(accessToken: string, organizationId: string, employeeId: string, input: Record<string, unknown>) {
+    const user = await this.identity.getCurrentUser(accessToken);
+    const employees = await this.db.get<Employee[]>('hr_employees', accessToken, `?select=id,organization_id&organization_id=eq.${organizationId}&id=eq.${employeeId}&limit=1`);
+    if (!employees[0]) throw new NotFoundException('Employee not found');
+    if (!input.contract_number || !input.contract_type || !input.start_date) throw new BadRequestException('contract_number, contract_type and start_date are required');
+    const rows = await this.db.post('hr_contracts', accessToken, { employee_id: employeeId, contract_number: String(input.contract_number).trim(), contract_type: String(input.contract_type).trim(), start_date: input.start_date, end_date: input.end_date ?? null, base_salary: Number(input.base_salary ?? 0), currency_code: input.currency_code ?? 'AOA', pay_frequency: input.pay_frequency ?? 'MONTHLY', probation_end_date: input.probation_end_date ?? null, status: input.status ?? 'ACTIVE', terms: input.terms ?? {}, created_by: user.id });
+    return rows[0];
+  }
+
+  async listLeaveRequests(accessToken: string, organizationId: string) {
+    return this.db.get('hr_leave_requests', accessToken,
+      `?select=id,employee_id,leave_type,start_date,end_date,status,reason,approved_by,approved_at,created_at&order=start_date.desc`);
+  }
+
+  async createLeaveRequest(accessToken: string, organizationId: string, employeeId: string, input: Record<string, unknown>) {
+    const employees = await this.db.get<Employee[]>('hr_employees', accessToken, `?select=id,organization_id&organization_id=eq.${organizationId}&id=eq.${employeeId}&limit=1`);
+    if (!employees[0]) throw new NotFoundException('Employee not found');
+    if (!input.leave_type || !input.start_date || !input.end_date) throw new BadRequestException('leave_type, start_date and end_date are required');
+    return (await this.db.post('hr_leave_requests', accessToken, { employee_id: employeeId, leave_type: input.leave_type, start_date: input.start_date, end_date: input.end_date, reason: input.reason ?? null, status: 'PENDING' }))[0];
+  }
+
+  async approveLeave(accessToken: string, organizationId: string, leaveId: string, approved: boolean) {
+    const actor = await this.identity.getCurrentUser(accessToken);
+    const rows = await this.db.patch('hr_leave_requests', accessToken, { status: approved ? 'APPROVED' : 'REJECTED', approved_by: actor.id, approved_at: new Date().toISOString() }, `?id=eq.${leaveId}`);
+    if (!rows[0]) throw new NotFoundException('Leave request not found');
+    return rows[0];
+  }
+
   async createPayrollRun(accessToken: string, organizationId: string, input: { period_start: string; period_end: string; pay_date?: string }) {
     if (!input.period_start || !input.period_end || input.period_end < input.period_start) throw new BadRequestException('Invalid payroll period');
     const user = await this.identity.getCurrentUser(accessToken);
@@ -75,6 +108,18 @@ export class HrPayrollService {
     });
     if (!rows[0]) throw new BadRequestException('Payroll run was not created');
     return rows[0];
+  }
+
+  async approvePayroll(accessToken: string, organizationId: string, runId: string) {
+    const actor = await this.identity.getCurrentUser(accessToken);
+    const rows = await this.db.patch('payroll_runs', accessToken, { status: 'APPROVED', approved_by: actor.id, approved_at: new Date().toISOString() }, `?id=eq.${runId}&organization_id=eq.${organizationId}&status=eq.REVIEW`);
+    if (!rows[0]) throw new NotFoundException('Payroll run is not in REVIEW or was not found');
+    return rows[0];
+  }
+
+  async listPayrollItems(accessToken: string, organizationId: string, runId: string) {
+    return this.db.get('payroll_items', accessToken,
+      `?select=id,payroll_run_id,employee_id,gross_amount,deduction_amount,employer_contribution_amount,net_amount,currency_code,status,calculation_snapshot&payroll_run_id=eq.${runId}&order=created_at.asc`);
   }
 
   async calculatePayroll(accessToken: string, organizationId: string, runId: string) {
