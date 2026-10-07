@@ -1,4 +1,4 @@
-import type { AutomationClock, AutomationJob, AutomationRun } from "./types";
+import type { AutomationClock, AutomationJob, AutomationRun } from "./types.js";
 
 const systemClock: AutomationClock = { now: () => new Date() };
 
