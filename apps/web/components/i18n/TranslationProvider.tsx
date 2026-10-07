@@ -66,6 +66,8 @@ const sourceStrings = {
   organization: "ORGANIZAÇÃO",
   administration: "Administração",
   finance: "Finanças",
+  humanResources: "Recursos Humanos",
+  payroll: "Payroll",
   reports: "Relatórios",
   globalDigitalEcosystem: "Ecossistema Digital Global",
   globalAdministrator: "Administrador Global",
