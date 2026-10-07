@@ -15,9 +15,10 @@ import { MediaModule } from "./media/media.module";
 import { HealthController } from "./platform/health.controller";
 import { TranslationModule } from "./translation/translation.module";
 import { HrPayrollModule } from "./hr-payroll/hr-payroll.module";
+import { FinanceModule } from "./finance/finance.module";
 
 @Module({
-  imports: [PlatformModule, IdentityModule, SpiritualModule, ResaModule, NotificationsModule, AiModule, OrganizationsModule, GovernanceModule, AuditModule, UsersModule, MediaModule, TranslationModule, HrPayrollModule],
+  imports: [PlatformModule, IdentityModule, SpiritualModule, ResaModule, NotificationsModule, AiModule, OrganizationsModule, GovernanceModule, AuditModule, UsersModule, MediaModule, TranslationModule, HrPayrollModule, FinanceModule],
   controllers: [AppController, HealthController],
   providers: [AppService],
 })
