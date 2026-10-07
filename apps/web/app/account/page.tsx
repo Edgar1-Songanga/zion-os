@@ -187,104 +187,104 @@ export default function AccountPage() {
   }
 
   if (loading) {
-    return <main className="min-h-screen bg-slate-50 p-6 lg:p-10"><div className="mx-auto max-w-4xl rounded-3xl border border-slate-200 bg-white p-8 text-slate-500">A carregar a conta…</div></main>;
+    return <main className="min-h-screen bg-[var(--zion-light)] p-6 lg:p-8"><div className="mx-auto max-w-4xl rounded-2xl border border-[var(--zion-border)] bg-white p-8 text-sm text-[var(--zion-muted)] shadow-[var(--zion-shadow-sm)]">A carregar a conta…</div></main>;
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 p-6 lg:p-10">
-      <div className="mx-auto max-w-4xl space-y-6">
-        <header className="rounded-[28px] bg-[#0C1A3D] p-8 text-white shadow-xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">ZION OS</p>
-          <h1 className="mt-2 text-3xl font-semibold">Conta e segurança</h1>
-          <p className="mt-2 text-sm text-slate-300">Credenciais e acesso pertencem à conta; informações pessoais pertencem ao perfil.</p>
+    <main className="min-h-screen bg-[var(--zion-light)] p-5 lg:p-8">
+      <div className="mx-auto max-w-4xl space-y-5">
+        <header className="relative overflow-hidden rounded-3xl bg-[var(--zion-primary)] p-7 text-white shadow-[var(--zion-shadow-lg)] sm:p-8">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(200,162,74,0.25),transparent_42%)]" />
+          <div className="relative">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">ZION OS</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight">Conta e segurança</h1>
+            <p className="mt-2 text-sm text-white/65">Credenciais e acesso pertencem à conta; informações pessoais pertencem ao perfil.</p>
+          </div>
         </header>
 
-        {error && <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-        {message && <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</div>}
+        {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+        {message && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</div>}
 
-        <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <div className="border-b border-slate-100 pb-5"><h2 className="text-xl font-semibold text-[#0C1A3D]">Privacidade</h2><p className="mt-1 text-sm text-slate-500">Defina quem pode ver os seus dados de perfil.</p></div>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">{([["profile_visibility","Perfil"],["bio_visibility","Biografia"],["country_visibility","País"],["timezone_visibility","Fuso horário"]] as const).map(([key,label]) => <label key={key} className="rounded-2xl border border-slate-100 bg-slate-50 p-4"><span className="block text-sm font-semibold text-[#0C1A3D]">{label}</span><select value={privacy[key]} onChange={(e)=>setPrivacy(p=>({...p,[key]:e.target.value}))} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"><option value="public">Público</option><option value="community">Membros ZION</option><option value="private">Privado</option></select></label>)}</div>
-          <button type="button" onClick={updatePrivacy} disabled={mfaBusy} className="mt-5 rounded-2xl bg-[#0C1A3D] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Guardar privacidade</button>
+        <section className="rounded-2xl border border-[var(--zion-border)] bg-white p-6 shadow-[var(--zion-shadow-sm)] sm:p-7">
+          <div className="border-b border-[var(--zion-border)] pb-5"><h2 className="text-xl font-semibold tracking-tight text-[var(--zion-dark)]">Privacidade</h2><p className="mt-1 text-sm text-[var(--zion-muted)]">Defina quem pode ver os seus dados de perfil.</p></div>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">{([["profile_visibility","Perfil"],["bio_visibility","Biografia"],["country_visibility","País"],["timezone_visibility","Fuso horário"]] as const).map(([key,label]) => <label key={key} className="rounded-xl border border-[var(--zion-border)] bg-[var(--zion-light)] p-4"><span className="block text-sm font-semibold text-[var(--zion-dark)]">{label}</span><select value={privacy[key]} onChange={(e)=>setPrivacy(p=>({...p,[key]:e.target.value}))} className="mt-2 w-full rounded-lg border border-[var(--zion-border)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--zion-sky)]">{<option value="public">Público</option>}<option value="community">Membros ZION</option><option value="private">Privado</option></select></label>)}</div>
+          <button type="button" onClick={updatePrivacy} disabled={mfaBusy} className="mt-5 rounded-xl bg-[var(--zion-primary)] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--zion-primary-deep)] disabled:opacity-50">Guardar privacidade</button>
         </section>
-        <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <div className="border-b border-slate-100 pb-5">
-            <h2 className="text-xl font-semibold text-[#0C1A3D]">Email de acesso</h2>
-            <p className="mt-1 text-sm text-slate-500">Email atual: <span className="font-medium text-slate-700">{email || "não disponível"}</span></p>
+
+        <section className="rounded-2xl border border-[var(--zion-border)] bg-white p-6 shadow-[var(--zion-shadow-sm)] sm:p-7">
+          <div className="border-b border-[var(--zion-border)] pb-5">
+            <h2 className="text-xl font-semibold tracking-tight text-[var(--zion-dark)]">Email de acesso</h2>
+            <p className="mt-1 text-sm text-[var(--zion-muted)]">Email atual: <span className="font-medium text-[var(--zion-dark)]">{email || "não disponível"}</span></p>
           </div>
           <form onSubmit={updateEmail} className="mt-6 flex flex-col gap-3 sm:flex-row">
-            <input type="email" required autoComplete="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="Novo endereço de email" className="min-w-0 flex-1 rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500" />
-            <button type="submit" disabled={savingEmail} className="rounded-2xl bg-[#0C1A3D] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{savingEmail ? "A atualizar…" : "Alterar email"}</button>
+            <input type="email" required autoComplete="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="Novo endereço de email" className="min-w-0 flex-1 rounded-xl border border-[var(--zion-border)] px-4 py-3 outline-none transition focus:border-[var(--zion-sky)] focus:ring-4 focus:ring-[var(--zion-sky)]/10" />
+            <button type="submit" disabled={savingEmail} className="rounded-xl bg-[var(--zion-primary)] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--zion-primary-deep)] disabled:opacity-50">{savingEmail ? "A atualizar…" : "Alterar email"}</button>
           </form>
-          <p className="mt-3 text-xs text-slate-400">A confirmação é tratada pelo sistema de autenticação antes da alteração ficar efetiva.</p>
+          <p className="mt-3 text-xs text-[var(--zion-muted)]">A confirmação é tratada pelo sistema de autenticação antes da alteração ficar efetiva.</p>
         </section>
 
-        <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <div className="border-b border-slate-100 pb-5">
-            <h2 className="text-xl font-semibold text-[#0C1A3D]">Palavra-passe</h2>
-            <p className="mt-1 text-sm text-slate-500">Altere a credencial usada para entrar no ZION.</p>
+        <section className="rounded-2xl border border-[var(--zion-border)] bg-white p-6 shadow-[var(--zion-shadow-sm)] sm:p-7">
+          <div className="border-b border-[var(--zion-border)] pb-5">
+            <h2 className="text-xl font-semibold tracking-tight text-[var(--zion-dark)]">Palavra-passe</h2>
+            <p className="mt-1 text-sm text-[var(--zion-muted)]">Altere a credencial usada para entrar no ZION.</p>
           </div>
           <form onSubmit={updatePassword} className="mt-6 grid gap-4 sm:grid-cols-2">
-            <input type="password" required minLength={8} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Nova palavra-passe" className="rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500" />
-            <input type="password" required minLength={8} autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirmar palavra-passe" className="rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500" />
-            <div className="sm:col-span-2"><button type="submit" disabled={savingPassword} className="rounded-2xl bg-[#0C1A3D] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{savingPassword ? "A atualizar…" : "Atualizar palavra-passe"}</button></div>
+            <input type="password" required minLength={8} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Nova palavra-passe" className="rounded-xl border border-[var(--zion-border)] px-4 py-3 outline-none transition focus:border-[var(--zion-sky)] focus:ring-4 focus:ring-[var(--zion-sky)]/10" />
+            <input type="password" required minLength={8} autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirmar palavra-passe" className="rounded-xl border border-[var(--zion-border)] px-4 py-3 outline-none transition focus:border-[var(--zion-sky)] focus:ring-4 focus:ring-[var(--zion-sky)]/10" />
+            <div className="sm:col-span-2"><button type="submit" disabled={savingPassword} className="rounded-xl bg-[var(--zion-primary)] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--zion-primary-deep)] disabled:opacity-50">{savingPassword ? "A atualizar…" : "Atualizar palavra-passe"}</button></div>
           </form>
         </section>
 
-        <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <div className="border-b border-slate-100 pb-5">
-            <h2 className="text-xl font-semibold text-[#0C1A3D]">Autenticação de dois fatores (2FA)</h2>
-            <p className="mt-1 text-sm text-slate-500">Proteja a conta com um código temporário de uma aplicação autenticadora.</p>
+        <section className="rounded-2xl border border-[var(--zion-border)] bg-white p-6 shadow-[var(--zion-shadow-sm)] sm:p-7">
+          <div className="border-b border-[var(--zion-border)] pb-5">
+            <h2 className="text-xl font-semibold tracking-tight text-[var(--zion-dark)]">Autenticação de dois fatores (2FA)</h2>
+            <p className="mt-1 text-sm text-[var(--zion-muted)]">Proteja a conta com um código temporário de uma aplicação autenticadora.</p>
           </div>
-          {mfaLoading ? <p className="mt-5 text-sm text-slate-500">A verificar o estado da proteção…</p> : mfaFactor?.status === "verified" && !mfaQr ? (
+          {mfaLoading ? <p className="mt-5 text-sm text-[var(--zion-muted)]">A verificar o estado da proteção…</p> : mfaFactor?.status === "verified" && !mfaQr ? (
             <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
-              <div><p className="font-semibold text-emerald-700">2FA ativo</p><p className="mt-1 text-sm text-slate-500">Fator autenticador verificado nesta conta.</p></div>
-              <button type="button" onClick={disableMfa} disabled={mfaBusy} className="rounded-2xl border border-red-200 px-5 py-3 text-sm font-semibold text-red-700 disabled:opacity-50">{mfaBusy ? "A processar…" : "Desativar 2FA"}</button>
+              <div><p className="font-semibold text-emerald-700">2FA ativo</p><p className="mt-1 text-sm text-[var(--zion-muted)]">Fator autenticador verificado nesta conta.</p></div>
+              <button type="button" onClick={disableMfa} disabled={mfaBusy} className="rounded-xl border border-red-200 px-5 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-50">{mfaBusy ? "A processar…" : "Desativar 2FA"}</button>
             </div>
           ) : !mfaQr ? (
-            <div className="mt-5"><p className="text-sm text-slate-600">Ainda não existe um autenticador 2FA verificado.</p><button type="button" onClick={beginMfaEnrollment} disabled={mfaBusy} className="mt-4 rounded-2xl bg-[#0C1A3D] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{mfaBusy ? "A preparar…" : "Ativar 2FA"}</button></div>
+            <div className="mt-5"><p className="text-sm text-slate-600">Ainda não existe um autenticador 2FA verificado.</p><button type="button" onClick={beginMfaEnrollment} disabled={mfaBusy} className="mt-4 rounded-xl bg-[var(--zion-primary)] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--zion-primary-deep)] disabled:opacity-50">{mfaBusy ? "A preparar…" : "Ativar 2FA"}</button></div>
           ) : (
             <div className="mt-5 grid gap-6 md:grid-cols-[180px_1fr]">
-              <div className="rounded-2xl border border-slate-200 bg-white p-3"><img src={mfaQr} alt="QR Code para configurar o autenticador" className="h-auto w-full" /></div>
+              <div className="rounded-xl border border-[var(--zion-border)] bg-white p-3"><img src={mfaQr} alt="QR Code para configurar o autenticador" className="h-auto w-full" /></div>
               <div>
-                <p className="text-sm text-slate-600">1. Abra Google Authenticator, Microsoft Authenticator ou outra aplicação compatível e leia o QR Code.</p>
-                <p className="mt-2 text-sm text-slate-600">2. Introduza aqui o código de 6 dígitos apresentado pela aplicação.</p>
-                {mfaSecret && <p className="mt-3 break-all rounded-xl bg-slate-50 p-3 text-xs text-slate-600">Chave manual: <span className="font-mono">{mfaSecret}</span></p>}
+                <p className="text-sm text-[var(--zion-muted)]">1. Abra Google Authenticator, Microsoft Authenticator ou outra aplicação compatível e leia o QR Code.</p>
+                <p className="mt-2 text-sm text-[var(--zion-muted)]">2. Introduza aqui o código de 6 dígitos apresentado pela aplicação.</p>
+                {mfaSecret && <p className="mt-3 break-all rounded-lg bg-[var(--zion-light)] p-3 text-xs text-[var(--zion-muted)]">Chave manual: <span className="font-mono">{mfaSecret}</span></p>}
                 <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                  <input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={mfaCode} onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Código de 6 dígitos" className="rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500" />
-                  <button type="button" onClick={verifyMfaEnrollment} disabled={mfaBusy || mfaCode.length !== 6} className="rounded-2xl bg-[#0C1A3D] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{mfaBusy ? "A verificar…" : "Confirmar 2FA"}</button>
+                  <input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={mfaCode} onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Código de 6 dígitos" className="rounded-xl border border-[var(--zion-border)] px-4 py-3 outline-none focus:border-[var(--zion-sky)]" />
+                  <button type="button" onClick={verifyMfaEnrollment} disabled={mfaBusy || mfaCode.length !== 6} className="rounded-xl bg-[var(--zion-primary)] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--zion-primary-deep)] disabled:opacity-50">{mfaBusy ? "A verificar…" : "Confirmar 2FA"}</button>
                 </div>
               </div>
             </div>
           )}
         </section>
 
-        <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <div className="border-b border-slate-100 pb-5">
-            <h2 className="text-xl font-semibold text-[#0C1A3D]">Sessões e dispositivos</h2>
-            <p className="mt-1 text-sm text-slate-500">Controle o acesso da sua conta sem criar um registo paralelo de sessões. O sistema de autenticação gere as sessões diretamente.</p>
+        <section className="rounded-2xl border border-[var(--zion-border)] bg-white p-6 shadow-[var(--zion-shadow-sm)] sm:p-7">
+          <div className="border-b border-[var(--zion-border)] pb-5">
+            <h2 className="text-xl font-semibold tracking-tight text-[var(--zion-dark)]">Sessões e dispositivos</h2>
+            <p className="mt-1 text-sm text-[var(--zion-muted)]">Controle o acesso da sua conta sem criar um registo paralelo de sessões. O sistema de autenticação gere as sessões diretamente.</p>
           </div>
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5">
-              <p className="font-semibold text-[#0C1A3D]">Sessão atual</p>
-              <p className="mt-1 text-sm text-slate-500">Este dispositivo continuará autenticado.</p>
-              <button type="button" onClick={signOutOtherSessions} disabled={mfaBusy} className="mt-4 rounded-2xl bg-[#0C1A3D] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">
-                Encerrar outras sessões
-              </button>
+            <div className="rounded-xl border border-[var(--zion-border)] bg-[var(--zion-light)] p-5">
+              <p className="font-semibold text-[var(--zion-dark)]">Sessão atual</p>
+              <p className="mt-1 text-sm text-[var(--zion-muted)]">Este dispositivo continuará autenticado.</p>
+              <button type="button" onClick={signOutOtherSessions} disabled={mfaBusy} className="mt-4 rounded-xl bg-[var(--zion-primary)] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--zion-primary-deep)] disabled:opacity-50">Encerrar outras sessões</button>
             </div>
-            <div className="rounded-2xl border border-red-100 bg-red-50 p-5">
+            <div className="rounded-xl border border-red-100 bg-red-50 p-5">
               <p className="font-semibold text-red-800">Encerrar em todo o lado</p>
               <p className="mt-1 text-sm text-red-700">Revoga as sessões da conta, incluindo esta sessão.</p>
-              <button type="button" onClick={signOutEverywhere} disabled={mfaBusy} className="mt-4 rounded-2xl border border-red-200 bg-white px-5 py-3 text-sm font-semibold text-red-700 disabled:opacity-50">
-                Encerrar todas as sessões
-              </button>
+              <button type="button" onClick={signOutEverywhere} disabled={mfaBusy} className="mt-4 rounded-xl border border-red-200 bg-white px-5 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-50">Encerrar todas as sessões</button>
             </div>
           </div>
         </section>
 
         <div className="flex flex-wrap gap-3">
-          <Link href="/profile" className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-[#0C1A3D]">Voltar ao perfil</Link>
-          <Link href="/auth/forgot-password" className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-[#0C1A3D]">Recuperar palavra-passe</Link>
+          <Link href="/profile" className="rounded-xl border border-[var(--zion-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--zion-dark)] transition hover:border-[var(--zion-sky)] hover:text-[var(--zion-primary)]">Voltar ao perfil</Link>
+          <Link href="/auth/forgot-password" className="rounded-xl border border-[var(--zion-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--zion-dark)] transition hover:border-[var(--zion-sky)] hover:text-[var(--zion-primary)]">Recuperar palavra-passe</Link>
         </div>
       </div>
     </main>
