@@ -5,7 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 
 export const ZION_LOCALES = [
   "pt-AO", "pt-PT", "en", "fr", "es", "de", "it", "zh", "ar", "sw",
-  "af", "osh", "umb", "kmb", "ln", "am", "yo", "ha", "zu", "xh",
+  "af", "osh", "umb", "kmb", "kg", "cjk", "nyk", "lue", "mck", "kj", "ln", "am", "yo", "ha", "zu", "xh",
 ] as const;
 
 export type ZionLocale = (typeof ZION_LOCALES)[number];
@@ -31,6 +31,12 @@ export const ZION_LOCALE_LABELS: Record<ZionLocale, string> = {
   ha: "Hausa",
   zu: "isiZulu",
   xh: "isiXhosa",
+  kg: "Kikongo",
+  cjk: "Cokwe",
+  nyk: "Olunyaneka",
+  lue: "Luvale",
+  mck: "Mbunda",
+  kj: "Kwangama / Kuanyama",
 };
 
 const SOURCE_LOCALE: ZionLocale = "pt-AO";
@@ -137,6 +143,8 @@ export function TranslationProvider({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     document.documentElement.lang = locale;
+    document.documentElement.dir = locale === "ar" ? "rtl" : "ltr";
+    document.documentElement.setAttribute("data-zion-locale", locale);
     window.localStorage.setItem(STORAGE_KEY, locale);
   }, [locale]);
 
