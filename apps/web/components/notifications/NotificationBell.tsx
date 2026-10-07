@@ -77,7 +77,7 @@ export default function NotificationBell() {
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-label={unread ? `Notificações: ${unread} por ler` : "Notificações"}
-        className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-[#091735]"
+        className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--zion-border)] bg-white text-[var(--zion-muted)] shadow-[var(--zion-shadow-sm)] transition hover:border-[var(--zion-sky)] hover:bg-[var(--zion-light)] hover:text-[var(--zion-primary)]"
       >
         <span aria-hidden="true" className="text-lg">🔔</span>
         {unread > 0 && (
@@ -88,27 +88,27 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-12 z-50 w-[min(380px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+        <div className="absolute right-0 top-12 z-50 w-[min(380px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-[var(--zion-border)] bg-white shadow-[var(--zion-shadow-lg)]">
+          <div className="flex items-center justify-between border-b border-[var(--zion-border)] px-4 py-3">
             <div>
-              <p className="text-sm font-semibold text-[#091735]">Notificações</p>
-              <p className="text-[11px] text-slate-400">{unread ? `${unread} por ler` : "Tudo em dia"}</p>
+              <p className="text-sm font-semibold text-[var(--zion-dark)]">Notificações</p>
+              <p className="text-[11px] text-[var(--zion-muted)]">{unread ? `${unread} por ler` : "Tudo em dia"}</p>
             </div>
-            {unread > 0 && <button onClick={() => void markAllRead()} disabled={busy} className="text-xs font-semibold text-[#091735]">Marcar todas como lidas</button>}
+            {unread > 0 && <button onClick={() => void markAllRead()} disabled={busy} className="text-xs font-semibold text-[var(--zion-primary)] hover:text-[var(--zion-primary-deep)]">Marcar todas como lidas</button>}
           </div>
           <div className="max-h-80 overflow-y-auto">
-            {!items.length && <p className="px-5 py-10 text-center text-sm text-slate-400">Não há notificações.</p>}
+            {!items.length && <p className="px-5 py-10 text-center text-sm text-[var(--zion-muted)]">Não há notificações.</p>}
             {items.map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => void markRead(item.id)}
-                className={`flex w-full gap-3 border-b border-slate-50 px-4 py-3 text-left transition hover:bg-slate-50 ${item.read_at ? "bg-white" : "bg-blue-50/50"}`}
+                className={`flex w-full gap-3 border-b border-[var(--zion-border)] px-4 py-3 text-left transition hover:bg-[var(--zion-light)] ${item.read_at ? "bg-white" : "bg-[var(--zion-sky)]/5"}`}
               >
-                <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#0C1A3D]" />
+                <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[var(--zion-gold)]" />
                 <span className="min-w-0">
-                  <span className="block text-sm font-semibold text-[#091735]">{item.title}</span>
-                  <span className="mt-0.5 block text-xs leading-5 text-slate-500">{item.body}</span>
+                  <span className="block text-sm font-semibold text-[var(--zion-dark)]">{item.title}</span>
+                  <span className="mt-0.5 block text-xs leading-5 text-[var(--zion-muted)]">{item.body}</span>
                 </span>
               </button>
             ))}
