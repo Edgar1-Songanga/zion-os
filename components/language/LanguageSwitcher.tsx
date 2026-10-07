@@ -1,162 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useTranslation } from "@/components/i18n";
 
+export default function LanguageSwitcher() {
+  const { locale, locales, localeLabels, setLocale } = useTranslation();
 
-export default function LanguageSwitcher(){
-
-const [open,setOpen]=useState(false);
-
-
-const languages=[
-
-{
-code:"pt",
-name:"Português"
-},
-
-{
-code:"en",
-name:"English"
-},
-
-{
-code:"es",
-name:"Español"
-},
-
-{
-code:"fr",
-name:"Français"
-},
-
-{
-code:"de",
-name:"Deutsch"
-},
-
-{
-code:"zh",
-name:"中文"
-},
-
-{
-code:"ar",
-name:"العربية"
-},
-
-{
-code:"sw",
-name:"Kiswahili"
-},
-
-{
-code:"os",
-name:"Oshiwambo"
-},
-
-{
-code:"umb",
-name:"Umbundu"
-},
-
-{
-code:"kmb",
-name:"Kimbundu"
-}
-
-];
-
-
-return (
-
-<div
-className="
-relative
-"
->
-
-
-<button
-
-onClick={()=>setOpen(!open)}
-
-className="
-bg-white
-rounded-xl
-px-4
-py-2
-shadow
-flex
-items-center
-gap-2
-"
-
->
-
-🌐 Português
-
-</button>
-
-
-
-{
-open && (
-
-<div
-className="
-absolute
-right-0
-mt-3
-w-52
-bg-white
-rounded-2xl
-shadow-xl
-border
-p-3
-z-50
-"
->
-
-
-{
-languages.map(language=>(
-
-<button
-
-key={language.code}
-
-className="
-block
-w-full
-text-left
-px-4
-py-3
-rounded-lg
-hover:bg-slate-100
-"
-
->
-
-{language.name}
-
-</button>
-
-
-))
-
-}
-
-
-</div>
-
-)
-
-}
-
-
-</div>
-
-)
-
+  return (
+    <label className="relative block">
+      <span className="sr-only">Selecionar idioma</span>
+      <select
+        value={locale}
+        onChange={(event) => setLocale(event.target.value as typeof locale)}
+        className="min-w-[150px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm outline-none transition hover:border-slate-300 focus:border-[#C8A24A] focus:ring-4 focus:ring-[#C8A24A]/10"
+        aria-label="Selecionar idioma"
+      >
+        {locales.map((language) => (
+          <option key={language} value={language}>
+            {localeLabels[language]}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
 }
