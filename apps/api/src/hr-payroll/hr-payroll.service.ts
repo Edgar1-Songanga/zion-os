@@ -72,7 +72,7 @@ export class HrPayrollService {
     const employees = await this.db.get<Employee[]>('hr_employees', accessToken, `?select=id,organization_id&organization_id=eq.${organizationId}&id=eq.${employeeId}&limit=1`);
     if (!employees[0]) throw new NotFoundException('Employee not found');
     if (!input.contract_number || !input.contract_type || !input.start_date) throw new BadRequestException('contract_number, contract_type and start_date are required');
-    const rows = await this.db.post('hr_contracts', accessToken, { employee_id: employeeId, contract_number: String(input.contract_number).trim(), contract_type: String(input.contract_type).trim(), start_date: input.start_date, end_date: input.end_date ?? null, base_salary: Number(input.base_salary ?? 0), currency_code: input.currency_code ?? 'AOA', pay_frequency: input.pay_frequency ?? 'MONTHLY', probation_end_date: input.probation_end_date ?? null, status: input.status ?? 'ACTIVE', terms: input.terms ?? {}, created_by: user.id });
+    const rows = await this.db.post('hr_contracts', accessToken, { employee_id: employeeId, contract_number: String(input.contract_number).trim(), contract_type: String(input.contract_type).trim(), start_date: input.start_date, end_date: input.end_date ?? null, base_salary: Number(input.base_salary ?? 0), currency_code: input.currency_code ?? 'AOA', pay_frequency: input.pay_frequency ?? 'MONTHLY', probation_end_date: input.probation_end_date ?? null, status: input.status ?? 'ACTIVE', terms: input.terms ?? {} });
     return rows[0];
   }
 
