@@ -1,4 +1,4 @@
-import type { AwardEvent, GamificationAction, PointRule, UserProgress } from "./types";
+import type { AwardEvent, GamificationAction, PointRule, UserProgress } from "./types.js";
 
 const DEFAULT_RULES: readonly PointRule[] = [
   { action: "devotion_completed", points: 10, dailyLimit: 3 },
