@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
+import { LocalizedText } from "@/components/i18n/LocalizedText";
 
 type Lesson = {
   id: string; quarter: string; year: number; lessonNumber: number; title: string; language: string;
@@ -73,9 +74,9 @@ ${results[0].copyright}` : ""}`);
               {lessons.map((lesson) => (
                 <article key={lesson.id} className="rounded-[26px] border border-slate-200 bg-white p-6 shadow-[0_8px_30px_rgba(15,23,42,0.04)]">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">{lesson.year} · {lesson.quarter} · Lição {lesson.lessonNumber}</p>
-                  <h3 className="mt-3 text-xl font-semibold tracking-tight text-[#0C1A3D]">{lesson.title}</h3>
+                  <h3 className="mt-3 text-xl font-semibold tracking-tight text-[#0C1A3D]"><LocalizedText text={lesson.title} contentType="spiritual" /></h3>
                   <p className="mt-2 text-xs text-slate-400">{lesson.language}</p>
-                  {lesson.memoryVerse && <p className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">“{lesson.memoryVerse}”</p>}
+                  {lesson.memoryVerse && <p className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">“<LocalizedText text={lesson.memoryVerse} contentType="spiritual" />”</p>}
                   {lesson.bibleReferences?.length ? (
                     <div className="mt-5">
                       <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">Referências bíblicas</p>
@@ -100,8 +101,8 @@ ${results[0].copyright}` : ""}`);
                         {Object.entries(lesson.dailySections).map(([day, section]) => (
                           <div key={day}>
                             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{day}</p>
-                            {section.title && <p className="mt-1 text-sm font-medium text-slate-700">{section.title}</p>}
-                            {section.summary && <p className="mt-1 text-sm leading-6 text-slate-500">{section.summary}</p>}
+                            {section.title && <p className="mt-1 text-sm font-medium text-slate-700"><LocalizedText text={section.title} contentType="spiritual" /></p>}
+                            {section.summary && <p className="mt-1 text-sm leading-6 text-slate-500"><LocalizedText text={section.summary} contentType="spiritual" /></p>}
                           </div>
                         ))}
                       </div>
@@ -111,7 +112,7 @@ ${results[0].copyright}` : ""}`);
                     <details className="mt-3 rounded-2xl border border-slate-200 p-4">
                       <summary className="cursor-pointer text-sm font-semibold text-[#0C1A3D]">Perguntas para reflexão</summary>
                       <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-500">
-                        {lesson.discussionQuestions.map((question) => <li key={question}>• {question}</li>)}
+                        {lesson.discussionQuestions.map((question) => <li key={question}>• <LocalizedText text={question} contentType="spiritual" /></li>)}
                       </ul>
                     </details>
                   ) : null}
