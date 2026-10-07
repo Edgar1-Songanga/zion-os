@@ -4,7 +4,7 @@ import type {
   TranslationProvider,
   TranslationRequest,
   TranslationResult,
-} from "./types";
+} from "./types.js";
 
 export class TranslationEngine {
   constructor(private readonly provider: TranslationProvider) {}
