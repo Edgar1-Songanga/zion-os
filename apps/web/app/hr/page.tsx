@@ -4,15 +4,15 @@ import { useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import { OrganizationSelector, ZionOrganization } from "@/components/organization/OrganizationSelector";
 
-type Employee = { id:string; employee_number:string; legal_first_name:string; legal_last_name:string; preferred_name?:string|null; employment_status:string; job_title:string; currency_code:string };
+type Employee = { id:string; employee_number:string; legal_first_name:string; legal_last_name:string; preferred_name?:string|null; employment_status:string; job_title:string; currency_code:string }; type Leave={id:string;employee_id:string;leave_type:string;start_date:string;end_date:string;status:string};
 
 export default function HumanResources(){
  const [organizationId,setOrganizationId]=useState("");
  const [organization,setOrganization]=useState<ZionOrganization|null>(null);
  const [employees,setEmployees]=useState<Employee[]>([]);
  const [loading,setLoading]=useState(false);
- const [error,setError]=useState("");
- const load=(id:string,org:ZionOrganization)=>{setOrganizationId(id);setOrganization(org);setLoading(true);setError("");void resaRequest<Employee[]>(`/v1/hr-payroll/organizations/${id}/employees`).then(setEmployees).catch(e=>setError(e instanceof Error?e.message:String(e))).finally(()=>setLoading(false));};
+ const [error,setError]=useState(""); const [leave,setLeave]=useState<Leave[]>([]);
+ const load=(id:string,org:ZionOrganization)=>{setOrganizationId(id);setOrganization(org);setLoading(true);setError("");void Promise.all([resaRequest<Employee[]>(`/v1/hr-payroll/organizations/${id}/employees`),resaRequest<Leave[]>(`/v1/hr-payroll/organizations/${id}/leave`)]).then(([e,l])=>{setEmployees(e);setLeave(l)}).catch(e=>setError(e instanceof Error?e.message:String(e))).finally(()=>setLoading(false));};
  return <main className="min-h-screen bg-[var(--zion-light)] p-6 lg:p-10"><div className="mx-auto max-w-7xl">
   <header className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.2em] text-[var(--zion-gold)]">People & Organization</p><h1 className="mt-2 text-3xl font-semibold text-[var(--zion-dark)]">Recursos Humanos</h1><p className="mt-2 max-w-2xl text-slate-500">Gestão de colaboradores, vínculos, contratos e férias. O acesso respeita a hierarquia institucional.</p></div><OrganizationSelector value={organizationId} onChange={load}/></header>
   {organization&&<div className="mb-5 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">Organização: <strong className="text-slate-900">{organization.name}</strong> · {organization.organization_type}</div>}
