@@ -1,145 +1,59 @@
 "use client";
 
-
 const activities = [
-
-{
-title:"New organization registered",
-time:"2 minutes ago"
-},
-
-{
-title:"New RESA community created",
-time:"15 minutes ago"
-},
-
-{
-title:"Monthly institutional report submitted",
-time:"1 hour ago"
-},
-
-{
-title:"New spiritual testimony published",
-time:"3 hours ago"
-},
-
-{
-title:"New member connected",
-time:"Today"
-}
-
+  {
+    title: "New organization registered",
+    time: "2 minutes ago",
+  },
+  {
+    title: "New RESA community created",
+    time: "15 minutes ago",
+  },
+  {
+    title: "Monthly institutional report submitted",
+    time: "1 hour ago",
+  },
+  {
+    title: "New spiritual testimony published",
+    time: "3 hours ago",
+  },
+  {
+    title: "New member connected",
+    time: "Today",
+  },
 ];
 
+export default function ActivityPanel() {
+  return (
+    <div className="rounded-2xl border border-[var(--zion-border)] bg-white p-6 shadow-[var(--zion-shadow-sm)] sm:p-7">
+      <div>
+        <h2 className="text-xl font-semibold tracking-tight text-[var(--zion-dark)]">
+          Ecosystem Activity
+        </h2>
+        <p className="mt-1.5 text-sm leading-6 text-[var(--zion-muted)]">
+          Real-time movement across the ZION global network.
+        </p>
+      </div>
 
-export default function ActivityPanel(){
+      <div className="mt-6 space-y-2">
+        {activities.map((activity) => (
+          <div
+            key={activity.title}
+            className="flex items-center justify-between gap-4 rounded-xl border border-[var(--zion-border)] bg-[var(--zion-light)] px-4 py-3.5"
+          >
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-[var(--zion-dark)]">
+                {activity.title}
+              </p>
+              <p className="mt-1 text-xs text-[var(--zion-muted)]">
+                {activity.time}
+              </p>
+            </div>
 
-
-return (
-
-<div
-className="
-rounded-[32px]
-p-8
-bg-white/10
-backdrop-blur-2xl
-border
-border-white/20
-shadow-xl
-"
->
-
-
-<h2
-className="
-text-2xl
-font-semibold
-text-white
-"
->
-Ecosystem Activity
-</h2>
-
-
-<p
-className="
-mt-2
-text-white/60
-"
->
-Real-time movement across the ZION global network.
-</p>
-
-
-
-<div
-className="
-mt-8
-space-y-4
-"
->
-
-{activities.map((activity)=>(
-
-<div
-key={activity.title}
-className="
-flex
-items-center
-justify-between
-rounded-2xl
-p-4
-bg-white/5
-border
-border-white/10
-"
->
-
-
-<div>
-
-<p
-className="
-text-white
-font-medium
-"
->
-{activity.title}
-</p>
-
-
-<p
-className="
-text-sm
-text-white/50
-mt-1
-"
->
-{activity.time}
-</p>
-
-</div>
-
-
-<div
-className="
-h-3
-w-3
-rounded-full
-bg-[#D4AF37]
-"
-/>
-
-
-</div>
-
-))}
-
-
-</div>
-
-
-</div>
-
-)
-
+            <div className="h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--zion-gold)]" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
