@@ -1,63 +1,43 @@
 @import "tailwindcss";
 
-
 :root {
-
-  /* ZION Colors */
-
-  --zion-primary: #0C1A3D;
-
-  --zion-gold: #D4AF37;
-
-  --zion-blue: #3B82F6;
-
-  --zion-light: #F8FAFC;
-
-  --zion-dark: #020617;
-
-
-  /* Surfaces */
+  --zion-primary: #0B2D4D;
+  --zion-primary-deep: #071E35;
+  --zion-blue: #2F557F;
+  --zion-sky: #5E8FB8;
+  --zion-gold: #C8A24A;
+  --zion-warm: #E0B85A;
+  --zion-light: #F5F7FA;
+  --zion-dark: #07111F;
+  --zion-white: #FFFFFF;
 
   --card: #FFFFFF;
-
-  --border: #E2E8F0;
-
-
-  /* Text */
-
-  --text-primary: #0F172A;
-
+  --border: #DCE4EC;
+  --text-primary: #102033;
   --text-secondary: #64748B;
 
+  --zion-shadow: 0 12px 32px rgba(7, 30, 53, 0.10);
+  --zion-shadow-soft: 0 6px 20px rgba(7, 30, 53, 0.07);
 }
 
+* {
+  box-sizing: border-box;
+}
 
+html {
+  background: var(--zion-light);
+}
 
 body {
-
-  background: var(--zion-light);
-
+  margin: 0;
+  background:
+    radial-gradient(circle at 15% 0%, rgba(94, 143, 184, 0.10), transparent 30%),
+    linear-gradient(135deg, #F8FAFC 0%, #EEF3F8 100%);
   color: var(--text-primary);
-
   font-family: Arial, Helvetica, sans-serif;
-
-}
-:root {
-
---zion-primary:#0C1A3D;
---zion-gold:#D4AF37;
---zion-blue:#2563EB;
-
 }
 
-
-body{
-
-background:
-linear-gradient(
-135deg,
-#F8FAFC 0%,
-#EEF2FF 100%
-);
-
+::selection {
+  background: rgba(200, 162, 74, 0.28);
+  color: var(--zion-primary-deep);
 }
