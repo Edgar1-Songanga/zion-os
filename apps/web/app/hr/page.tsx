@@ -1,21 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { resaRequest } from "@/lib/resa/api";
+import { useTranslation } from "@/components/i18n";
 
 type Employee = { id:string; employee_number:string; legal_first_name:string; legal_last_name:string; preferred_name?:string|null; employment_status:string; job_title:string; currency_code:string };
 type Run = { id:string; period_start:string; period_end:string; status:string; gross_total:number; deduction_total:number; employer_contribution_total:number; net_total:number; currency_code:string };
-
-async function request<T>(path:string, init?:RequestInit):Promise<T>{
- const res=await fetch(path,{...init,credentials:"include",headers:{"Content-Type":"application/json",...(init?.headers||{})}});
- if(!res.ok) throw new Error(await res.text());
- return res.json();
-}
 
 export default function HumanResources(){
  const [employees,setEmployees]=useState<Employee[]>([]);
  const [loading,setLoading]=useState(true);
  const [error,setError]=useState("");
- useEffect(()=>{ void request<Employee[]>("/api/hr/employees").then(setEmployees).catch(e=>setError(String(e))).finally(()=>setLoading(false)); },[]);
+ const { locale } = useTranslation();
+ const [organizationId,setOrganizationId]=useState("");
+ useEffect(()=>{ void resaRequest<{id:string}[]>("/v1/organizations").then(orgs=>{const id=orgs[0]?.id??"";setOrganizationId(id);if(id)return resaRequest<Employee[]>(`/v1/hr-payroll/organizations/${id}/employees`).then(setEmployees);}).catch(e=>setError(String(e))).finally(()=>setLoading(false)); },[]);
  return <main className="min-h-screen bg-[var(--zion-light)] p-6 lg:p-10">
   <div className="mx-auto max-w-7xl">
    <header className="mb-8"><p className="text-xs font-semibold uppercase tracking-[.2em] text-[var(--zion-gold)]">People & Organization</p><h1 className="mt-2 text-3xl font-semibold text-[var(--zion-dark)]">Recursos Humanos</h1><p className="mt-2 max-w-2xl text-slate-500">Cadastro institucional, vínculos, contratos, férias e ciclo de vida dos colaboradores.</p></header>
