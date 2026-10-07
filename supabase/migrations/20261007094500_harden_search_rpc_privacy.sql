@@ -2,7 +2,7 @@
 -- accidental exposure of non-public, organization-less documents.
 -- The API already authenticates callers before invoking this RPC.
 
-revoke execute on function public.search_zion_documents(text, text, integer) from anon;
+revoke execute on function public.search_zion_documents(text, text, integer) from public;
 grant execute on function public.search_zion_documents(text, text, integer) to authenticated;
 
 create or replace function public.search_zion_documents(
