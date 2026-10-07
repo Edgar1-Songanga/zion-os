@@ -1,5 +1,5 @@
 import { Body, Controller, Headers, Post, UnauthorizedException } from "@nestjs/common";
-import { TranslationBatchRequest, TranslationRequest } from "@zion/translation-engine";
+import type { TranslationBatchRequest, TranslationRequest } from "@zion/translation-engine";
 import { TranslationService } from "./translation.service";
 
 @Controller("v1/translation")
