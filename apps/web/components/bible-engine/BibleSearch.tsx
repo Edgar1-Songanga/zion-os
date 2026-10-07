@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
+import { LocalizedText } from "@/components/i18n/LocalizedText";
 
 type BibleResult = {
   reference: { book: string; chapter: number; verseStart?: number; verseEnd?: number };
@@ -90,9 +91,10 @@ export default function BibleSearch() {
             {result.reference.book} {result.reference.chapter}
             {result.reference.verseStart ? `:${result.reference.verseStart}${result.reference.verseEnd ? `-${result.reference.verseEnd}` : ""}` : ""}
           </p>
-          <p className="mt-4 whitespace-pre-wrap text-lg leading-8 text-[var(--zion-dark)]">{result.text}</p>
+          <p className="mt-4 whitespace-pre-wrap text-lg leading-8 text-[var(--zion-dark)]"><LocalizedText text={result.text} contentType="spiritual" /></p>
           <p className="mt-5 border-t border-[var(--zion-border)] pt-4 text-xs text-[var(--zion-muted)]">
             Fonte: Midvash Bible API · {result.translation}
+            <span className="ml-2 text-[var(--zion-muted)]">· Tradução assistida para o idioma selecionado quando a edição bíblica não está disponível nessa língua.</span>
             {result.copyright ? ` · ${result.copyright}` : ""}
           </p>
         </article>
