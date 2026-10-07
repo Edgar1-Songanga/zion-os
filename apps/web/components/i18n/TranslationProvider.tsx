@@ -41,6 +41,7 @@ const sourceStrings = {
   brandDescription: "Ecossistema Digital Adventista Global",
   administrator: "Administrador",
   language: "Idioma",
+  search: "Pesquisar pessoas, grupos e conteúdos",
   selectLanguage: "Selecionar idioma",
   core: "NÚCLEO",
   dashboard: "Painel",
