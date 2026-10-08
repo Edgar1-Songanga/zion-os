@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cd apps/api && pnpm run build && rm -rf ../../dist && cp -R dist ../../dist",
+  "buildCommand": "pnpm run build",
   "outputDirectory": "dist",
   "framework": "nestjs"
 }
