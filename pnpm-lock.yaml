@@ -32,6 +32,9 @@ importers:
       '@zion/translation-engine':
         specifier: workspace:*
         version: link:../../services/translation-engine
+      '@zion/referral-engine':
+        specifier: workspace:*
+        version: link:../../services/referral-engine
       livekit-server-sdk:
         specifier: ^2.19.1
         version: 2.19.1
