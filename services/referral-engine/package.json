@@ -1,6 +1,9 @@
 {
-"name":"@zion/referral-engine",
-"version":"1.0.0",
-"private":true,
-"type":"module"
+  "name": "@zion/referral-engine",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --module NodeNext --moduleResolution NodeNext --target ES2022 --outDir dist --declaration --declarationMap --sourceMap src/*.ts"
+  }
 }
