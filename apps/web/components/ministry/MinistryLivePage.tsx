@@ -12,7 +12,7 @@ export default function MinistryLivePage() {
   const [ministries, setMinistries] = useState<Ministry[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);\n  const [name, setName] = useState("");\n  const [department, setDepartment] = useState("MINISTRY");\n  const [creating, setCreating] = useState(false);
 
   async function load(id: string, org: ZionOrganization) {
     setOrganizationId(id);
@@ -32,6 +32,25 @@ export default function MinistryLivePage() {
     }
   }
 
+  async function createMinistry() {
+    if (!organizationId || !name.trim() || creating) return;
+    setCreating(true);
+    setError(null);
+    try {
+      const created = await resaRequest<Ministry>("/v1/ministries", {
+        method: "POST",
+        body: JSON.stringify({ organization_id: organizationId, name: name.trim(), department: department.trim() || "MINISTRY" }),
+      });
+      setMinistries((current) => [...current, created].sort((a, b) => a.name.localeCompare(b.name)));
+      setSelectedId(created.id);
+      setName("");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível registar o ministério.");
+    } finally {
+      setCreating(false);
+    }
+  }
+
   const selected = ministries.find((item) => item.id === selectedId) ?? null;
 
   return (
@@ -48,6 +67,17 @@ export default function MinistryLivePage() {
       {organization && (
         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
           Organização: <strong className="text-slate-900">{organization.name}</strong> · {organization.organization_type}
+        </div>
+      )}
+
+      {organization && (
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <p className="text-sm font-semibold text-[var(--zion-dark)]">Registar ministério real</p>
+          <div className="mt-3 grid gap-3 md:grid-cols-[1.5fr_1fr_auto]">
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Ministério Jovem" className="rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none" />
+            <input value={department} onChange={(e) => setDepartment(e.target.value)} placeholder="Departamento" className="rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none" />
+            <button type="button" onClick={() => void createMinistry()} disabled={!name.trim() || creating} className="rounded-xl bg-[#0C1A3D] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">{creating ? "A registar…" : "Registar ministério"}</button>
+          </div>
         </div>
       )}
 
