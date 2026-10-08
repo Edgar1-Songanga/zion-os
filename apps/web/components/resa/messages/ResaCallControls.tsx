@@ -20,6 +20,7 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
   const localVideo = useRef<HTMLVideoElement|null>(null);
   const remoteVideo = useRef<HTMLVideoElement|null>(null);
   const userId = useRef<string|null>(null);
+  const pendingIce = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
 
   useEffect(() => {
     let mounted = true;
@@ -35,7 +36,7 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
       })
       .on("postgres_changes",{event:"INSERT",schema:"public",table:"resa_call_signals"},payload=>{
         const signal=payload.new as {call_id:string;sender_id:string;recipient_id:string;kind:string;payload:any};
-        if(signal.recipient_id===userId.current && call?.id===signal.call_id) void handleSignal(signal);
+        if(signal.recipient_id===userId.current && (call?.id===signal.call_id || incoming?.id===signal.call_id)) void handleSignal(signal);
       }).subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [conversationId, call?.id]);
@@ -121,7 +122,7 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
     const peer=pc.current; if(!peer) return;
     try{
       if(signal.kind==="answer") await peer.setRemoteDescription(signal.payload);
-      if(signal.kind==="ice"&&signal.payload) await peer.addIceCandidate(signal.payload);
+      if(signal.kind==="ice"&&signal.payload){\n        if(peer.remoteDescription) await peer.addIceCandidate(signal.payload);\n        else { const queue=pendingIce.current.get(signal.call_id) ?? []; queue.push(signal.payload); pendingIce.current.set(signal.call_id, queue); }\n      }
     }catch(e){setError(e instanceof Error?e.message:"Falha na negociação da chamada.");}
   }
 
