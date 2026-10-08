@@ -11,13 +11,30 @@ export class MinistryController {
     return token;
   }
 
-  @Post()\n  create(\n    @Headers('authorization') authorization: string | undefined,\n    @Body() body: { organization_id: string; name: string; department?: string; philosophy?: string; description?: string },\n  ) {\n    return this.ministries.create(this.token(authorization), body);\n  }\n\n  @Get(':id')
+  @Post()
+  create(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: {
+      organization_id: string;
+      name: string;
+      department?: string;
+      philosophy?: string;
+      description?: string;
+    },
+  ) {
+    return this.ministries.create(this.token(authorization), body);
+  }
+
+  @Get(':id')
   get(@Headers('authorization') authorization: string | undefined, @Param('id') id: string) {
     return this.ministries.get(id, this.token(authorization));
   }
 
   @Get('organization/:organizationId')
-  list(@Headers('authorization') authorization: string | undefined, @Param('organizationId') organizationId: string) {
+  list(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('organizationId') organizationId: string,
+  ) {
     return this.ministries.list(organizationId, this.token(authorization));
   }
 }
