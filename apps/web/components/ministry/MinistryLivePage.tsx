@@ -32,14 +32,6 @@ export default function MinistryLivePage() {
     }
   }
 
-  useEffect(() => {
-    if (!organizationId) return;
-    void load(organizationId, organization ?? { id: organizationId, name: "", organization_type: "", parent_id: null });
-    // OrganizationSelector owns the initial organization selection; this effect only
-    // refreshes data when the selected organization changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [organizationId]);
-
   const selected = ministries.find((item) => item.id === selectedId) ?? null;
 
   return (
