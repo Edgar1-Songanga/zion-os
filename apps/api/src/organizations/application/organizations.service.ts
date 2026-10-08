@@ -51,9 +51,9 @@ export class OrganizationsService {
     const role = await this.db.get<{ id: string }[]>(
       'roles',
       accessToken,
-      '?select=id&key=eq.organization_admin&limit=1',
+      '?select=id&key=eq.organization_owner&limit=1',
     );
-    if (!role[0]) throw new BadRequestException('Organization administrator role is not configured');
+    if (!role[0]) throw new BadRequestException('Organization owner role is not configured');
 
     await this.db.post(
       'organization_memberships',
