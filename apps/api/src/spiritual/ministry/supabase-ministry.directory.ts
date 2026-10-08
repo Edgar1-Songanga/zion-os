@@ -6,6 +6,18 @@ import type { MinistryDirectoryPort, MinistryRecord } from './ministry.types';
 export class SupabaseMinistryDirectory implements MinistryDirectoryPort {
   private readonly db = new SupabaseRestClient();
 
+  async create(organizationId: string, input: { name: string; department: string; philosophy: string; description: string }, token?: string): Promise<MinistryRecord | null> {
+    if (!token) return null;
+    const rows = await this.db.post<any[]>('ministries', token, {
+      organization_id: organizationId,
+      name: input.name,
+      department: input.department,
+      philosophy: input.philosophy,
+      description: input.description,
+    });
+    return rows[0] ? this.hydrate(rows[0], token) : null;
+  }
+
   async getById(id: string, token?: string): Promise<MinistryRecord | null> {
     if (!token) return null;
     const rows = await this.db.get<any[]>('ministries', token, `?select=*&id=eq.${id}&limit=1`);
