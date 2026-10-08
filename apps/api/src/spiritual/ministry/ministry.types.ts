@@ -16,7 +16,7 @@ export interface MinistryRecord {
   reports: Array<{ id: string; title: string; status: string; submitted_at: string }>;
   metrics: { members: number; leaders: number; programs: number; participation: number; growth: number; impact: number };
 }
-export interface MinistryDirectoryPort {
+export interface MinistryDirectoryPort {\n  create?(organizationId: string, input: { name: string; department: string; philosophy: string; description: string }, token?: string): Promise<MinistryRecord | null>;
   getById(id: string, token?: string): Promise<MinistryRecord | null>;
   listByOrganization(organizationId: string, token?: string): Promise<MinistryRecord[]>;
 }
