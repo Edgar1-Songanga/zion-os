@@ -121,7 +121,7 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
   async function handleSignal(signal:any) {
     const peer=pc.current; if(!peer) return;
     try{
-      if(signal.kind==="answer") await peer.setRemoteDescription(signal.payload);
+      if(signal.kind==="answer"){\n        await peer.setRemoteDescription(signal.payload);\n        const queued = pendingIce.current.get(signal.call_id) ?? [];\n        for (const candidate of queued) await peer.addIceCandidate(candidate);\n        pendingIce.current.delete(signal.call_id);\n      }
       if(signal.kind==="ice"&&signal.payload){\n        if(peer.remoteDescription) await peer.addIceCandidate(signal.payload);\n        else { const queue=pendingIce.current.get(signal.call_id) ?? []; queue.push(signal.payload); pendingIce.current.set(signal.call_id, queue); }\n      }
     }catch(e){setError(e instanceof Error?e.message:"Falha na negociação da chamada.");}
   }
