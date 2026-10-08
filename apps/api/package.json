@@ -6,7 +6,7 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "build": "pnpm --filter @zion/automation-engine build && pnpm --filter @zion/translation-engine build && nest build",
+    "build": "pnpm --filter @zion/automation-engine build && pnpm --filter @zion/translation-engine build && pnpm --filter @zion/referral-engine build && nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
