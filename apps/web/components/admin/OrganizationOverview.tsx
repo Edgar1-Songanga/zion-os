@@ -25,6 +25,25 @@ export default function OrganizationOverview() {
       .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "Não foi possível carregar as organizações."));
   }, []);
 
+  async function createOrganization() {
+    if (!name.trim() || !slug.trim() || creating) return;
+    setCreating(true);
+    setError(null);
+    try {
+      const created = await resaRequest<Organization>("/v1/organizations", {
+        method: "POST",
+        body: JSON.stringify({ name: name.trim(), slug: slug.trim().toLowerCase(), organization_type: type }),
+      });
+      setOrganizations((current) => [created, ...current]);
+      setName("");
+      setSlug("");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível criar a organização.");
+    } finally {
+      setCreating(false);
+    }
+  }
+
   return (
     <section className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
       <div className="mb-8">
