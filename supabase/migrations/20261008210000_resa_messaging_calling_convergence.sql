@@ -1,4 +1,4 @@
--- RESA messaging and calling convergence.
+-- RESA messaging and calling convergence.\n\n-- Allow organization administrators to register real ministry records.
 -- Allow the conversation creator to add the other member in the same insert
 -- and ensure Realtime delivers conversation/message/call events.
 drop policy if exists resa_conversation_members_insert on public.resa_conversation_members;
@@ -12,7 +12,7 @@ with check (
   )
 );
 
-do $$
+drop policy if exists ministries_admin_insert on public.ministries;\ncreate policy ministries_admin_insert on public.ministries for insert to authenticated\nwith check (private.has_org_permission(organization_id,'organization.manage'));\n\ndo $
 begin
   if not exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='resa_conversations') then
     alter publication supabase_realtime add table public.resa_conversations;
