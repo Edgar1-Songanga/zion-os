@@ -13,7 +13,7 @@ type Organization = {
 
 export default function OrganizationOverview() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);\n  const [name, setName] = useState("");\n  const [slug, setSlug] = useState("");\n  const [type, setType] = useState("LOCAL_CHURCH");\n  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     resaRequest<Organization[]>("/v1/organizations")
@@ -27,7 +27,7 @@ export default function OrganizationOverview() {
         <h2 className="text-2xl font-semibold text-[#0C1A3D]">Organizações administradas</h2>
         <p className="mt-2 text-slate-500">Estrutura institucional sob a sua responsabilidade.</p>
       </div>
-      {error && <p className="rounded-xl bg-red-50 p-4 text-red-700">{error}</p>}
+      {error && <p className="rounded-xl bg-red-50 p-4 text-red-700">{error}</p>}\n      <div className="mb-8 rounded-2xl border border-slate-200 bg-slate-50 p-5">\n        <p className="text-sm font-semibold text-[#0C1A3D]">Registar organização real</p>\n        <div className="mt-3 grid gap-3 md:grid-cols-[1.4fr_1fr_1fr_auto]">\n          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome da igreja/organização" className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none" />\n          <input value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="slug" className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none" />\n          <select value={type} onChange={(e) => setType(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none"><option>LOCAL_CHURCH</option><option>DISTRICT</option><option>CONFERENCE</option><option>UNION</option><option>DIVISION</option><option>GENERAL_CONFERENCE</option></select>\n          <button type="button" onClick={() => void createOrganization()} disabled={!name.trim() || !slug.trim() || creating} className="rounded-xl bg-[#0C1A3D] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">{creating ? "A criar…" : "Criar"}</button>\n        </div>\n      </div>
       {!error && organizations.length === 0 && <p className="rounded-xl bg-slate-50 p-5 text-slate-500">Nenhuma organização administrada foi encontrada.</p>}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {organizations.map((organization) => (
