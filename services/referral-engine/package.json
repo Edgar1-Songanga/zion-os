@@ -4,6 +4,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc --module NodeNext --moduleResolution NodeNext --target ES2022 --outDir dist --declaration --declarationMap --sourceMap src/*.ts"
+    "build": "tsc --module NodeNext --moduleResolution NodeNext --target ES2022 --rootDir src --outDir dist --declaration --declarationMap --sourceMap src/*.ts"
   }
 }
