@@ -5,5 +5,13 @@
   "type": "module",
   "scripts": {
     "build": "tsc --module NodeNext --moduleResolution NodeNext --target ES2022 --rootDir src --outDir dist --declaration --declarationMap --sourceMap src/*.ts"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   }
 }
