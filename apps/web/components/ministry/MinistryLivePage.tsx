@@ -12,7 +12,10 @@ export default function MinistryLivePage() {
   const [ministries, setMinistries] = useState<Ministry[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);\n  const [name, setName] = useState("");\n  const [department, setDepartment] = useState("MINISTRY");\n  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [department, setDepartment] = useState("MINISTRY");
+  const [creating, setCreating] = useState(false);
 
   async function load(id: string, org: ZionOrganization) {
     setOrganizationId(id);
