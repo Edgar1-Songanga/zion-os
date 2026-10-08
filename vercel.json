@@ -1,5 +1,5 @@
 {
-  "buildCommand": "pnpm run build && find dist -maxdepth 4 -type f -name main.js -print",
-  "outputDirectory": "dist",
+  "buildCommand": "pnpm run build",
+  "outputDirectory": "dist/apps/api/src",
   "framework": "nestjs"
 }
