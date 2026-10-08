@@ -1,0 +1,5 @@
+{
+  "buildCommand": "pnpm --filter api build",
+  "outputDirectory": "apps/api/dist",
+  "framework": "nestjs"
+}
