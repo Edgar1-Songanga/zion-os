@@ -1,5 +1,8 @@
 {
-  "buildCommand": "pnpm run build",
-  "outputDirectory": "dist/apps/api/src",
-  "framework": "nestjs"
+  "buildCommand": "pnpm --filter api build",
+  "functions": {
+    "api/[...route].ts": {
+      "maxDuration": 30
+    }
+  }
 }

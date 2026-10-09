@@ -31,13 +31,17 @@ export class HrPayrollService {
 
   async listEmployees(accessToken: string, organizationId: string) {
     return this.db.get<Employee[]>('hr_employees', accessToken,
-      `?select=id,organization_id,employee_number,legal_first_name,legal_last_name,preferred_name,employment_status,job_title,currency_code&organization_id=eq.${organizationId}&order=legal_last_name.asc,legal_first_name.asc`);
+      `?select=id,organization_id,employee_number,legal_first_name,legal_last_name,preferred_name,employment_status,job_title,currency_code&organization_id=eq.${encodeURIComponent(organizationId)}&order=legal_last_name.asc,legal_first_name.asc&limit=500`);
   }
 
   async createEmployee(accessToken: string, organizationId: string, input: Record<string, unknown>) {
     const user = await this.identity.getCurrentUser(accessToken);
     const required = ['employee_number', 'legal_first_name', 'legal_last_name', 'hire_date', 'job_title'];
     for (const key of required) if (!String(input[key] ?? '').trim()) throw new BadRequestException(`${key} is required`);
+    const countryCode = String(input.country_code ?? 'AO').trim().toUpperCase();
+    const currencyCode = String(input.currency_code ?? 'AOA').trim().toUpperCase();
+    if (!/^[A-Z]{2}$/.test(countryCode)) throw new BadRequestException('country_code must be an ISO 3166-1 alpha-2 code');
+    if (!/^[A-Z]{3}$/.test(currencyCode)) throw new BadRequestException('currency_code must be an ISO 4217 code');
     const rows = await this.db.post<Employee[]>('hr_employees', accessToken, {
       organization_id: organizationId,
       employee_number: String(input.employee_number).trim(),
@@ -48,8 +52,8 @@ export class HrPayrollService {
       hire_date: input.hire_date,
       job_title: String(input.job_title).trim(),
       employment_type: input.employment_type ?? 'FULL_TIME',
-      country_code: input.country_code ?? 'AO',
-      currency_code: input.currency_code ?? 'AOA',
+      country_code: countryCode,
+      currency_code: currencyCode,
       work_email: input.work_email ?? null,
       created_by: user.id,
     });
@@ -63,8 +67,11 @@ export class HrPayrollService {
   }
 
   async listContracts(accessToken: string, organizationId: string, employeeId: string) {
+    const employees = await this.db.get<Employee[]>('hr_employees', accessToken,
+      `?select=id&organization_id=eq.${encodeURIComponent(organizationId)}&id=eq.${encodeURIComponent(employeeId)}&limit=1`);
+    if (!employees[0]) throw new NotFoundException('Employee not found');
     return this.db.get('hr_contracts', accessToken,
-      `?select=id,employee_id,contract_number,contract_type,start_date,end_date,base_salary,currency_code,pay_frequency,probation_end_date,status,terms&employee_id=eq.${employeeId}&order=start_date.desc`);
+      `?select=id,employee_id,contract_number,contract_type,start_date,end_date,base_salary,currency_code,pay_frequency,probation_end_date,status,terms&employee_id=eq.${encodeURIComponent(employeeId)}&order=start_date.desc&limit=100`);
   }
 
   async createContract(accessToken: string, organizationId: string, employeeId: string, input: Record<string, unknown>) {
@@ -78,7 +85,7 @@ export class HrPayrollService {
 
   async listLeaveRequests(accessToken: string, organizationId: string) {
     return this.db.get('hr_leave_requests', accessToken,
-      `?select=id,employee_id,leave_type,start_date,end_date,status,reason,approved_by,approved_at,created_at&order=start_date.desc`);
+      `?select=id,employee_id,leave_type,start_date,end_date,status,reason,approved_by,approved_at,created_at,employee:hr_employees!inner(organization_id)&employee.organization_id=eq.${encodeURIComponent(organizationId)}&order=start_date.desc&limit=100`);
   }
 
   async createLeaveRequest(accessToken: string, organizationId: string, employeeId: string, input: Record<string, unknown>) {
@@ -91,7 +98,10 @@ export class HrPayrollService {
 
   async approveLeave(accessToken: string, organizationId: string, leaveId: string, approved: boolean) {
     const actor = await this.identity.getCurrentUser(accessToken);
-    const rows = await this.db.patch<Array<{ id: string; employee_id: string; status: string }>>('hr_leave_requests', accessToken, { status: approved ? 'APPROVED' : 'REJECTED', approved_by: actor.id, approved_at: new Date().toISOString() }, `?id=eq.${leaveId}`);
+    const scopedLeave = await this.db.get<Array<{ id: string; employee_id: string }>>('hr_leave_requests', accessToken,
+      `?select=id,employee_id,employee:hr_employees!inner(organization_id)&id=eq.${encodeURIComponent(leaveId)}&employee.organization_id=eq.${encodeURIComponent(organizationId)}&limit=1`);
+    if (!scopedLeave[0]) throw new NotFoundException('Leave request not found');
+    const rows = await this.db.patch<Array<{ id: string; employee_id: string; status: string }>>('hr_leave_requests', accessToken, { status: approved ? 'APPROVED' : 'REJECTED', approved_by: actor.id, approved_at: new Date().toISOString() }, `?id=eq.${encodeURIComponent(leaveId)}&employee_id=eq.${encodeURIComponent(scopedLeave[0].employee_id)}`);
     if (!rows[0]) throw new NotFoundException('Leave request not found');
     return rows[0];
   }

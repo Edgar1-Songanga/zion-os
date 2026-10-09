@@ -43,6 +43,9 @@ jobs:
       - name: Build API
         run: pnpm --filter api build
 
+      - name: Smoke test serverless API bootstrap
+        run: node apps/api/scripts/smoke-serverless.cjs
+
       - name: Run API tests
         run: pnpm --filter api exec jest --runInBand
 

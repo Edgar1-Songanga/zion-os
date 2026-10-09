@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { IdentityService } from '../../identity/application/identity.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 import { MEDIA_PROVIDER } from '../../media/media.module';
@@ -247,6 +247,24 @@ export class ResaOperationalService {
       providerRoomId: `zion-live-${id}`,
       userId: actor.id,
     });
+  }
+
+  async callJoinConfig(token: string, callId: string) {
+    const actor = await this.actor(token);
+    const id = this.id(callId, 'call_id');
+    const calls = await this.db.get<Array<{ id: string; conversation_id: string; status: string }>>(
+      'resa_calls', token, `?select=id,conversation_id,status&id=eq.${id}&limit=1`,
+    );
+    const call = calls[0];
+    if (!call) throw new NotFoundException('Call not found');
+    if (!['ringing', 'active'].includes(call.status)) throw new BadRequestException('Call is no longer joinable');
+    const memberships = await this.db.get<Array<{ conversation_id: string }>>(
+      'resa_conversation_members', token,
+      `?select=conversation_id&conversation_id=eq.${call.conversation_id}&user_id=eq.${actor.id}&limit=1`,
+    );
+    if (!memberships[0]) throw new NotFoundException('Call not found');
+    if (!this.media.createJoinConfig) throw new BadGatewayException('Media provider does not expose a join configuration');
+    return this.media.createJoinConfig({ meetingId: id, providerRoomId: `zion-call-${id}`, userId: actor.id });
   }
 
   async createConversation(token: string, memberIds: unknown[], title?: unknown) {

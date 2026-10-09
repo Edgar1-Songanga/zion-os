@@ -70,6 +70,9 @@ export class ResaOperationalController {
   @Post('live/:liveId/join') liveJoinConfig(@Headers('authorization') authorization: string | undefined, @Param('liveId') liveId: string) {
     return this.operational.liveJoinConfig(this.token(authorization), liveId);
   }
+  @Post('calls/:callId/join') callJoinConfig(@Headers('authorization') authorization: string | undefined, @Param('callId') callId: string) {
+    return this.operational.callJoinConfig(this.token(authorization), callId);
+  }
   @Patch('live/:liveId/status') updateLiveStatus(@Headers('authorization') authorization: string | undefined, @Param('liveId') liveId: string, @Body() body: { status: 'scheduled' | 'live' | 'ended' }) {
     return this.operational.updateLiveStatus(this.token(authorization), liveId, body.status);
   }
