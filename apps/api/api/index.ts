@@ -7,7 +7,9 @@ export default async function apiFunction(request: Request, response: Response):
   try {
     normalizeVercelRequestPath(request);
   } catch {
-    response.status(400).json({ statusCode: 400, error: 'Bad Request', message: 'Invalid API path' });
+    response.statusCode = 400;
+    response.setHeader('Content-Type', 'application/json; charset=utf-8');
+    response.end(JSON.stringify({ statusCode: 400, error: 'Bad Request', message: 'Invalid API path' }));
     return;
   }
   await handler(request, response);
