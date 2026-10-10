@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc --module NodeNext --moduleResolution NodeNext --target ES2022 --rootDir src --outDir dist --declaration --declarationMap --sourceMap src/*.ts"
+    "build": "tsc --module NodeNext --moduleResolution NodeNext --target ES2022 --rootDir src --outDir dist --declaration --declarationMap --sourceMap src/*.ts && node ../../scripts/build-workspace-commonjs.cjs dist-cjs"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -12,7 +12,7 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "require": "./dist/index.js"
+      "require": "./dist-cjs/index.js"
     }
   }
 }

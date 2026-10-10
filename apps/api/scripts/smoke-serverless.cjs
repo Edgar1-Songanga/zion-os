@@ -3,6 +3,19 @@ process.env.SUPABASE_URL = 'https://example.supabase.co';
 process.env.SUPABASE_PUBLISHABLE_KEY = 'ci-only-publishable-key';
 process.env.ZION_ALLOWED_ORIGINS = 'http://localhost:3000';
 
+// The Vercel Node runtime invokes the Nest build as CommonJS. Assert that each
+// workspace exposes a real CommonJS artifact rather than an ESM .js file.
+for (const workspace of [
+  '@zion/automation-engine',
+  '@zion/translation-engine',
+  '@zion/referral-engine',
+]) {
+  const exports = require(workspace);
+  if (!exports || Object.keys(exports).length === 0) {
+    throw new Error(`CommonJS workspace export is empty: ${workspace}`);
+  }
+}
+
 const { createServer } = require('node:http');
 const handler = require('../dist/apps/api/src/serverless.handler.js').default;
 
