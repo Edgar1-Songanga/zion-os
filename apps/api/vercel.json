@@ -3,8 +3,14 @@
   "framework": null,
   "buildCommand": "pnpm --filter api build",
   "outputDirectory": "api-public",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "/api/index?__zion_path=:path*"
+    }
+  ],
   "functions": {
-    "api/[...route].ts": {
+    "api/index.ts": {
       "maxDuration": 30
     }
   }
