@@ -11,6 +11,8 @@ export class FinanceController {
   }
   @Get('organizations/:organizationId/accounts')
   accounts(@Headers('authorization') a: string|undefined,@Param('organizationId') id:string){return this.finance.accounts(this.token(a),id);}
+  @Post('organizations/:organizationId/accounts')
+  createAccount(@Headers('authorization') a: string|undefined,@Param('organizationId') id:string,@Body() body:{code:string;name:string;account_type:string;currency_code?:string;parent_account_id?:string|null}){return this.finance.createAccount(this.token(a),id,body);}
   @Get('organizations/:organizationId/journal')
   journal(@Headers('authorization') a: string|undefined,@Param('organizationId') id:string){return this.finance.journal(this.token(a),id);}
   @Post('organizations/:organizationId/journal')
