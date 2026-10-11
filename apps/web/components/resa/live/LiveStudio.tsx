@@ -453,9 +453,12 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
               <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
                 {isHost && raisedHands.length > 0 && <div className="mb-4 rounded-xl border border-sky-300/20 bg-sky-300/10 p-3">
                   <p className="mb-2 text-xs font-bold uppercase tracking-wide text-sky-200">Pedidos para falar</p>
-                  {raisedHands.map((person) => <div key={person.identity} className="mb-2 flex items-center justify-between gap-2 text-sm text-white">
-                    <span className="truncate">{person.name}</span>
-                    <button onClick={() => void moderate(person.identity, "allow_speak")} className="rounded-lg bg-sky-300 px-2 py-1 text-xs font-bold text-[#07142c]">Autorizar</button>
+                  {raisedHands.map((person) => <div key={person.identity} className="mb-2 flex items-center justify-between gap-2 rounded-xl border border-white/[0.06] bg-black/10 p-2 text-sm text-white">
+                    <span className="flex min-w-0 items-center gap-2"><span aria-hidden="true" className="text-xl">✋</span><span className="truncate">{person.name}</span></span>
+                    <div className="flex shrink-0 gap-1">
+                      <button onClick={() => void moderate(person.identity, "allow_speak")} className="rounded-lg bg-sky-300 px-2 py-1.5 text-xs font-bold text-[#07142c]">Autorizar</button>
+                      <button onClick={() => setRaisedHands((current) => current.filter((item) => item.identity !== person.identity))} aria-label={"Fechar pedido de " + person.name} className="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-slate-300 hover:bg-white/10">Fechar</button>
+                    </div>
                   </div>)}
                 </div>}
                 {participants.map((person) => (
