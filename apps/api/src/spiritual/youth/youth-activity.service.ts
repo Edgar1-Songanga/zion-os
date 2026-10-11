@@ -95,11 +95,16 @@ export class YouthActivityService {
     }
     const userId = requestedUserId ? this.uuid(requestedUserId, 'user_id') : actor.id;
     await this.assertActiveClubMember(token, activity.club_id, userId);
-    const rows = await this.db.upsert<any[]>('youth_activity_participants', token, {
+    const existing = await this.db.get<any[]>(
+      'youth_activity_participants', token,
+      `?select=*&activity_id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}&limit=1`,
+    );
+    if (existing[0]) return existing[0];
+    const rows = await this.db.post<any[]>('youth_activity_participants', token, {
       activity_id: id, club_id: activity.club_id, user_id: userId, status: 'REGISTERED',
-    }, '?on_conflict=activity_id,user_id');
+    });
     if (!rows[0]) throw new BadRequestException('Participant was not registered.');
-    return rows[0];
+
   }
 
   async updateParticipation(token: string, activityId: string, userId: string, input: any) {
