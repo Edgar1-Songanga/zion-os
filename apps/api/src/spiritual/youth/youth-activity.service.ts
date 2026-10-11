@@ -33,7 +33,10 @@ export class YouthActivityService {
     }
     const location = this.optionalText(input.location, 'location', 240) ?? '';
     const leaderUserId = input.leader_user_id ? this.uuid(input.leader_user_id, 'leader_user_id') : null;
-    if (leaderUserId) await this.assertClubLeader(token, club.id, leaderUserId);
+    if (leaderUserId) {
+      await this.assertClubLeader(token, club.id, leaderUserId);
+      await this.assertActiveClubMember(token, club.id, leaderUserId);
+    }
     const rows = await this.db.post<any[]>('youth_club_activities', token, {
       organization_id: club.organization_id, club_id: club.id, title, description,
       activity_type: activityType, starts_at: startsAt, ends_at: endsAt,
@@ -67,7 +70,10 @@ export class YouthActivityService {
     if (endsAt && Date.parse(String(endsAt)) < Date.parse(String(startsAt))) {
       throw new BadRequestException('ends_at must be equal to or later than starts_at.');
     }
-    if (typeof patch.leader_user_id === 'string') await this.assertClubLeader(token, current[0].club_id, patch.leader_user_id);
+    if (typeof patch.leader_user_id === 'string') {
+      await this.assertClubLeader(token, current[0].club_id, patch.leader_user_id);
+      await this.assertActiveClubMember(token, current[0].club_id, patch.leader_user_id);
+    }
     const rows = await this.db.patch<any[]>('youth_club_activities', token, patch, `?id=eq.${encodeURIComponent(activityId)}`);
     if (!rows[0]) throw new NotFoundException('Activity not found or access denied.');
     return rows[0];
