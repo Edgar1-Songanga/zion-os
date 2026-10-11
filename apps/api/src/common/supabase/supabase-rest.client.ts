@@ -1,4 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadGatewayException,
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { assertSupabaseConfig, env } from '../../config/env';
 
 type SupabaseErrorPayload = {
@@ -75,7 +83,7 @@ export class SupabaseRestClient {
         operation,
         failureKind: 'network_or_dns',
       }));
-      throw new Error(`Supabase transport failed during ${operation}`);
+      throw new ServiceUnavailableException('O serviço de dados está temporariamente indisponível.');
     }
     return this.parse<T>(response, operation);
   }
@@ -91,18 +99,18 @@ export class SupabaseRestClient {
 
     if (!response.ok) {
       const errorPayload = (typeof payload === 'object' && payload ? payload : {}) as SupabaseErrorPayload;
-      const nested = errorPayload.error;
-      const codeValue = errorPayload.code ?? nested?.code;
+      const codeValue = errorPayload.code ?? errorPayload.error?.code;
       const code = typeof codeValue === 'string' ? codeValue : 'unknown';
+      const schemaCodes = ['PGRST202', 'PGRST204', 'PGRST205', '42P01', '42703'];
       const failureKind =
-        ['PGRST204', 'PGRST205', '42P01', '42703'].includes(code) ? 'schema_mismatch'
+        schemaCodes.includes(code) ? 'schema_mismatch'
         : code === '42501' ? 'database_permission'
         : response.status === 401 || response.status === 403 ? 'auth_or_rls'
         : response.status >= 500 ? 'supabase_upstream'
         : 'database_rejection';
 
       // Never log SQL values, bearer tokens, or user-supplied error text.
-      // Operation + status + PostgreSQL/PostgREST code are enough to classify common 500 causes.
+      // Operation + status + PostgreSQL/PostgREST code classify common production failures.
       console.error(JSON.stringify({
         event: 'zion_supabase_rest_failure',
         operation,
@@ -111,7 +119,25 @@ export class SupabaseRestClient {
         failureKind,
       }));
 
-      throw new Error(`Supabase ${operation} failed (HTTP ${response.status}; code ${code})`);
+      if (response.status === 401) {
+        throw new UnauthorizedException('A sessão já não é válida. Entre novamente.');
+      }
+      if (response.status === 403 || code === '42501') {
+        throw new ForbiddenException('A conta não tem permissão para esta operação.');
+      }
+      if (schemaCodes.includes(code)) {
+        throw new ServiceUnavailableException('A estrutura da base de dados precisa de ser sincronizada com a versão atual do ZION OS.');
+      }
+      if (response.status === 400) {
+        throw new BadRequestException('A base de dados rejeitou os dados enviados. Verifique os campos e tente novamente.');
+      }
+      if (response.status === 409) {
+        throw new ConflictException('A operação entra em conflito com dados existentes.');
+      }
+      if (response.status >= 500) {
+        throw new BadGatewayException('O serviço de dados está temporariamente indisponível.');
+      }
+      throw new ServiceUnavailableException('Não foi possível concluir a operação na base de dados.');
     }
 
     return payload as T;
