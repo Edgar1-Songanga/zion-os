@@ -264,26 +264,32 @@ export class ResaOperationalService {
     if (live.status === 'ended') throw new BadRequestException('Live session has ended');
     if (!this.media.createJoinConfig) throw new BadRequestException('Media provider does not expose a join configuration');
     const isHost = live.host_id === actor.id;
+    const cohostRows = isHost ? [] : await this.db.get<any[]>('resa_live_cohosts', token, `?select=user_id&live_id=eq.${id}&user_id=eq.${actor.id}&limit=1`);
+    const isCoHost = !isHost && cohostRows.length > 0;
     const config = await this.media.createJoinConfig({
       meetingId: id,
       providerRoomId: 'zion-live-' + id,
       userId: actor.id,
-      canPublish: isHost,
+      canPublish: isHost || isCoHost,
     });
     if (config.mode !== 'SFU' || !config.joinUrl || !config.token) {
       throw new BadGatewayException('LiveKit is not configured for RESA live sessions');
     }
-    return { ...config, role: isHost ? 'host' : 'viewer', isHost };
+    return { ...config, role: isHost ? 'host' : isCoHost ? 'cohost' : 'viewer', isHost, isCoHost };
   }
 
   async moderateLiveParticipant(token: string, liveId: string, identity: string, action: 'allow_speak' | 'revoke_speak' | 'remove') {
     const actor = await this.actor(token);
     const id = this.id(liveId, 'live_id');
     const participantIdentity = this.text(identity, 'participant_identity', 1, 128);
-    if (participantIdentity === actor.id) throw new BadRequestException('The host cannot moderate their own connection');
+    if (participantIdentity === actor.id) throw new BadRequestException('You cannot moderate your own connection');
     if (!['allow_speak', 'revoke_speak', 'remove'].includes(action)) throw new BadRequestException('Invalid participant moderation action');
     const live = (await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status&id=eq.${id}&limit=1`))[0];
-    if (!live || live.host_id !== actor.id) throw new NotFoundException('Live session not found or you are not its host');
+    if (!live) throw new NotFoundException('Live session not found');
+    const actorIsHost = live.host_id === actor.id;
+    const actorCohost = actorIsHost ? [] : await this.db.get<any[]>('resa_live_cohosts', token, `?select=user_id&live_id=eq.${id}&user_id=eq.${actor.id}&limit=1`);
+    if (!actorIsHost && !actorCohost.length) throw new NotFoundException('Live session not found or you cannot moderate it');
+    if (participantIdentity === live.host_id) throw new BadRequestException('A co-host cannot moderate the host');
     if (live.status !== 'live') throw new BadRequestException('Only a live session can be moderated');
     if (action === 'remove') {
       if (!this.media.removeParticipant) throw new BadGatewayException('Media provider does not support participant removal');
