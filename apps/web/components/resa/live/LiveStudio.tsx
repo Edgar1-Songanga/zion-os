@@ -91,7 +91,10 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
       const recordingTrack = (track as any).mediaStreamTrack as MediaStreamTrack | undefined;
       if (recordingTrack && recordingStreamRef.current && !recordingStreamRef.current.getTracks().some((item) => item.id === recordingTrack.id)) recordingStreamRef.current.addTrack(recordingTrack);
       void element.play().catch(() => {
-        if (mounted) setNotice("Toque em «Ativar áudio» para permitir a reprodução da transmissão.");
+        if (mounted) {
+          setAudioNeedsGesture(true);
+          setNotice("O navegador bloqueou o áudio automático. Toca em Ativar áudio para ouvir a transmissão.");
+        }
       });
     };
 
