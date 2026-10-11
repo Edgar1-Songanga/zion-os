@@ -1,7 +1,7 @@
 -- Organization-scoped curriculum, member progression, and investiture records.
 -- Catalog entries are editable by authorized organization managers; no unverified curriculum is seeded.
 
-do $
+do $$
 begin
   if not exists (
     select 1 from pg_constraint
@@ -11,7 +11,7 @@ begin
     alter table public.youth_clubs
       add constraint youth_clubs_id_organization_unique unique (id, organization_id);
   end if;
-end $;
+end $$;
 
 create table if not exists public.youth_achievement_catalog (
   id uuid primary key default gen_random_uuid(),
