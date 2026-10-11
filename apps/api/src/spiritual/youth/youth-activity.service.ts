@@ -104,7 +104,7 @@ export class YouthActivityService {
       activity_id: id, club_id: activity.club_id, user_id: userId, status: 'REGISTERED',
     });
     if (!rows[0]) throw new BadRequestException('Participant was not registered.');
-
+    return rows[0];
   }
 
   async updateParticipation(token: string, activityId: string, userId: string, input: any) {
