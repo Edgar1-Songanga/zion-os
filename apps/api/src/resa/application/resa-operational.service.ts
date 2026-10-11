@@ -326,10 +326,14 @@ export class ResaOperationalService {
     if (!live) throw new NotFoundException('Live session not found or you are not its host');
     if (live.status === 'ended') throw new BadRequestException('An ended live cannot change co-hosts');
     if (action === 'assign') {
-      const rows = await this.db.upsert<any[]>('resa_live_cohosts', token, {
+      const existing = await this.db.get<any[]>('resa_live_cohosts', token, `?select=user_id&live_id=eq.${id}&user_id=eq.${targetUserId}&limit=1`);
+      const record = existing[0] ?? (await this.db.post<any[]>('resa_live_cohosts', token, {
         live_id: id, user_id: targetUserId, role: 'cohost', assigned_by: actor.id,
-      }, '?on_conflict=live_id,user_id');
-      return { liveId: id, userId: targetUserId, role: 'cohost', assigned: true, record: rows[0] };
+      }))[0];
+      if (this.media.setParticipantPublishing && live.status === 'live') {
+        try { await this.media.setParticipantPublishing({ roomId: 'zion-live-' + id, identity: targetUserId, canPublish: true }); } catch { /* role remains persistent for the participant's next join */ }
+      }
+      return { liveId: id, userId: targetUserId, role: 'cohost', assigned: true, record };
     }
     await this.db.delete('resa_live_cohosts', token, `?live_id=eq.${id}&user_id=eq.${targetUserId}`);
     return { liveId: id, userId: targetUserId, role: 'viewer', assigned: false };
