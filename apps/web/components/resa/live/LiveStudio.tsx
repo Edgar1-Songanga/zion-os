@@ -336,6 +336,8 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
   }
 
   async function leaveLive() {
+    if (recording) stopRecording();
+    if (egressId) await stopExternalStream();
     await roomRef.current?.disconnect(true);
     onClose();
   }
@@ -352,8 +354,6 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
         method: "PATCH",
         body: JSON.stringify({ status: "ended" }),
       });
-      if (recording) stopRecording();
-      if (egressId) await stopExternalStream();
       await roomRef.current?.disconnect(true);
       onClose();
     } catch (e) {
