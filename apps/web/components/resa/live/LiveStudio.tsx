@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Room, RoomEvent, Track } from "livekit-client";
 import { resaRequest } from "@/lib/resa/api";
 
-type JoinConfig = { joinUrl: string; token: string; roomId: string; isHost?: boolean; role?: "host" | "viewer" };
+type JoinConfig = { joinUrl: string; token: string; roomId: string; isHost?: boolean; isCoHost?: boolean; role?: "host" | "cohost" | "viewer" };
 type LiveMessage = { id: string; identity: string; name: string; text: string; sentAt: number };
 type Participant = { identity: string; name: string };
 type LivePacket =
@@ -32,6 +32,9 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
   const [microphone, setMicrophone] = useState(false);
   const [screenShare, setScreenShare] = useState(false);
   const [isHost, setIsHost] = useState(false);
+  const [isCoHost, setIsCoHost] = useState(false);
+  const [cohosts, setCohosts] = useState<string[]>([]);
+  const [mutedParticipants, setMutedParticipants] = useState<string[]>([]);
   const [canSpeak, setCanSpeak] = useState(false);
   const [selfIdentity, setSelfIdentity] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -184,7 +187,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
       try {
         const config = await resaRequest<JoinConfig>("/v1/resa/live/" + liveId + "/join", { method: "POST" });
         if (!config.joinUrl || !config.token) throw new Error("O serviço de vídeo não devolveu credenciais válidas.");
-        if (mounted) setIsHost(Boolean(config.isHost || config.role === "host"));
+        if (mounted) { setIsHost(Boolean(config.isHost || config.role === "host")); setIsCoHost(Boolean(config.isCoHost || config.role === "cohost")); }
         await room.connect(config.joinUrl, config.token, { autoSubscribe: true });
         if (config.isHost || config.role === "host") {
           await room.localParticipant.enableCameraAndMicrophone();
@@ -202,6 +205,9 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
           if (mounted) { setCamera(true); setMicrophone(true); }
         }
         syncParticipants(room);
+        if (config.isHost || config.isCoHost || config.role === "host" || config.role === "cohost") {
+          try { const rows = await resaRequest<Array<{ user_id: string }>>("/v1/resa/live/" + liveId + "/cohosts"); if (mounted) setCohosts(rows.map((row) => row.user_id)); } catch { /* a host can still use the studio if the co-host list is temporarily unavailable */ }
+        }
       } catch (e) {
         if (mounted) setError(e instanceof Error ? e.message : "Não foi possível entrar na live.");
       } finally {
@@ -429,7 +435,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
     }
   }
 
-  async function moderate(identity: string, action: "allow_speak" | "revoke_speak" | "remove") {
+  async function moderate(identity: string, action: "allow_speak" | "revoke_speak" | "remove" | "mute_audio" | "unmute_audio") {
     try {
       await resaRequest("/v1/resa/live/" + liveId + "/participants/" + encodeURIComponent(identity), {
         method: "PATCH",
@@ -441,12 +447,31 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
       } else if (action === "revoke_speak") {
         await sendPacket({ type: "speak_revoked", name: roomRef.current?.localParticipant.name || "Anfitrião" }, identity);
         setRaisedHands((current) => current.filter((item) => item.identity !== identity));
+      } else if (action === "mute_audio") {
+        setMutedParticipants((current) => current.includes(identity) ? current : [...current, identity]);
+      } else if (action === "unmute_audio") {
+        setMutedParticipants((current) => current.filter((item) => item !== identity));
       } else if (action === "remove") {
         setRaisedHands((current) => current.filter((item) => item.identity !== identity));
       }
-      setNotice(action === "allow_speak" ? "Participante autorizado a falar." : action === "revoke_speak" ? "Permissão de publicação retirada." : "Participante removido da live.");
+      setNotice(action === "allow_speak" ? "Participante autorizado a falar." : action === "revoke_speak" ? "Permissão de publicação retirada." : action === "mute_audio" ? "Áudio do participante silenciado; a câmara mantém-se ativa." : action === "unmute_audio" ? "Áudio do participante reativado." : "Participante removido da live.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível aplicar a ação de moderação.");
+    }
+  }
+
+  async function toggleCohost(identity: string) {
+    if (!isHost || identity === selfIdentity) return;
+    const assigned = cohosts.includes(identity);
+    try {
+      await resaRequest("/v1/resa/live/" + liveId + "/cohosts", {
+        method: "PATCH",
+        body: JSON.stringify({ userId: identity, action: assigned ? "remove" : "assign" }),
+      });
+      setCohosts((current) => assigned ? current.filter((id) => id !== identity) : [...current, identity]);
+      setNotice(assigned ? "A função de co-host foi retirada." : "Co-host atribuído. Pode ajudar a moderar, mas não pode encerrar a live nem gerir a transmissão externa.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível atualizar a função de co-host.");
     }
   }
 
@@ -533,7 +558,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
             {notice && <div role="status" className="rounded-xl border border-sky-300/20 bg-sky-400/10 px-4 py-3 text-sm text-sky-100">{notice}<button onClick={() => setNotice(null)} className="ml-3 underline">Fechar</button></div>}
             {error && connected && <div role="alert" className="rounded-xl border border-red-300/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div>}
             <div className="flex flex-wrap items-center gap-2">
-              {isHost || canSpeak ? hostControls : <button onClick={() => void raiseHand()} disabled={!connected || handRaised} className="rounded-xl bg-white/10 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{handRaised ? "✋ Mão levantada · aguarda o anfitrião" : "✋ Levantar a mão para falar"}</button>}
+              {isHost || isCoHost || canSpeak ? hostControls : <button onClick={() => void raiseHand()} disabled={!connected || handRaised} className="rounded-xl bg-white/10 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{handRaised ? "✋ Mão levantada · aguarda o anfitrião" : "✋ Levantar a mão para falar"}</button>}
               {isHost && <button onClick={() => void endLive()} disabled={ending} className="self-start rounded-xl border border-rose-300/20 bg-rose-500/[0.07] px-3 py-2 text-xs font-semibold text-rose-200/90 transition hover:border-rose-300/35 hover:bg-rose-500/15 disabled:opacity-50">{ending ? "A encerrar…" : "Encerrar live para todos"}</button>}
             </div>
           </section>
@@ -562,7 +587,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
               </>
             ) : (
               <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
-                {isHost && raisedHands.length > 0 && <div className="mb-4 rounded-xl border border-sky-300/20 bg-sky-300/10 p-3">
+                {(isHost || isCoHost) && raisedHands.length > 0 && <div className="mb-4 rounded-xl border border-sky-300/20 bg-sky-300/10 p-3">
                   <p className="mb-2 text-xs font-bold uppercase tracking-wide text-sky-200">Pedidos para falar</p>
                   {raisedHands.map((person) => <div key={person.identity} className="mb-2 flex items-center justify-between gap-2 rounded-xl border border-white/[0.06] bg-black/10 p-2 text-sm text-white">
                     <span className="flex min-w-0 items-center gap-2"><span aria-hidden="true" className="text-xl">✋</span><span className="truncate">{person.name}</span></span>
@@ -574,11 +599,13 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
                 </div>}
                 {participants.map((person) => (
                   <div key={person.identity} className="flex items-center justify-between gap-2 rounded-xl bg-white/5 p-3 text-sm text-white">
-                    <div className="min-w-0"><p className="truncate font-medium">{person.name}</p><p className="text-xs text-slate-500">{person.identity === selfIdentity ? "Este dispositivo" : isHost ? "Participante" : "Na live"}</p></div>
-                    {isHost && person.identity !== selfIdentity && <div className="flex shrink-0 gap-1">
+                    <div className="min-w-0"><p className="truncate font-medium">{person.name}</p><p className="text-xs text-slate-500">{person.identity === selfIdentity ? (isHost ? "Anfitrião · tu" : isCoHost ? "Co-host · tu" : "Este dispositivo") : cohosts.includes(person.identity) ? "Co-host" : isHost || isCoHost ? "Participante" : "Na live"}</p></div>
+                    {(isHost || isCoHost) && person.identity !== selfIdentity && <div className="flex shrink-0 gap-1">
                       <button title="Autorizar a falar" onClick={() => void moderate(person.identity, "allow_speak")} className="rounded-lg bg-white/10 px-2 py-1 text-xs">Falar</button>
-                      <button title="Retirar permissão de falar" onClick={() => void moderate(person.identity, "revoke_speak")} className="rounded-lg bg-white/10 px-2 py-1 text-xs">Silenciar</button>
+                      <button title="Silenciar apenas o áudio, mantendo a câmara" onClick={() => void moderate(person.identity, mutedParticipants.includes(person.identity) ? "unmute_audio" : "mute_audio")} className={"rounded-lg px-2 py-1 text-xs " + (mutedParticipants.includes(person.identity) ? "bg-amber-300/20 text-amber-100" : "bg-white/10")}>{mutedParticipants.includes(person.identity) ? "Ativar áudio" : "Silenciar áudio"}</button>
+                      <button title="Retirar permissão de publicar áudio/vídeo" onClick={() => void moderate(person.identity, "revoke_speak")} className="rounded-lg bg-white/10 px-2 py-1 text-xs">Revogar fala</button>
                       <button title="Remover da live" onClick={() => void moderate(person.identity, "remove")} className="rounded-lg bg-red-500/20 px-2 py-1 text-xs text-red-200">Remover</button>
+                      {isHost && <button title={cohosts.includes(person.identity) ? "Retirar função de co-host" : "Atribuir função de co-host"} onClick={() => void toggleCohost(person.identity)} className={"rounded-lg px-2 py-1 text-xs " + (cohosts.includes(person.identity) ? "bg-violet-300/20 text-violet-100" : "bg-violet-300/10 text-violet-200")}>{cohosts.includes(person.identity) ? "Retirar co-host" : "Tornar co-host"}</button>}
                     </div>}
                   </div>
                 ))}
