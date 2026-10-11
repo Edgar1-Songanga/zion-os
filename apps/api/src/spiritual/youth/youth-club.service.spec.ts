@@ -29,6 +29,13 @@ describe('YouthClubService', () => {
       getById: jest.fn().mockResolvedValue(record),
       listByOrganization: jest.fn().mockResolvedValue([record]),
       update: jest.fn().mockResolvedValue(record),
+      listMembers: jest.fn().mockResolvedValue([]),
+      addMember: jest.fn().mockResolvedValue(null),
+      updateMemberStatus: jest.fn().mockResolvedValue(null),
+      removeMember: jest.fn().mockResolvedValue(false),
+      listLeaders: jest.fn().mockResolvedValue([]),
+      assignLeader: jest.fn().mockResolvedValue(null),
+      removeLeader: jest.fn().mockResolvedValue(false),
     };
     service = new YouthClubService(directory);
   });
@@ -72,7 +79,7 @@ describe('YouthClubService', () => {
     await expect(service.update(clubId, 'token', {})).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('supports safe updates without allowing an organization transfer', async () => {
+  it('validates member and leader assignment inputs before reaching persistence', async () => {\n    await expect(service.addMember(clubId, 'invalid-user-id', 'token')).rejects.toBeInstanceOf(BadRequestException);\n    await expect(service.assignLeader(clubId, '00000000-0000-4000-8000-000000000003', 'x', 'token')).rejects.toBeInstanceOf(BadRequestException);\n    await expect(service.updateMemberStatus(clubId, '00000000-0000-4000-8000-000000000003', 'PENDING', 'token')).rejects.toBeInstanceOf(BadRequestException);\n  });\n\n  it('supports safe updates without allowing an organization transfer', async () => {
     await service.update(clubId, 'token', {
       name: 'Clube Monte Sinai Renovado',
       status: 'INACTIVE',
