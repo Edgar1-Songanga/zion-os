@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { YOUTH_PROGRAMS } from "@/components/youth/core/YouthProgram";
 import { getMinistryCatalogEntry } from "@/components/ministry/ministry-catalog";
+import YouthClubOperations from "./YouthClubOperations";
 
 const CATALOG_ID_BY_PROGRAM: Record<string, string> = {
   adventurers: "adventurer-club",
@@ -126,6 +127,8 @@ export default function YouthMinistryHub() {
             );
           })}
         </div>
+
+        <YouthClubOperations />
 
         <div className="mt-10 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8">
           <div className="max-w-3xl">
