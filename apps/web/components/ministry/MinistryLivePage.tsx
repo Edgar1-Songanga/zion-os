@@ -72,6 +72,11 @@ export default function MinistryLivePage() {
           department: entry.id,
           description: entry.summary,
           philosophy: entry.mission,
+          cover_image_url: entry.coverImage,
+          focus_areas: entry.focusAreas,
+          age_range: entry.ageRange ?? null,
+          official_url: entry.officialUrl,
+          source_label: entry.sourceLabel,
         }),
       });
       setMinistries((current) => [...current, created].sort((a, b) => a.name.localeCompare(b.name)));
