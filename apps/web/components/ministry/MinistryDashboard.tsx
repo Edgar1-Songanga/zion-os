@@ -50,7 +50,6 @@ export default function MinistryDashboard({ ministry, onUpdated }: MinistryDashb
   useEffect(() => {
     setForm(formFromMinistry(ministry));
     setSaveError(null);
-    setSaveMessage(null);
   }, [
     ministry.id,
     ministry.name,
@@ -153,7 +152,7 @@ export default function MinistryDashboard({ ministry, onUpdated }: MinistryDashb
               <div><p className="text-xs text-slate-400">União</p><p className="mt-1 font-semibold text-[#0C1A3D]">{ministry.organization?.union ?? "Não definida"}</p></div>
             </div>
             <div className="flex flex-wrap items-center gap-3 border-t border-slate-100 pt-5">
-              <button type="button" onClick={() => { setEditing((value) => !value); setSaveError(null); }} className="rounded-xl bg-[#0C1A3D] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#182c58]">
+              <button type="button" onClick={() => { setEditing((value) => !value); setSaveError(null); setSaveMessage(null); }} className="rounded-xl bg-[#0C1A3D] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#182c58]">
                 {editing ? "Fechar edição" : "Editar perfil"}
               </button>
               {saveMessage && <p role="status" className="text-sm text-emerald-700">{saveMessage}</p>}
