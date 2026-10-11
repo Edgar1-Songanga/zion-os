@@ -20,6 +20,9 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteRef = useRef<HTMLDivElement | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const recordingStreamRef = useRef<MediaStream | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordingChunksRef = useRef<Blob[]>([]);
   const [connected, setConnected] = useState(false);
   const [camera, setCamera] = useState(false);
   const [microphone, setMicrophone] = useState(false);
@@ -37,6 +40,11 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
   const [handRaised, setHandRaised] = useState(false);
   const [tab, setTab] = useState<"chat" | "people">("chat");
   const [notice, setNotice] = useState<string | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [streamUrl, setStreamUrl] = useState("");
+  const [egressId, setEgressId] = useState<string | null>(null);
+  const [streamingExternal, setStreamingExternal] = useState(false);
+  const [streamBusy, setStreamBusy] = useState(false);
 
   const sendPacket = useCallback(async (packet: LivePacket, destinationIdentity?: string) => {
     const room = roomRef.current;
@@ -78,6 +86,8 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
         audio.setAttribute("aria-label", "Áudio da transmissão");
       }
       remoteRef.current.appendChild(element);
+      const recordingTrack = (track as any).mediaStreamTrack as MediaStreamTrack | undefined;
+      if (recordingTrack && recordingStreamRef.current && !recordingStreamRef.current.getTracks().some((item) => item.id === recordingTrack.id)) recordingStreamRef.current.addTrack(recordingTrack);
       void element.play().catch(() => {
         if (mounted) setNotice("Toque em «Ativar áudio» para permitir a reprodução da transmissão.");
       });
@@ -121,6 +131,8 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
     room
       .on(RoomEvent.TrackSubscribed, attachRemote)
       .on(RoomEvent.TrackUnsubscribed, (track: any, _publication: any, participant: any) => {
+        const recordingTrack = (track as any).mediaStreamTrack as MediaStreamTrack | undefined;
+        if (recordingTrack && recordingStreamRef.current?.getTracks().some((item) => item.id === recordingTrack.id)) recordingStreamRef.current.removeTrack(recordingTrack);
         track.detach().forEach((element: HTMLElement) => element.remove());
         if (participant) removeParticipantTracks(participant.identity);
       })
@@ -200,6 +212,61 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
     }
   }
 
+  function startRecording() {
+    const room = roomRef.current;
+    if (!room || !isHost || typeof MediaRecorder === "undefined") { setError("A gravação local não é suportada neste navegador."); return; }
+    try {
+      const tracks: MediaStreamTrack[] = [];
+      const collect = (publication: any) => {
+        const mediaTrack = publication.track?.mediaStreamTrack as MediaStreamTrack | undefined;
+        if (mediaTrack && mediaTrack.readyState === "live" && !tracks.some((item) => item.id === mediaTrack.id)) tracks.push(mediaTrack);
+      };
+      room.localParticipant.trackPublications.forEach(collect);
+      room.remoteParticipants.forEach((participant) => participant.trackPublications.forEach(collect));
+      if (!tracks.length) throw new Error("Não existem faixas de áudio/vídeo disponíveis para gravar.");
+      const stream = new MediaStream(tracks);
+      const mimeType = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"].find((type) => MediaRecorder.isTypeSupported(type));
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      recordingChunksRef.current = [];
+      recorder.ondataavailable = (event) => { if (event.data.size > 0) recordingChunksRef.current.push(event.data); };
+      recorder.onerror = () => { setError("A gravação foi interrompida pelo navegador."); setRecording(false); };
+      recorder.onstop = () => {
+        const chunks = recordingChunksRef.current; recordingChunksRef.current = []; recordingStreamRef.current = null;
+        if (!chunks.length) { setRecording(false); return; }
+        const blob = new Blob(chunks, { type: recorder.mimeType || "video/webm" });
+        const url = URL.createObjectURL(blob); const anchor = document.createElement("a");
+        anchor.href = url; anchor.download = "zion-resa-live-" + new Date().toISOString().replace(/[:.]/g, "-") + ".webm";
+        document.body.appendChild(anchor); anchor.click(); anchor.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+        setRecording(false); setNotice("Gravação concluída. O ficheiro foi preparado para guardar neste dispositivo.");
+      };
+      recordingStreamRef.current = stream; recorderRef.current = recorder; recorder.start(1000); setRecording(true);
+      setNotice("A gravação local começou. Informa os participantes e respeita o consentimento antes de gravar.");
+    } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível iniciar a gravação local."); }
+  }
+
+  function stopRecording() { const recorder = recorderRef.current; if (recorder && recorder.state !== "inactive") recorder.stop(); recorderRef.current = null; }
+
+  async function startExternalStream() {
+    if (!isHost || !streamUrl.trim() || streamBusy) return;
+    setStreamBusy(true); setError(null);
+    try {
+      const result = await resaRequest<{ egressId: string; destination: string }>("/v1/resa/live/" + liveId + "/stream", { method: "POST", body: JSON.stringify({ streamUrl: streamUrl.trim() }) });
+      setEgressId(result.egressId); setStreamingExternal(true);
+      setNotice("Transmissão externa iniciada para " + result.destination + ". Confirma o estado no painel dessa plataforma.");
+    } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível iniciar a transmissão externa. O LiveKit Egress pode não estar configurado."); }
+    finally { setStreamBusy(false); }
+  }
+
+  async function stopExternalStream() {
+    if (!isHost || !egressId || streamBusy) return;
+    setStreamBusy(true); setError(null);
+    try {
+      await resaRequest("/v1/resa/live/" + liveId + "/stream/stop", { method: "POST", body: JSON.stringify({ egressId }) });
+      setEgressId(null); setStreamingExternal(false); setStreamUrl(""); setNotice("A transmissão externa foi parada.");
+    } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível parar a transmissão externa."); }
+    finally { setStreamBusy(false); }
+  }
   async function startAudio() {
     try {
       await roomRef.current?.startAudio();
@@ -279,10 +346,14 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
     setEnding(true);
     setError(null);
     try {
+      if (recording) stopRecording();
+      if (egressId) await stopExternalStream();
       await resaRequest("/v1/resa/live/" + liveId + "/status", {
         method: "PATCH",
         body: JSON.stringify({ status: "ended" }),
       });
+      if (recording) stopRecording();
+      if (egressId) await stopExternalStream();
       await roomRef.current?.disconnect(true);
       onClose();
     } catch (e) {
@@ -296,6 +367,16 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
       <button onClick={() => void toggleMicrophone()} disabled={!connected} className="rounded-xl bg-white/10 px-3 py-3 text-left text-sm font-semibold disabled:opacity-40">{microphone ? "Microfone ligado" : "Ligar microfone"}</button>
       <button onClick={() => void toggleCamera()} disabled={!connected} className="rounded-xl bg-white/10 px-3 py-3 text-left text-sm font-semibold disabled:opacity-40">{camera ? "Câmara ligada" : "Ligar câmara"}</button>
       <button onClick={() => void toggleScreenShare()} disabled={!connected} className="col-span-2 rounded-xl bg-white/10 px-3 py-3 text-left text-sm font-semibold disabled:opacity-40">{screenShare ? "Parar partilha do ecrã" : "Partilhar ecrã"}</button>
+      <button onClick={() => recording ? stopRecording() : startRecording()} disabled={!connected || !isHost} className={"col-span-2 rounded-xl px-3 py-3 text-left text-sm font-semibold disabled:opacity-40 " + (recording ? "bg-red-500/20 text-red-100" : "bg-white/10 text-white")}>{recording ? "Parar gravação e guardar ficheiro" : "Gravar nesta máquina (sem armazenamento na nuvem)"}</button>
+      <div className="col-span-2 space-y-2 rounded-xl border border-white/10 bg-black/15 p-3">
+        <p className="text-xs font-bold uppercase tracking-wide text-slate-300">Transmitir noutras plataformas</p>
+        <p className="text-xs leading-5 text-slate-400">Cola o URL RTMP/RTMPS do YouTube Live ou Facebook Live. A chave não é guardada pelo Zion.</p>
+        <input value={streamUrl} onChange={(event) => setStreamUrl(event.target.value)} type="password" autoComplete="off" placeholder="URL RTMP/RTMPS + chave da plataforma" disabled={streamingExternal || streamBusy} className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-300/50 disabled:opacity-50" />
+        {streamingExternal
+          ? <button onClick={() => void stopExternalStream()} disabled={streamBusy} className="w-full rounded-lg bg-red-500/20 px-3 py-2 text-sm font-semibold text-red-100 disabled:opacity-50">{streamBusy ? "A processar…" : "Parar transmissão externa"}</button>
+          : <button onClick={() => void startExternalStream()} disabled={!connected || !streamUrl.trim() || streamBusy} className="w-full rounded-lg bg-sky-300 px-3 py-2 text-sm font-bold text-[#07142c] disabled:opacity-40">{streamBusy ? "A iniciar…" : "Iniciar transmissão externa"}</button>}
+        <p className="text-[11px] leading-4 text-amber-200/80">Requer LiveKit Egress ativo e pode consumir quota paga do fornecedor. A gravação local não usa esse serviço.</p>
+      </div>
     </div>
   );
 
@@ -306,7 +387,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">ZION · RESA Live</p>
             <h2 className="truncate font-semibold">{title}</h2>
-            <p className="mt-1 text-xs text-slate-400">{starting ? "A estabelecer ligação…" : connected ? (isHost ? "Estás a transmitir como anfitrião" : "Ligado como espectador") : "Sem ligação"}</p>
+            <p className="mt-1 text-xs text-slate-400">{starting ? "A estabelecer ligação…" : connected ? (isHost ? "Estás a transmitir como anfitrião" : "Ligado como espectador") : "Sem ligação"}{recording ? " · GRAVAÇÃO ATIVA" : ""}{streamingExternal ? " · SAÍDA EXTERNA ATIVA" : ""}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <button onClick={() => void startAudio()} disabled={!connected} className="rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10">Ativar áudio</button>
