@@ -122,6 +122,10 @@ export default function MinistryLivePage() {
 
   const selected = ministries.find((item) => item.id === selectedId) ?? null;
 
+  function handleMinistryUpdated(updated: Ministry) {
+    setMinistries((items) => items.map((item) => item.id === updated.id ? { ...item, ...updated } : item));
+  }
+
   return (
     <div className="space-y-8">
       <header className="overflow-hidden rounded-[2rem] border border-slate-200 bg-[#0C1A3D] text-white shadow-sm">
@@ -272,7 +276,7 @@ export default function MinistryLivePage() {
                 </button>
               ))}
             </div>
-            {selected && <MinistryDashboard ministry={selected} />}
+            {selected && <MinistryDashboard ministry={selected} onUpdated={handleMinistryUpdated} />}
           </>
         )}
 
