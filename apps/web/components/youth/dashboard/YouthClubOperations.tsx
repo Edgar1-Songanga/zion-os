@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import { OrganizationSelector, type ZionOrganization } from "@/components/organization/OrganizationSelector";
 import { YOUTH_PROGRAMS } from "@/components/youth/core/YouthProgram";
@@ -136,9 +136,6 @@ export default function YouthClubOperations() {
     }
   }
 
-  useEffect(() => {
-    // The directory is intentionally loaded only after an organization is selected.
-  }, []);
 
   return (
     <section className="mt-12 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
