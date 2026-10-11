@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
-import { LocalizedText } from "@/components/i18n/LocalizedText";
 
 type BibleResult = {
   reference: { book: string; chapter: number; verseStart?: number; verseEnd?: number };
   text: string;
+  verses?: string[];
   translation: string;
   copyright?: string;
 };
@@ -20,7 +20,7 @@ export default function BibleSearch() {
 
   async function search() {
     const value = query.trim();
-    if (!value) return;
+    if (!value || loading) return;
     setLoading(true);
     setError("");
     setResult(null);
@@ -40,6 +40,8 @@ export default function BibleSearch() {
     }
   }
 
+  const firstVerse = result?.reference.verseStart ?? 1;
+
   return (
     <section className="rounded-3xl border border-[var(--zion-border)] bg-white p-6 shadow-[var(--zion-shadow-sm)] sm:p-8">
       <div className="h-1 w-12 rounded-full bg-[var(--zion-gold)]" />
@@ -47,7 +49,7 @@ export default function BibleSearch() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-[var(--zion-primary)]">Bíblia</h2>
           <p className="mt-2 text-[var(--zion-muted)]">
-            Texto bíblico proveniente de uma fonte aberta, com licença indicada junto do conteúdo.
+            Texto bíblico fiel à versão escolhida, com cada versículo numerado e a licença indicada.
           </p>
         </div>
         <select
@@ -69,7 +71,7 @@ export default function BibleSearch() {
           onKeyDown={(event) => {
             if (event.key === "Enter") void search();
           }}
-          placeholder="Ex.: João 3:16 ou Salmos 23"
+          placeholder="Ex.: João 3 ou João 3:16"
           className="min-h-12 flex-1 rounded-xl border border-[var(--zion-border)] bg-[var(--zion-light)] px-4 text-[var(--zion-dark)] outline-none focus:border-[var(--zion-sky)] focus:bg-white focus:ring-4 focus:ring-[var(--zion-sky)]/10"
           aria-label="Referência bíblica"
         />
@@ -83,20 +85,39 @@ export default function BibleSearch() {
         </button>
       </div>
 
-      {error && <p className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</p>}
+      {error && <p role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</p>}
 
       {result && (
-        <article className="mt-6 rounded-2xl border border-[var(--zion-border)] bg-[var(--zion-light)] p-6">
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--zion-muted)]">
-            {result.reference.book} {result.reference.chapter}
-            {result.reference.verseStart ? `:${result.reference.verseStart}${result.reference.verseEnd ? `-${result.reference.verseEnd}` : ""}` : ""}
-          </p>
-          <p className="mt-4 whitespace-pre-wrap text-lg leading-8 text-[var(--zion-dark)]"><LocalizedText text={result.text} contentType="spiritual" /></p>
-          <p className="mt-5 border-t border-[var(--zion-border)] pt-4 text-xs text-[var(--zion-muted)]">
-            Fonte: Midvash Bible API · {result.translation}
-            <span className="ml-2 text-[var(--zion-muted)]">· Tradução assistida para o idioma selecionado quando a edição bíblica não está disponível nessa língua.</span>
-            {result.copyright ? ` · ${result.copyright}` : ""}
-          </p>
+        <article className="mt-6 overflow-hidden rounded-2xl border border-[var(--zion-border)] bg-[var(--zion-light)]">
+          <header className="border-b border-[var(--zion-border)] bg-white/80 p-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--zion-muted)]">Leitura das Escrituras</p>
+            <h3 className="mt-2 text-xl font-bold text-[var(--zion-primary)]">
+              {result.reference.book} {result.reference.chapter}
+              {result.reference.verseStart ? `:${result.reference.verseStart}${result.reference.verseEnd && result.reference.verseEnd !== result.reference.verseStart ? `–${result.reference.verseEnd}` : ""}` : ""}
+            </h3>
+            <p className="mt-1 text-xs text-[var(--zion-muted)]">{result.translation}</p>
+          </header>
+
+          <div className="space-y-4 p-6 sm:p-8">
+            {result.verses?.length ? (
+              result.verses.map((verse, index) => (
+                <p key={`${firstVerse + index}-${verse.slice(0, 24)}`} className="flex gap-4 text-base leading-8 text-[var(--zion-dark)] sm:text-lg">
+                  <span aria-label={`Versículo ${firstVerse + index}`} className="mt-1 inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--zion-primary)]/8 px-2 text-xs font-bold tabular-nums text-[var(--zion-primary)]">
+                    {firstVerse + index}
+                  </span>
+                  <span>{verse}</span>
+                </p>
+              ))
+            ) : (
+              <p className="whitespace-pre-wrap text-base leading-8 text-[var(--zion-dark)] sm:text-lg">{result.text}</p>
+            )}
+          </div>
+
+          {result.copyright && (
+            <footer className="border-t border-[var(--zion-border)] bg-white/80 px-6 py-4 text-xs leading-5 text-[var(--zion-muted)]">
+              {result.copyright}
+            </footer>
+          )}
         </article>
       )}
     </section>
