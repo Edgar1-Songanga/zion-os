@@ -3,8 +3,7 @@ import { assertSupabaseConfig, env } from '../../config/env';
 
 type SupabaseErrorPayload = {
   code?: unknown;
-  message?: unknown;
-  error?: { code?: unknown; message?: unknown };
+  error?: { code?: unknown };
 };
 
 @Injectable()
@@ -70,12 +69,11 @@ export class SupabaseRestClient {
     let response: Response;
     try {
       response = await fetch(url, init);
-    } catch (error) {
-      const transportMessage = error instanceof Error ? error.message.slice(0, 240) : 'unknown transport error';
+    } catch {
       console.error(JSON.stringify({
         event: 'zion_supabase_transport_failure',
         operation,
-        message: transportMessage,
+        failureKind: 'network_or_dns',
       }));
       throw new Error(`Supabase transport failed during ${operation}`);
     }
@@ -96,17 +94,21 @@ export class SupabaseRestClient {
       const nested = errorPayload.error;
       const codeValue = errorPayload.code ?? nested?.code;
       const code = typeof codeValue === 'string' ? codeValue : 'unknown';
-      const messageValue = errorPayload.message ?? nested?.message;
-      const upstreamMessage = typeof messageValue === 'string' ? messageValue.slice(0, 240) : 'Supabase request failed';
+      const failureKind =
+        ['PGRST204', 'PGRST205', '42P01', '42703'].includes(code) ? 'schema_mismatch'
+        : code === '42501' ? 'database_permission'
+        : response.status === 401 || response.status === 403 ? 'auth_or_rls'
+        : response.status >= 500 ? 'supabase_upstream'
+        : 'database_rejection';
 
-      // Keep enough context in Vercel logs to distinguish schema, RLS, token and outage errors,
-      // without returning upstream database details to the browser.
+      // Never log SQL values, bearer tokens, or user-supplied error text.
+      // Operation + status + PostgreSQL/PostgREST code are enough to classify common 500 causes.
       console.error(JSON.stringify({
         event: 'zion_supabase_rest_failure',
         operation,
         status: response.status,
         code,
-        message: upstreamMessage,
+        failureKind,
       }));
 
       throw new Error(`Supabase ${operation} failed (HTTP ${response.status}; code ${code})`);
