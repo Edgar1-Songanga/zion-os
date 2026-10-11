@@ -204,7 +204,8 @@ export class ResaOperationalService {
   async listLiveSessions(token: string, limit = 30) {
     const actor = await this.actor(token);
     const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
-    return this.db.get('resa_live_sessions', token, `?select=*&or=(visibility.eq.public,host_id.eq.${actor.id})&status=neq.ended&order=scheduled_at.asc.nullslast,created_at.desc&limit=${size}`);
+    const sessions = await this.db.get<any[]>('resa_live_sessions', token, `?select=*&or=(visibility.eq.public,host_id.eq.${actor.id})&status=neq.ended&order=scheduled_at.asc.nullslast,created_at.desc&limit=${size}`);
+    return sessions.map((session) => ({ ...session, is_host: session.host_id === actor.id }));
   }
 
   async createLiveSession(token: string, input: { title: unknown; description?: unknown; visibility?: unknown; scheduled_at?: unknown }) {
@@ -218,7 +219,15 @@ export class ResaOperationalService {
       description: typeof input.description === 'string' ? input.description.trim() || null : null,
       visibility, scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null, status: 'scheduled',
     });
-    return rows[0];
+    const session = rows[0];
+    if (!session?.id) throw new BadGatewayException('Live session could not be created');
+    try {
+      await this.media.createRoom({ meetingId: 'live-' + session.id, channelName: 'zion:live:' + session.id });
+    } catch (error) {
+      await this.db.patch('resa_live_sessions', token, { status: 'ended', ended_at: new Date().toISOString() }, `?id=eq.${session.id}&host_id=eq.${actor.id}`);
+      throw error;
+    }
+    return { ...session, is_host: true };
   }
 
   async updateLiveStatus(token: string, liveId: string, status: 'scheduled' | 'live' | 'ended') {
