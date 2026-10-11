@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { useState } from "react";
+import type { FormEvent } from "react";
 import { spiritualSearch } from "@/services/spiritual-chat";
 import { resaRequest } from "@/lib/resa/api";
 
