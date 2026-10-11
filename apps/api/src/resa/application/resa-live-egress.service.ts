@@ -11,7 +11,7 @@ export class ResaLiveEgressService {
 
   private client() {
     if (!env.livekitUrl || !env.livekitApiKey || !env.livekitApiSecret) throw new BadGatewayException('A transmissão externa não está configurada no servidor.');
-    return new LiveKitAPI(env.livekitUrl, env.livekitApiKey, env.livekitApiSecret);
+    return new LiveKitAPI({ host: env.livekitUrl, apiKey: env.livekitApiKey, secret: env.livekitApiSecret });
   }
 
   private async ownedLive(token: string, liveId: string) {
