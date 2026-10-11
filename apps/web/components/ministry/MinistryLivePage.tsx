@@ -72,6 +72,11 @@ export default function MinistryLivePage() {
           department: entry.id,
           description: entry.summary,
           philosophy: entry.mission,
+          cover_image_url: entry.coverImage,
+          focus_areas: entry.focusAreas,
+          age_range: entry.ageRange ?? null,
+          official_url: entry.officialUrl,
+          source_label: entry.sourceLabel,
         }),
       });
       setMinistries((current) => [...current, created].sort((a, b) => a.name.localeCompare(b.name)));
@@ -116,6 +121,10 @@ export default function MinistryLivePage() {
   }, [category, query]);
 
   const selected = ministries.find((item) => item.id === selectedId) ?? null;
+
+  function handleMinistryUpdated(updated: Ministry) {
+    setMinistries((items) => items.map((item) => item.id === updated.id ? { ...item, ...updated } : item));
+  }
 
   return (
     <div className="space-y-8">
@@ -267,7 +276,7 @@ export default function MinistryLivePage() {
                 </button>
               ))}
             </div>
-            {selected && <MinistryDashboard ministry={selected} />}
+            {selected && <MinistryDashboard ministry={selected} onUpdated={handleMinistryUpdated} />}
           </>
         )}
 

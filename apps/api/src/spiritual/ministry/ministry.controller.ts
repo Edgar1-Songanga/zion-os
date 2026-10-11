@@ -1,5 +1,18 @@
-import { Body, Controller, Get, Headers, Param, Post, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Patch, Post, UnauthorizedException } from '@nestjs/common';
 import { SpiritualMinistryService } from './ministry.service';
+
+type MinistryBody = {
+  organization_id: string;
+  name: string;
+  department?: string;
+  philosophy?: string;
+  description?: string;
+  cover_image_url?: string | null;
+  focus_areas?: string[];
+  age_range?: string | null;
+  official_url?: string | null;
+  source_label?: string | null;
+};
 
 @Controller('v1/ministries')
 export class MinistryController {
@@ -14,15 +27,18 @@ export class MinistryController {
   @Post()
   create(
     @Headers('authorization') authorization: string | undefined,
-    @Body() body: {
-      organization_id: string;
-      name: string;
-      department?: string;
-      philosophy?: string;
-      description?: string;
-    },
+    @Body() body: MinistryBody,
   ) {
     return this.ministries.create(this.token(authorization), body);
+  }
+
+  @Patch(':id')
+  update(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+    @Body() body: Partial<Omit<MinistryBody, 'organization_id'>>,
+  ) {
+    return this.ministries.update(id, this.token(authorization), body);
   }
 
   @Get(':id')

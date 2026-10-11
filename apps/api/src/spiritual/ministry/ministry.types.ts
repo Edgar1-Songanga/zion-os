@@ -9,6 +9,11 @@ export interface MinistryRecord {
   description: string;
   philosophy: string;
   status: MinistryStatus;
+  coverImageUrl?: string | null;
+  focusAreas?: string[];
+  ageRange?: string | null;
+  officialUrl?: string | null;
+  sourceLabel?: string | null;
   verification?: MinistryVerification;
   createdAt: string;
   organization?: {
@@ -38,6 +43,18 @@ export interface MinistryRecord {
   };
 }
 
+export interface MinistryProfileInput {
+  name?: string;
+  department?: string;
+  description?: string;
+  philosophy?: string;
+  coverImageUrl?: string | null;
+  focusAreas?: string[];
+  ageRange?: string | null;
+  officialUrl?: string | null;
+  sourceLabel?: string | null;
+}
+
 export interface MinistryDirectoryPort {
   create?(
     organizationId: string,
@@ -46,7 +63,17 @@ export interface MinistryDirectoryPort {
       department: string;
       philosophy: string;
       description: string;
+      coverImageUrl?: string | null;
+      focusAreas?: string[];
+      ageRange?: string | null;
+      officialUrl?: string | null;
+      sourceLabel?: string | null;
     },
+    token?: string,
+  ): Promise<MinistryRecord | null>;
+  update?(
+    id: string,
+    input: MinistryProfileInput,
     token?: string,
   ): Promise<MinistryRecord | null>;
   getById(id: string, token?: string): Promise<MinistryRecord | null>;
