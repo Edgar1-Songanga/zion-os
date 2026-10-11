@@ -47,6 +47,13 @@ create table if not exists public.youth_activity_participants (
 create index if not exists youth_activity_participants_user_idx
   on public.youth_activity_participants(user_id, status);
 
+create index if not exists youth_club_members_club_status_idx
+  on public.youth_club_members(club_id, status, user_id);
+create index if not exists youth_member_progress_org_status_idx
+  on public.youth_member_progress(organization_id, status);
+create index if not exists youth_investitures_org_status_idx
+  on public.youth_investitures(organization_id, status);
+
 alter table public.youth_club_activities enable row level security;
 alter table public.youth_activity_participants enable row level security;
 
