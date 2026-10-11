@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Inject, Optional } from '@nestjs/common';
+import { BadRequestException, Injectable, Inject, Optional, NotFoundException } from '@nestjs/common';
 import type { MinistryDirectoryPort, MinistryProfileInput, MinistryRecord } from './ministry.types';
 
 export const MINISTRY_DIRECTORY = Symbol('MINISTRY_DIRECTORY');
@@ -57,7 +57,11 @@ export class SpiritualMinistryService {
     if (Object.keys(profile).length === 0) {
       throw new BadRequestException('At least one ministry profile field must be provided.');
     }
-    return (await this.directory?.update?.(id, profile, token)) ?? null;
+    const updated = await this.directory?.update?.(id, profile, token);
+    if (!updated) {
+      throw new NotFoundException('Ministry not found or you do not have permission to edit this profile.');
+    }
+    return updated;
   }
 
   async get(id: string, token?: string): Promise<MinistryRecord | null> {
