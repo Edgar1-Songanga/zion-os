@@ -79,7 +79,13 @@ describe('YouthClubService', () => {
     await expect(service.update(clubId, 'token', {})).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('validates member and leader assignment inputs before reaching persistence', async () => {\n    await expect(service.addMember(clubId, 'invalid-user-id', 'token')).rejects.toBeInstanceOf(BadRequestException);\n    await expect(service.assignLeader(clubId, '00000000-0000-4000-8000-000000000003', 'x', 'token')).rejects.toBeInstanceOf(BadRequestException);\n    await expect(service.updateMemberStatus(clubId, '00000000-0000-4000-8000-000000000003', 'PENDING', 'token')).rejects.toBeInstanceOf(BadRequestException);\n  });\n\n  it('supports safe updates without allowing an organization transfer', async () => {
+  it('validates member and leader assignment inputs before reaching persistence', async () => {
+    await expect(service.addMember(clubId, 'invalid-user-id', 'token')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.assignLeader(clubId, '00000000-0000-4000-8000-000000000003', 'x', 'token')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.updateMemberStatus(clubId, '00000000-0000-4000-8000-000000000003', 'PENDING', 'token')).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('supports safe updates without allowing an organization transfer', async () => {
     await service.update(clubId, 'token', {
       name: 'Clube Monte Sinai Renovado',
       status: 'INACTIVE',
