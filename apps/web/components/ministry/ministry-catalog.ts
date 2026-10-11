@@ -187,6 +187,17 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
     sourceLabel: "Manual da Igreja — Escola Sabatina e Ministério Pessoal"
   },
   {
+    id: "adventist-community-services",
+    name: "Serviços Comunitários Adventistas",
+    category: "Serviço e Comunidade",
+    summary: "Organiza ações práticas de solidariedade, assistência e serviço às pessoas em situação de necessidade.",
+    mission: "Demonstrar o amor de Cristo através do serviço compassivo, da resposta às necessidades locais e da mobilização de voluntários.",
+    focusAreas: ["Apoio comunitário", "Ações solidárias", "Visitas e acompanhamento", "Voluntariado", "Resposta a necessidades locais"],
+    coverImage: "https://images.unsplash.com/photo-1469571486292-0ba58a3f068b?auto=format&fit=crop&w=1400&q=85",
+    officialUrl: "https://gc.adventist.org/church-manual/",
+    sourceLabel: "Manual da Igreja — Serviços Comunitários Adventistas / Dorcas"
+  },
+  {
     id: "stewardship",
     name: "Ministério de Mordomia Cristã",
     category: "Discipulado e Missão",
