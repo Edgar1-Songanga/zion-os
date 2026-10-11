@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import CreatePost from "./CreatePost";
 import FeedCard from "./FeedCard";
 import ResaIcon from "./core/ResaIcon";
@@ -26,16 +26,23 @@ export default function ResaLiveFeed() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inFlightRef = useRef(false);
 
   const load = useCallback(async (silent = false) => {
+    // Prevent slow connections from accumulating overlapping feed requests.
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+
     if (silent) setRefreshing(true);
     else setLoading(true);
     setError(null);
+
     try {
       setItems(await resaRequest<ResaContent[]>("/v1/resa/feed?limit=30"));
     } catch (e) {
       setError(e instanceof Error ? e.message : t("feedLoadError"));
     } finally {
+      inFlightRef.current = false;
       setLoading(false);
       setRefreshing(false);
     }
@@ -43,8 +50,19 @@ export default function ResaLiveFeed() {
 
   useEffect(() => {
     void load();
-    const interval = window.setInterval(() => void load(true), 15000);
-    return () => window.clearInterval(interval);
+
+    // Keep the feed fresh without repeatedly waking the API for background tabs.
+    // A single in-flight guard prevents overlapping requests on slow mobile links.
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void load(true);
+    };
+    const interval = window.setInterval(refreshWhenVisible, 45_000);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
   }, [load]);
 
   return (
