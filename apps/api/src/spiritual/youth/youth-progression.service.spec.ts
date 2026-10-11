@@ -31,6 +31,15 @@ describe('YouthProgressionService validation', () => {
     })).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('rejects invalid progress states and impossible calendar dates', async () => {
+    await expect(service.updateProgress('token', '00000000-0000-4000-8000-000000000003', {
+      status: 'AWARDED',
+    })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.updateInvestiture('token', '00000000-0000-4000-8000-000000000004', {
+      scheduled_date: '2026-02-31',
+    })).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it('requires HTTPS for official curriculum references', async () => {
     await expect(service.createCatalog('token', '00000000-0000-4000-8000-000000000002', {
       program_id: 'pathfinders',
