@@ -222,7 +222,10 @@ export class ResaOperationalService {
     const session = rows[0];
     if (!session?.id) throw new BadGatewayException('Live session could not be created');
     try {
-      await this.media.createRoom({ meetingId: 'live-' + session.id, channelName: 'zion:live:' + session.id });
+      const mediaRoom = await this.media.createRoom({ meetingId: 'live-' + session.id, channelName: 'zion:live:' + session.id });
+      if (mediaRoom.provider !== 'ZION_SFU' || mediaRoom.providerRoomId !== 'zion-live-' + session.id) {
+        throw new BadGatewayException('LiveKit must be configured for RESA live video sessions');
+      }
     } catch (error) {
       await this.db.patch('resa_live_sessions', token, { status: 'ended', ended_at: new Date().toISOString() }, `?id=eq.${session.id}&host_id=eq.${actor.id}`);
       throw error;
@@ -267,6 +270,9 @@ export class ResaOperationalService {
       userId: actor.id,
       canPublish: isHost,
     });
+    if (config.mode !== 'SFU' || !config.joinUrl || !config.token) {
+      throw new BadGatewayException('LiveKit is not configured for RESA live sessions');
+    }
     return { ...config, role: isHost ? 'host' : 'viewer', isHost };
   }
 
