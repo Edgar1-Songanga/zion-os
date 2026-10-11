@@ -97,7 +97,7 @@ export default function LivePage() {
                 </div>
               </div>
               <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300">
-                Crie e acompanhe sessões de transmissão do RESA. A sessão é persistida no sistema; a camada de vídeo pode ser ligada ao provedor de streaming quando configurada.
+                Crie e acompanhe transmissões do RESA com áudio e vídeo em tempo real. O estúdio suporta gravação local no dispositivo e pode encaminhar a live para plataformas externas quando o LiveKit Egress estiver configurado.
               </p>
             </div>
           </div>

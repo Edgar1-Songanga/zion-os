@@ -11,6 +11,7 @@ type LivePacket =
   | { type: "chat"; text: string; name?: string }
   | { type: "hand_raise"; name?: string }
   | { type: "speak_granted"; name?: string }
+  | { type: "speak_revoked"; name?: string }
   | { type: "announcement"; text: string; name?: string };
 
 const DATA_TOPIC = "zion-live";
@@ -20,6 +21,9 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteRef = useRef<HTMLDivElement | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const recordingStreamRef = useRef<MediaStream | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordingChunksRef = useRef<Blob[]>([]);
   const [connected, setConnected] = useState(false);
   const [camera, setCamera] = useState(false);
   const [microphone, setMicrophone] = useState(false);
@@ -37,6 +41,12 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
   const [handRaised, setHandRaised] = useState(false);
   const [tab, setTab] = useState<"chat" | "people">("chat");
   const [notice, setNotice] = useState<string | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [streamUrl, setStreamUrl] = useState("");
+  const [egressId, setEgressId] = useState<string | null>(null);
+  const [streamingExternal, setStreamingExternal] = useState(false);
+  const [streamBusy, setStreamBusy] = useState(false);
+  const [audioNeedsGesture, setAudioNeedsGesture] = useState(false);
 
   const sendPacket = useCallback(async (packet: LivePacket, destinationIdentity?: string) => {
     const room = roomRef.current;
@@ -78,8 +88,13 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
         audio.setAttribute("aria-label", "Áudio da transmissão");
       }
       remoteRef.current.appendChild(element);
+      const recordingTrack = (track as any).mediaStreamTrack as MediaStreamTrack | undefined;
+      if (recordingTrack && recordingStreamRef.current && !recordingStreamRef.current.getTracks().some((item) => item.id === recordingTrack.id)) recordingStreamRef.current.addTrack(recordingTrack);
       void element.play().catch(() => {
-        if (mounted) setNotice("Toque em «Ativar áudio» para permitir a reprodução da transmissão.");
+        if (mounted) {
+          setAudioNeedsGesture(true);
+          setNotice("O navegador bloqueou o áudio automático. Toca em Ativar áudio para ouvir a transmissão.");
+        }
       });
     };
 
@@ -110,6 +125,16 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
           setNotice("O anfitrião autorizou a tua participação. Já podes ativar o microfone e a câmara.");
           setCanSpeak(true);
           setHandRaised(false);
+        } else if (packet.type === "speak_revoked" && identity !== room.localParticipant.identity) {
+          setCanSpeak(false);
+          setHandRaised(false);
+          void room.localParticipant.setMicrophoneEnabled(false).catch(() => {});
+          void room.localParticipant.setCameraEnabled(false).catch(() => {});
+          void room.localParticipant.setScreenShareEnabled(false).catch(() => {});
+          setMicrophone(false);
+          setCamera(false);
+          setScreenShare(false);
+          setNotice("O anfitrião retirou a tua permissão de falar. O microfone, a câmara e a partilha foram desligados.");
         } else if (packet.type === "announcement") {
           setNotice(packet.text);
         }
@@ -121,6 +146,8 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
     room
       .on(RoomEvent.TrackSubscribed, attachRemote)
       .on(RoomEvent.TrackUnsubscribed, (track: any, _publication: any, participant: any) => {
+        const recordingTrack = (track as any).mediaStreamTrack as MediaStreamTrack | undefined;
+        if (recordingTrack && recordingStreamRef.current?.getTracks().some((item) => item.id === recordingTrack.id)) recordingStreamRef.current.removeTrack(recordingTrack);
         track.detach().forEach((element: HTMLElement) => element.remove());
         if (participant) removeParticipantTracks(participant.identity);
       })
@@ -150,6 +177,12 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
         await room.connect(config.joinUrl, config.token, { autoSubscribe: true });
         if (config.isHost || config.role === "host") {
           await room.localParticipant.enableCameraAndMicrophone();
+          await room.localParticipant.setMicrophoneEnabled(false);
+          await room.localParticipant.setMicrophoneEnabled(true, {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          });
           const localCamera = room.localParticipant.getTrackPublication(Track.Source.Camera)?.track;
           if (localCamera && localVideoRef.current) {
             localVideoRef.current.srcObject = new MediaStream([localCamera.mediaStreamTrack]);
@@ -193,19 +226,76 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
     if (!room || (!isHost && !canSpeak)) return;
     try {
       const next = !microphone;
-      await room.localParticipant.setMicrophoneEnabled(next);
+      await room.localParticipant.setMicrophoneEnabled(next, { echoCancellation: true, noiseSuppression: true, autoGainControl: true });
       setMicrophone(next);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível alterar o microfone.");
     }
   }
 
+  function startRecording() {
+    const room = roomRef.current;
+    if (!room || !isHost || typeof MediaRecorder === "undefined") { setError("A gravação local não é suportada neste navegador."); return; }
+    try {
+      const tracks: MediaStreamTrack[] = [];
+      const collect = (publication: any) => {
+        const mediaTrack = publication.track?.mediaStreamTrack as MediaStreamTrack | undefined;
+        if (mediaTrack && mediaTrack.readyState === "live" && !tracks.some((item) => item.id === mediaTrack.id)) tracks.push(mediaTrack);
+      };
+      room.localParticipant.trackPublications.forEach(collect);
+      room.remoteParticipants.forEach((participant) => participant.trackPublications.forEach(collect));
+      if (!tracks.length) throw new Error("Não existem faixas de áudio/vídeo disponíveis para gravar.");
+      const stream = new MediaStream(tracks);
+      const mimeType = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"].find((type) => MediaRecorder.isTypeSupported(type));
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      recordingChunksRef.current = [];
+      recorder.ondataavailable = (event) => { if (event.data.size > 0) recordingChunksRef.current.push(event.data); };
+      recorder.onerror = () => { setError("A gravação foi interrompida pelo navegador."); setRecording(false); };
+      recorder.onstop = () => {
+        const chunks = recordingChunksRef.current; recordingChunksRef.current = []; recordingStreamRef.current = null;
+        if (!chunks.length) { setRecording(false); return; }
+        const blob = new Blob(chunks, { type: recorder.mimeType || "video/webm" });
+        const url = URL.createObjectURL(blob); const anchor = document.createElement("a");
+        anchor.href = url; anchor.download = "zion-resa-live-" + new Date().toISOString().replace(/[:.]/g, "-") + ".webm";
+        document.body.appendChild(anchor); anchor.click(); anchor.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+        setRecording(false); setNotice("Gravação concluída. O ficheiro foi preparado para guardar neste dispositivo.");
+      };
+      recordingStreamRef.current = stream; recorderRef.current = recorder; recorder.start(1000); setRecording(true);
+      setNotice("A gravação local começou. Informa os participantes e respeita o consentimento antes de gravar.");
+    } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível iniciar a gravação local."); }
+  }
+
+  function stopRecording() { const recorder = recorderRef.current; if (recorder && recorder.state !== "inactive") recorder.stop(); recorderRef.current = null; }
+
+  async function startExternalStream() {
+    if (!isHost || !streamUrl.trim() || streamBusy) return;
+    setStreamBusy(true); setError(null);
+    try {
+      const result = await resaRequest<{ egressId: string; destination: string }>("/v1/resa/live/" + liveId + "/stream", { method: "POST", body: JSON.stringify({ streamUrl: streamUrl.trim() }) });
+      setEgressId(result.egressId); setStreamingExternal(true);
+      setNotice("Transmissão externa iniciada para " + result.destination + ". Confirma o estado no painel dessa plataforma.");
+    } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível iniciar a transmissão externa. O LiveKit Egress pode não estar configurado."); }
+    finally { setStreamBusy(false); }
+  }
+
+  async function stopExternalStream() {
+    if (!isHost || !egressId || streamBusy) return;
+    setStreamBusy(true); setError(null);
+    try {
+      await resaRequest("/v1/resa/live/" + liveId + "/stream/stop", { method: "POST", body: JSON.stringify({ egressId }) });
+      setEgressId(null); setStreamingExternal(false); setStreamUrl(""); setNotice("A transmissão externa foi parada.");
+    } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível parar a transmissão externa."); }
+    finally { setStreamBusy(false); }
+  }
   async function startAudio() {
     try {
       await roomRef.current?.startAudio();
-      setNotice("Áudio ativado.");
+      setAudioNeedsGesture(false);
+      setNotice("Áudio da transmissão ativado.");
     } catch {
-      setNotice("O navegador não permitiu reproduzir o áudio. Verifica as permissões do dispositivo.");
+      setAudioNeedsGesture(true);
+      setNotice("O navegador ainda não permitiu reproduzir o áudio. Verifica as permissões e o volume do dispositivo.");
     }
   }
 
@@ -259,6 +349,9 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
       if (action === "allow_speak") {
         await sendPacket({ type: "speak_granted", name: roomRef.current?.localParticipant.name || "Anfitrião" }, identity);
         setRaisedHands((current) => current.filter((item) => item.identity !== identity));
+      } else if (action === "revoke_speak") {
+        await sendPacket({ type: "speak_revoked", name: roomRef.current?.localParticipant.name || "Anfitrião" }, identity);
+        setRaisedHands((current) => current.filter((item) => item.identity !== identity));
       } else if (action === "remove") {
         setRaisedHands((current) => current.filter((item) => item.identity !== identity));
       }
@@ -269,6 +362,8 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
   }
 
   async function leaveLive() {
+    if (recording) stopRecording();
+    if (egressId) await stopExternalStream();
     await roomRef.current?.disconnect(true);
     onClose();
   }
@@ -279,6 +374,8 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
     setEnding(true);
     setError(null);
     try {
+      if (recording) stopRecording();
+      if (egressId) await stopExternalStream();
       await resaRequest("/v1/resa/live/" + liveId + "/status", {
         method: "PATCH",
         body: JSON.stringify({ status: "ended" }),
@@ -292,10 +389,20 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
   }
 
   const hostControls = (
-    <div className="grid grid-cols-2 gap-2">
-      <button onClick={() => void toggleMicrophone()} disabled={!connected} className="rounded-xl bg-white/10 px-3 py-3 text-left text-sm font-semibold disabled:opacity-40">{microphone ? "Microfone ligado" : "Ligar microfone"}</button>
-      <button onClick={() => void toggleCamera()} disabled={!connected} className="rounded-xl bg-white/10 px-3 py-3 text-left text-sm font-semibold disabled:opacity-40">{camera ? "Câmara ligada" : "Ligar câmara"}</button>
-      <button onClick={() => void toggleScreenShare()} disabled={!connected} className="col-span-2 rounded-xl bg-white/10 px-3 py-3 text-left text-sm font-semibold disabled:opacity-40">{screenShare ? "Parar partilha do ecrã" : "Partilhar ecrã"}</button>
+    <div className="grid grid-cols-3 gap-2">
+      <button onClick={() => void toggleMicrophone()} disabled={!connected} className={"min-h-[72px] rounded-2xl border px-2 py-3 text-center text-xs font-semibold transition disabled:opacity-50 " + (microphone ? "border-sky-200/30 bg-sky-300/15 text-sky-100" : "border-white/10 bg-white/[0.045] text-slate-300 hover:bg-white/10")}>{microphone ? "Microfone ligado" : "Microfone desligado"}</button>
+      <button onClick={() => void toggleCamera()} disabled={!connected} className={"min-h-[72px] rounded-2xl border px-2 py-3 text-center text-xs font-semibold transition disabled:opacity-50 " + (camera ? "border-sky-200/30 bg-sky-300/15 text-sky-100" : "border-white/10 bg-white/[0.045] text-slate-300 hover:bg-white/10")}>{camera ? "Câmara ligada" : "Câmara desligada"}</button>
+      <button onClick={() => void toggleScreenShare()} disabled={!connected} className="col-span-1 min-h-[72px] rounded-2xl border border-white/10 bg-white/[0.045] px-2 py-3 text-center text-xs font-semibold text-slate-300 transition hover:bg-white/10 disabled:opacity-50">{screenShare ? "Parar ecrã" : "Partilhar ecrã"}</button>
+      <button onClick={() => recording ? stopRecording() : startRecording()} disabled={!connected || !isHost} className={"col-span-2 rounded-xl px-3 py-3 text-left text-sm font-semibold disabled:opacity-40 " + (recording ? "bg-red-500/20 text-red-100" : "bg-white/10 text-white")}>{recording ? "Parar gravação e guardar ficheiro" : "Gravar nesta máquina (sem armazenamento na nuvem)"}</button>
+      <div className="col-span-2 space-y-2 rounded-xl border border-white/10 bg-black/15 p-3">
+        <p className="text-xs font-bold uppercase tracking-wide text-slate-300">Transmitir noutras plataformas</p>
+        <p className="text-xs leading-5 text-slate-400">Cola o URL RTMP/RTMPS do YouTube Live ou Facebook Live. A chave não é guardada pelo Zion.</p>
+        <input value={streamUrl} onChange={(event) => setStreamUrl(event.target.value)} type="password" autoComplete="off" placeholder="URL RTMP/RTMPS + chave da plataforma" disabled={!isHost || streamingExternal || streamBusy} className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-300/50 disabled:opacity-50" />
+        {streamingExternal
+          ? <button onClick={() => void stopExternalStream()} disabled={streamBusy} className="w-full rounded-lg bg-red-500/20 px-3 py-2 text-sm font-semibold text-red-100 disabled:opacity-50">{streamBusy ? "A processar…" : "Parar transmissão externa"}</button>
+          : <button onClick={() => void startExternalStream()} disabled={!connected || !isHost || !streamUrl.trim() || streamBusy} className="w-full rounded-lg bg-sky-300 px-3 py-2 text-sm font-bold text-[#07142c] disabled:opacity-40">{streamBusy ? "A iniciar…" : "Iniciar transmissão externa"}</button>}
+        <p className="text-[11px] leading-4 text-amber-200/80">Requer LiveKit Egress ativo e pode consumir quota paga do fornecedor. A gravação local não usa esse serviço.</p>
+      </div>
     </div>
   );
 
@@ -306,16 +413,16 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">ZION · RESA Live</p>
             <h2 className="truncate font-semibold">{title}</h2>
-            <p className="mt-1 text-xs text-slate-400">{starting ? "A estabelecer ligação…" : connected ? (isHost ? "Estás a transmitir como anfitrião" : "Ligado como espectador") : "Sem ligação"}</p>
+            <p className="mt-1 text-xs text-slate-400">{starting ? "A estabelecer ligação…" : connected ? (isHost ? "Estás a transmitir como anfitrião" : "Ligado como espectador") : "Sem ligação"}{recording ? " · GRAVAÇÃO ATIVA" : ""}{streamingExternal ? " · SAÍDA EXTERNA ATIVA" : ""}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <button onClick={() => void startAudio()} disabled={!connected} className="rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10">Ativar áudio</button>
+            {audioNeedsGesture && <button onClick={() => void startAudio()} disabled={!connected} className="rounded-xl border border-sky-200/30 bg-sky-300/10 px-3 py-2 text-xs font-semibold text-sky-100 hover:bg-sky-300/20">Ativar áudio</button>}
             <button onClick={() => void leaveLive()} className="rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10">{isHost ? "Sair do Studio" : "Sair da live"}</button>
           </div>
         </header>
 
         <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_350px]">
-          <section className="flex min-h-0 flex-col gap-3 p-3 sm:p-5">
+          <section className="flex min-h-0 flex-col gap-3 overflow-y-auto p-3 sm:p-5">
             <div className="relative flex min-h-[260px] flex-1 items-center justify-center overflow-hidden rounded-2xl bg-black p-2">
               <div ref={remoteRef} className="grid h-full w-full grid-cols-1 content-center gap-3 sm:grid-cols-2" />
               {isHost && <video ref={localVideoRef} autoPlay muted playsInline className="absolute bottom-3 right-3 h-24 w-36 rounded-xl border border-white/20 bg-slate-900 object-cover shadow-2xl sm:h-32 sm:w-48" />}
@@ -324,8 +431,8 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
             {notice && <div role="status" className="rounded-xl border border-sky-300/20 bg-sky-400/10 px-4 py-3 text-sm text-sky-100">{notice}<button onClick={() => setNotice(null)} className="ml-3 underline">Fechar</button></div>}
             {error && connected && <div role="alert" className="rounded-xl border border-red-300/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div>}
             <div className="flex flex-wrap items-center gap-2">
-              {isHost || canSpeak ? hostControls : <button onClick={() => void raiseHand()} disabled={!connected || handRaised} className="rounded-xl bg-white/10 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{handRaised ? "Pedido para falar enviado" : "Levantar a mão"}</button>}
-              {isHost && <button onClick={() => void endLive()} disabled={ending} className="rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{ending ? "A encerrar…" : "Encerrar live para todos"}</button>}
+              {isHost || canSpeak ? hostControls : <button onClick={() => void raiseHand()} disabled={!connected || handRaised} className="rounded-xl bg-white/10 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{handRaised ? "✋ Mão levantada · aguarda o anfitrião" : "✋ Levantar a mão para falar"}</button>}
+              {isHost && <button onClick={() => void endLive()} disabled={ending} className="self-start rounded-xl border border-rose-300/20 bg-rose-500/[0.07] px-3 py-2 text-xs font-semibold text-rose-200/90 transition hover:border-rose-300/35 hover:bg-rose-500/15 disabled:opacity-50">{ending ? "A encerrar…" : "Encerrar live para todos"}</button>}
             </div>
           </section>
 
@@ -355,9 +462,12 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
               <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
                 {isHost && raisedHands.length > 0 && <div className="mb-4 rounded-xl border border-sky-300/20 bg-sky-300/10 p-3">
                   <p className="mb-2 text-xs font-bold uppercase tracking-wide text-sky-200">Pedidos para falar</p>
-                  {raisedHands.map((person) => <div key={person.identity} className="mb-2 flex items-center justify-between gap-2 text-sm text-white">
-                    <span className="truncate">{person.name}</span>
-                    <button onClick={() => void moderate(person.identity, "allow_speak")} className="rounded-lg bg-sky-300 px-2 py-1 text-xs font-bold text-[#07142c]">Autorizar</button>
+                  {raisedHands.map((person) => <div key={person.identity} className="mb-2 flex items-center justify-between gap-2 rounded-xl border border-white/[0.06] bg-black/10 p-2 text-sm text-white">
+                    <span className="flex min-w-0 items-center gap-2"><span aria-hidden="true" className="text-xl">✋</span><span className="truncate">{person.name}</span></span>
+                    <div className="flex shrink-0 gap-1">
+                      <button onClick={() => void moderate(person.identity, "allow_speak")} className="rounded-lg bg-sky-300 px-2 py-1.5 text-xs font-bold text-[#07142c]">Autorizar</button>
+                      <button onClick={() => setRaisedHands((current) => current.filter((item) => item.identity !== person.identity))} aria-label={"Fechar pedido de " + person.name} className="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-slate-300 hover:bg-white/10">Fechar</button>
+                    </div>
                   </div>)}
                 </div>}
                 {participants.map((person) => (
