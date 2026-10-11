@@ -31,7 +31,8 @@ create table if not exists public.youth_achievement_catalog (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint youth_achievement_catalog_org_code_unique unique (organization_id, program_id, kind, code),
-  constraint youth_achievement_catalog_id_org_unique unique (id, organization_id)
+  constraint youth_achievement_catalog_id_org_unique unique (id, organization_id),
+  constraint youth_achievement_catalog_reference_https check (official_reference_url is null or official_reference_url ~* '^https://')
 );
 
 create index if not exists youth_achievement_catalog_org_program_idx
@@ -167,7 +168,12 @@ create policy youth_investitures_read on public.youth_investitures
 for select to authenticated
 using (
   user_id = (select auth.uid())
-  or private.is_org_member(organization_id)
+  or private.has_org_permission(organization_id, 'membership.read')
+  or private.has_org_permission(organization_id, 'organization.manage')
+  or exists (
+    select 1 from public.youth_club_leaders l
+    where l.club_id = youth_investitures.club_id and l.user_id = (select auth.uid())
+  )
 );
 
 drop policy if exists youth_investitures_insert on public.youth_investitures;
@@ -198,3 +204,50 @@ comment on table public.youth_member_progress is
   'Persistent class/specialty progress with leader completion and organization-manager verification.';
 comment on table public.youth_investitures is
   'Investiture requests, approvals, completion records, and officiant details.';
+
+-- Enforce curriculum/program consistency even for direct authenticated REST requests.
+create or replace function public.validate_youth_progression_program()
+returns trigger
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  club_program text;
+  club_org uuid;
+  item_program text;
+  item_org uuid;
+  item_kind text;
+begin
+  select program_id, organization_id into club_program, club_org
+  from public.youth_clubs where id = new.club_id;
+
+  select program_id, organization_id, kind into item_program, item_org, item_kind
+  from public.youth_achievement_catalog
+  where id = case when tg_table_name = 'youth_investitures' then new.class_catalog_id else new.catalog_item_id end;
+
+  if club_program is null or item_program is null
+     or club_org <> new.organization_id or item_org <> new.organization_id
+     or club_program <> item_program then
+    raise exception 'Youth curriculum item must match the club organization and program';
+  end if;
+
+  if tg_table_name = 'youth_investitures' and item_kind <> 'CLASS' then
+    raise exception 'Investitures can only reference class catalog items';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists youth_member_progress_program_guard on public.youth_member_progress;
+create trigger youth_member_progress_program_guard
+before insert or update of organization_id, club_id, catalog_item_id
+on public.youth_member_progress
+for each row execute function public.validate_youth_progression_program();
+
+drop trigger if exists youth_investitures_program_guard on public.youth_investitures;
+create trigger youth_investitures_program_guard
+before insert or update of organization_id, club_id, class_catalog_id
+on public.youth_investitures
+for each row execute function public.validate_youth_progression_program();
