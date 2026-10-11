@@ -8,6 +8,8 @@ export interface BibleReference {
 export interface BibleSearchResult {
   reference: BibleReference;
   text: string;
+  /** Individual verse texts, numbered from reference.verseStart or verse 1. */
+  verses?: string[];
   translation: string;
   relevance: number;
   copyright?: string;
