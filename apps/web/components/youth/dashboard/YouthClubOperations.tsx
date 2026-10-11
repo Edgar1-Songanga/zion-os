@@ -81,6 +81,9 @@ export default function YouthClubOperations() {
     setOrganizationId(id);
     setClubs([]);
     setEditingId(null);
+    setSelectedClubId(null);
+    setClubMembers([]);
+    setClubLeaders([]);
     setForm(EMPTY_FORM);
     setError(null);
     setMessage(null);
