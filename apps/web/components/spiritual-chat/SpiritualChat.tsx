@@ -2,18 +2,48 @@
 
 import { FormEvent, useState } from "react";
 import { spiritualSearch } from "@/services/spiritual-chat";
+import { resaRequest } from "@/lib/resa/api";
 
 type SpiritualResponse = ReturnType<typeof spiritualSearch>;
+type BiblePassage = { reference: { book: string; chapter: number; verseStart?: number; verseEnd?: number }; text: string; verses?: string[]; translation: string; copyright?: string };
 
 export default function SpiritualChat() {
   const [message, setMessage] = useState("");
   const [response, setResponse] = useState<SpiritualResponse | null>(null);
+  const [passages, setPassages] = useState<BiblePassage[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [passageNotice, setPassageNotice] = useState<string | null>(null);
 
-  function send(event?: FormEvent) {
+  async function send(event?: FormEvent) {
     event?.preventDefault();
     const question = message.trim();
-    if (!question) return;
-    setResponse(spiritualSearch(question));
+    if (!question || loading) return;
+    const answer = spiritualSearch(question);
+    setResponse(answer);
+    setPassages([]);
+    setPassageNotice(null);
+    if (!answer.references.length) return;
+    setLoading(true);
+    try {
+      const results = await Promise.allSettled(
+        answer.references.slice(0, 4).map(async (reference) => {
+          const found = await resaRequest<BiblePassage[]>(
+            `/v1/spiritual/bible/search?q=${encodeURIComponent(reference)}&translation=almeida-livre`,
+          );
+          return found[0];
+        }),
+      );
+      const available = results
+        .filter((result): result is PromiseFulfilledResult<BiblePassage | undefined> => result.status === "fulfilled")
+        .map((result) => result.value)
+        .filter((value): value is BiblePassage => Boolean(value && (value.text || value.verses?.length)));
+      setPassages(available);
+      if (!available.length) setPassageNotice("A resposta inclui referências bíblicas, mas não foi possível carregar o texto dos versículos neste momento.");
+    } catch {
+      setPassageNotice("A resposta inclui referências bíblicas. O texto integral das passagens não ficou disponível nesta consulta.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -33,7 +63,7 @@ export default function SpiritualChat() {
           aria-label="A tua pergunta espiritual"
           className="min-w-0 flex-1 rounded-xl border border-[var(--zion-border)] bg-[var(--zion-light)] p-4 text-[var(--zion-dark)] outline-none transition focus:border-[var(--zion-sky)] focus:bg-white focus:ring-4 focus:ring-[var(--zion-sky)]/10"
         />
-        <button type="submit" disabled={!message.trim()} className="rounded-xl bg-[var(--zion-primary)] px-6 py-4 font-semibold text-white shadow-sm transition hover:bg-[var(--zion-primary-deep)] disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="submit" disabled={!message.trim() || loading} className="rounded-xl bg-[var(--zion-primary)] px-6 py-4 font-semibold text-white shadow-sm transition hover:bg-[var(--zion-primary-deep)] disabled:cursor-not-allowed disabled:opacity-50">
           Pesquisar
         </button>
       </form>
@@ -52,6 +82,19 @@ export default function SpiritualChat() {
               {response.references.map((reference) => <p key={reference} className="py-1 text-sm text-[var(--zion-muted)]">📖 {reference}</p>)}
             </div>
           )}
+          {passages.length > 0 && (
+            <div className="mt-4 space-y-3">
+              <p className="text-sm font-semibold text-[var(--zion-dark)]">Texto bíblico consultado · {passages[0].translation}</p>
+              {passages.map((passage, index) => (
+                <article key={passage.reference.book + passage.reference.chapter + "-" + index} className="rounded-xl border border-[var(--zion-border)] bg-white p-4">
+                  <h4 className="mb-2 font-semibold text-[var(--zion-primary)]">{passage.reference.book} {passage.reference.chapter}{passage.reference.verseStart ? ":" + passage.reference.verseStart + (passage.reference.verseEnd && passage.reference.verseEnd !== passage.reference.verseStart ? "–" + passage.reference.verseEnd : "") : ""}</h4>
+                  {passage.verses?.length ? passage.verses.map((verse, verseIndex) => <p key={verseIndex} className="mb-2 text-sm leading-6 text-[var(--zion-dark)]">{verse}</p>) : <p className="text-sm leading-6 text-[var(--zion-dark)]">{passage.text}</p>}
+                  {passage.copyright && <p className="mt-2 text-xs text-[var(--zion-muted)]">{passage.copyright}</p>}
+                </article>
+              ))}
+            </div>
+          )}
+          {passageNotice && <p role="status" className="mt-4 rounded-xl bg-white p-3 text-sm text-[var(--zion-muted)]">{passageNotice}</p>}
 
           {response.nextSteps.length > 0 && (
             <div className="mt-5">
