@@ -23,9 +23,12 @@ import { GamificationController } from "../gamification/gamification.controller"
 import { GamificationService } from "../gamification/gamification.service";
 import { ReferralController } from "../referrals/referral.controller";
 import { ReferralRepository } from "../referrals/referral.repository";
+import { YouthClubController } from "./youth/youth-club.controller";
+import { YouthClubService, YOUTH_CLUB_DIRECTORY } from "./youth/youth-club.service";
+import { SupabaseYouthClubDirectory } from "./youth/supabase-youth-club.directory";
 
 @Module({
-  controllers: [BibleController, AdventistCanonController, SabbathSchoolController, MinistryController, SpiritualProgressController, GamificationController, ReferralController],
+  controllers: [BibleController, AdventistCanonController, SabbathSchoolController, MinistryController, YouthClubController, SpiritualProgressController, GamificationController, ReferralController],
   providers: [
     SupabaseRestClient,
     BibleService,
@@ -47,6 +50,9 @@ import { ReferralRepository } from "../referrals/referral.repository";
     { provide: SABBATH_SCHOOL_REPOSITORY, useExisting: SupabaseSabbathSchoolRepository },
     SupabaseMinistryDirectory,
     { provide: MINISTRY_DIRECTORY, useExisting: SupabaseMinistryDirectory },
+    YouthClubService,
+    SupabaseYouthClubDirectory,
+    { provide: YOUTH_CLUB_DIRECTORY, useExisting: SupabaseYouthClubDirectory },
     GamificationService,
     ReferralRepository,
   ],
