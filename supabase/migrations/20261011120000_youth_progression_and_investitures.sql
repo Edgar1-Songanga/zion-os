@@ -222,9 +222,13 @@ begin
   select program_id, organization_id into club_program, club_org
   from public.youth_clubs where id = new.club_id;
 
-  select program_id, organization_id, kind into item_program, item_org, item_kind
-  from public.youth_achievement_catalog
-  where id = case when tg_table_name = 'youth_investitures' then new.class_catalog_id else new.catalog_item_id end;
+  if tg_table_name = 'youth_investitures' then
+    select program_id, organization_id, kind into item_program, item_org, item_kind
+    from public.youth_achievement_catalog where id = new.class_catalog_id;
+  else
+    select program_id, organization_id, kind into item_program, item_org, item_kind
+    from public.youth_achievement_catalog where id = new.catalog_item_id;
+  end if;
 
   if club_program is null or item_program is null
      or club_org <> new.organization_id or item_org <> new.organization_id
