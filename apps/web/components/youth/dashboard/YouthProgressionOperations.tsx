@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import { OrganizationSelector, type ZionOrganization } from "@/components/organization/OrganizationSelector";
 import { YOUTH_PROGRAMS } from "@/components/youth/core/YouthProgram";
@@ -105,14 +105,7 @@ export default function YouthProgressionOperations() {
     return () => { current = false; };
   }, [clubId, selectedClub?.organizationId, selectedClub?.programId]);
 
-  async function searchMemberProfile(userId: string) {
-    if (profiles[userId]) return;
-    // The UI never displays raw account identifiers; unavailable names remain generic.
-    const candidates = await resaRequest<Profile[]>(`/v1/resa/profiles/suggestions?limit=30`).catch(() => []);
-    setProfiles((previous) => ({ ...previous, ...Object.fromEntries(candidates.map((profile) => [profile.id, profile])) }));
-  }
-
-  async function saveCatalogItem(event: React.FormEvent<HTMLFormElement>) {
+  async function saveCatalogItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedClub || saving) return;
     setSaving(true); setError(null); setMessage(null);
@@ -133,7 +126,7 @@ export default function YouthProgressionOperations() {
     } finally { setSaving(false); }
   }
 
-  async function assignProgress(event: React.FormEvent<HTMLFormElement>) {
+  async function assignProgress(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedClub || !memberId || !catalogItemId || saving) return;
     setSaving(true); setError(null); setMessage(null);
@@ -162,7 +155,7 @@ export default function YouthProgressionOperations() {
     } finally { setSaving(false); }
   }
 
-  async function requestInvestiture(event: React.FormEvent<HTMLFormElement>) {
+  async function requestInvestiture(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedClub || saving) return;
     setSaving(true); setError(null); setMessage(null);
