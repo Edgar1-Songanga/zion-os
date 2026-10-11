@@ -39,7 +39,7 @@ export class SupabaseMinistryDirectory implements MinistryDirectoryPort {
 
   async update(id: string, input: MinistryProfileInput, token?: string): Promise<MinistryRecord | null> {
     if (!token) return null;
-    const body: Record<string, unknown> = {};
+    const body: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (input.name !== undefined) body.name = input.name;
     if (input.department !== undefined) body.department = input.department;
     if (input.description !== undefined) body.description = input.description;
