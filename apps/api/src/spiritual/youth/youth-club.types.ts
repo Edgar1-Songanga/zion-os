@@ -22,6 +22,21 @@ export interface YouthClubRecord {
   updatedAt: string;
 }
 
+export interface YouthClubMemberRecord {
+  clubId: string;
+  userId: string;
+  status: YouthClubStatus;
+  joinedAt: string;
+}
+
+export interface YouthClubLeaderRecord {
+  clubId: string;
+  userId: string;
+  role: string;
+  verified: boolean;
+  createdAt: string;
+}
+
 export interface YouthClubInput {
   organizationId?: string;
   ministryId?: string | null;
@@ -39,4 +54,11 @@ export interface YouthClubDirectoryPort {
   getById(id: string, token: string): Promise<YouthClubRecord | null>;
   listByOrganization(organizationId: string, token: string): Promise<YouthClubRecord[]>;
   update(id: string, input: YouthClubInput, token: string): Promise<YouthClubRecord | null>;
+  listMembers(clubId: string, token: string): Promise<YouthClubMemberRecord[]>;
+  addMember(clubId: string, userId: string, token: string): Promise<YouthClubMemberRecord | null>;
+  updateMemberStatus(clubId: string, userId: string, status: YouthClubStatus, token: string): Promise<YouthClubMemberRecord | null>;
+  removeMember(clubId: string, userId: string, token: string): Promise<boolean>;
+  listLeaders(clubId: string, token: string): Promise<YouthClubLeaderRecord[]>;
+  assignLeader(clubId: string, userId: string, role: string, token: string): Promise<YouthClubLeaderRecord | null>;
+  removeLeader(clubId: string, userId: string, token: string): Promise<boolean>;
 }
