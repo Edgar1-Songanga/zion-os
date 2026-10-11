@@ -78,6 +78,16 @@ export class ResaOperationalController {
     return this.operational.updateLiveStatus(this.token(authorization), liveId, body.status);
   }
 
+  @Get('live/:liveId/cohosts')
+  listLiveCohosts(@Headers('authorization') authorization: string | undefined, @Param('liveId') liveId: string) {
+    return this.operational.listLiveCohosts(this.token(authorization), liveId);
+  }
+
+  @Patch('live/:liveId/cohosts')
+  setLiveCohost(@Headers('authorization') authorization: string | undefined, @Param('liveId') liveId: string, @Body() body: { userId: string; action: 'assign' | 'remove' }) {
+    return this.operational.setLiveCohost(this.token(authorization), liveId, body.userId, body.action);
+  }
+
   @Post('live/:liveId/stream')
   startExternalStream(@Headers('authorization') authorization: string | undefined, @Param('liveId') liveId: string, @Body() body: { streamUrl: string }) {
     return this.liveEgress.startExternalStream(this.token(authorization), liveId, body.streamUrl);
