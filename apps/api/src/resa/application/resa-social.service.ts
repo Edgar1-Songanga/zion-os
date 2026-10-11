@@ -20,31 +20,58 @@ export class ResaSocialService {
   async feed(token: string, limit = 30) {
     const a = await this.actor(token);
     const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
-    const contents = await this.db.get<any[]>('resa_contents', token, '?select=*&visibility=eq.public&order=created_at.desc&limit=150');
+
+    // Bound the candidate window and select only fields consumed by feed ranking/rendering.
+    const contents = await this.db.get<any[]>(
+      'resa_contents',
+      token,
+      '?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&visibility=eq.public&order=created_at.desc&limit=120',
+    );
     const contentIds = contents.map((item) => item.id).filter(Boolean);
-    const reactionFilter = contentIds.length ? `?select=content_id&content_id=in.(${contentIds.join(',')})` : null;
+    const authorIds = [...new Set(contents.map((item) => item.author_id).filter(Boolean))];
+
+    // Scope personalized lookups to this feed page rather than downloading each user's
+    // entire follow graph, feedback history, and saved-content list on every refresh.
+    const contentFilter = contentIds.length ? `in.(${contentIds.join(',')})` : null;
+    const authorFilter = authorIds.length ? `in.(${authorIds.join(',')})` : null;
     const [follows, feedback, reactions, saves] = await Promise.all([
-      this.db.get<any[]>('resa_follows', token, `?select=followed_id&follower_id=eq.${a.id}`),
-      this.db.get<any[]>('resa_feed_feedback', token, `?select=content_id,feedback&user_id=eq.${a.id}`),
-      reactionFilter ? this.db.get<any[]>('resa_reactions', token, reactionFilter) : Promise.resolve([]),
-      this.db.get<any[]>('resa_saves', token, `?select=content_id&user_id=eq.${a.id}`),
+      authorFilter
+        ? this.db.get<any[]>( 'resa_follows', token, `?select=followed_id&follower_id=eq.${a.id}&followed_id=${authorFilter}&limit=120`)
+        : Promise.resolve([]),
+      contentFilter
+        ? this.db.get<any[]>( 'resa_feed_feedback', token, `?select=content_id,feedback&user_id=eq.${a.id}&content_id=${contentFilter}&limit=120`)
+        : Promise.resolve([]),
+      contentFilter
+        ? this.db.get<any[]>( 'resa_reactions', token, `?select=content_id&content_id=${contentFilter}&limit=1000`)
+        : Promise.resolve([]),
+      contentFilter
+        ? this.db.get<any[]>( 'resa_saves', token, `?select=content_id&user_id=eq.${a.id}&content_id=${contentFilter}&limit=120`)
+        : Promise.resolve([]),
     ]);
+
     const followed = new Set(follows.map((row) => row.followed_id));
     const hidden = new Map(feedback.map((row) => [row.content_id, row.feedback]));
+    const hiddenAuthors = new Set(
+      contents
+        .filter((item) => hidden.get(item.id) === 'hide_author')
+        .map((item) => item.author_id),
+    );
     const reactionCounts = reactions.reduce<Record<string, number>>((counts, row) => {
       counts[row.content_id] = (counts[row.content_id] ?? 0) + 1;
       return counts;
     }, {});
     const saved = new Set(saves.map((row) => row.content_id));
-    const ranked = this.recommendations.rank(contents.map((item) => ({
-      ...item,
-      followedAuthor: followed.has(item.author_id),
-      interactionCount: reactionCounts[item.id] ?? 0,
-      saved: saved.has(item.id),
-      feedback: hidden.get(item.id),
-      contentType: item.type,
-      ageHours: Math.max(0, (Date.now() - Date.parse(item.created_at)) / 3600000),
-    })));
+    const ranked = this.recommendations.rank(contents
+      .filter((item) => !hiddenAuthors.has(item.author_id))
+      .map((item) => ({
+        ...item,
+        followedAuthor: followed.has(item.author_id),
+        interactionCount: reactionCounts[item.id] ?? 0,
+        saved: saved.has(item.id),
+        feedback: hidden.get(item.id),
+        contentType: item.type,
+        ageHours: Math.max(0, (Date.now() - Date.parse(item.created_at)) / 3600000),
+      })));
     return ranked.slice(0, size);
   }
 
