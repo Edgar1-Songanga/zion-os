@@ -42,6 +42,7 @@ export default function YouthActivityOperations() {
   const [clubId, setClubId] = useState("");
   const [members, setMembers] = useState<ClubMember[]>([]);
   const [profiles, setProfiles] = useState<Record<string, Profile>>({});
+  const [clubLeaderIds, setClubLeaderIds] = useState<string[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [report, setReport] = useState<Report | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -86,6 +87,7 @@ export default function YouthActivityOperations() {
       setActivities(activityRows); setMembers(memberRows); setReport(currentReport);
       const resolved = [...people.members, ...people.leaders].map((person) => person.profile).filter((profile): profile is Profile => profile !== null);
       setProfiles((previous) => ({ ...previous, ...Object.fromEntries(resolved.map((profile) => [profile.id, profile])) }));
+      setClubLeaderIds(people.leaders.map((leader) => leader.user_id));
     }).catch((reason) => {
       if (current) setError(reason instanceof Error ? reason.message : "Não foi possível carregar as atividades do clube.");
     }).finally(() => { if (current) setLoading(false); });
@@ -227,7 +229,7 @@ export default function YouthActivityOperations() {
                 <label className="text-sm font-medium text-slate-700">Fim<input type="datetime-local" value={form.ends_at} onChange={(event) => setForm({ ...form, ends_at: event.target.value })} className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2" /></label>
               </div>
               <label className="block text-sm font-medium text-slate-700">Local<input maxLength={240} value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2" /></label>
-              <label className="block text-sm font-medium text-slate-700">Responsável designado<select value={form.leader_user_id} onChange={(event) => setForm({ ...form, leader_user_id: event.target.value })} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2"><option value="">A definir</option>{activeMembers.filter((member) => profiles[member.userId]).map((member) => <option key={member.userId} value={member.userId}>{personName(profiles[member.userId])}</option>)}</select></label>
+              <label className="block text-sm font-medium text-slate-700">Responsável designado<select value={form.leader_user_id} onChange={(event) => setForm({ ...form, leader_user_id: event.target.value })} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2"><option value="">A definir</option>{activeMembers.filter((member) => clubLeaderIds.includes(member.userId) && profiles[member.userId]).map((member) => <option key={member.userId} value={member.userId}>{personName(profiles[member.userId])}</option>)}</select></label>
               <label className="block text-sm font-medium text-slate-700">Descrição<textarea rows={3} maxLength={4000} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2" /></label>
               <button type="submit" disabled={saving} className="rounded-xl bg-[#0C1A3D] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving ? "A guardar…" : "Registar atividade"}</button>
             </form>
@@ -265,7 +267,8 @@ export default function YouthActivityOperations() {
               <div key={participant.user_id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3">
                 <div><p className="text-sm font-semibold text-slate-800">{personName(profiles[participant.user_id])}</p><p className="text-xs text-slate-500">{participant.status}</p></div>
                 <div className="flex flex-wrap gap-2">
-                  {participant.status !== "ATTENDED" && <button type="button" disabled={saving} onClick={() => void setAttendance(participant, "ATTENDED")} className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700">Presente</button>}
+                  {participant.status === "CANCELLED" && <button type="button" disabled={saving} onClick={() => void setAttendance(participant, "REGISTERED")} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold">Reativar inscrição</button>}
+                  {participant.status !== "ATTENDED" && participant.status !== "CANCELLED" && <button type="button" disabled={saving} onClick={() => void setAttendance(participant, "ATTENDED")} className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700">Presente</button>}
                   {participant.status !== "ABSENT" && <button type="button" disabled={saving} onClick={() => void setAttendance(participant, "ABSENT")} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold">Ausente</button>}
                 </div>
               </div>
