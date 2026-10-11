@@ -74,11 +74,11 @@ export default function LivePage() {
         method: "PATCH",
         body: JSON.stringify({ status }),
       });
+      const latest = items.find((item) => item.id === id);
       await load();
-      if (status === "live") {
-        const latest = items.find((item) => item.id === id);
-        if (latest) setStudioLive({ ...latest, status: "live", is_host: true });
-      }
+      if (status === "live" && latest) setStudioLive({ ...latest, status: "live", is_host: true });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível atualizar a Live.");
     }
   }
 
