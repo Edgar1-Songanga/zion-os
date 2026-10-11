@@ -40,11 +40,11 @@ export class SpiritualMinistryService {
           department: profile.department ?? 'MINISTRY',
           philosophy: profile.philosophy ?? '',
           description: profile.description ?? '',
-          coverImageUrl: profile.coverImageUrl,
-          focusAreas: profile.focusAreas,
-          ageRange: profile.ageRange,
-          officialUrl: profile.officialUrl,
-          sourceLabel: profile.sourceLabel,
+          ...(profile.coverImageUrl !== undefined ? { coverImageUrl: profile.coverImageUrl } : {}),
+          ...(profile.focusAreas !== undefined ? { focusAreas: profile.focusAreas } : {}),
+          ...(profile.ageRange !== undefined ? { ageRange: profile.ageRange } : {}),
+          ...(profile.officialUrl !== undefined ? { officialUrl: profile.officialUrl } : {}),
+          ...(profile.sourceLabel !== undefined ? { sourceLabel: profile.sourceLabel } : {}),
         },
         token,
       )) ?? null
@@ -95,16 +95,15 @@ export class SpiritualMinistryService {
       if (!Array.isArray(input.focus_areas) || input.focus_areas.length > 20) {
         throw new BadRequestException('focus_areas must be an array with at most 20 entries.');
       }
-      result.focusAreas = input.focus_areas.map((value, index) =>
+      result.focusAreas = [...new Set(input.focus_areas.map((value, index) =>
         this.requiredText(value, `focus_areas[${index}]`, 1, 120),
-      );
-      result.focusAreas = [...new Set(result.focusAreas)];
+      ))];
     }
     if (input.age_range !== undefined) {
-      result.ageRange = this.optionalText(input.age_range ?? undefined, 'age_range', 120) ?? null;
+      result.ageRange = input.age_range === null ? null : (this.optionalText(input.age_range, 'age_range', 120) ?? null);
     }
     if (input.source_label !== undefined) {
-      result.sourceLabel = this.optionalText(input.source_label ?? undefined, 'source_label', 200) ?? null;
+      result.sourceLabel = input.source_label === null ? null : (this.optionalText(input.source_label, 'source_label', 200) ?? null);
     }
     return result;
   }
