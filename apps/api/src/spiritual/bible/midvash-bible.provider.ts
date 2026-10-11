@@ -9,6 +9,7 @@ type MidvashResponse = {
     verse?: number;
     verseEnd?: number;
     text?: string;
+    verses?: string[];
   };
   meta?: {
     copyright?: string;
@@ -38,8 +39,13 @@ export class MidvashBibleProvider implements BibleProvider {
     if (!payload.data?.text) return null;
 
     return {
-      reference,
+      reference: {
+        ...reference,
+        verseStart: reference.verseStart ?? (payload.data.verses?.length ? 1 : payload.data.verse),
+        verseEnd: reference.verseEnd ?? (payload.data.verses?.length ? payload.data.verseEnd : undefined),
+      },
       text: payload.data.text,
+      verses: Array.isArray(payload.data.verses) ? payload.data.verses : undefined,
       translation: payload.data.version ?? version,
       relevance: 1,
       copyright: payload.meta?.copyright,
@@ -50,9 +56,8 @@ export class MidvashBibleProvider implements BibleProvider {
     const normalized = query.trim();
     if (!normalized) return [];
 
-    // The upstream open API intentionally exposes reference parsing rather
-    // than a server-side full-text search endpoint. Treat search as a
-    // reference lookup so ZION never invents topical results.
+    // The upstream open API exposes reference parsing rather than server-side
+    // full-text search. Resolve references instead of inventing topical results.
     const parsed = await this.request<{
       data?: {
         book_slug?: string;
@@ -80,11 +85,11 @@ export class MidvashBibleProvider implements BibleProvider {
   private normalizeVersion(translation: string): string {
     const normalized = translation.trim().toLowerCase();
     const aliases: Record<string, string> = {
-      "almeida": "almeida-livre",
+      almeida: "almeida-livre",
       "almeida-livre": "almeida-livre",
       "almeida 1819": "almeida-livre",
-      "kjv": "kjv",
-      "web": "web",
+      kjv: "kjv",
+      web: "web",
     };
     return aliases[normalized] ?? normalized;
   }
