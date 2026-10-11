@@ -1,17 +1,7 @@
 -- Persistent Youth Ministry clubs and membership foundation.
 -- Organization-scoped and additive; existing ministry and youth UI structures remain intact.
 
-do $
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conname = 'ministries_id_organization_id_unique'
-      and conrelid = 'public.ministries'::regclass
-  ) then
-    alter table public.ministries
-      add constraint ministries_id_organization_id_unique unique (id, organization_id);
-  end if;
-end $;
+create unique index if not exists ministries_id_organization_id_unique on public.ministries(id, organization_id);
 
 create table if not exists public.youth_clubs (
   id uuid primary key default gen_random_uuid(),
