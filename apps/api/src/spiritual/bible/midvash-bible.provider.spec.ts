@@ -24,8 +24,8 @@ describe("MidvashBibleProvider verse structure", () => {
     const result = await provider.get({ book: "João", chapter: 3 }, "almeida-livre");
 
     expect(result?.verses).toEqual(["No princípio.", "E a terra."]);
-    expect(result?.reference.verseStart).toBe(1);
-    expect(result?.reference.verseEnd).toBe(2);
+    expect(result?.reference.verseStart).toBeUndefined();
+    expect(result?.reference.verseEnd).toBeUndefined();
     expect(result?.copyright).toBe("Texto de domínio público");
   });
 
