@@ -64,6 +64,25 @@ export class YouthProgressionService {
     return rows[0];
   }
 
+  async listClubPeople(token: string, clubId: string) {
+    const club = await this.getClub(token, clubId);
+    const [members, leaders] = await Promise.all([
+      this.db.get<any[]>('youth_club_members', token, `?select=club_id,user_id,status,joined_at&club_id=eq.${encodeURIComponent(club.id)}&order=joined_at.asc`),
+      this.db.get<any[]>('youth_club_leaders', token, `?select=club_id,user_id,role,verified,created_at&club_id=eq.${encodeURIComponent(club.id)}&order=created_at.asc`),
+    ]);
+    const ids = Array.from(new Set([...members.map((item) => item.user_id), ...leaders.map((item) => item.user_id)]));
+    const profiles: any[] = [];
+    for (let index = 0; index < ids.length; index += 200) {
+      const batch = ids.slice(index, index + 200);
+      profiles.push(...await this.db.rpc<any[]>('resa_profiles_for_ids', token, { p_user_ids: batch }));
+    }
+    const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
+    return {
+      members: members.map((item) => ({ ...item, profile: profileById.get(item.user_id) ?? null })),
+      leaders: leaders.map((item) => ({ ...item, profile: profileById.get(item.user_id) ?? null })),
+    };
+  }
+
   async listProgress(token: string, clubId: string) {
     const club = this.uuid(clubId, 'club id');
     return this.db.get<any[]>(
