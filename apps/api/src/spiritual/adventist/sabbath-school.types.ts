@@ -18,8 +18,10 @@ export interface SabbathSchoolLesson {
 
 export interface SabbathSchoolDailySection {
   day: string;
-  title: string;
-  bibleReferences: string[];
+  title?: string;
+  focus?: string;
+  summary?: string;
+  bibleReferences?: string[];
   sourceUrl?: string;
 }
 
