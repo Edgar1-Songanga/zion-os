@@ -492,6 +492,18 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
           : <button onClick={() => void startExternalStream()} disabled={!connected || !isHost || !streamUrl.trim() || streamBusy} className="w-full rounded-lg bg-sky-300 px-3 py-2 text-sm font-bold text-[#07142c] disabled:opacity-40">{streamBusy ? "A iniciar…" : "Iniciar transmissão externa"}</button>}
         <p className="text-[11px] leading-4 text-amber-200/80">Requer LiveKit Egress ativo e pode consumir quota paga do fornecedor. A gravação local não usa esse serviço.</p>
       </div>
+      <div className="col-span-3 space-y-3 rounded-xl border border-white/10 bg-black/15 p-3">
+        <p className="text-xs font-bold uppercase tracking-wide text-slate-300">Partilhar áudio ou vídeo</p>
+        <p className="text-xs leading-5 text-slate-400">Escolhe um ficheiro de áudio ou vídeo para o transmitir aos participantes. Mantém o estúdio aberto durante a reprodução.</p>
+        <input type="file" accept="audio/*,video/*" disabled={!isHost || mediaSharing} onChange={(event) => { const file = event.target.files?.[0]; if (file) void shareMediaFile(file); event.currentTarget.value = ""; }} className="block w-full text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-sky-300 file:px-3 file:py-2 file:text-xs file:font-bold file:text-[#07142c] disabled:opacity-50" />
+        {mediaSharing && <div className="flex items-center justify-between gap-2 rounded-lg bg-sky-300/10 p-2 text-xs text-sky-100"><span className="min-w-0 truncate">{mediaFileName}</span><button onClick={() => void stopMediaFile()} className="shrink-0 rounded-lg border border-white/10 px-3 py-2">Parar partilha</button></div>}
+      </div>
+      <form onSubmit={(event) => void shareScripture(event)} className="col-span-3 space-y-2 rounded-xl border border-white/10 bg-black/15 p-3">
+        <p className="text-xs font-bold uppercase tracking-wide text-slate-300">Partilhar texto bíblico ou mensagem</p>
+        <input value={scriptureTitle} onChange={(event) => setScriptureTitle(event.target.value)} maxLength={120} placeholder="Referência ou título (ex.: Salmo 23)" disabled={!isHost} className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-slate-500 disabled:opacity-50" />
+        <textarea value={scriptureText} onChange={(event) => setScriptureText(event.target.value)} maxLength={5000} rows={3} placeholder="Escreve ou cola aqui o texto que todos devem acompanhar…" disabled={!isHost} className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-slate-500 disabled:opacity-50" />
+        <button type="submit" disabled={!isHost || !connected || !scriptureTitle.trim() || !scriptureText.trim()} className="w-full rounded-lg border border-sky-200/20 bg-sky-300/10 px-3 py-2 text-sm font-semibold text-sky-100 disabled:opacity-40">Partilhar com todos</button>
+      </form>
     </div>
   );
 
@@ -502,7 +514,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">ZION · RESA Live</p>
             <h2 className="truncate font-semibold">{title}</h2>
-            <p className="mt-1 text-xs text-slate-400">{starting ? "A estabelecer ligação…" : connected ? (isHost ? "Estás a transmitir como anfitrião" : "Ligado como espectador") : "Sem ligação"}{recording ? " · GRAVAÇÃO ATIVA" : ""}{streamingExternal ? " · SAÍDA EXTERNA ATIVA" : ""}</p>
+            <p className="mt-1 text-xs text-slate-400">{starting ? "A estabelecer ligação…" : connected ? (isHost ? "Estás a transmitir como anfitrião" : "Ligado como espectador") : "Sem ligação"}{isHost ? (microphone ? " · O TEU MICROFONE ESTÁ LIGADO" : " · O TEU MICROFONE ESTÁ DESLIGADO") : ""}{recording ? " · GRAVAÇÃO ATIVA" : ""}{streamingExternal ? " · SAÍDA EXTERNA ATIVA" : ""}{mediaSharing ? " · FICHEIRO A SER PARTILHADO" : ""}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {audioNeedsGesture && <button onClick={() => void startAudio()} disabled={!connected} className="rounded-xl border border-sky-200/30 bg-sky-300/10 px-3 py-2 text-xs font-semibold text-sky-100 hover:bg-sky-300/20">Ativar áudio</button>}
@@ -517,6 +529,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
               {isHost && <video ref={localVideoRef} autoPlay muted playsInline className="absolute bottom-3 right-3 h-24 w-36 rounded-xl border border-white/20 bg-slate-900 object-cover shadow-2xl sm:h-32 sm:w-48" />}
               {!connected && <div className="absolute inset-0 flex items-center justify-center bg-black/60 p-6 text-center text-sm text-slate-300">{error || (starting ? "A preparar áudio e vídeo…" : "A ligação foi interrompida.")}</div>}
             </div>
+            {sharedScripture && <article className="rounded-2xl border border-amber-200/20 bg-gradient-to-br from-amber-100/[0.08] to-white/[0.02] p-5 text-center shadow-xl"><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-200/80">Texto partilhado no estúdio</p><h3 className="mt-2 text-lg font-semibold text-amber-50">{sharedScripture.title}</h3><p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-100">{sharedScripture.text}</p><p className="mt-3 text-[10px] text-slate-500">Partilhado por {sharedScripture.name || "Anfitrião"}</p></article>}
             {notice && <div role="status" className="rounded-xl border border-sky-300/20 bg-sky-400/10 px-4 py-3 text-sm text-sky-100">{notice}<button onClick={() => setNotice(null)} className="ml-3 underline">Fechar</button></div>}
             {error && connected && <div role="alert" className="rounded-xl border border-red-300/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div>}
             <div className="flex flex-wrap items-center gap-2">
