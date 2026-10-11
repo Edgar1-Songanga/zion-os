@@ -34,10 +34,11 @@ export default function SpiritualChat() {
           return found[0];
         }),
       );
-      const available = results
-        .filter((result): result is PromiseFulfilledResult<BiblePassage | undefined> => result.status === "fulfilled")
-        .map((result) => result.value)
-        .filter((value): value is BiblePassage => Boolean(value && (value.text || value.verses?.length)));
+      const available = results.flatMap((result) => {
+        if (result.status !== "fulfilled") return [];
+        const passage = result.value;
+        return passage && (passage.text || passage.verses?.length) ? [passage] : [];
+      });
       setPassages(available);
       if (!available.length) setPassageNotice("A resposta inclui referências bíblicas, mas não foi possível carregar o texto dos versículos neste momento.");
     } catch {
