@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { SpiritualMinistryService } from './ministry.service';
-import type { MinistryDirectoryPort } from './ministry.types';
+import type { MinistryDirectoryPort, MinistryRecord } from './ministry.types';
 
 describe('SpiritualMinistryService ministry profile management', () => {
   const ministryId = '00000000-0000-4000-8000-000000000001';
@@ -8,9 +8,24 @@ describe('SpiritualMinistryService ministry profile management', () => {
   let service: SpiritualMinistryService;
 
   beforeEach(() => {
+    const record: MinistryRecord = {
+      id: ministryId,
+      organizationId: ministryId,
+      name: 'Desbravadores',
+      department: 'pathfinder-club',
+      description: 'Formação e serviço',
+      philosophy: 'Salvar do pecado e guiar no serviço.',
+      status: 'active',
+      focusAreas: ['Classes'],
+      createdAt: '2026-10-11T00:00:00.000Z',
+      leadership: [],
+      programs: [],
+      reports: [],
+      metrics: { members: 0, leaders: 0, programs: 0, participation: 0, growth: 0, impact: 0 },
+    };
     directory = {
       create: jest.fn().mockResolvedValue(null),
-      update: jest.fn().mockResolvedValue(null),
+      update: jest.fn().mockResolvedValue(record),
       getById: jest.fn().mockResolvedValue(null),
       listByOrganization: jest.fn().mockResolvedValue([]),
     };
