@@ -24,6 +24,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
   const [camera, setCamera] = useState(false);
   const [microphone, setMicrophone] = useState(false);
   const [isHost, setIsHost] = useState(false);
+  const [canSpeak, setCanSpeak] = useState(false);
   const [selfIdentity, setSelfIdentity] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(true);
@@ -36,12 +37,12 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
   const [tab, setTab] = useState<"chat" | "people">("chat");
   const [notice, setNotice] = useState<string | null>(null);
 
-  const sendPacket = useCallback(async (packet: LivePacket) => {
+  const sendPacket = useCallback(async (packet: LivePacket, destinationIdentity?: string) => {
     const room = roomRef.current;
     if (!room || !room.localParticipant.isLocal) return;
     await room.localParticipant.publishData(
       new TextEncoder().encode(JSON.stringify(packet)),
-      { reliable: true, topic: DATA_TOPIC },
+      { reliable: true, topic: DATA_TOPIC, ...(destinationIdentity ? { destinationIdentities: [destinationIdentity] } : {}) },
     );
   }, []);
 
@@ -106,6 +107,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
           if (room.localParticipant.identity !== identity) setNotice(name + " levantou a mão.");
         } else if (packet.type === "speak_granted" && identity !== room.localParticipant.identity) {
           setNotice("O anfitrião autorizou a tua participação. Já podes ativar o microfone e a câmara.");
+          setCanSpeak(true);
           setHandRaised(false);
         } else if (packet.type === "announcement") {
           setNotice(packet.text);
@@ -147,6 +149,11 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
         await room.connect(config.joinUrl, config.token, { autoSubscribe: true });
         if (config.isHost || config.role === "host") {
           await room.localParticipant.enableCameraAndMicrophone();
+          const localCamera = room.localParticipant.getTrackPublication(Track.Source.Camera)?.track;
+          if (localCamera && localVideoRef.current) {
+            localVideoRef.current.srcObject = new MediaStream([localCamera.mediaStreamTrack]);
+            void localVideoRef.current.play().catch(() => {});
+          }
           if (mounted) { setCamera(true); setMicrophone(true); }
         }
         syncParticipants(room);
@@ -170,7 +177,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
 
   async function toggleCamera() {
     const room = roomRef.current;
-    if (!room || !isHost) return;
+    if (!room || (!isHost && !canSpeak)) return;
     try {
       const next = !camera;
       await room.localParticipant.setCameraEnabled(next);
@@ -237,7 +244,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
         body: JSON.stringify({ action }),
       });
       if (action === "allow_speak") {
-        await sendPacket({ type: "speak_granted", name: roomRef.current?.localParticipant.name || "Anfitrião" });
+        await sendPacket({ type: "speak_granted", name: roomRef.current?.localParticipant.name || "Anfitrião" }, identity);
         setRaisedHands((current) => current.filter((item) => item.identity !== identity));
       } else if (action === "remove") {
         setRaisedHands((current) => current.filter((item) => item.identity !== identity));
@@ -303,7 +310,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
             {notice && <div role="status" className="rounded-xl border border-sky-300/20 bg-sky-400/10 px-4 py-3 text-sm text-sky-100">{notice}<button onClick={() => setNotice(null)} className="ml-3 underline">Fechar</button></div>}
             {error && connected && <div role="alert" className="rounded-xl border border-red-300/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div>}
             <div className="flex flex-wrap items-center gap-2">
-              {isHost ? hostControls : <button onClick={() => void raiseHand()} disabled={!connected || handRaised} className="rounded-xl bg-white/10 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{handRaised ? "Pedido para falar enviado" : "Levantar a mão"}</button>}
+              {isHost || canSpeak ? hostControls : <button onClick={() => void raiseHand()} disabled={!connected || handRaised} className="rounded-xl bg-white/10 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{handRaised ? "Pedido para falar enviado" : "Levantar a mão"}</button>}
               {isHost && <button onClick={() => void endLive()} disabled={!connected || ending} className="rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{ending ? "A encerrar…" : "Encerrar live para todos"}</button>}
             </div>
           </section>
