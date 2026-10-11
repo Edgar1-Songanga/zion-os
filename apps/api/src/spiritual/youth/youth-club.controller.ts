@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Headers, NotFoundException, Param, Patch, Post, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Headers, NotFoundException, Param, Patch, Post, UnauthorizedException } from '@nestjs/common';
 import { YouthClubService } from './youth-club.service';
 import type { YouthClubInput, YouthClubStatus } from './youth-club.types';
 
@@ -70,7 +70,7 @@ export class YouthClubController {
     @Param('id') id: string,
     @Body() body: { user_id?: string },
   ) {
-    if (!body.user_id) throw new NotFoundException('user_id is required.');
+    if (!body.user_id) throw new BadRequestException('user_id is required.');
     const member = await this.clubs.addMember(id, body.user_id, this.token(authorization));
     if (!member) throw new NotFoundException('Member was not added or access was denied.');
     return member;
@@ -105,7 +105,7 @@ export class YouthClubController {
     @Param('id') id: string,
     @Body() body: { user_id?: string; role?: string },
   ) {
-    if (!body.user_id || !body.role) throw new NotFoundException('user_id and role are required.');
+    if (!body.user_id || !body.role) throw new BadRequestException('user_id and role are required.');
     const leader = await this.clubs.assignLeader(id, body.user_id, body.role, this.token(authorization));
     if (!leader) throw new NotFoundException('Leader was not assigned or access was denied.');
     return leader;
