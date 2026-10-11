@@ -131,19 +131,19 @@ export default function YouthClubOperations() {
     setPersonResults([]);
     setSelectedUserId("");
     try {
-      const [members, leaders, organizationMembers] = await Promise.all([
+      const [members, leaders, organizationMembers, people] = await Promise.all([
         resaRequest<ClubMember[]>(`/v1/youth/clubs/${encodeURIComponent(club.id)}/members`),
         resaRequest<ClubLeader[]>(`/v1/youth/clubs/${encodeURIComponent(club.id)}/leaders`),
         resaRequest<OrganizationMember[]>(`/v1/organizations/${encodeURIComponent(club.organizationId)}/memberships`),
+        resaRequest<{ members: Array<{ user_id: string; profile: PersonProfile | null }>; leaders: Array<{ user_id: string; profile: PersonProfile | null }> }>(`/v1/youth/progression/clubs/${encodeURIComponent(club.id)}/people`),
       ]);
       setClubMembers(members);
       setClubLeaders(leaders);
       setOrgMembers(organizationMembers.filter((member) => member.status === "ACTIVE"));
-      const ids = Array.from(new Set([...members.map((item) => item.userId), ...leaders.map((item) => item.userId)]));
-      if (ids.length) {
-        const suggestions = await resaRequest<PersonProfile[]>(`/v1/resa/profiles/suggestions?limit=30`).catch(() => []);
-        setProfiles((current) => ({ ...current, ...Object.fromEntries(suggestions.map((person) => [person.id, person])) }));
-      }
+      const resolvedProfiles = [...people.members, ...people.leaders]
+        .map((person) => person.profile)
+        .filter((profile): profile is PersonProfile => profile !== null);
+      setProfiles((current) => ({ ...current, ...Object.fromEntries(resolvedProfiles.map((person) => [person.id, person])) }));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível carregar membros e dirigentes.");
     } finally {
