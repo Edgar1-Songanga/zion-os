@@ -65,6 +65,11 @@ export interface Ministry {
   department: string;
   description: string;
   philosophy: string;
+  coverImageUrl?: string | null;
+  focusAreas?: string[];
+  ageRange?: string | null;
+  officialUrl?: string | null;
+  sourceLabel?: string | null;
   status: MinistryStatus;
 
   organization: MinistryOrganization;
