@@ -10,7 +10,7 @@ export interface MinistryRecord {
   philosophy: string;
   status: MinistryStatus;
   coverImageUrl?: string | null;
-  focusAreas: string[];
+  focusAreas?: string[];
   ageRange?: string | null;
   officialUrl?: string | null;
   sourceLabel?: string | null;
