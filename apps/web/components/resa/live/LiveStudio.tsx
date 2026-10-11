@@ -378,7 +378,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
       element.autoplay = true;
       element.loop = false;
       element.muted = false;
-      element.playsInline = true;
+      if (element instanceof HTMLVideoElement) element.playsInline = true;
       element.style.position = "fixed";
       element.style.width = "1px";
       element.style.height = "1px";
