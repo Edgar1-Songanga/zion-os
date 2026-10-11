@@ -255,3 +255,51 @@ create trigger youth_investitures_program_guard
 before insert or update of organization_id, club_id, class_catalog_id
 on public.youth_investitures
 for each row execute function public.validate_youth_progression_program();
+
+-- Allow assigned club leaders to see the member roster needed for club operations.
+drop policy if exists youth_club_members_member_read on public.youth_club_members;
+create policy youth_club_members_member_read on public.youth_club_members
+for select to authenticated
+using (
+  user_id = (select auth.uid())
+  or exists (
+    select 1 from public.youth_clubs c
+    where c.id = youth_club_members.club_id
+      and (
+        private.has_org_permission(c.organization_id, 'membership.read')
+        or private.has_org_permission(c.organization_id, 'organization.manage')
+      )
+  )
+  or exists (
+    select 1 from public.youth_club_leaders l
+    where l.club_id = youth_club_members.club_id
+      and l.user_id = (select auth.uid())
+  )
+);
+
+-- Resolve display names for known organization-member IDs while respecting profile privacy.
+create or replace function public.resa_profiles_for_ids(p_user_ids uuid[])
+returns table(id uuid, display_name text, first_name text, last_name text, avatar_url text, email text)
+language sql
+security definer
+set search_path to 'public'
+as $function$
+  select
+    p.id,
+    p.display_name,
+    case when coalesce(p.privacy->>'profile_visibility', 'community') <> 'private' then p.first_name end,
+    case when coalesce(p.privacy->>'profile_visibility', 'community') <> 'private' then p.last_name end,
+    case when coalesce(p.privacy->>'profile_visibility', 'community') <> 'private' then p.avatar_url end,
+    case when coalesce(p.privacy->>'profile_visibility', 'community') = 'public' then u.email end
+  from public.profiles p
+  join auth.users u on u.id = p.id
+  where auth.uid() is not null
+    and coalesce(p.privacy->>'profile_visibility', 'community') <> 'private'
+    and p.id = any(coalesce(p_user_ids, array[]::uuid[]))
+  order by coalesce(p.display_name, p.first_name, u.email), p.id
+  limit 200;
+$function$;
+
+revoke all on function public.resa_profiles_for_ids(uuid[]) from public;
+revoke all on function public.resa_profiles_for_ids(uuid[]) from anon;
+grant execute on function public.resa_profiles_for_ids(uuid[]) to authenticated;
