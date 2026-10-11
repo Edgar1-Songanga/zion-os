@@ -36,6 +36,9 @@ export class YouthProgressionService {
     const level = this.optionalText(input.level, 'level', 120) ?? '';
     const prerequisites = this.prerequisites(input.prerequisites);
     const officialReferenceUrl = this.httpsUrl(input.official_reference_url, 'official_reference_url');
+    if (input.is_active !== undefined && typeof input.is_active !== 'boolean') {
+      throw new BadRequestException('is_active must be boolean.');
+    }
     const rows = await this.db.post<any[]>('youth_achievement_catalog', token, {
       organization_id: organization, program_id: programId, kind, code, name, description, level,
       prerequisites, official_reference_url: officialReferenceUrl, is_active: input.is_active ?? true,
@@ -65,7 +68,7 @@ export class YouthProgressionService {
   }
 
   async listClubPeople(token: string, clubId: string) {
-    const club = await this.getClub(token, clubId);
+    const club = await this.getClub(token, clubId, false);
     const [members, leaders] = await Promise.all([
       this.db.get<any[]>('youth_club_members', token, `?select=club_id,user_id,status,joined_at&club_id=eq.${encodeURIComponent(club.id)}&order=joined_at.asc`),
       this.db.get<any[]>('youth_club_leaders', token, `?select=club_id,user_id,role,verified,created_at&club_id=eq.${encodeURIComponent(club.id)}&order=created_at.asc`),
@@ -118,7 +121,11 @@ export class YouthProgressionService {
         throw new BadRequestException('status must be IN_PROGRESS, COMPLETED, VERIFIED, or RETURNED.');
       }
       patch.status = input.status as ProgressStatus;
-      if (input.status === 'COMPLETED') patch.completed_at = new Date().toISOString();
+      if (input.status === 'COMPLETED') {
+        patch.completed_at = new Date().toISOString();
+        patch.verified_by = null;
+        patch.verified_at = null;
+      }
       if (input.status === 'VERIFIED') {
         patch.completed_at = new Date().toISOString();
         patch.verified_by = actor.id;
@@ -190,11 +197,11 @@ export class YouthProgressionService {
     return rows[0];
   }
 
-  private async getClub(token: string, id: string) {
+  private async getClub(token: string, id: string, requireActive = true) {
     const clubId = this.uuid(id, 'club id');
     const rows = await this.db.get<any[]>('youth_clubs', token, `?select=id,organization_id,program_id,status&id=eq.${encodeURIComponent(clubId)}&limit=1`);
     if (!rows[0]) throw new NotFoundException('Youth club not found or access denied.');
-    if (rows[0].status !== 'ACTIVE') throw new BadRequestException('Operations are not available for an inactive club.');
+    if (requireActive && rows[0].status !== 'ACTIVE') throw new BadRequestException('Operations are not available for an inactive club.');
     return rows[0] as { id: string; organization_id: string; program_id: ProgramId; status: string };
   }
 
