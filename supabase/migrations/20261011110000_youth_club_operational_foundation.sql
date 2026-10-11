@@ -36,7 +36,7 @@ create table if not exists public.youth_clubs (
   constraint youth_clubs_ministry_organization_fk
     foreign key (ministry_id, organization_id)
     references public.ministries(id, organization_id)
-    on delete restrict,
+    on delete no action,
   constraint youth_clubs_org_name_unique unique (organization_id, name)
 );
 
@@ -121,6 +121,21 @@ with check (
     from public.youth_clubs c
     where c.id = club_id
       and private.is_org_member(c.organization_id)
+  )
+);
+
+drop policy if exists youth_club_members_admin_insert on public.youth_club_members;
+create policy youth_club_members_admin_insert on public.youth_club_members
+for insert to authenticated
+with check (
+  exists (
+    select 1
+    from public.youth_clubs c
+    where c.id = club_id
+      and (
+        private.has_org_permission(c.organization_id, 'membership.manage')
+        or private.has_org_permission(c.organization_id, 'organization.manage')
+      )
   )
 );
 
