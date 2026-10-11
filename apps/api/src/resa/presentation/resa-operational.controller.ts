@@ -103,7 +103,7 @@ export class ResaOperationalController {
     @Headers('authorization') authorization: string | undefined,
     @Param('liveId') liveId: string,
     @Param('identity') identity: string,
-    @Body() body: { action: 'allow_speak' | 'revoke_speak' | 'remove' },
+    @Body() body: { action: 'allow_speak' | 'revoke_speak' | 'remove' | 'mute_audio' | 'unmute_audio' },
   ) {
     return this.operational.moderateLiveParticipant(this.token(authorization), liveId, identity, body.action);
   }
