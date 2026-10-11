@@ -12,7 +12,8 @@ type LivePacket =
   | { type: "hand_raise"; name?: string }
   | { type: "speak_granted"; name?: string }
   | { type: "speak_revoked"; name?: string }
-  | { type: "announcement"; text: string; name?: string };
+  | { type: "announcement"; text: string; name?: string }
+  | { type: "scripture"; title: string; text: string; name?: string };
 
 const DATA_TOPIC = "zion-live";
 
@@ -24,6 +25,8 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
   const recordingStreamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordingChunksRef = useRef<Blob[]>([]);
+  const presentationTracksRef = useRef<MediaStreamTrack[]>([]);
+  const presentationElementRef = useRef<HTMLMediaElement | null>(null);
   const [connected, setConnected] = useState(false);
   const [camera, setCamera] = useState(false);
   const [microphone, setMicrophone] = useState(false);
@@ -47,6 +50,11 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
   const [streamingExternal, setStreamingExternal] = useState(false);
   const [streamBusy, setStreamBusy] = useState(false);
   const [audioNeedsGesture, setAudioNeedsGesture] = useState(false);
+  const [scriptureTitle, setScriptureTitle] = useState("");
+  const [scriptureText, setScriptureText] = useState("");
+  const [sharedScripture, setSharedScripture] = useState<{ title: string; text: string; name?: string } | null>(null);
+  const [mediaSharing, setMediaSharing] = useState(false);
+  const [mediaFileName, setMediaFileName] = useState("");
 
   const sendPacket = useCallback(async (packet: LivePacket, destinationIdentity?: string) => {
     const room = roomRef.current;
@@ -135,6 +143,9 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
           setCamera(false);
           setScreenShare(false);
           setNotice("O anfitrião retirou a tua permissão de falar. O microfone, a câmara e a partilha foram desligados.");
+        } else if (packet.type === "scripture") {
+          setSharedScripture({ title: packet.title, text: packet.text, name });
+          setNotice("O anfitrião partilhou um texto para acompanhar a live.");
         } else if (packet.type === "announcement") {
           setNotice(packet.text);
         }
@@ -302,13 +313,91 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
   async function toggleScreenShare() {
     const room = roomRef.current;
     if (!room || (!isHost && !canSpeak)) return;
+    if (!screenShare && typeof navigator !== "undefined" && !navigator.mediaDevices?.getDisplayMedia) {
+      setError("Este navegador/dispositivo não suporta partilha de ecrã. Em muitos telemóveis Android, a partilha de ecrã do navegador não está disponível. Usa «Partilhar áudio/vídeo» ou «Partilhar texto bíblico» neste estúdio, ou abre a live num computador com Chrome/Edge atualizado.");
+      return;
+    }
     try {
       const next = !screenShare;
       await room.localParticipant.setScreenShareEnabled(next);
       setScreenShare(next);
+      setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Não foi possível partilhar o ecrã. Verifica as permissões do navegador.");
+      const message = e instanceof Error ? e.message : "";
+      setError(/getdisplaymedia|not supported|unsupported/i.test(message)
+        ? "A partilha de ecrã não é suportada neste navegador/dispositivo. Usa a partilha de áudio/vídeo ou texto bíblico abaixo, ou tenta num computador com Chrome/Edge atualizado."
+        : (message || "Não foi possível partilhar o ecrã. Verifica as permissões do navegador."));
     }
+  }
+
+  async function shareScripture(event: React.FormEvent) {
+    event.preventDefault();
+    if (!isHost || !connected) return;
+    const title = scriptureTitle.trim().slice(0, 120);
+    const text = scriptureText.trim().slice(0, 5000);
+    if (!title || !text) { setError("Indica o título/referência e o texto que queres partilhar."); return; }
+    try {
+      await sendPacket({ type: "scripture", title, text, name: roomRef.current?.localParticipant.name || "Anfitrião" });
+      setSharedScripture({ title, text, name: "Tu" });
+      setNotice("Texto partilhado com todos os participantes.");
+      setError(null);
+    } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível partilhar o texto."); }
+  }
+
+  async function shareMediaFile(file?: File) {
+    const room = roomRef.current;
+    if (!room || !isHost || !file) return;
+    const element = document.createElement(file.type.startsWith("audio/") ? "audio" : "video");
+    const capture = (element as HTMLMediaElement & { captureStream?: () => MediaStream }).captureStream;
+    if (typeof capture !== "function") {
+      setError("Este navegador não permite transmitir diretamente ficheiros de áudio/vídeo. Para partilhar conteúdo multimédia, tenta no Chrome/Edge atualizado num computador; podes sempre partilhar o texto bíblico abaixo.");
+      return;
+    }
+    try {
+      const url = URL.createObjectURL(file);
+      element.src = url;
+      element.controls = true;
+      element.autoplay = true;
+      element.loop = false;
+      element.muted = false;
+      element.playsInline = true;
+      element.style.position = "fixed";
+      element.style.width = "1px";
+      element.style.height = "1px";
+      element.style.opacity = "0";
+      element.style.pointerEvents = "none";
+      document.body.appendChild(element);
+      presentationElementRef.current = element;
+      await element.play();
+      const stream = capture.call(element);
+      const tracks = stream.getTracks();
+      if (!tracks.length) throw new Error("O ficheiro não produziu faixas de áudio/vídeo para transmitir.");
+      for (const track of tracks) await room.localParticipant.publishTrack(track, { name: "Zion media: " + file.name.slice(0, 80) });
+      presentationTracksRef.current = tracks;
+      setMediaFileName(file.name);
+      setMediaSharing(true);
+      setError(null);
+      setNotice("A partilha de «" + file.name + "» começou. Mantém esta janela aberta até terminares.");
+      element.addEventListener("ended", () => { void stopMediaFile(); }, { once: true });
+    } catch (e) {
+      element.pause(); element.remove();
+      if (element.src) URL.revokeObjectURL(element.src);
+      presentationElementRef.current = null;
+      setError(e instanceof Error ? e.message : "Não foi possível partilhar este ficheiro.");
+    }
+  }
+
+  async function stopMediaFile() {
+    const room = roomRef.current;
+    for (const track of presentationTracksRef.current) {
+      try { if (room) await room.localParticipant.unpublishTrack(track, true); else track.stop(); } catch { track.stop(); }
+    }
+    presentationTracksRef.current = [];
+    const element = presentationElementRef.current;
+    if (element) { const url = element.src; element.pause(); element.removeAttribute("src"); element.load(); element.remove(); if (url.startsWith("blob:")) URL.revokeObjectURL(url); }
+    presentationElementRef.current = null;
+    setMediaSharing(false);
+    setMediaFileName("");
   }
 
   async function sendMessage(event: React.FormEvent) {
