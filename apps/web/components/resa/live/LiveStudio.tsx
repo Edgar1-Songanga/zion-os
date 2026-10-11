@@ -407,7 +407,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
             <p className="mt-1 text-xs text-slate-400">{starting ? "A estabelecer ligação…" : connected ? (isHost ? "Estás a transmitir como anfitrião" : "Ligado como espectador") : "Sem ligação"}{recording ? " · GRAVAÇÃO ATIVA" : ""}{streamingExternal ? " · SAÍDA EXTERNA ATIVA" : ""}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <button onClick={() => void startAudio()} disabled={!connected} className="rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10">Ativar áudio</button>
+            {audioNeedsGesture && <button onClick={() => void startAudio()} disabled={!connected} className="rounded-xl border border-sky-200/30 bg-sky-300/10 px-3 py-2 text-xs font-semibold text-sky-100 hover:bg-sky-300/20">Ativar áudio</button>}
             <button onClick={() => void leaveLive()} className="rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10">{isHost ? "Sair do Studio" : "Sair da live"}</button>
           </div>
         </header>
@@ -422,8 +422,8 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
             {notice && <div role="status" className="rounded-xl border border-sky-300/20 bg-sky-400/10 px-4 py-3 text-sm text-sky-100">{notice}<button onClick={() => setNotice(null)} className="ml-3 underline">Fechar</button></div>}
             {error && connected && <div role="alert" className="rounded-xl border border-red-300/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div>}
             <div className="flex flex-wrap items-center gap-2">
-              {isHost || canSpeak ? hostControls : <button onClick={() => void raiseHand()} disabled={!connected || handRaised} className="rounded-xl bg-white/10 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{handRaised ? "Pedido para falar enviado" : "Levantar a mão"}</button>}
-              {isHost && <button onClick={() => void endLive()} disabled={ending} className="rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{ending ? "A encerrar…" : "Encerrar live para todos"}</button>}
+              {isHost || canSpeak ? hostControls : <button onClick={() => void raiseHand()} disabled={!connected || handRaised} className="rounded-xl bg-white/10 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{handRaised ? "✋ Mão levantada · aguarda o anfitrião" : "✋ Levantar a mão para falar"}</button>}
+              {isHost && <button onClick={() => void endLive()} disabled={ending} className="self-start rounded-xl border border-rose-300/20 bg-rose-500/[0.07] px-3 py-2 text-xs font-semibold text-rose-200/90 transition hover:border-rose-300/35 hover:bg-rose-500/15 disabled:opacity-50">{ending ? "A encerrar…" : "Encerrar live para todos"}</button>}
             </div>
           </section>
 
