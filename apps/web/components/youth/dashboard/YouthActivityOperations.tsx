@@ -66,7 +66,7 @@ export default function YouthActivityOperations() {
       const rows = await resaRequest<Club[]>(`/v1/youth/clubs/organization/${encodeURIComponent(id)}`);
       const active = rows.filter((club) => club.status === "ACTIVE");
       setClubs(active); setClubId(active[0]?.id ?? "");
-      const currentReport = await resaRequest<Report>(`/v1/youth/activities/organization/${encodeURIComponent(id)}/report`);
+      const currentReport = await resaRequest<Report>(`/v1/youth/activities/organization/${encodeURIComponent(id)}/report`).catch(() => null);
       setReport(currentReport);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível carregar os dados operacionais.");
@@ -81,7 +81,7 @@ export default function YouthActivityOperations() {
       resaRequest<Activity[]>(`/v1/youth/activities/clubs/${encodeURIComponent(selectedClub.id)}`),
       resaRequest<ClubMember[]>(`/v1/youth/clubs/${encodeURIComponent(selectedClub.id)}/members`),
       resaRequest<{ members: Array<{ user_id: string; profile: Profile | null }>; leaders: Array<{ user_id: string; profile: Profile | null }> }>(`/v1/youth/progression/clubs/${encodeURIComponent(selectedClub.id)}/people`),
-      resaRequest<Report>(`/v1/youth/activities/organization/${encodeURIComponent(selectedClub.organizationId)}/report`),
+      resaRequest<Report>(`/v1/youth/activities/organization/${encodeURIComponent(selectedClub.organizationId)}/report`).catch(() => null),
     ]).then(([activityRows, memberRows, people, currentReport]) => {
       if (!current) return;
       setActivities(activityRows); setMembers(memberRows); setReport(currentReport);
@@ -110,7 +110,7 @@ export default function YouthActivityOperations() {
       });
       setActivities((items) => [created, ...items].sort((a, b) => Date.parse(b.starts_at) - Date.parse(a.starts_at)));
       setForm(emptyForm); setMessage("Atividade registada.");
-      const updatedReport = await resaRequest<Report>(`/v1/youth/activities/organization/${encodeURIComponent(organizationId)}/report`);
+      const updatedReport = await resaRequest<Report>(`/v1/youth/activities/organization/${encodeURIComponent(organizationId)}/report`).catch(() => null);
       setReport(updatedReport);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível registar a atividade.");
@@ -125,7 +125,7 @@ export default function YouthActivityOperations() {
         method: "PATCH", body: JSON.stringify({ status }),
       });
       setActivities((items) => items.map((item) => item.id === activity.id ? { ...item, ...updated } : item));
-      const updatedReport = await resaRequest<Report>(`/v1/youth/activities/organization/${encodeURIComponent(organizationId)}/report`);
+      const updatedReport = await resaRequest<Report>(`/v1/youth/activities/organization/${encodeURIComponent(organizationId)}/report`).catch(() => null);
       setReport(updatedReport); setMessage("Estado da atividade atualizado.");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível atualizar a atividade.");
@@ -166,7 +166,7 @@ export default function YouthActivityOperations() {
         { method: "PATCH", body: JSON.stringify({ status }) },
       );
       setParticipants((items) => items.map((item) => item.user_id === participant.user_id ? { ...item, ...updated } : item));
-      const updatedReport = await resaRequest<Report>(`/v1/youth/activities/organization/${encodeURIComponent(organizationId)}/report`);
+      const updatedReport = await resaRequest<Report>(`/v1/youth/activities/organization/${encodeURIComponent(organizationId)}/report`).catch(() => null);
       setReport(updatedReport); setMessage("Presença atualizada.");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível atualizar a presença.");
