@@ -1,5 +1,12 @@
 import { assertSupabaseConfig, env } from '../../config/env';
 
+type SupabaseErrorPayload = {
+  code?: unknown;
+  message?: unknown;
+  error?: { code?: unknown; message?: unknown };
+};
+
+@Injectable()
 export class SupabaseRestClient {
   private headers(accessToken: string, extra?: Record<string, string>) {
     assertSupabaseConfig();
@@ -12,59 +19,69 @@ export class SupabaseRestClient {
   }
 
   async get<T>(table: string, accessToken: string, query = ''): Promise<T> {
-    const response = await fetch(`${env.supabaseUrl}/rest/v1/${table}${query}`, {
+    return this.request<T>(`GET ${table}`, `${env.supabaseUrl}/rest/v1/${table}${query}`, {
       headers: this.headers(accessToken),
     });
-    return this.parse<T>(response);
   }
 
   async post<T>(table: string, accessToken: string, body: unknown, query = ''): Promise<T> {
-    const response = await fetch(`${env.supabaseUrl}/rest/v1/${table}${query}`, {
+    return this.request<T>(`POST ${table}`, `${env.supabaseUrl}/rest/v1/${table}${query}`, {
       method: 'POST',
       headers: this.headers(accessToken, { Prefer: 'return=representation' }),
       body: JSON.stringify(body),
     });
-    return this.parse<T>(response);
   }
 
   async rpc<T>(fn: string, accessToken: string, body: Record<string, unknown>): Promise<T> {
-    const response = await fetch(`${env.supabaseUrl}/rest/v1/rpc/${fn}`, {
+    return this.request<T>(`RPC ${fn}`, `${env.supabaseUrl}/rest/v1/rpc/${fn}`, {
       method: 'POST',
       headers: this.headers(accessToken),
       body: JSON.stringify(body),
     });
-    return this.parse<T>(response);
   }
 
   async upsert<T>(table: string, accessToken: string, body: unknown, query = ''): Promise<T> {
-    const response = await fetch(`${env.supabaseUrl}/rest/v1/${table}${query}`, {
+    return this.request<T>(`UPSERT ${table}`, `${env.supabaseUrl}/rest/v1/${table}${query}`, {
       method: 'POST',
       headers: this.headers(accessToken, {
         Prefer: 'return=representation,resolution=merge-duplicates',
       }),
       body: JSON.stringify(body),
     });
-    return this.parse<T>(response);
   }
 
   async patch<T>(table: string, accessToken: string, body: unknown, query: string): Promise<T> {
-    const response = await fetch(`${env.supabaseUrl}/rest/v1/${table}${query}`, {
+    return this.request<T>(`PATCH ${table}`, `${env.supabaseUrl}/rest/v1/${table}${query}`, {
       method: 'PATCH',
       headers: this.headers(accessToken, { Prefer: 'return=representation' }),
       body: JSON.stringify(body),
     });
-    return this.parse<T>(response);
   }
 
   async delete<T>(table: string, accessToken: string, query: string): Promise<T> {
-    const response = await fetch(`${env.supabaseUrl}/rest/v1/${table}${query}`, {
+    return this.request<T>(`DELETE ${table}`, `${env.supabaseUrl}/rest/v1/${table}${query}`, {
       method: 'DELETE',
       headers: this.headers(accessToken, { Prefer: 'return=representation' }),
     });
-    return this.parse<T>(response);
   }
 
-  private async parse<T>(response: Response): Promise<T> {
+  private async request<T>(operation: string, url: string, init: RequestInit): Promise<T> {
+    let response: Response;
+    try {
+      response = await fetch(url, init);
+    } catch (error) {
+      const transportMessage = error instanceof Error ? error.message.slice(0, 240) : 'unknown transport error';
+      console.error(JSON.stringify({
+        event: 'zion_supabase_transport_failure',
+        operation,
+        message: transportMessage,
+      }));
+      throw new Error(`Supabase transport failed during ${operation}`);
+    }
+    return this.parse<T>(response, operation);
+  }
+
+  private async parse<T>(response: Response, operation: string): Promise<T> {
     const raw = await response.text();
     let payload: unknown = null;
     try {
@@ -72,13 +89,28 @@ export class SupabaseRestClient {
     } catch {
       payload = raw;
     }
+
     if (!response.ok) {
-      const message =
-        typeof payload === 'object' && payload && 'message' in payload
-          ? String((payload as { message: unknown }).message)
-          : 'Supabase request failed';
-      throw new Error(message);
+      const errorPayload = (typeof payload === 'object' && payload ? payload : {}) as SupabaseErrorPayload;
+      const nested = errorPayload.error;
+      const codeValue = errorPayload.code ?? nested?.code;
+      const code = typeof codeValue === 'string' ? codeValue : 'unknown';
+      const messageValue = errorPayload.message ?? nested?.message;
+      const upstreamMessage = typeof messageValue === 'string' ? messageValue.slice(0, 240) : 'Supabase request failed';
+
+      // Do not return database internals to the browser. Keep enough safe context in
+      // Vercel logs to distinguish missing tables, RLS denials, bad tokens and outages.
+      console.error(JSON.stringify({
+        event: 'zion_supabase_rest_failure',
+        operation,
+        status: response.status,
+        code,
+        message: upstreamMessage,
+      }));
+
+      throw new Error(`Supabase ${operation} failed (HTTP ${response.status}; code ${code})`);
     }
+
     return payload as T;
   }
 }
