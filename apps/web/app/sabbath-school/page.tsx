@@ -176,7 +176,7 @@ export default function SabbathSchoolPage() {
             </div>
           ) : (
             <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {lessons.map((lesson, index) => (
+              {lessons.slice(featuredLesson ? 1 : 0).map((lesson) => (
                 <article key={lesson.id} className="overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.04)]">
                   {lesson.coverImageUrl && (
                     <div className="relative aspect-[16/9] bg-slate-100">
@@ -190,7 +190,7 @@ export default function SabbathSchoolPage() {
                     </div>
                   )}
                   <div className="p-6">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">{lesson.year} · {lesson.quarter} · Lição {lesson.lessonNumber}{index === 0 ? " · Atual" : ""}</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">{lesson.year} · {lesson.quarter} · Lição {lesson.lessonNumber}</p>
                     <h3 className="mt-3 text-xl font-semibold tracking-tight text-[#0C1A3D]"><LocalizedText text={lesson.title} contentType="spiritual" /></h3>
                     {lesson.memoryVerseReference && <p className="mt-3 text-sm font-medium text-slate-600">Versículo de memória: {lesson.memoryVerseReference}</p>}
                     {lesson.bibleReferences?.length ? (
