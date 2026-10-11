@@ -17,7 +17,16 @@ type SupabaseErrorPayload = {
 @Injectable()
 export class SupabaseRestClient {
   private headers(accessToken: string, extra?: Record<string, string>) {
-    assertSupabaseConfig();
+    try {
+      assertSupabaseConfig();
+    } catch {
+      console.error(JSON.stringify({
+        event: 'zion_supabase_config_missing',
+        hasUrl: Boolean(env.supabaseUrl),
+        hasPublishableKey: Boolean(env.supabasePublishableKey),
+      }));
+      throw new ServiceUnavailableException('O serviço de dados não está configurado corretamente.');
+    }
     return {
       apikey: env.supabasePublishableKey,
       Authorization: `Bearer ${accessToken}`,
