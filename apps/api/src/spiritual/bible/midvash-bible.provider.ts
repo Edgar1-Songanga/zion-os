@@ -39,11 +39,9 @@ export class MidvashBibleProvider implements BibleProvider {
     if (!payload.data?.text) return null;
 
     return {
-      reference: {
-        ...reference,
-        verseStart: reference.verseStart ?? (payload.data.verses?.length ? 1 : payload.data.verse),
-        verseEnd: reference.verseEnd ?? (payload.data.verses?.length ? payload.data.verseEnd : undefined),
-      },
+      // Preserve the parsed reference: a chapter request remains "John 3",
+      // while the UI numbers its returned verses from 1.
+      reference: { ...reference },
       text: payload.data.text,
       verses: Array.isArray(payload.data.verses) ? payload.data.verses : undefined,
       translation: payload.data.version ?? version,
