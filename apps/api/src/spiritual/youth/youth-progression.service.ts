@@ -106,7 +106,7 @@ export class YouthProgressionService {
     }
     if (catalog.is_active !== true) throw new BadRequestException('Inactive curriculum items cannot be assigned.');
     const rows = await this.db.upsert<any[]>('youth_member_progress', token, {
-      organization_id: club.organization_id, club_id: club.id, user_id: userId, catalog_item_id: catalog.id,
+      organization_id: club.organization_id, club_id: club.id, user_id: userId, catalog_item_id: catalog.id, created_by: actor.id,
     }, '?on_conflict=club_id,user_id,catalog_item_id');
     if (!rows[0]) throw new BadRequestException('Progress record was not created.');
     return rows[0];
