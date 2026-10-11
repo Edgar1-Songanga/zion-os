@@ -340,6 +340,9 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
       if (action === "allow_speak") {
         await sendPacket({ type: "speak_granted", name: roomRef.current?.localParticipant.name || "Anfitrião" }, identity);
         setRaisedHands((current) => current.filter((item) => item.identity !== identity));
+      } else if (action === "revoke_speak") {
+        await sendPacket({ type: "speak_revoked", name: roomRef.current?.localParticipant.name || "Anfitrião" }, identity);
+        setRaisedHands((current) => current.filter((item) => item.identity !== identity));
       } else if (action === "remove") {
         setRaisedHands((current) => current.filter((item) => item.identity !== identity));
       }
