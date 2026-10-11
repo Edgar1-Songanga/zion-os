@@ -42,7 +42,14 @@ export class ResaLiveEgressService {
   async stopExternalStream(token: string, liveId: string, rawEgressId: unknown) {
     await this.ownedLive(token, liveId);
     if (typeof rawEgressId !== 'string' || !/^[A-Za-z0-9_-]{6,128}$/.test(rawEgressId)) throw new BadRequestException('Identificador de transmissão inválido.');
-    try { await this.client().egress.stopEgress(rawEgressId); return { stopped: true }; }
+    const client = this.client();
+    let roomEgresses: Awaited<ReturnType<typeof client.egress.listEgress>>;
+    try { roomEgresses = await client.egress.listEgress({ roomName: 'zion-live-' + liveId }); }
+    catch { throw new BadGatewayException('Não foi possível verificar as transmissões desta live.'); }
+    if (!roomEgresses.some((item) => item.egressId === rawEgressId)) {
+      throw new NotFoundException('Transmissão externa não encontrada nesta live.');
+    }
+    try { await client.egress.stopEgress(rawEgressId); return { stopped: true }; }
     catch { throw new BadGatewayException('Não foi possível parar a transmissão externa. Verifica se ela ainda está ativa.'); }
   }
 }
