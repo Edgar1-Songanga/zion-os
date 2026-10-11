@@ -264,9 +264,11 @@ export class YouthProgressionService {
 
   private date(value: unknown): string | null {
     if (value === undefined || value === null || value === '') return null;
-    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(value))) {
+    if (typeof value !== 'string' || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value) || Number.isNaN(Date.parse(value))) {
       throw new BadRequestException('scheduled_date must use YYYY-MM-DD.');
     }
+    const parsed = new Date(`${value}T00:00:00.000Z`);
+    if (parsed.toISOString().slice(0, 10) !== value) throw new BadRequestException('scheduled_date must be a real calendar date.');
     return value;
   }
 
