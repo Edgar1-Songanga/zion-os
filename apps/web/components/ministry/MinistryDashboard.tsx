@@ -58,19 +58,23 @@ export default function MinistryDashboard({ ministry }: MinistryDashboardProps) 
                 Consultar referência oficial: {catalogEntry.sourceLabel}
               </a>
             )}
-            <div className="grid gap-4 border-t border-slate-100 pt-5 sm:grid-cols-3">
+            <div className="grid gap-4 border-t border-slate-100 pt-5 sm:grid-cols-2 xl:grid-cols-4">
               <div><p className="text-xs text-slate-400">Igreja / organização</p><p className="mt-1 font-semibold text-[#0C1A3D]">{ministry.organization?.church ?? "Não definida"}</p></div>
               <div><p className="text-xs text-slate-400">Distrito</p><p className="mt-1 font-semibold text-[#0C1A3D]">{ministry.organization?.district ?? "Não definido"}</p></div>
               <div><p className="text-xs text-slate-400">Conferência</p><p className="mt-1 font-semibold text-[#0C1A3D]">{ministry.organization?.conference ?? "Não definida"}</p></div>
+              <div><p className="text-xs text-slate-400">União</p><p className="mt-1 font-semibold text-[#0C1A3D]">{ministry.organization?.union ?? "Não definida"}</p></div>
             </div>
           </div>
         </div>
       </Card>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <StatCard label="Membros" value={String(ministry.metrics?.members ?? 0)} description="Membros registados" />
-        <StatCard label="Dirigentes" value={String(ministry.metrics?.leaders ?? 0)} description="Equipa registada" />
-        <StatCard label="Programas" value={String(ministry.metrics?.programs ?? ministry.programs?.length ?? 0)} description="Programas registados" />
+        <StatCard label="Membros" value={String(ministry.metrics?.members ?? 0)} description="Comunidade" />
+        <StatCard label="Líderes" value={String(ministry.metrics?.leaders ?? 0)} description="Equipa" />
+        <StatCard label="Programas" value={String(ministry.metrics?.programs ?? ministry.programs?.length ?? 0)} description="Activos" />
+        <StatCard label="Participação" value={`${ministry.metrics?.participation ?? 0}%`} description="Envolvimento" />
+        <StatCard label="Crescimento" value={`${ministry.metrics?.growth ?? 0}%`} description="Evolução" />
+        <StatCard label="Impacto" value={`${ministry.metrics?.impact ?? 0}%`} description="Resultado" />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -109,6 +113,13 @@ export default function MinistryDashboard({ ministry }: MinistryDashboardProps) 
             </div>
           )) : <p className="text-sm text-slate-500">Nenhum relatório disponível.</p>}
         </div>
+      </Card>
+
+      <Card>
+        <h2 className="text-lg font-semibold text-[#0C1A3D]">ZION Insights</h2>
+        <p className="mt-3 text-sm leading-6 text-slate-500">
+          Análise estratégica do ministério baseada em crescimento, participação e impacto.
+        </p>
       </Card>
     </div>
   );
