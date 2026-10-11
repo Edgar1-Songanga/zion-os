@@ -177,6 +177,12 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
         await room.connect(config.joinUrl, config.token, { autoSubscribe: true });
         if (config.isHost || config.role === "host") {
           await room.localParticipant.enableCameraAndMicrophone();
+          await room.localParticipant.setMicrophoneEnabled(false);
+          await room.localParticipant.setMicrophoneEnabled(true, {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          });
           const localCamera = room.localParticipant.getTrackPublication(Track.Source.Camera)?.track;
           if (localCamera && localVideoRef.current) {
             localVideoRef.current.srcObject = new MediaStream([localCamera.mediaStreamTrack]);
