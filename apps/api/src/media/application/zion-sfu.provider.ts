@@ -83,6 +83,22 @@ export class ZionSfuProvider implements MediaProvider {
     }
   }
 
+  async setParticipantAudioMuted(input: { roomId: string; identity: string; muted: boolean }): Promise<void> {
+    try {
+      const participants = await this.client().listParticipants(input.roomId);
+      const participant = participants.find((item) => item.identity === input.identity);
+      const audioTrack = participant?.tracks?.find((track) =>
+        String(track.source).toUpperCase().includes('MICROPHONE') ||
+        String(track.type).toUpperCase().includes('AUDIO'),
+      );
+      if (!audioTrack?.sid) throw new BadGatewayException('Participant has no active audio track');
+      await this.client().mutePublishedTrack(input.roomId, input.identity, audioTrack.sid, input.muted);
+    } catch (error) {
+      if (error instanceof BadGatewayException) throw error;
+      throw new BadGatewayException(error instanceof Error ? error.message : 'Participant audio could not be muted');
+    }
+  }
+
   async removeParticipant(input: { roomId: string; identity: string }): Promise<void> {
     try {
       await this.client().removeParticipant(input.roomId, input.identity);
