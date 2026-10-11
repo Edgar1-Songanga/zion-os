@@ -23,6 +23,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
   const [connected, setConnected] = useState(false);
   const [camera, setCamera] = useState(false);
   const [microphone, setMicrophone] = useState(false);
+  const [screenShare, setScreenShare] = useState(false);
   const [isHost, setIsHost] = useState(false);
   const [canSpeak, setCanSpeak] = useState(false);
   const [selfIdentity, setSelfIdentity] = useState("");
@@ -208,6 +209,18 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
     }
   }
 
+  async function toggleScreenShare() {
+    const room = roomRef.current;
+    if (!room || (!isHost && !canSpeak)) return;
+    try {
+      const next = !screenShare;
+      await room.localParticipant.setScreenShareEnabled(next);
+      setScreenShare(next);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível partilhar o ecrã. Verifica as permissões do navegador.");
+    }
+  }
+
   async function sendMessage(event: React.FormEvent) {
     event.preventDefault();
     const text = draft.trim();
@@ -282,6 +295,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
     <div className="grid grid-cols-2 gap-2">
       <button onClick={() => void toggleMicrophone()} disabled={!connected} className="rounded-xl bg-white/10 px-3 py-3 text-left text-sm font-semibold disabled:opacity-40">{microphone ? "Microfone ligado" : "Ligar microfone"}</button>
       <button onClick={() => void toggleCamera()} disabled={!connected} className="rounded-xl bg-white/10 px-3 py-3 text-left text-sm font-semibold disabled:opacity-40">{camera ? "Câmara ligada" : "Ligar câmara"}</button>
+      <button onClick={() => void toggleScreenShare()} disabled={!connected} className="col-span-2 rounded-xl bg-white/10 px-3 py-3 text-left text-sm font-semibold disabled:opacity-40">{screenShare ? "Parar partilha do ecrã" : "Partilhar ecrã"}</button>
     </div>
   );
 
@@ -311,7 +325,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
             {error && connected && <div role="alert" className="rounded-xl border border-red-300/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div>}
             <div className="flex flex-wrap items-center gap-2">
               {isHost || canSpeak ? hostControls : <button onClick={() => void raiseHand()} disabled={!connected || handRaised} className="rounded-xl bg-white/10 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{handRaised ? "Pedido para falar enviado" : "Levantar a mão"}</button>}
-              {isHost && <button onClick={() => void endLive()} disabled={!connected || ending} className="rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{ending ? "A encerrar…" : "Encerrar live para todos"}</button>}
+              {isHost && <button onClick={() => void endLive()} disabled={ending} className="rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{ending ? "A encerrar…" : "Encerrar live para todos"}</button>}
             </div>
           </section>
 
