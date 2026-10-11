@@ -8,8 +8,10 @@ export interface BibleReference {
 export interface BibleSearchResult {
   reference: BibleReference;
   text: string;
+  verses?: string[];
   translation: string;
   relevance: number;
+  copyright?: string;
 }
 
 export interface BibleProvider {
