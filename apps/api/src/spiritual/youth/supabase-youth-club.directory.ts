@@ -66,7 +66,12 @@ export class SupabaseYouthClubDirectory implements YouthClubDirectoryPort {
   }
 
   async removeMember(clubId: string, userId: string, token: string): Promise<boolean> {
-    const rows = await this.db.delete<any[]>('youth_club_members', token, `?club_id=eq.${encodeURIComponent(clubId)}&user_id=eq.${encodeURIComponent(userId)}`);
+    const rows = await this.db.patch<any[]>(
+      'youth_club_members',
+      token,
+      { status: 'INACTIVE' },
+      `?club_id=eq.${encodeURIComponent(clubId)}&user_id=eq.${encodeURIComponent(userId)}`,
+    );
     return rows.length > 0;
   }
 
