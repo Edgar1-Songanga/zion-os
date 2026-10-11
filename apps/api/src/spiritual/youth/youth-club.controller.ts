@@ -91,7 +91,7 @@ export class YouthClubController {
   @Delete(':id/members/:userId')
   async removeMember(@Headers('authorization') authorization: string | undefined, @Param('id') id: string, @Param('userId') userId: string) {
     await this.clubs.removeMember(id, userId, this.token(authorization));
-    return { success: true };
+    return { success: true, status: 'INACTIVE', history_retained: true };
   }
 
   @Get(':id/leaders')
