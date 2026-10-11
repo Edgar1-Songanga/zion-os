@@ -336,6 +336,9 @@ export class ResaOperationalService {
       return { liveId: id, userId: targetUserId, role: 'cohost', assigned: true, record };
     }
     await this.db.delete('resa_live_cohosts', token, `?live_id=eq.${id}&user_id=eq.${targetUserId}`);
+    if (this.media.setParticipantPublishing && live.status === 'live') {
+      try { await this.media.setParticipantPublishing({ roomId: 'zion-live-' + id, identity: targetUserId, canPublish: false }); } catch { /* an offline co-host will receive viewer permissions on their next join */ }
+    }
     return { liveId: id, userId: targetUserId, role: 'viewer', assigned: false };
   }
 
