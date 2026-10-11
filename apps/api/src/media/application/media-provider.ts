@@ -33,4 +33,5 @@ export interface MediaProvider {
     canPublish: boolean;
   }): Promise<void>;
   removeParticipant?(input: { roomId: string; identity: string }): Promise<void>;
+  setParticipantAudioMuted?(input: { roomId: string; identity: string; muted: boolean }): Promise<void>;
 }

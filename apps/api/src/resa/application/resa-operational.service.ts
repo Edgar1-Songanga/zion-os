@@ -264,35 +264,82 @@ export class ResaOperationalService {
     if (live.status === 'ended') throw new BadRequestException('Live session has ended');
     if (!this.media.createJoinConfig) throw new BadRequestException('Media provider does not expose a join configuration');
     const isHost = live.host_id === actor.id;
+    const cohostRows = isHost ? [] : await this.db.get<any[]>('resa_live_cohosts', token, `?select=user_id&live_id=eq.${id}&user_id=eq.${actor.id}&limit=1`);
+    const isCoHost = !isHost && cohostRows.length > 0;
     const config = await this.media.createJoinConfig({
       meetingId: id,
       providerRoomId: 'zion-live-' + id,
       userId: actor.id,
-      canPublish: isHost,
+      canPublish: isHost || isCoHost,
     });
     if (config.mode !== 'SFU' || !config.joinUrl || !config.token) {
       throw new BadGatewayException('LiveKit is not configured for RESA live sessions');
     }
-    return { ...config, role: isHost ? 'host' : 'viewer', isHost };
+    return { ...config, role: isHost ? 'host' : isCoHost ? 'cohost' : 'viewer', isHost, isCoHost };
   }
 
-  async moderateLiveParticipant(token: string, liveId: string, identity: string, action: 'allow_speak' | 'revoke_speak' | 'remove') {
+  async moderateLiveParticipant(token: string, liveId: string, identity: string, action: 'allow_speak' | 'revoke_speak' | 'remove' | 'mute_audio' | 'unmute_audio') {
     const actor = await this.actor(token);
     const id = this.id(liveId, 'live_id');
     const participantIdentity = this.text(identity, 'participant_identity', 1, 128);
-    if (participantIdentity === actor.id) throw new BadRequestException('The host cannot moderate their own connection');
-    if (!['allow_speak', 'revoke_speak', 'remove'].includes(action)) throw new BadRequestException('Invalid participant moderation action');
+    if (participantIdentity === actor.id) throw new BadRequestException('You cannot moderate your own connection');
+    if (!['allow_speak', 'revoke_speak', 'remove', 'mute_audio', 'unmute_audio'].includes(action)) throw new BadRequestException('Invalid participant moderation action');
     const live = (await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status&id=eq.${id}&limit=1`))[0];
-    if (!live || live.host_id !== actor.id) throw new NotFoundException('Live session not found or you are not its host');
+    if (!live) throw new NotFoundException('Live session not found');
+    const actorIsHost = live.host_id === actor.id;
+    const actorCohost = actorIsHost ? [] : await this.db.get<any[]>('resa_live_cohosts', token, `?select=user_id&live_id=eq.${id}&user_id=eq.${actor.id}&limit=1`);
+    if (!actorIsHost && !actorCohost.length) throw new NotFoundException('Live session not found or you cannot moderate it');
+    if (participantIdentity === live.host_id) throw new BadRequestException('A co-host cannot moderate the host');
     if (live.status !== 'live') throw new BadRequestException('Only a live session can be moderated');
     if (action === 'remove') {
       if (!this.media.removeParticipant) throw new BadGatewayException('Media provider does not support participant removal');
       await this.media.removeParticipant({ roomId: 'zion-live-' + id, identity: participantIdentity });
+    } else if (action === 'mute_audio' || action === 'unmute_audio') {
+      if (!this.media.setParticipantAudioMuted) throw new BadGatewayException('Media provider does not support audio-only moderation');
+      await this.media.setParticipantAudioMuted({ roomId: 'zion-live-' + id, identity: participantIdentity, muted: action === 'mute_audio' });
     } else {
       if (!this.media.setParticipantPublishing) throw new BadGatewayException('Media provider does not support publishing permissions');
       await this.media.setParticipantPublishing({ roomId: 'zion-live-' + id, identity: participantIdentity, canPublish: action === 'allow_speak' });
     }
     return { liveId: id, identity: participantIdentity, action, applied: true };
+  }
+
+  async listLiveCohosts(token: string, liveId: string) {
+    const actor = await this.actor(token);
+    const id = this.id(liveId, 'live_id');
+    const live = (await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status&id=eq.${id}&limit=1`))[0];
+    if (!live) throw new NotFoundException('Live session not found');
+    if (live.host_id !== actor.id) {
+      const ownRole = await this.db.get<any[]>('resa_live_cohosts', token, `?select=user_id&live_id=eq.${id}&user_id=eq.${actor.id}&limit=1`);
+      if (!ownRole.length) throw new NotFoundException('Live session not found or you are not a participant with co-host access');
+    }
+    return this.db.get<any[]>('resa_live_cohosts', token, `?select=user_id,role,assigned_by,created_at&live_id=eq.${id}&order=created_at.asc`);
+  }
+
+  async setLiveCohost(token: string, liveId: string, userId: unknown, action: 'assign' | 'remove') {
+    const actor = await this.actor(token);
+    const id = this.id(liveId, 'live_id');
+    const targetUserId = this.id(userId, 'user_id');
+    if (!['assign', 'remove'].includes(action)) throw new BadRequestException('Invalid co-host action');
+    if (targetUserId === actor.id) throw new BadRequestException('The host cannot assign themselves as co-host');
+    const live = (await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status&id=eq.${id}&host_id=eq.${actor.id}&limit=1`))[0];
+    if (!live) throw new NotFoundException('Live session not found or you are not its host');
+    if (live.status === 'ended') throw new BadRequestException('An ended live cannot change co-hosts');
+    if (action === 'assign') {
+      const existing = await this.db.get<any[]>('resa_live_cohosts', token, `?select=user_id&live_id=eq.${id}&user_id=eq.${targetUserId}&limit=1`);
+      const record = existing[0] ?? (await this.db.post<any[]>('resa_live_cohosts', token, {
+        live_id: id, user_id: targetUserId, role: 'cohost', assigned_by: actor.id,
+      }))[0];
+      if (this.media.setParticipantPublishing && live.status === 'live') {
+        try { await this.media.setParticipantPublishing({ roomId: 'zion-live-' + id, identity: targetUserId, canPublish: true }); } catch { /* role remains persistent for the participant's next join */ }
+      }
+      return { liveId: id, userId: targetUserId, role: 'cohost', assigned: true, record };
+    }
+    await this.db.delete('resa_live_cohosts', token, `?live_id=eq.${id}&user_id=eq.${targetUserId}`);
+    if (this.media.setParticipantPublishing && live.status === 'live') {
+      try { await this.media.setParticipantPublishing({ roomId: 'zion-live-' + id, identity: targetUserId, canPublish: false }); } catch { /* an offline co-host will receive viewer permissions on their next join */ }
+    }
+    return { liveId: id, userId: targetUserId, role: 'viewer', assigned: false };
   }
 
   async callJoinConfig(token: string, callId: string) {

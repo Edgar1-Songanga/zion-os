@@ -78,6 +78,16 @@ export class ResaOperationalController {
     return this.operational.updateLiveStatus(this.token(authorization), liveId, body.status);
   }
 
+  @Get('live/:liveId/cohosts')
+  listLiveCohosts(@Headers('authorization') authorization: string | undefined, @Param('liveId') liveId: string) {
+    return this.operational.listLiveCohosts(this.token(authorization), liveId);
+  }
+
+  @Patch('live/:liveId/cohosts')
+  setLiveCohost(@Headers('authorization') authorization: string | undefined, @Param('liveId') liveId: string, @Body() body: { userId: string; action: 'assign' | 'remove' }) {
+    return this.operational.setLiveCohost(this.token(authorization), liveId, body.userId, body.action);
+  }
+
   @Post('live/:liveId/stream')
   startExternalStream(@Headers('authorization') authorization: string | undefined, @Param('liveId') liveId: string, @Body() body: { streamUrl: string }) {
     return this.liveEgress.startExternalStream(this.token(authorization), liveId, body.streamUrl);
@@ -93,7 +103,7 @@ export class ResaOperationalController {
     @Headers('authorization') authorization: string | undefined,
     @Param('liveId') liveId: string,
     @Param('identity') identity: string,
-    @Body() body: { action: 'allow_speak' | 'revoke_speak' | 'remove' },
+    @Body() body: { action: 'allow_speak' | 'revoke_speak' | 'remove' | 'mute_audio' | 'unmute_audio' },
   ) {
     return this.operational.moderateLiveParticipant(this.token(authorization), liveId, identity, body.action);
   }
