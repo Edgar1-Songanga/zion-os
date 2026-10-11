@@ -187,7 +187,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
       try {
         const config = await resaRequest<JoinConfig>("/v1/resa/live/" + liveId + "/join", { method: "POST" });
         if (!config.joinUrl || !config.token) throw new Error("O serviço de vídeo não devolveu credenciais válidas.");
-        if (mounted) { setIsHost(Boolean(config.isHost || config.role === "host")); setIsCoHost(Boolean(config.isCoHost || config.role === "cohost")); }
+        if (mounted) { const cohost = Boolean(config.isCoHost || config.role === "cohost"); setIsHost(Boolean(config.isHost || config.role === "host")); setIsCoHost(cohost); if (cohost) setCanSpeak(true); }
         await room.connect(config.joinUrl, config.token, { autoSubscribe: true });
         if (config.isHost || config.role === "host") {
           await room.localParticipant.enableCameraAndMicrophone();
@@ -338,7 +338,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
 
   async function shareScripture(event: React.FormEvent) {
     event.preventDefault();
-    if (!isHost || !connected) return;
+    if ((!isHost && !isCoHost) || !connected) return;
     const title = scriptureTitle.trim().slice(0, 120);
     const text = scriptureText.trim().slice(0, 5000);
     if (!title || !text) { setError("Indica o título/referência e o texto que queres partilhar."); return; }
@@ -352,7 +352,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
 
   async function shareMediaFile(file?: File) {
     const room = roomRef.current;
-    if (!room || !isHost || !file) return;
+    if (!room || (!isHost && !isCoHost) || !file) return;
     const element = document.createElement(file.type.startsWith("audio/") ? "audio" : "video");
     const capture = (element as HTMLMediaElement & { captureStream?: () => MediaStream }).captureStream;
     if (typeof capture !== "function") {
@@ -477,6 +477,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
 
   async function leaveLive() {
     if (recording) stopRecording();
+    if (mediaSharing) await stopMediaFile();
     if (egressId) await stopExternalStream();
     await roomRef.current?.disconnect(true);
     onClose();
@@ -489,6 +490,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
     setError(null);
     try {
       if (recording) stopRecording();
+      if (mediaSharing) await stopMediaFile();
       if (egressId) await stopExternalStream();
       await resaRequest("/v1/resa/live/" + liveId + "/status", {
         method: "PATCH",
@@ -520,14 +522,14 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
       <div className="col-span-3 space-y-3 rounded-xl border border-white/10 bg-black/15 p-3">
         <p className="text-xs font-bold uppercase tracking-wide text-slate-300">Partilhar áudio ou vídeo</p>
         <p className="text-xs leading-5 text-slate-400">Escolhe um ficheiro de áudio ou vídeo para o transmitir aos participantes. Mantém o estúdio aberto durante a reprodução.</p>
-        <input type="file" accept="audio/*,video/*" disabled={!isHost || mediaSharing} onChange={(event) => { const file = event.target.files?.[0]; if (file) void shareMediaFile(file); event.currentTarget.value = ""; }} className="block w-full text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-sky-300 file:px-3 file:py-2 file:text-xs file:font-bold file:text-[#07142c] disabled:opacity-50" />
+        <input type="file" accept="audio/*,video/*" disabled={(!isHost && !isCoHost) || mediaSharing} onChange={(event) => { const file = event.target.files?.[0]; if (file) void shareMediaFile(file); event.currentTarget.value = ""; }} className="block w-full text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-sky-300 file:px-3 file:py-2 file:text-xs file:font-bold file:text-[#07142c] disabled:opacity-50" />
         {mediaSharing && <div className="flex items-center justify-between gap-2 rounded-lg bg-sky-300/10 p-2 text-xs text-sky-100"><span className="min-w-0 truncate">{mediaFileName}</span><button onClick={() => void stopMediaFile()} className="shrink-0 rounded-lg border border-white/10 px-3 py-2">Parar partilha</button></div>}
       </div>
       <form onSubmit={(event) => void shareScripture(event)} className="col-span-3 space-y-2 rounded-xl border border-white/10 bg-black/15 p-3">
         <p className="text-xs font-bold uppercase tracking-wide text-slate-300">Partilhar texto bíblico ou mensagem</p>
-        <input value={scriptureTitle} onChange={(event) => setScriptureTitle(event.target.value)} maxLength={120} placeholder="Referência ou título (ex.: Salmo 23)" disabled={!isHost} className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-slate-500 disabled:opacity-50" />
-        <textarea value={scriptureText} onChange={(event) => setScriptureText(event.target.value)} maxLength={5000} rows={3} placeholder="Escreve ou cola aqui o texto que todos devem acompanhar…" disabled={!isHost} className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-slate-500 disabled:opacity-50" />
-        <button type="submit" disabled={!isHost || !connected || !scriptureTitle.trim() || !scriptureText.trim()} className="w-full rounded-lg border border-sky-200/20 bg-sky-300/10 px-3 py-2 text-sm font-semibold text-sky-100 disabled:opacity-40">Partilhar com todos</button>
+        <input value={scriptureTitle} onChange={(event) => setScriptureTitle(event.target.value)} maxLength={120} placeholder="Referência ou título (ex.: Salmo 23)" disabled={!isHost && !isCoHost} className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-slate-500 disabled:opacity-50" />
+        <textarea value={scriptureText} onChange={(event) => setScriptureText(event.target.value)} maxLength={5000} rows={3} placeholder="Escreve ou cola aqui o texto que todos devem acompanhar…" disabled={!isHost && !isCoHost} className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white placeholder:text-slate-500 disabled:opacity-50" />
+        <button type="submit" disabled={(!isHost && !isCoHost) || !connected || !scriptureTitle.trim() || !scriptureText.trim()} className="w-full rounded-lg border border-sky-200/20 bg-sky-300/10 px-3 py-2 text-sm font-semibold text-sky-100 disabled:opacity-40">Partilhar com todos</button>
       </form>
     </div>
   );
