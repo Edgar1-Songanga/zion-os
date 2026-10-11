@@ -13,6 +13,8 @@ type LiveSession = {
   visibility: string;
   scheduled_at?: string | null;
   started_at?: string | null;
+  host_id?: string;
+  is_host?: boolean;
 };
 
 export default function LivePage() {
@@ -71,7 +73,9 @@ export default function LivePage() {
         method: "PATCH",
         body: JSON.stringify({ status }),
       });
+      const latest = items.find((item) => item.id === id);
       await load();
+      if (status === "live" && latest) setStudioLive({ ...latest, status: "live", is_host: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível atualizar a Live.");
     }
@@ -141,9 +145,10 @@ export default function LivePage() {
                         {item.scheduled_at && <p className="mt-3 text-sm text-slate-500">Agendada para {new Date(item.scheduled_at).toLocaleString("pt-PT")}</p>}
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {item.status === "scheduled" && <button onClick={() => void setStatus(item.id, "live")} className="rounded-xl bg-[#0C1A3D] px-3 py-2 text-sm font-semibold text-white">Iniciar</button>}
-                        {(item.status === "scheduled" || item.status === "live") && <button onClick={() => setStudioLive(item)} className="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white">Abrir Studio</button>}
-                        {item.status === "live" && <button onClick={() => void setStatus(item.id, "ended")} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700">Encerrar</button>}
+                        {item.status === "scheduled" && item.is_host && <button onClick={() => void setStatus(item.id, "live")} className="rounded-xl bg-[#0C1A3D] px-4 py-2.5 text-sm font-semibold text-white">Iniciar live</button>}
+                        {item.status === "live" && item.is_host && <button onClick={() => setStudioLive(item)} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white">Abrir Studio</button>}
+                        {item.status === "live" && !item.is_host && <button onClick={() => setStudioLive(item)} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white">Entrar na live</button>}
+                        {item.status === "scheduled" && !item.is_host && <span className="rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-500">Agendada</span>}
                       </div>
                     </div>
                   </article>

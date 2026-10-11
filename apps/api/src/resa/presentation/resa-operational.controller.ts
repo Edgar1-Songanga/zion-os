@@ -77,6 +77,16 @@ export class ResaOperationalController {
     return this.operational.updateLiveStatus(this.token(authorization), liveId, body.status);
   }
 
+  @Patch('live/:liveId/participants/:identity')
+  moderateLiveParticipant(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('liveId') liveId: string,
+    @Param('identity') identity: string,
+    @Body() body: { action: 'allow_speak' | 'revoke_speak' | 'remove' },
+  ) {
+    return this.operational.moderateLiveParticipant(this.token(authorization), liveId, identity, body.action);
+  }
+
   @Get('conversations') conversations(@Headers('authorization') authorization?: string) {
     return this.operational.listConversations(this.token(authorization));
   }

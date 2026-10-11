@@ -1,62 +1,165 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Room, RoomEvent, Track } from "livekit-client";
 import { resaRequest } from "@/lib/resa/api";
 
-type JoinConfig = { joinUrl: string; token: string; roomId: string };
+type JoinConfig = { joinUrl: string; token: string; roomId: string; isHost?: boolean; role?: "host" | "viewer" };
+type LiveMessage = { id: string; identity: string; name: string; text: string; sentAt: number };
+type Participant = { identity: string; name: string };
+type LivePacket =
+  | { type: "chat"; text: string; name?: string }
+  | { type: "hand_raise"; name?: string }
+  | { type: "speak_granted"; name?: string }
+  | { type: "announcement"; text: string; name?: string };
+
+const DATA_TOPIC = "zion-live";
 
 export default function LiveStudio({ liveId, title, onClose }: { liveId: string; title: string; onClose: () => void }) {
   const roomRef = useRef<Room | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteRef = useRef<HTMLDivElement | null>(null);
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
   const [connected, setConnected] = useState(false);
-  const [camera, setCamera] = useState(true);
-  const [microphone, setMicrophone] = useState(true);
+  const [camera, setCamera] = useState(false);
+  const [microphone, setMicrophone] = useState(false);
+  const [screenShare, setScreenShare] = useState(false);
+  const [isHost, setIsHost] = useState(false);
+  const [canSpeak, setCanSpeak] = useState(false);
+  const [selfIdentity, setSelfIdentity] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(true);
+  const [ending, setEnding] = useState(false);
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [messages, setMessages] = useState<LiveMessage[]>([]);
+  const [draft, setDraft] = useState("");
+  const [raisedHands, setRaisedHands] = useState<Participant[]>([]);
+  const [handRaised, setHandRaised] = useState(false);
+  const [tab, setTab] = useState<"chat" | "people">("chat");
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const sendPacket = useCallback(async (packet: LivePacket, destinationIdentity?: string) => {
+    const room = roomRef.current;
+    if (!room || !room.localParticipant.isLocal) return;
+    await room.localParticipant.publishData(
+      new TextEncoder().encode(JSON.stringify(packet)),
+      { reliable: true, topic: DATA_TOPIC, ...(destinationIdentity ? { destinationIdentities: [destinationIdentity] } : {}) },
+    );
+  }, []);
+
+  const syncParticipants = useCallback((room: Room) => {
+    const next: Participant[] = [
+      { identity: room.localParticipant.identity, name: room.localParticipant.name || "Tu" },
+      ...Array.from(room.remoteParticipants.values()).map((participant) => ({
+        identity: participant.identity,
+        name: participant.name || participant.identity,
+      })),
+    ];
+    setParticipants(next);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
     const room = new Room({ adaptiveStream: true, dynacast: true });
     roomRef.current = room;
 
-    const attachLocal = () => {
-      const publication = room.localParticipant.getTrackPublication(Track.Source.Camera);
-      const track = publication?.track;
-      if (track && localVideoRef.current) {
-        localVideoRef.current.srcObject = new MediaStream([track.mediaStreamTrack]);
-        localVideoRef.current.play().catch(() => {});
+    const attachRemote = (track: any, _publication: any, participant: any) => {
+      if (!remoteRef.current || !participant?.identity) return;
+      const element = track.attach() as HTMLMediaElement;
+      element.autoplay = true;
+      element.dataset.participant = participant.identity;
+      if (track.kind === Track.Kind.Video) {
+        const video = element as HTMLVideoElement;
+        video.playsInline = true;
+        video.className = "h-full max-h-[70vh] w-full rounded-2xl bg-black object-contain";
+      } else if (track.kind === Track.Kind.Audio) {
+        const audio = element as HTMLAudioElement;
+        audio.className = "sr-only";
+        audio.setAttribute("aria-label", "Áudio da transmissão");
       }
+      remoteRef.current.appendChild(element);
+      void element.play().catch(() => {
+        if (mounted) setNotice("Toque em «Ativar áudio» para permitir a reprodução da transmissão.");
+      });
     };
 
-    const attachRemote = (track: any, participant: any) => {
-      if (!remoteRef.current || track.kind !== Track.Kind.Video) return;
-      const video = track.attach();
-      video.autoplay = true;
-      video.playsInline = true;
-      video.className = "h-full w-full object-cover";
-      video.dataset.participant = participant.identity;
-      remoteRef.current.appendChild(video);
+    const removeParticipantTracks = (identity: string) => {
+      if (!remoteRef.current) return;
+      Array.from(remoteRef.current.querySelectorAll("[data-participant]"))
+        .filter((node) => (node as HTMLElement).dataset.participant === identity)
+        .forEach((node) => node.remove());
+    };
+
+    const onData = (payload: Uint8Array, participant?: any) => {
+      try {
+        const packet = JSON.parse(new TextDecoder().decode(payload)) as LivePacket;
+        const identity = participant?.identity || "system";
+        const name = packet.name || participant?.name || identity;
+        if (packet.type === "chat" && packet.text?.trim()) {
+          setMessages((current) => [...current, {
+            id: identity + "-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7),
+            identity,
+            name,
+            text: packet.text.trim().slice(0, 1000),
+            sentAt: Date.now(),
+          }].slice(-200));
+        } else if (packet.type === "hand_raise") {
+          setRaisedHands((current) => current.some((item) => item.identity === identity) ? current : [...current, { identity, name }]);
+          if (room.localParticipant.identity !== identity) setNotice(name + " levantou a mão.");
+        } else if (packet.type === "speak_granted" && identity !== room.localParticipant.identity) {
+          setNotice("O anfitrião autorizou a tua participação. Já podes ativar o microfone e a câmara.");
+          setCanSpeak(true);
+          setHandRaised(false);
+        } else if (packet.type === "announcement") {
+          setNotice(packet.text);
+        }
+      } catch {
+        // Ignore malformed packets instead of breaking the live session.
+      }
     };
 
     room
       .on(RoomEvent.TrackSubscribed, attachRemote)
-      .on(RoomEvent.TrackUnsubscribed, (track: any) => track.detach())
-      .on(RoomEvent.ParticipantDisconnected, (participant: any) => {
-        remoteRef.current?.querySelectorAll(`[data-participant="${participant.identity}"]`).forEach((node) => node.remove());
+      .on(RoomEvent.TrackUnsubscribed, (track: any, _publication: any, participant: any) => {
+        track.detach().forEach((element: HTMLElement) => element.remove());
+        if (participant) removeParticipantTracks(participant.identity);
       })
-      .on(RoomEvent.Connected, () => { if (mounted) setConnected(true); attachLocal(); })
-      .on(RoomEvent.Disconnected, () => { if (mounted) setConnected(false); });
+      .on(RoomEvent.ParticipantConnected, () => syncParticipants(room))
+      .on(RoomEvent.ParticipantDisconnected, (participant: any) => {
+        removeParticipantTracks(participant.identity);
+        setRaisedHands((current) => current.filter((item) => item.identity !== participant.identity));
+        syncParticipants(room);
+      })
+      .on(RoomEvent.DataReceived, onData)
+      .on(RoomEvent.Connected, () => {
+        if (mounted) {
+          setConnected(true);
+          setSelfIdentity(room.localParticipant.identity);
+          syncParticipants(room);
+        }
+      })
+      .on(RoomEvent.Disconnected, () => {
+        if (mounted) setConnected(false);
+      });
 
     void (async () => {
       try {
         const config = await resaRequest<JoinConfig>("/v1/resa/live/" + liveId + "/join", { method: "POST" });
+        if (!config.joinUrl || !config.token) throw new Error("O serviço de vídeo não devolveu credenciais válidas.");
+        if (mounted) setIsHost(Boolean(config.isHost || config.role === "host"));
         await room.connect(config.joinUrl, config.token, { autoSubscribe: true });
-        await room.localParticipant.enableCameraAndMicrophone();
-        attachLocal();
+        if (config.isHost || config.role === "host") {
+          await room.localParticipant.enableCameraAndMicrophone();
+          const localCamera = room.localParticipant.getTrackPublication(Track.Source.Camera)?.track;
+          if (localCamera && localVideoRef.current) {
+            localVideoRef.current.srcObject = new MediaStream([localCamera.mediaStreamTrack]);
+            void localVideoRef.current.play().catch(() => {});
+          }
+          if (mounted) { setCamera(true); setMicrophone(true); }
+        }
+        syncParticipants(room);
       } catch (e) {
-        if (mounted) setError(e instanceof Error ? e.message : "Não foi possível iniciar o Studio Live.");
+        if (mounted) setError(e instanceof Error ? e.message : "Não foi possível entrar na live.");
       } finally {
         if (mounted) setStarting(false);
       }
@@ -67,56 +170,208 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
       void room.disconnect(true);
       roomRef.current = null;
     };
-  }, [liveId]);
+  }, [liveId, syncParticipants]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages]);
 
   async function toggleCamera() {
     const room = roomRef.current;
-    if (!room) return;
-    const next = !camera;
-    await room.localParticipant.setCameraEnabled(next);
-    setCamera(next);
+    if (!room || (!isHost && !canSpeak)) return;
+    try {
+      const next = !camera;
+      await room.localParticipant.setCameraEnabled(next);
+      setCamera(next);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível alterar a câmara.");
+    }
   }
 
   async function toggleMicrophone() {
     const room = roomRef.current;
-    if (!room) return;
-    const next = !microphone;
-    await room.localParticipant.setMicrophoneEnabled(next);
-    setMicrophone(next);
+    if (!room || (!isHost && !canSpeak)) return;
+    try {
+      const next = !microphone;
+      await room.localParticipant.setMicrophoneEnabled(next);
+      setMicrophone(next);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível alterar o microfone.");
+    }
   }
 
   async function startAudio() {
-    try { await roomRef.current?.startAudio(); } catch {}
+    try {
+      await roomRef.current?.startAudio();
+      setNotice("Áudio ativado.");
+    } catch {
+      setNotice("O navegador não permitiu reproduzir o áudio. Verifica as permissões do dispositivo.");
+    }
   }
 
+  async function toggleScreenShare() {
+    const room = roomRef.current;
+    if (!room || (!isHost && !canSpeak)) return;
+    try {
+      const next = !screenShare;
+      await room.localParticipant.setScreenShareEnabled(next);
+      setScreenShare(next);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível partilhar o ecrã. Verifica as permissões do navegador.");
+    }
+  }
+
+  async function sendMessage(event: React.FormEvent) {
+    event.preventDefault();
+    const text = draft.trim();
+    if (!text) return;
+    try {
+      await sendPacket({ type: "chat", text, name: roomRef.current?.localParticipant.name || "Participante" });
+      setMessages((current) => [...current, {
+        id: selfIdentity + "-" + Date.now(),
+        identity: selfIdentity,
+        name: "Tu",
+        text,
+        sentAt: Date.now(),
+      }].slice(-200));
+      setDraft("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "A mensagem não foi enviada.");
+    }
+  }
+
+  async function raiseHand() {
+    try {
+      await sendPacket({ type: "hand_raise", name: roomRef.current?.localParticipant.name || "Participante" });
+      setHandRaised(true);
+      setNotice("Pedido enviado ao anfitrião.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível levantar a mão.");
+    }
+  }
+
+  async function moderate(identity: string, action: "allow_speak" | "revoke_speak" | "remove") {
+    try {
+      await resaRequest("/v1/resa/live/" + liveId + "/participants/" + encodeURIComponent(identity), {
+        method: "PATCH",
+        body: JSON.stringify({ action }),
+      });
+      if (action === "allow_speak") {
+        await sendPacket({ type: "speak_granted", name: roomRef.current?.localParticipant.name || "Anfitrião" }, identity);
+        setRaisedHands((current) => current.filter((item) => item.identity !== identity));
+      } else if (action === "remove") {
+        setRaisedHands((current) => current.filter((item) => item.identity !== identity));
+      }
+      setNotice(action === "allow_speak" ? "Participante autorizado a falar." : action === "revoke_speak" ? "Permissão de publicação retirada." : "Participante removido da live.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível aplicar a ação de moderação.");
+    }
+  }
+
+  async function leaveLive() {
+    await roomRef.current?.disconnect(true);
+    onClose();
+  }
+
+  async function endLive() {
+    if (!isHost || ending) return;
+    if (!window.confirm("Queres encerrar esta live para todos os participantes?")) return;
+    setEnding(true);
+    setError(null);
+    try {
+      await resaRequest("/v1/resa/live/" + liveId + "/status", {
+        method: "PATCH",
+        body: JSON.stringify({ status: "ended" }),
+      });
+      await roomRef.current?.disconnect(true);
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível encerrar a live.");
+      setEnding(false);
+    }
+  }
+
+  const hostControls = (
+    <div className="grid grid-cols-2 gap-2">
+      <button onClick={() => void toggleMicrophone()} disabled={!connected} className="rounded-xl bg-white/10 px-3 py-3 text-left text-sm font-semibold disabled:opacity-40">{microphone ? "Microfone ligado" : "Ligar microfone"}</button>
+      <button onClick={() => void toggleCamera()} disabled={!connected} className="rounded-xl bg-white/10 px-3 py-3 text-left text-sm font-semibold disabled:opacity-40">{camera ? "Câmara ligada" : "Ligar câmara"}</button>
+      <button onClick={() => void toggleScreenShare()} disabled={!connected} className="col-span-2 rounded-xl bg-white/10 px-3 py-3 text-left text-sm font-semibold disabled:opacity-40">{screenShare ? "Parar partilha do ecrã" : "Partilhar ecrã"}</button>
+    </div>
+  );
+
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#020817]/90 p-3 backdrop-blur-md sm:p-6">
-      <div className="flex h-[min(900px,96vh)] w-full max-w-6xl flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[#08152f] shadow-2xl">
-        <header className="flex items-center justify-between gap-4 border-b border-white/10 px-5 py-4 text-white">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">RESA · Live Studio</p>
-            <h2 className="mt-1 font-semibold">{title}</h2>
-            <p className="mt-1 text-xs text-slate-400">{connected ? "Ligado à transmissão" : starting ? "A ligar câmera e microfone…" : "Desligado"}</p>
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#020817]/95 p-2 backdrop-blur-md sm:p-5">
+      <div className="flex h-[min(940px,98vh)] w-full max-w-7xl flex-col overflow-hidden rounded-[26px] border border-white/10 bg-[#08152f] shadow-2xl">
+        <header className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-4 text-white sm:px-6">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">ZION · RESA Live</p>
+            <h2 className="truncate font-semibold">{title}</h2>
+            <p className="mt-1 text-xs text-slate-400">{starting ? "A estabelecer ligação…" : connected ? (isHost ? "Estás a transmitir como anfitrião" : "Ligado como espectador") : "Sem ligação"}</p>
           </div>
-          <button onClick={onClose} className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10">Fechar Studio</button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button onClick={() => void startAudio()} disabled={!connected} className="rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10">Ativar áudio</button>
+            <button onClick={() => void leaveLive()} className="rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10">{isHost ? "Sair do Studio" : "Sair da live"}</button>
+          </div>
         </header>
 
-        <div className="grid min-h-0 flex-1 gap-4 p-4 lg:grid-cols-[1fr_300px]">
-          <div className="relative min-h-[360px] overflow-hidden rounded-[24px] bg-black">
-            <div ref={remoteRef} className="h-full w-full" />
-            <video ref={localVideoRef} autoPlay muted playsInline className="absolute bottom-4 right-4 h-32 w-52 rounded-2xl border-2 border-white/20 bg-slate-900 object-cover shadow-2xl" />
-            {!connected && !error && <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-400">A preparar a transmissão…</div>}
-          </div>
-
-          <aside className="rounded-[24px] border border-white/10 bg-white/5 p-5 text-white">
-            <p className="text-sm font-semibold">Controlos</p>
-            <div className="mt-4 grid gap-2">
-              <button onClick={() => void toggleMicrophone()} disabled={!connected} className="rounded-xl bg-white/10 px-4 py-3 text-left text-sm font-semibold disabled:opacity-40">{microphone ? "🎙️ Microfone ligado" : "🔇 Microfone desligado"}</button>
-              <button onClick={() => void toggleCamera()} disabled={!connected} className="rounded-xl bg-white/10 px-4 py-3 text-left text-sm font-semibold disabled:opacity-40">{camera ? "📷 Câmara ligada" : "🚫 Câmara desligada"}</button>
-              <button onClick={() => void startAudio()} disabled={!connected} className="rounded-xl bg-white/10 px-4 py-3 text-left text-sm font-semibold disabled:opacity-40">🔊 Ativar áudio</button>
+        <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_350px]">
+          <section className="flex min-h-0 flex-col gap-3 p-3 sm:p-5">
+            <div className="relative flex min-h-[260px] flex-1 items-center justify-center overflow-hidden rounded-2xl bg-black p-2">
+              <div ref={remoteRef} className="grid h-full w-full grid-cols-1 content-center gap-3 sm:grid-cols-2" />
+              {isHost && <video ref={localVideoRef} autoPlay muted playsInline className="absolute bottom-3 right-3 h-24 w-36 rounded-xl border border-white/20 bg-slate-900 object-cover shadow-2xl sm:h-32 sm:w-48" />}
+              {!connected && <div className="absolute inset-0 flex items-center justify-center bg-black/60 p-6 text-center text-sm text-slate-300">{error || (starting ? "A preparar áudio e vídeo…" : "A ligação foi interrompida.")}</div>}
             </div>
-            {error && <div className="mt-5 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm leading-6 text-red-200">{error}</div>}
-            <div className="mt-6 rounded-2xl bg-white/5 p-4 text-xs leading-5 text-slate-400">O Studio usa o motor de mídia LiveKit já presente no ZION. A câmera e o microfone só são ativados depois da autorização do navegador.</div>
+            {notice && <div role="status" className="rounded-xl border border-sky-300/20 bg-sky-400/10 px-4 py-3 text-sm text-sky-100">{notice}<button onClick={() => setNotice(null)} className="ml-3 underline">Fechar</button></div>}
+            {error && connected && <div role="alert" className="rounded-xl border border-red-300/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div>}
+            <div className="flex flex-wrap items-center gap-2">
+              {isHost || canSpeak ? hostControls : <button onClick={() => void raiseHand()} disabled={!connected || handRaised} className="rounded-xl bg-white/10 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{handRaised ? "Pedido para falar enviado" : "Levantar a mão"}</button>}
+              {isHost && <button onClick={() => void endLive()} disabled={ending} className="rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{ending ? "A encerrar…" : "Encerrar live para todos"}</button>}
+            </div>
+          </section>
+
+          <aside className="flex min-h-0 flex-col border-t border-white/10 bg-white/[0.035] lg:border-l lg:border-t-0">
+            <div className="grid grid-cols-2 border-b border-white/10">
+              <button onClick={() => setTab("chat")} className={"px-4 py-4 text-sm font-semibold " + (tab === "chat" ? "border-b-2 border-sky-300 text-white" : "text-slate-400")}>Chat ao vivo</button>
+              <button onClick={() => setTab("people")} className={"px-4 py-4 text-sm font-semibold " + (tab === "people" ? "border-b-2 border-sky-300 text-white" : "text-slate-400")}>Pessoas ({participants.length})</button>
+            </div>
+
+            {tab === "chat" ? (
+              <>
+                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+                  {messages.length ? messages.map((message) => (
+                    <div key={message.id} className="text-sm">
+                      <span className="font-semibold text-sky-200">{message.name}: </span>
+                      <span className="break-words text-slate-200">{message.text}</span>
+                    </div>
+                  )) : <p className="py-6 text-center text-sm leading-6 text-slate-400">As mensagens desta live aparecerão aqui.</p>}
+                  <div ref={chatEndRef} />
+                </div>
+                <form onSubmit={(event) => void sendMessage(event)} className="flex gap-2 border-t border-white/10 p-3">
+                  <input value={draft} onChange={(event) => setDraft(event.target.value)} maxLength={1000} placeholder="Escreve uma mensagem…" className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/20 px-3 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-300/50" />
+                  <button type="submit" disabled={!connected || !draft.trim()} className="rounded-xl bg-sky-300 px-4 py-3 text-sm font-bold text-[#07142c] disabled:opacity-40">Enviar</button>
+                </form>
+              </>
+            ) : (
+              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
+                {isHost && raisedHands.length > 0 && <div className="mb-4 rounded-xl border border-sky-300/20 bg-sky-300/10 p-3">
+                  <p className="mb-2 text-xs font-bold uppercase tracking-wide text-sky-200">Pedidos para falar</p>
+                  {raisedHands.map((person) => <div key={person.identity} className="mb-2 flex items-center justify-between gap-2 text-sm text-white">
+                    <span className="truncate">{person.name}</span>
+                    <button onClick={() => void moderate(person.identity, "allow_speak")} className="rounded-lg bg-sky-300 px-2 py-1 text-xs font-bold text-[#07142c]">Autorizar</button>
+                  </div>)}
+                </div>}
+                {participants.map((person) => (
+                  <div key={person.identity} className="flex items-center justify-between gap-2 rounded-xl bg-white/5 p-3 text-sm text-white">
+                    <div className="min-w-0"><p className="truncate font-medium">{person.name}</p><p className="text-xs text-slate-500">{person.identity === selfIdentity ? "Este dispositivo" : isHost ? "Participante" : "Na live"}</p></div>
+                    {isHost && person.identity !== selfIdentity && <div className="flex shrink-0 gap-1">
+                      <button title="Autorizar a falar" onClick={() => void moderate(person.identity, "allow_speak")} className="rounded-lg bg-white/10 px-2 py-1 text-xs">Falar</button>
+                      <button title="Retirar permissão de falar" onClick={() => void moderate(person.identity, "revoke_speak")} className="rounded-lg bg-white/10 px-2 py-1 text-xs">Silenciar</button>
+                      <button title="Remover da live" onClick={() => void moderate(person.identity, "remove")} className="rounded-lg bg-red-500/20 px-2 py-1 text-xs text-red-200">Remover</button>
+                    </div>}
+                  </div>
+                ))}
+              </div>
+            )}
           </aside>
         </div>
       </div>

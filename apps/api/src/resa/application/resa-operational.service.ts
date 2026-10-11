@@ -204,7 +204,8 @@ export class ResaOperationalService {
   async listLiveSessions(token: string, limit = 30) {
     const actor = await this.actor(token);
     const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
-    return this.db.get('resa_live_sessions', token, `?select=*&or=(visibility.eq.public,host_id.eq.${actor.id})&status=neq.ended&order=scheduled_at.asc.nullslast,created_at.desc&limit=${size}`);
+    const sessions = await this.db.get<any[]>('resa_live_sessions', token, `?select=*&or=(visibility.eq.public,host_id.eq.${actor.id})&status=neq.ended&order=scheduled_at.asc.nullslast,created_at.desc&limit=${size}`);
+    return sessions.map((session) => ({ ...session, is_host: session.host_id === actor.id }));
   }
 
   async createLiveSession(token: string, input: { title: unknown; description?: unknown; visibility?: unknown; scheduled_at?: unknown }) {
@@ -218,18 +219,37 @@ export class ResaOperationalService {
       description: typeof input.description === 'string' ? input.description.trim() || null : null,
       visibility, scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null, status: 'scheduled',
     });
-    return rows[0];
+    const session = rows[0];
+    if (!session?.id) throw new BadGatewayException('Live session could not be created');
+    try {
+      const mediaRoom = await this.media.createRoom({ meetingId: 'live-' + session.id, channelName: 'zion:live:' + session.id });
+      if (mediaRoom.provider !== 'ZION_SFU' || mediaRoom.providerRoomId !== 'zion-live-' + session.id) {
+        throw new BadGatewayException('LiveKit must be configured for RESA live video sessions');
+      }
+    } catch (error) {
+      await this.db.patch('resa_live_sessions', token, { status: 'ended', ended_at: new Date().toISOString() }, `?id=eq.${session.id}&host_id=eq.${actor.id}`);
+      throw error;
+    }
+    return { ...session, is_host: true };
   }
 
   async updateLiveStatus(token: string, liveId: string, status: 'scheduled' | 'live' | 'ended') {
     const actor = await this.actor(token);
     const id = this.id(liveId, 'live_id');
     if (!['scheduled', 'live', 'ended'].includes(status)) throw new BadRequestException('Invalid live status');
+    const existing = (await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status&id=eq.${id}&host_id=eq.${actor.id}&limit=1`))[0];
+    if (!existing) throw new NotFoundException('Live session not found or you are not its host');
+    if (existing.status === 'ended' && status !== 'ended') throw new BadRequestException('An ended live cannot be restarted');
+    if (status === 'ended' && existing.status !== 'ended') {
+      if (this.media.closeRoom) {
+        await this.media.closeRoom({ meetingId: id, providerRoomId: 'zion-live-' + id });
+      }
+    }
     const patch: Record<string, string | null> = { status };
-    if (status === 'live') patch.started_at = new Date().toISOString();
+    if (status === 'live' && existing.status !== 'live') patch.started_at = new Date().toISOString();
     if (status === 'ended') patch.ended_at = new Date().toISOString();
     const rows = await this.db.patch<any[]>('resa_live_sessions', token, patch, `?id=eq.${id}&host_id=eq.${actor.id}`);
-    if (!rows[0]) throw new NotFoundException('Live session not found');
+    if (!rows[0]) throw new NotFoundException('Live session not found or you are not its host');
     return rows[0];
   }
 
@@ -240,13 +260,39 @@ export class ResaOperationalService {
     const live = rows[0];
     if (!live) throw new NotFoundException('Live session not found');
     if (live.host_id !== actor.id && live.visibility !== 'public') throw new NotFoundException('Live session not found');
+    if (live.status !== 'live' && live.host_id !== actor.id) throw new BadRequestException('Live session has not started');
     if (live.status === 'ended') throw new BadRequestException('Live session has ended');
     if (!this.media.createJoinConfig) throw new BadRequestException('Media provider does not expose a join configuration');
-    return this.media.createJoinConfig({
+    const isHost = live.host_id === actor.id;
+    const config = await this.media.createJoinConfig({
       meetingId: id,
-      providerRoomId: `zion-live-${id}`,
+      providerRoomId: 'zion-live-' + id,
       userId: actor.id,
+      canPublish: isHost,
     });
+    if (config.mode !== 'SFU' || !config.joinUrl || !config.token) {
+      throw new BadGatewayException('LiveKit is not configured for RESA live sessions');
+    }
+    return { ...config, role: isHost ? 'host' : 'viewer', isHost };
+  }
+
+  async moderateLiveParticipant(token: string, liveId: string, identity: string, action: 'allow_speak' | 'revoke_speak' | 'remove') {
+    const actor = await this.actor(token);
+    const id = this.id(liveId, 'live_id');
+    const participantIdentity = this.text(identity, 'participant_identity', 1, 128);
+    if (participantIdentity === actor.id) throw new BadRequestException('The host cannot moderate their own connection');
+    if (!['allow_speak', 'revoke_speak', 'remove'].includes(action)) throw new BadRequestException('Invalid participant moderation action');
+    const live = (await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status&id=eq.${id}&limit=1`))[0];
+    if (!live || live.host_id !== actor.id) throw new NotFoundException('Live session not found or you are not its host');
+    if (live.status !== 'live') throw new BadRequestException('Only a live session can be moderated');
+    if (action === 'remove') {
+      if (!this.media.removeParticipant) throw new BadGatewayException('Media provider does not support participant removal');
+      await this.media.removeParticipant({ roomId: 'zion-live-' + id, identity: participantIdentity });
+    } else {
+      if (!this.media.setParticipantPublishing) throw new BadGatewayException('Media provider does not support publishing permissions');
+      await this.media.setParticipantPublishing({ roomId: 'zion-live-' + id, identity: participantIdentity, canPublish: action === 'allow_speak' });
+    }
+    return { liveId: id, identity: participantIdentity, action, applied: true };
   }
 
   async callJoinConfig(token: string, callId: string) {

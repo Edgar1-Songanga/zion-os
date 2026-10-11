@@ -16,7 +16,7 @@ export class ZionSfuProvider implements MediaProvider {
 
   async createRoom(input: { meetingId: string; channelName: string }): Promise<MediaRoom> {
     try {
-      const roomName = `zion-${input.meetingId}`;
+      const roomName = 'zion-' + input.meetingId;
       await this.client().createRoom({
         name: roomName,
         emptyTimeout: 10 * 60,
@@ -38,19 +38,20 @@ export class ZionSfuProvider implements MediaProvider {
     try {
       await this.client().deleteRoom(input.providerRoomId);
     } catch (error) {
-      throw new BadGatewayException(error instanceof Error ? error.message : 'ZION media server room close failed');
+      throw new BadGatewayException(error instanceof Error ? error.message : 'ZION media room could not be closed');
     }
   }
 
-  async createJoinConfig(input: { meetingId: string; providerRoomId?: string | null; userId: string }): Promise<MediaJoinConfig> {
+  async createJoinConfig(input: { meetingId: string; providerRoomId?: string | null; userId: string; canPublish?: boolean }): Promise<MediaJoinConfig> {
     if (!input.providerRoomId || !this.configured()) {
       throw new BadGatewayException('ZION media server is not configured');
     }
     try {
+      const canPublish = input.canPublish !== false;
       const grant: VideoGrant = {
         roomJoin: true,
         room: input.providerRoomId,
-        canPublish: true,
+        canPublish,
         canSubscribe: true,
         canPublishData: true,
       };
@@ -69,6 +70,24 @@ export class ZionSfuProvider implements MediaProvider {
       };
     } catch (error) {
       throw new BadGatewayException(error instanceof Error ? error.message : 'ZION media token creation failed');
+    }
+  }
+
+  async setParticipantPublishing(input: { roomId: string; identity: string; canPublish: boolean }): Promise<void> {
+    try {
+      await this.client().updateParticipant(input.roomId, input.identity, {
+        permission: { canPublish: input.canPublish, canSubscribe: true, canPublishData: true },
+      });
+    } catch (error) {
+      throw new BadGatewayException(error instanceof Error ? error.message : 'Participant permissions could not be updated');
+    }
+  }
+
+  async removeParticipant(input: { roomId: string; identity: string }): Promise<void> {
+    try {
+      await this.client().removeParticipant(input.roomId, input.identity);
+    } catch (error) {
+      throw new BadGatewayException(error instanceof Error ? error.message : 'Participant could not be removed');
     }
   }
 }

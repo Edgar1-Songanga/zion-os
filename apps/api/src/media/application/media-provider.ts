@@ -25,5 +25,12 @@ export interface MediaProvider {
     meetingId: string;
     providerRoomId?: string | null;
     userId: string;
+    canPublish?: boolean;
   }): Promise<MediaJoinConfig>;
+  setParticipantPublishing?(input: {
+    roomId: string;
+    identity: string;
+    canPublish: boolean;
+  }): Promise<void>;
+  removeParticipant?(input: { roomId: string; identity: string }): Promise<void>;
 }
