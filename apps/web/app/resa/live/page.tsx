@@ -47,7 +47,7 @@ export default function LivePage() {
     setCreating(true);
     setError(null);
     try {
-      const created = await resaRequest<LiveSession>("/v1/resa/live", {
+      await resaRequest<LiveSession>("/v1/resa/live", {
         method: "POST",
         body: JSON.stringify({
           title: title.trim(),
@@ -60,7 +60,6 @@ export default function LivePage() {
       setDescription("");
       setScheduledAt("");
       await load();
-      if (created?.id) setStudioLive({ ...created, status: "scheduled", is_host: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível criar a Live.");
     } finally {
