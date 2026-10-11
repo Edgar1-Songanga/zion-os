@@ -380,10 +380,10 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
   }
 
   const hostControls = (
-    <div className="grid grid-cols-2 gap-2">
-      <button onClick={() => void toggleMicrophone()} disabled={!connected} className="rounded-xl bg-white/10 px-3 py-3 text-left text-sm font-semibold disabled:opacity-40">{microphone ? "Microfone ligado" : "Ligar microfone"}</button>
-      <button onClick={() => void toggleCamera()} disabled={!connected} className="rounded-xl bg-white/10 px-3 py-3 text-left text-sm font-semibold disabled:opacity-40">{camera ? "Câmara ligada" : "Ligar câmara"}</button>
-      <button onClick={() => void toggleScreenShare()} disabled={!connected} className="col-span-2 rounded-xl bg-white/10 px-3 py-3 text-left text-sm font-semibold disabled:opacity-40">{screenShare ? "Parar partilha do ecrã" : "Partilhar ecrã"}</button>
+    <div className="grid grid-cols-3 gap-2">
+      <button onClick={() => void toggleMicrophone()} disabled={!connected} className={"min-h-[72px] rounded-2xl border px-2 py-3 text-center text-xs font-semibold transition disabled:opacity-50 " + (microphone ? "border-sky-200/30 bg-sky-300/15 text-sky-100" : "border-white/10 bg-white/[0.045] text-slate-300 hover:bg-white/10")}>{microphone ? "Microfone ligado" : "Microfone desligado"}</button>
+      <button onClick={() => void toggleCamera()} disabled={!connected} className={"min-h-[72px] rounded-2xl border px-2 py-3 text-center text-xs font-semibold transition disabled:opacity-50 " + (camera ? "border-sky-200/30 bg-sky-300/15 text-sky-100" : "border-white/10 bg-white/[0.045] text-slate-300 hover:bg-white/10")}>{camera ? "Câmara ligada" : "Câmara desligada"}</button>
+      <button onClick={() => void toggleScreenShare()} disabled={!connected} className="col-span-1 min-h-[72px] rounded-2xl border border-white/10 bg-white/[0.045] px-2 py-3 text-center text-xs font-semibold text-slate-300 transition hover:bg-white/10 disabled:opacity-50">{screenShare ? "Parar ecrã" : "Partilhar ecrã"}</button>
       <button onClick={() => recording ? stopRecording() : startRecording()} disabled={!connected || !isHost} className={"col-span-2 rounded-xl px-3 py-3 text-left text-sm font-semibold disabled:opacity-40 " + (recording ? "bg-red-500/20 text-red-100" : "bg-white/10 text-white")}>{recording ? "Parar gravação e guardar ficheiro" : "Gravar nesta máquina (sem armazenamento na nuvem)"}</button>
       <div className="col-span-2 space-y-2 rounded-xl border border-white/10 bg-black/15 p-3">
         <p className="text-xs font-bold uppercase tracking-wide text-slate-300">Transmitir noutras plataformas</p>
