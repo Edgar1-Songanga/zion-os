@@ -36,7 +36,7 @@ export class MinistryController {
   update(
     @Headers('authorization') authorization: string | undefined,
     @Param('id') id: string,
-    @Body() body: Omit<MinistryBody, 'organization_id'>,
+    @Body() body: Partial<Omit<MinistryBody, 'organization_id'>>,
   ) {
     return this.ministries.update(id, this.token(authorization), body);
   }
