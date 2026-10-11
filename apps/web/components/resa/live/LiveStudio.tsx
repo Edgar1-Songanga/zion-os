@@ -45,6 +45,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
   const [egressId, setEgressId] = useState<string | null>(null);
   const [streamingExternal, setStreamingExternal] = useState(false);
   const [streamBusy, setStreamBusy] = useState(false);
+  const [audioNeedsGesture, setAudioNeedsGesture] = useState(false);
 
   const sendPacket = useCallback(async (packet: LivePacket, destinationIdentity?: string) => {
     const room = roomRef.current;
@@ -161,7 +162,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
         if (mounted) setIsHost(Boolean(config.isHost || config.role === "host"));
         await room.connect(config.joinUrl, config.token, { autoSubscribe: true });
         if (config.isHost || config.role === "host") {
-          await room.localParticipant.enableCameraAndMicrophone();
+          await room.localParticipant.enableCameraAndMicrophone(undefined, { echoCancellation: true, noiseSuppression: true, autoGainControl: true });
           const localCamera = room.localParticipant.getTrackPublication(Track.Source.Camera)?.track;
           if (localCamera && localVideoRef.current) {
             localVideoRef.current.srcObject = new MediaStream([localCamera.mediaStreamTrack]);
@@ -205,7 +206,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
     if (!room || (!isHost && !canSpeak)) return;
     try {
       const next = !microphone;
-      await room.localParticipant.setMicrophoneEnabled(next);
+      await room.localParticipant.setMicrophoneEnabled(next, { echoCancellation: true, noiseSuppression: true, autoGainControl: true });
       setMicrophone(next);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível alterar o microfone.");
@@ -270,9 +271,11 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
   async function startAudio() {
     try {
       await roomRef.current?.startAudio();
-      setNotice("Áudio ativado.");
+      setAudioNeedsGesture(false);
+      setNotice("Áudio da transmissão ativado.");
     } catch {
-      setNotice("O navegador não permitiu reproduzir o áudio. Verifica as permissões do dispositivo.");
+      setAudioNeedsGesture(true);
+      setNotice("O navegador ainda não permitiu reproduzir o áudio. Verifica as permissões e o volume do dispositivo.");
     }
   }
 
