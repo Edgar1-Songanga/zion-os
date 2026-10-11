@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 import type {
   YouthClubDirectoryPort,
@@ -91,12 +91,12 @@ export class SupabaseYouthClubDirectory implements YouthClubDirectoryPort {
   private async assertActiveOrganizationMember(clubId: string, userId: string, token: string): Promise<void> {
     const clubs = await this.db.get<Array<{ organization_id: string }>>('youth_clubs', token, `?select=organization_id&id=eq.${encodeURIComponent(clubId)}&limit=1`);
     const club = clubs[0];
-    if (!club) throw new Error('Youth club not found or access denied.');
+    if (!club) throw new NotFoundException('Youth club not found or access denied.');
     const memberships = await this.db.get<Array<{ user_id: string }>>(
       'organization_memberships', token,
       `?select=user_id&organization_id=eq.${encodeURIComponent(club.organization_id)}&user_id=eq.${encodeURIComponent(userId)}&status=eq.ACTIVE&limit=1`,
     );
-    if (!memberships[0]) throw new Error('The selected person must be an active member of this organization.');
+    if (!memberships[0]) throw new BadRequestException('The selected person must be an active member of this organization.');
   }
 
   private mapClub(row: any): YouthClubRecord {
