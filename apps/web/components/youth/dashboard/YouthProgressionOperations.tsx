@@ -88,17 +88,17 @@ export default function YouthProgressionOperations() {
       resaRequest<CatalogItem[]>(`/v1/youth/progression/catalog/organization/${encodeURIComponent(selectedClub.organizationId)}?program_id=${encodeURIComponent(selectedClub.programId)}`),
       resaRequest<ProgressItem[]>(`/v1/youth/progression/clubs/${encodeURIComponent(selectedClub.id)}/progress`),
       resaRequest<Investiture[]>(`/v1/youth/progression/clubs/${encodeURIComponent(selectedClub.id)}/investitures`),
-    ]).then(async ([memberRows, catalogRows, progressRows, investitureRows]) => {
+      resaRequest<{ members: Array<{ user_id: string; profile: Profile | null }>; leaders: Array<{ user_id: string; profile: Profile | null }> }>(`/v1/youth/progression/clubs/${encodeURIComponent(selectedClub.id)}/people`),
+    ]).then(async ([memberRows, catalogRows, progressRows, investitureRows, people]) => {
       if (!current) return;
       setMembers(memberRows);
       setCatalog(catalogRows);
       setProgress(progressRows);
       setInvestitures(investitureRows);
-      const ids = Array.from(new Set([...memberRows.map((member) => member.userId), ...progressRows.map((item) => item.user_id), ...investitureRows.map((item) => item.user_id)]));
-      if (ids.length) {
-        const suggestions = await resaRequest<Profile[]>(`/v1/resa/profiles/suggestions?limit=30`).catch(() => []);
-        if (current) setProfiles((previous) => ({ ...previous, ...Object.fromEntries(suggestions.map((profile) => [profile.id, profile])) }));
-      }
+      const resolvedProfiles = [...people.members, ...people.leaders]
+        .map((person) => person.profile)
+        .filter((profile): profile is Profile => profile !== null);
+      if (current) setProfiles((previous) => ({ ...previous, ...Object.fromEntries(resolvedProfiles.map((profile) => [profile.id, profile])) }));
     }).catch((reason) => {
       if (current) setError(reason instanceof Error ? reason.message : "Não foi possível carregar a progressão deste clube.");
     }).finally(() => { if (current) setLoading(false); });
