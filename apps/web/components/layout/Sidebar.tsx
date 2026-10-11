@@ -42,6 +42,7 @@ export default function Sidebar() {
         { name: t("sabbathSchool"), path: "/sabbath-school" },
         { name: t("adventistSources"), path: "/adventist-canon" },
         { name: t("ministry"), path: "/ministry" },
+        { name: "Ministério Jovem", path: "/youth" },
         { name: t("spiritualChat"), path: "/spiritual-chat" },
         { name: t("communities"), path: "/communities" },
       ],
