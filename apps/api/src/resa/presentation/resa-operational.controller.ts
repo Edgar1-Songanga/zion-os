@@ -1,9 +1,10 @@
 import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query, UnauthorizedException } from '@nestjs/common';
 import { ResaOperationalService } from '../application/resa-operational.service';
+import { ResaLiveEgressService } from '../application/resa-live-egress.service';
 
 @Controller('v1/resa')
 export class ResaOperationalController {
-  constructor(private readonly operational: ResaOperationalService) {}
+  constructor(private readonly operational: ResaOperationalService, private readonly liveEgress: ResaLiveEgressService) {}
 
   private token(authorization?: string) {
     const token = authorization?.replace(/^Bearer\s+/i, '').trim();
@@ -75,6 +76,16 @@ export class ResaOperationalController {
   }
   @Patch('live/:liveId/status') updateLiveStatus(@Headers('authorization') authorization: string | undefined, @Param('liveId') liveId: string, @Body() body: { status: 'scheduled' | 'live' | 'ended' }) {
     return this.operational.updateLiveStatus(this.token(authorization), liveId, body.status);
+  }
+
+  @Post('live/:liveId/stream')
+  startExternalStream(@Headers('authorization') authorization: string | undefined, @Param('liveId') liveId: string, @Body() body: { streamUrl: string }) {
+    return this.liveEgress.startExternalStream(this.token(authorization), liveId, body.streamUrl);
+  }
+
+  @Post('live/:liveId/stream/stop')
+  stopExternalStream(@Headers('authorization') authorization: string | undefined, @Param('liveId') liveId: string, @Body() body: { egressId: string }) {
+    return this.liveEgress.stopExternalStream(this.token(authorization), liveId, body.egressId);
   }
 
   @Patch('live/:liveId/participants/:identity')
