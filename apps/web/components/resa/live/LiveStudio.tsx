@@ -396,7 +396,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
         </header>
 
         <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_350px]">
-          <section className="flex min-h-0 flex-col gap-3 p-3 sm:p-5">
+          <section className="flex min-h-0 flex-col gap-3 overflow-y-auto p-3 sm:p-5">
             <div className="relative flex min-h-[260px] flex-1 items-center justify-center overflow-hidden rounded-2xl bg-black p-2">
               <div ref={remoteRef} className="grid h-full w-full grid-cols-1 content-center gap-3 sm:grid-cols-2" />
               {isHost && <video ref={localVideoRef} autoPlay muted playsInline className="absolute bottom-3 right-3 h-24 w-36 rounded-xl border border-white/20 bg-slate-900 object-cover shadow-2xl sm:h-32 sm:w-48" />}
