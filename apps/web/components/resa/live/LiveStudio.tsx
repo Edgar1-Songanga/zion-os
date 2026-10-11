@@ -371,10 +371,10 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
       <div className="col-span-2 space-y-2 rounded-xl border border-white/10 bg-black/15 p-3">
         <p className="text-xs font-bold uppercase tracking-wide text-slate-300">Transmitir noutras plataformas</p>
         <p className="text-xs leading-5 text-slate-400">Cola o URL RTMP/RTMPS do YouTube Live ou Facebook Live. A chave não é guardada pelo Zion.</p>
-        <input value={streamUrl} onChange={(event) => setStreamUrl(event.target.value)} type="password" autoComplete="off" placeholder="URL RTMP/RTMPS + chave da plataforma" disabled={streamingExternal || streamBusy} className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-300/50 disabled:opacity-50" />
+        <input value={streamUrl} onChange={(event) => setStreamUrl(event.target.value)} type="password" autoComplete="off" placeholder="URL RTMP/RTMPS + chave da plataforma" disabled={!isHost || streamingExternal || streamBusy} className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-300/50 disabled:opacity-50" />
         {streamingExternal
           ? <button onClick={() => void stopExternalStream()} disabled={streamBusy} className="w-full rounded-lg bg-red-500/20 px-3 py-2 text-sm font-semibold text-red-100 disabled:opacity-50">{streamBusy ? "A processar…" : "Parar transmissão externa"}</button>
-          : <button onClick={() => void startExternalStream()} disabled={!connected || !streamUrl.trim() || streamBusy} className="w-full rounded-lg bg-sky-300 px-3 py-2 text-sm font-bold text-[#07142c] disabled:opacity-40">{streamBusy ? "A iniciar…" : "Iniciar transmissão externa"}</button>}
+          : <button onClick={() => void startExternalStream()} disabled={!connected || !isHost || !streamUrl.trim() || streamBusy} className="w-full rounded-lg bg-sky-300 px-3 py-2 text-sm font-bold text-[#07142c] disabled:opacity-40">{streamBusy ? "A iniciar…" : "Iniciar transmissão externa"}</button>}
         <p className="text-[11px] leading-4 text-amber-200/80">Requer LiveKit Egress ativo e pode consumir quota paga do fornecedor. A gravação local não usa esse serviço.</p>
       </div>
     </div>
