@@ -301,6 +301,37 @@ export class ResaOperationalService {
     return { liveId: id, identity: participantIdentity, action, applied: true };
   }
 
+  async listLiveCohosts(token: string, liveId: string) {
+    const actor = await this.actor(token);
+    const id = this.id(liveId, 'live_id');
+    const live = (await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status&id=eq.${id}&limit=1`))[0];
+    if (!live) throw new NotFoundException('Live session not found');
+    if (live.host_id !== actor.id) {
+      const ownRole = await this.db.get<any[]>('resa_live_cohosts', token, `?select=user_id&live_id=eq.${id}&user_id=eq.${actor.id}&limit=1`);
+      if (!ownRole.length) throw new NotFoundException('Live session not found or you are not a participant with co-host access');
+    }
+    return this.db.get<any[]>('resa_live_cohosts', token, `?select=user_id,role,assigned_by,created_at&live_id=eq.${id}&order=created_at.asc`);
+  }
+
+  async setLiveCohost(token: string, liveId: string, userId: unknown, action: 'assign' | 'remove') {
+    const actor = await this.actor(token);
+    const id = this.id(liveId, 'live_id');
+    const targetUserId = this.id(userId, 'user_id');
+    if (!['assign', 'remove'].includes(action)) throw new BadRequestException('Invalid co-host action');
+    if (targetUserId === actor.id) throw new BadRequestException('The host cannot assign themselves as co-host');
+    const live = (await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status&id=eq.${id}&host_id=eq.${actor.id}&limit=1`))[0];
+    if (!live) throw new NotFoundException('Live session not found or you are not its host');
+    if (live.status === 'ended') throw new BadRequestException('An ended live cannot change co-hosts');
+    if (action === 'assign') {
+      const rows = await this.db.upsert<any[]>('resa_live_cohosts', token, {
+        live_id: id, user_id: targetUserId, role: 'cohost', assigned_by: actor.id,
+      }, '?on_conflict=live_id,user_id');
+      return { liveId: id, userId: targetUserId, role: 'cohost', assigned: true, record: rows[0] };
+    }
+    await this.db.delete('resa_live_cohosts', token, `?live_id=eq.${id}&user_id=eq.${targetUserId}`);
+    return { liveId: id, userId: targetUserId, role: 'viewer', assigned: false };
+  }
+
   async callJoinConfig(token: string, callId: string) {
     const actor = await this.actor(token);
     const id = this.id(callId, 'call_id');
