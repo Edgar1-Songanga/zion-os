@@ -63,8 +63,8 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
     const room = new Room({ adaptiveStream: true, dynacast: true });
     roomRef.current = room;
 
-    const attachRemote = (track: any, participant: any) => {
-      if (!remoteRef.current) return;
+    const attachRemote = (track: any, _publication: any, participant: any) => {
+      if (!remoteRef.current || !participant?.identity) return;
       const element = track.attach() as HTMLMediaElement;
       element.autoplay = true;
       element.dataset.participant = participant.identity;
@@ -190,7 +190,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
 
   async function toggleMicrophone() {
     const room = roomRef.current;
-    if (!room || !isHost) return;
+    if (!room || (!isHost && !canSpeak)) return;
     try {
       const next = !microphone;
       await room.localParticipant.setMicrophoneEnabled(next);
