@@ -1,3 +1,4 @@
+import { Injectable } from '@nestjs/common';
 import { assertSupabaseConfig, env } from '../../config/env';
 
 type SupabaseErrorPayload = {
@@ -98,8 +99,8 @@ export class SupabaseRestClient {
       const messageValue = errorPayload.message ?? nested?.message;
       const upstreamMessage = typeof messageValue === 'string' ? messageValue.slice(0, 240) : 'Supabase request failed';
 
-      // Do not return database internals to the browser. Keep enough safe context in
-      // Vercel logs to distinguish missing tables, RLS denials, bad tokens and outages.
+      // Keep enough context in Vercel logs to distinguish schema, RLS, token and outage errors,
+      // without returning upstream database details to the browser.
       console.error(JSON.stringify({
         event: 'zion_supabase_rest_failure',
         operation,
