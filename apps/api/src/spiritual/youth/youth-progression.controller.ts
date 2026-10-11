@@ -45,6 +45,11 @@ export class YouthProgressionController {
     return this.progression.updateCatalog(this.token(authorization), id, body);
   }
 
+  @Get('clubs/:clubId/people')
+  listClubPeople(@Headers('authorization') authorization: string | undefined, @Param('clubId') clubId: string) {
+    return this.progression.listClubPeople(this.token(authorization), clubId);
+  }
+
   @Get('clubs/:clubId/progress')
   listProgress(@Headers('authorization') authorization: string | undefined, @Param('clubId') clubId: string) {
     return this.progression.listProgress(this.token(authorization), clubId);
