@@ -11,6 +11,7 @@ type LivePacket =
   | { type: "chat"; text: string; name?: string }
   | { type: "hand_raise"; name?: string }
   | { type: "speak_granted"; name?: string }
+  | { type: "speak_revoked"; name?: string }
   | { type: "announcement"; text: string; name?: string };
 
 const DATA_TOPIC = "zion-live";
@@ -121,6 +122,16 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
           setNotice("O anfitrião autorizou a tua participação. Já podes ativar o microfone e a câmara.");
           setCanSpeak(true);
           setHandRaised(false);
+        } else if (packet.type === "speak_revoked" && identity !== room.localParticipant.identity) {
+          setCanSpeak(false);
+          setHandRaised(false);
+          void room.localParticipant.setMicrophoneEnabled(false).catch(() => {});
+          void room.localParticipant.setCameraEnabled(false).catch(() => {});
+          void room.localParticipant.setScreenShareEnabled(false).catch(() => {});
+          setMicrophone(false);
+          setCamera(false);
+          setScreenShare(false);
+          setNotice("O anfitrião retirou a tua permissão de falar. O microfone, a câmara e a partilha foram desligados.");
         } else if (packet.type === "announcement") {
           setNotice(packet.text);
         }
