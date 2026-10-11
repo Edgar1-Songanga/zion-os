@@ -28,6 +28,12 @@ describe('YouthActivityService validation', () => {
     )).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('rejects invalid event timestamps before database writes', async () => {
+    await expect(service.updateActivity('token', '00000000-0000-4000-8000-000000000002', {
+      starts_at: 'not-a-date',
+    })).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it('rejects invalid activity identifiers', async () => {
     await expect(service.listClubActivities('token', 'not-a-uuid')).rejects.toBeInstanceOf(BadRequestException);
   });
