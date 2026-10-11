@@ -41,6 +41,7 @@ export default function YouthProgressionOperations() {
   const [investitures, setInvestitures] = useState<Investiture[]>([]);
   const [profiles, setProfiles] = useState<Record<string, Profile>>({});
   const [catalogForm, setCatalogForm] = useState(emptyCatalog);
+  const [editingCatalogId, setEditingCatalogId] = useState<string | null>(null);
   const [memberId, setMemberId] = useState("");
   const [catalogItemId, setCatalogItemId] = useState("");
   const [investitureForm, setInvestitureForm] = useState(emptyInvestiture);
@@ -109,20 +110,60 @@ export default function YouthProgressionOperations() {
     event.preventDefault();
     if (!selectedClub || saving) return;
     setSaving(true); setError(null); setMessage(null);
+    const payload = {
+      code: catalogForm.code,
+      name: catalogForm.name,
+      description: catalogForm.description,
+      level: catalogForm.level,
+      official_reference_url: catalogForm.official_reference_url.trim() || null,
+    };
     try {
-      const item = await resaRequest<CatalogItem>(`/v1/youth/progression/catalog/organization/${encodeURIComponent(organizationId)}`, {
-        method: "POST",
-        body: JSON.stringify({
-          program_id: selectedClub.programId, kind: catalogForm.kind, code: catalogForm.code,
-          name: catalogForm.name, description: catalogForm.description, level: catalogForm.level,
-          official_reference_url: catalogForm.official_reference_url.trim() || null,
-        }),
+      const item = await resaRequest<CatalogItem>(
+        editingCatalogId
+          ? `/v1/youth/progression/catalog/${encodeURIComponent(editingCatalogId)}`
+          : `/v1/youth/progression/catalog/organization/${encodeURIComponent(organizationId)}`,
+        {
+          method: editingCatalogId ? "PATCH" : "POST",
+          body: JSON.stringify(editingCatalogId ? payload : { ...payload, program_id: selectedClub.programId, kind: catalogForm.kind }),
+        },
+      );
+      setCatalog((items) => {
+        const next = editingCatalogId ? items.map((current) => current.id === item.id ? item : current) : [...items, item];
+        return next.sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name));
       });
-      setCatalog((items) => [...items, item].sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name)));
       setCatalogForm(emptyCatalog);
-      setMessage("Elemento curricular guardado.");
+      setEditingCatalogId(null);
+      setMessage(editingCatalogId ? "Elemento curricular atualizado." : "Elemento curricular guardado.");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível guardar o elemento curricular.");
+    } finally { setSaving(false); }
+  }
+
+  function editCatalogItem(item: CatalogItem) {
+    setEditingCatalogId(item.id);
+    setCatalogForm({
+      kind: item.kind,
+      code: item.code,
+      name: item.name,
+      description: item.description ?? "",
+      level: item.level ?? "",
+      official_reference_url: item.official_reference_url ?? "",
+    });
+    setError(null);
+    setMessage(null);
+  }
+
+  async function toggleCatalogItem(item: CatalogItem) {
+    if (saving) return;
+    setSaving(true); setError(null); setMessage(null);
+    try {
+      const updated = await resaRequest<CatalogItem>(`/v1/youth/progression/catalog/${encodeURIComponent(item.id)}`, {
+        method: "PATCH", body: JSON.stringify({ is_active: !item.is_active }),
+      });
+      setCatalog((items) => items.map((current) => current.id === item.id ? { ...current, ...updated } : current));
+      setMessage(updated.is_active ? "Elemento curricular reativado." : "Elemento curricular desativado.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível alterar o estado do elemento curricular.");
     } finally { setSaving(false); }
   }
 
@@ -219,14 +260,14 @@ export default function YouthProgressionOperations() {
                 {catalog.length === 0 ? <p className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">Ainda não há classes ou especialidades cadastradas para este programa.</p> : catalog.map((item) => (
                   <div key={item.id} className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-slate-100 p-3">
                     <div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-wide text-[#9B7A34]">{item.kind === "CLASS" ? "Classe" : "Especialidade"} · {item.code}</p><p className="mt-1 font-semibold text-slate-800">{item.name}</p>{item.level && <p className="text-xs text-slate-500">Nível: {item.level}</p>}{item.description && <p className="mt-1 text-sm text-slate-600">{item.description}</p>}{item.official_reference_url && <a className="mt-1 inline-block text-xs text-blue-700 underline" href={item.official_reference_url} target="_blank" rel="noreferrer">Referência</a>}</div>
-                    <span className={item.is_active ? "rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700" : "rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-500"}>{item.is_active ? "Ativo" : "Inativo"}</span>
+                    <div className="flex shrink-0 flex-col gap-2"><span className={item.is_active ? "rounded-full bg-emerald-50 px-2.5 py-1 text-center text-xs font-semibold text-emerald-700" : "rounded-full bg-slate-100 px-2.5 py-1 text-center text-xs text-slate-500"}>{item.is_active ? "Ativo" : "Inativo"}</span><button type="button" onClick={() => editCatalogItem(item)} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-[#0C1A3D]">Editar</button><button type="button" disabled={saving} onClick={() => void toggleCatalogItem(item)} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-600 disabled:opacity-50">{item.is_active ? "Desativar" : "Reativar"}</button></div>
                   </div>
                 ))}
               </div>
               <form onSubmit={saveCatalogItem} className="mt-5 space-y-3 border-t border-slate-100 pt-5">
-                <h4 className="font-semibold text-[#0C1A3D]">Adicionar classe ou especialidade</h4>
+                <h4 className="font-semibold text-[#0C1A3D]">{editingCatalogId ? "Editar elemento curricular" : "Adicionar classe ou especialidade"}</h4>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="text-sm font-medium text-slate-700">Tipo<select value={catalogForm.kind} onChange={(event) => setCatalogForm({ ...catalogForm, kind: event.target.value as "CLASS" | "SPECIALTY" })} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2"><option value="CLASS">Classe</option><option value="SPECIALTY">Especialidade</option></select></label>
+                  <label className="text-sm font-medium text-slate-700">Tipo<select disabled={Boolean(editingCatalogId)} value={catalogForm.kind} onChange={(event) => setCatalogForm({ ...catalogForm, kind: event.target.value as "CLASS" | "SPECIALTY" })} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 disabled:bg-slate-100"><option value="CLASS">Classe</option><option value="SPECIALTY">Especialidade</option></select></label>
                   <label className="text-sm font-medium text-slate-700">Código<input required minLength={2} maxLength={60} value={catalogForm.code} onChange={(event) => setCatalogForm({ ...catalogForm, code: event.target.value })} placeholder="Ex.: CLASSE-01" className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2" /></label>
                 </div>
                 <label className="block text-sm font-medium text-slate-700">Nome<input required minLength={2} maxLength={160} value={catalogForm.name} onChange={(event) => setCatalogForm({ ...catalogForm, name: event.target.value })} className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2" /></label>
@@ -235,7 +276,7 @@ export default function YouthProgressionOperations() {
                   <label className="text-sm font-medium text-slate-700">Referência oficial (HTTPS)<input type="url" value={catalogForm.official_reference_url} onChange={(event) => setCatalogForm({ ...catalogForm, official_reference_url: event.target.value })} placeholder="https://…" className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2" /></label>
                 </div>
                 <label className="block text-sm font-medium text-slate-700">Descrição<textarea rows={2} maxLength={2000} value={catalogForm.description} onChange={(event) => setCatalogForm({ ...catalogForm, description: event.target.value })} className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2" /></label>
-                <button type="submit" disabled={saving} className="rounded-xl bg-[#0C1A3D] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving ? "A guardar…" : "Guardar elemento curricular"}</button>
+                <div className="flex flex-wrap gap-2"><button type="submit" disabled={saving} className="rounded-xl bg-[#0C1A3D] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving ? "A guardar…" : editingCatalogId ? "Guardar alterações" : "Guardar elemento curricular"}</button>{editingCatalogId && <button type="button" disabled={saving} onClick={() => { setEditingCatalogId(null); setCatalogForm(emptyCatalog); }} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600">Cancelar edição</button>}</div>
               </form>
             </div>
 
