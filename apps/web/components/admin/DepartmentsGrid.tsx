@@ -41,6 +41,24 @@ export default function DepartmentsGrid() {
     return () => { active = false; };
   }, [organizationId]);
 
+  async function setUnitActive(unit: Unit, is_active: boolean) {
+    if (!organizationId || updatingId) return;
+    setUpdatingId(unit.id);
+    setMessage("");
+    try {
+      const updated = await resaRequest<Unit>(
+        `/v1/organizations/${encodeURIComponent(organizationId)}/units/${encodeURIComponent(unit.id)}`,
+        { method: "PATCH", body: JSON.stringify({ is_active }) },
+      );
+      setUnits((current) => current.map((item) => item.id === unit.id ? { ...item, ...updated } : item));
+      setMessage(is_active ? `Unidade “${unit.name}” reativada.` : `Unidade “${unit.name}” desativada. O registo histórico foi preservado.`);
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "Não foi possível alterar o estado da unidade.");
+    } finally {
+      setUpdatingId(null);
+    }
+  }
+
   async function createUnit(value: string) {
     const unitName = value.trim();
     if (!organizationId || !unitName || creating) return;
@@ -86,8 +104,8 @@ export default function DepartmentsGrid() {
           <button type="submit" disabled={!name.trim() || creating} className="rounded-xl bg-[#0C1A3D] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">{creating ? "A criar…" : "Criar"}</button>
         </form>
         <div className="mt-3 flex flex-wrap gap-2">
-          <button type="button" disabled={creating} onClick={() => void createUnit("Finanças")} className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#0C1A3D] disabled:opacity-40">+ Finanças</button>
-          <button type="button" disabled={creating} onClick={() => void createUnit("Recursos Humanos")} className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#0C1A3D] disabled:opacity-40">+ Recursos Humanos</button>
+          <button type="button" disabled={creating} onClick={() => void createUnit("Secretaria") } className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#0C1A3D] disabled:opacity-40">+ Secretaria</button>
+          <button type="button" disabled={creating} onClick={() => void createUnit("Tesouraria") } className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#0C1A3D] disabled:opacity-40">+ Tesouraria</button>
         </div>
       </div>}
 
