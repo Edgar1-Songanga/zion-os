@@ -88,7 +88,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
             if (Number.isInteger(questionId) && bibleQuestions.some((item) => item.id === questionId)
               && Number.isFinite(entry?.dueAt) && Number.isFinite(entry?.intervalDays)
               && Number.isFinite(entry?.repetitions)) {
-              local[questionId] = { ...entry, updatedAt: entry.updatedAt ?? new Date().toISOString() };
+              local[questionId] = { ...entry, updatedAt: entry.updatedAt ?? new Date(0).toISOString() };
             }
           }
         }
