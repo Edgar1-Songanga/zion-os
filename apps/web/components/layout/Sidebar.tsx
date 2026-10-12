@@ -44,7 +44,7 @@ export default function Sidebar() {
         { name: t("ministry"), path: "/ministry" },
         { name: "Ministério Jovem", path: "/youth" },
         { name: t("spiritualChat"), path: "/spiritual-chat" },
-        { name: t("communities"), path: "/communities" },
+        { name: t("communities"), path: "/resa/communities" },
       ],
     },
     {
