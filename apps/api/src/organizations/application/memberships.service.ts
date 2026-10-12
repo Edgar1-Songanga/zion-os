@@ -8,6 +8,20 @@ export class MembershipsService {
 
   constructor(private readonly identity: IdentityService) {}
 
+  async searchProfiles(accessToken: string, organizationId: string, search: string) {
+    this.assertUuid(organizationId, 'organizationId');
+    const normalized = typeof search === 'string' ? search.trim() : '';
+    if (normalized.length < 2 || normalized.length > 100) {
+      throw new BadRequestException('search must contain between 2 and 100 characters');
+    }
+    await this.identity.getCurrentUser(accessToken);
+    return this.db.rpc<Array<{ id: string; display_name: string | null; first_name: string | null; last_name: string | null }>>(
+      'search_organization_member_profiles',
+      accessToken,
+      { p_organization_id: organizationId, p_search: normalized, p_limit: 10 },
+    );
+  }
+
   async list(accessToken: string, organizationId: string) {
     this.assertUuid(organizationId, 'organizationId');
     await this.identity.getCurrentUser(accessToken);
