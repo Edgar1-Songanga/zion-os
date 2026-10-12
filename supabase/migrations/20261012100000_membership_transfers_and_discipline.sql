@@ -169,8 +169,8 @@ with check (
   and private.has_org_permission(organization_id, 'membership.manage')
   and exists (
     select 1 from public.organization_memberships m
-    where m.id = membership_id
-      and m.organization_id = organization_id
+    where m.id = membership_disciplinary_cases.membership_id
+      and m.organization_id = membership_disciplinary_cases.organization_id
   )
 );
 
