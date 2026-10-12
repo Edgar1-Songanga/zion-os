@@ -14,7 +14,7 @@ const LEVELS = [
 ] as const;
 
 type PlayMode = "junior" | "classic" | "hyper";
-type ReviewScheduleEntry = { dueAt: number; intervalDays: number; repetitions: number };
+type ReviewScheduleEntry = { dueAt: number; intervalDays: number; repetitions: number; updatedAt?: string };
 type ReviewSchedule = Record<number, ReviewScheduleEntry>;
 const REVIEW_STORAGE_KEY = "zion:bible-review-schedule:v1";
 const MODE_LABELS: Record<PlayMode, string> = {
@@ -41,6 +41,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
   const [bestStreak, setBestStreak] = useState(0);
   const [reviewSchedule, setReviewSchedule] = useState<ReviewSchedule>({});
   const [reviewDeckIds, setReviewDeckIds] = useState<number[]>([]);
+  const [reviewSyncStatus, setReviewSyncStatus] = useState<"loading" | "synced" | "local">("loading");
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [levelFinished, setLevelFinished] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
@@ -75,24 +76,71 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
   const dueReviewCount = Object.values(reviewSchedule).filter((entry) => entry.dueAt <= Date.now()).length;
 
   useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(REVIEW_STORAGE_KEY);
-      if (!stored) return;
-      const parsed = JSON.parse(stored) as Record<string, ReviewScheduleEntry>;
-      const valid: ReviewSchedule = {};
-      for (const [id, entry] of Object.entries(parsed)) {
-        const questionId = Number(id);
-        if (Number.isInteger(questionId) && bibleQuestions.some((item) => item.id === questionId)
-          && Number.isFinite(entry?.dueAt) && Number.isFinite(entry?.intervalDays)
-          && Number.isFinite(entry?.repetitions)) {
-          valid[questionId] = entry;
+    let active = true;
+    const loadSchedule = async () => {
+      let local: ReviewSchedule = {};
+      try {
+        const stored = window.localStorage.getItem(REVIEW_STORAGE_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored) as Record<string, ReviewScheduleEntry>;
+          for (const [id, entry] of Object.entries(parsed)) {
+            const questionId = Number(id);
+            if (Number.isInteger(questionId) && bibleQuestions.some((item) => item.id === questionId)
+              && Number.isFinite(entry?.dueAt) && Number.isFinite(entry?.intervalDays)
+              && Number.isFinite(entry?.repetitions)) {
+              local[questionId] = { ...entry, updatedAt: entry.updatedAt ?? new Date().toISOString() };
+            }
+          }
         }
+      } catch { /* Continue with account sync even if local storage is unavailable. */ }
+
+      try {
+        const response = await resaRequest<{ items: Array<{
+          questionId: number; dueAt: string; intervalDays: number; repetitions: number; updatedAt: string;
+        }> }>("/v1/spiritual/bible-review");
+        const remote: ReviewSchedule = {};
+        for (const item of response.items ?? []) {
+          if (!bibleQuestions.some((question) => question.id === item.questionId)
+            || !Number.isFinite(Date.parse(item.dueAt))
+            || !Number.isFinite(item.intervalDays) || !Number.isFinite(item.repetitions)) continue;
+          remote[item.questionId] = {
+            dueAt: Date.parse(item.dueAt), intervalDays: item.intervalDays,
+            repetitions: item.repetitions, updatedAt: item.updatedAt,
+          };
+        }
+
+        const merged: ReviewSchedule = { ...remote };
+        for (const [id, localEntry] of Object.entries(local)) {
+          const questionId = Number(id);
+          const remoteEntry = remote[questionId];
+          const localUpdated = localEntry.updatedAt ? Date.parse(localEntry.updatedAt) : 0;
+          const remoteUpdated = remoteEntry?.updatedAt ? Date.parse(remoteEntry.updatedAt) : 0;
+          if (!remoteEntry || localUpdated > remoteUpdated) {
+            merged[questionId] = localEntry;
+            void resaRequest("/v1/spiritual/bible-review/" + questionId, {
+              method: "PUT",
+              body: JSON.stringify({
+                dueAt: new Date(localEntry.dueAt).toISOString(),
+                intervalDays: localEntry.intervalDays,
+                repetitions: localEntry.repetitions,
+              }),
+            }).catch(() => undefined);
+          }
+        }
+        if (!active) return;
+        setReviewSchedule(merged);
+        setReviewDeckIds(Object.entries(merged).filter(([, entry]) => entry.dueAt <= Date.now()).map(([id]) => Number(id)));
+        setReviewSyncStatus("synced");
+        try { window.localStorage.setItem(REVIEW_STORAGE_KEY, JSON.stringify(merged)); } catch { /* Optional local cache. */ }
+      } catch {
+        if (!active) return;
+        setReviewSchedule(local);
+        setReviewDeckIds(Object.entries(local).filter(([, entry]) => entry.dueAt <= Date.now()).map(([id]) => Number(id)));
+        setReviewSyncStatus("local");
       }
-      setReviewSchedule(valid);
-      setReviewDeckIds(Object.entries(valid).filter(([, entry]) => entry.dueAt <= Date.now()).map(([id]) => Number(id)));
-    } catch {
-      // The challenge remains playable if local browser storage is unavailable.
-    }
+    };
+    void loadSchedule();
+    return () => { active = false; };
   }, []);
 
   function scheduleReview(questionId: number, correct: boolean) {
@@ -102,18 +150,19 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
     const now = Date.now();
     const nextEntry: ReviewScheduleEntry = correct && existing
       ? {
+          updatedAt: new Date(now).toISOString(),
           dueAt: now + (existing.repetitions === 0 ? 3 : existing.repetitions === 1 ? 7 : existing.repetitions === 2 ? 14 : 30) * 24 * 60 * 60 * 1000,
           intervalDays: existing.repetitions === 0 ? 3 : existing.repetitions === 1 ? 7 : existing.repetitions === 2 ? 14 : 30,
           repetitions: existing.repetitions + 1,
         }
-      : { dueAt: now + 24 * 60 * 60 * 1000, intervalDays: 1, repetitions: 0 };
+      : { dueAt: now + 24 * 60 * 60 * 1000, intervalDays: 1, repetitions: 0, updatedAt: new Date(now).toISOString() };
     const next = { ...reviewSchedule, [questionId]: nextEntry };
     setReviewSchedule(next);
-    try {
-      window.localStorage.setItem(REVIEW_STORAGE_KEY, JSON.stringify(next));
-    } catch {
-      // The current session continues even when persistence is blocked.
-    }
+    try { window.localStorage.setItem(REVIEW_STORAGE_KEY, JSON.stringify(next)); } catch { /* Account persistence remains available. */ }
+    void resaRequest("/v1/spiritual/bible-review/" + questionId, {
+      method: "PUT",
+      body: JSON.stringify({ dueAt: new Date(nextEntry.dueAt).toISOString(), intervalDays: nextEntry.intervalDays, repetitions: nextEntry.repetitions }),
+    }).then(() => setReviewSyncStatus("synced")).catch(() => setReviewSyncStatus("local"));
   }
   const questions = useMemo(() => {
     if (!shuffledOrder) return questionPool;
@@ -300,6 +349,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
             <p className="mt-1 text-sm text-slate-300">{level.subtitle}</p>
             <p className="mt-3 text-xs text-slate-400">120 perguntas · 6 níveis progressivos · revisão espaçada</p>
             {dueReviewCount > 0 && <p className="mt-2 inline-flex rounded-full border border-[#E2C477]/25 bg-[#E2C477]/10 px-3 py-1.5 text-[11px] font-medium text-[#E2C477]">{dueReviewCount} pergunta(s) prontas para rever</p>}
+            <p className="mt-2 text-[10px] text-slate-400" role="status">{reviewSyncStatus === "loading" ? "A preparar as tuas revisões…" : reviewSyncStatus === "synced" ? "Revisões associadas à tua conta" : "Revisões guardadas neste dispositivo; inicia sessão para sincronizar"}</p>
           </div>
           <div className="flex gap-2">
             <div className="rounded-2xl border border-white/15 bg-white/[0.07] px-3 py-3 text-right">
