@@ -37,9 +37,9 @@ export interface MinistryRecord {
     members: number;
     leaders: number;
     programs: number;
-    participation: number;
-    growth: number;
-    impact: number;
+    participation: number | null;
+    growth: number | null;
+    impact: number | null;
   };
 }
 

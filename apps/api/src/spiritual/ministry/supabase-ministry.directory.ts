@@ -106,9 +106,11 @@ export class SupabaseMinistryDirectory implements MinistryDirectoryPort {
         members: members.length,
         leaders: leaders.length,
         programs: programs.length,
-        participation: 0,
-        growth: 0,
-        impact: 0,
+        // These indicators require attendance history, member snapshots, and recorded outcomes.
+        // Until those source records exist, null means unavailable rather than a false zero.
+        participation: null,
+        growth: null,
+        impact: null,
       },
     };
   }

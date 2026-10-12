@@ -70,6 +70,14 @@ export default function MinistryDashboard({ ministry, onUpdated }: MinistryDashb
   const ageRange = ministry.ageRange ?? catalogEntry?.ageRange;
   const officialUrl = ministry.officialUrl ?? catalogEntry?.officialUrl;
   const sourceLabel = ministry.sourceLabel ?? catalogEntry?.sourceLabel;
+  const programs = ministry.programs ?? [];
+  const reports = ministry.reports ?? [];
+  const activeProgramCount = programs.filter((program) => program.status.toLowerCase() === "active").length;
+  const plannedProgramCount = programs.filter((program) => program.status.toLowerCase() === "planned").length;
+  const pendingReportCount = reports.filter((report) => report.status.toLowerCase() === "pending").length;
+  const participation = ministry.metrics?.participation;
+  const growth = ministry.metrics?.growth;
+  const impact = ministry.metrics?.impact;
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -211,9 +219,9 @@ export default function MinistryDashboard({ ministry, onUpdated }: MinistryDashb
         <StatCard label="Membros" value={String(ministry.metrics?.members ?? 0)} description="Comunidade" />
         <StatCard label="Líderes" value={String(ministry.metrics?.leaders ?? 0)} description="Equipa" />
         <StatCard label="Programas" value={String(ministry.metrics?.programs ?? ministry.programs?.length ?? 0)} description="Activos" />
-        <StatCard label="Participação" value={`${ministry.metrics?.participation ?? 0}%`} description="Envolvimento" />
-        <StatCard label="Crescimento" value={`${ministry.metrics?.growth ?? 0}%`} description="Evolução" />
-        <StatCard label="Impacto" value={`${ministry.metrics?.impact ?? 0}%`} description="Resultado" />
+        <StatCard label="Participação" value={participation == null ? "—" : `${participation}%`} description={participation == null ? "Sem dados de presença" : "Envolvimento registado"} />
+        <StatCard label="Crescimento" value={growth == null ? "—" : `${growth}%`} description={growth == null ? "Sem histórico comparável" : "Evolução registada"} />
+        <StatCard label="Impacto" value={impact == null ? "—" : `${impact}%`} description={impact == null ? "Sem resultados registados" : "Resultado medido"} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -255,9 +263,42 @@ export default function MinistryDashboard({ ministry, onUpdated }: MinistryDashb
       </Card>
 
       <Card>
-        <h2 className="text-lg font-semibold text-[#0C1A3D]">ZION Insights</h2>
-        <p className="mt-3 text-sm leading-6 text-slate-500">
-          Análise estratégica do ministério baseada em crescimento, participação e impacto.
+        <div className="flex flex-col gap-2 border-b border-slate-100 pb-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#9B7A34]">Leitura operacional</p>
+            <h2 className="mt-1 text-lg font-semibold text-[#0C1A3D]">ZION Insights</h2>
+          </div>
+          <span className="text-xs text-slate-400">Calculado a partir dos registos disponíveis</span>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Programas activos</p>
+            <p className="mt-2 text-2xl font-semibold text-[#0C1A3D]">{activeProgramCount}</p>
+            <p className="mt-1 text-sm text-slate-500">De {programs.length} programa(s) registado(s)</p>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Programas planeados</p>
+            <p className="mt-2 text-2xl font-semibold text-[#0C1A3D]">{plannedProgramCount}</p>
+            <p className="mt-1 text-sm text-slate-500">Aguardam execução</p>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Relatórios pendentes</p>
+            <p className="mt-2 text-2xl font-semibold text-[#0C1A3D]">{pendingReportCount}</p>
+            <p className="mt-1 text-sm text-slate-500">Precisam de acompanhamento</p>
+          </div>
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Liderança registada</p>
+            <p className="mt-2 text-2xl font-semibold text-[#0C1A3D]">{ministry.leadership?.length ?? 0}</p>
+            <p className="mt-1 text-sm text-slate-500">{(ministry.leadership?.length ?? 0) === 0 ? "Associe dirigentes para clarificar responsabilidades." : "Dirigente(s) associado(s) ao ministério"}</p>
+          </div>
+        </div>
+        {(ministry.metrics?.members ?? 0) > 0 && (ministry.leadership?.length ?? 0) === 0 && (
+          <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            Existem membros registados, mas ainda não há dirigentes associados a este ministério.
+          </p>
+        )}
+        <p className="mt-4 text-sm leading-6 text-slate-500">
+          Participação, crescimento e impacto aparecem como “—” enquanto não existirem registos de presenças, histórico de membros e resultados de actividades suficientes para calcular esses indicadores com rigor.
         </p>
       </Card>
     </div>
