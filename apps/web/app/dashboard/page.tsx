@@ -70,10 +70,10 @@ export default async function Dashboard() {
         <section className="relative isolate overflow-hidden rounded-[30px] bg-[#07152B] px-6 py-9 text-white shadow-[0_28px_90px_rgba(7,21,43,0.18)] sm:px-10 sm:py-12 lg:px-14 lg:py-14">
           <div
             aria-hidden="true"
-            className="absolute inset-0 -z-20 bg-cover bg-center opacity-35"
+            className="absolute inset-0 z-0 bg-cover bg-center opacity-35"
             style={{ backgroundImage: "url('https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=1800&q=85')" }}
           />
-          <div aria-hidden="true" className="absolute inset-0 -z-10 bg-[linear-gradient(105deg,rgba(5,15,32,0.98)_0%,rgba(7,21,43,0.88)_56%,rgba(7,21,43,0.52)_100%)]" />
+          <div aria-hidden="true" className="absolute inset-0 z-[1] bg-[linear-gradient(105deg,rgba(5,15,32,0.98)_0%,rgba(7,21,43,0.88)_56%,rgba(7,21,43,0.52)_100%)]" />
           <div aria-hidden="true" className="absolute -right-24 -top-28 h-80 w-80 rounded-full border border-[#E2C477]/20" />
           <div aria-hidden="true" className="absolute -right-8 -top-12 h-48 w-48 rounded-full border border-white/10" />
           <div className="relative max-w-3xl">
