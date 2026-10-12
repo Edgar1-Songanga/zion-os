@@ -117,7 +117,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
             <p className="mt-4 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9B7A34]">Fase concluída</p>
             <h3 className="mt-2 text-2xl font-semibold">{passed ? "Nível desbloqueado" : "Vamos consolidar o conhecimento"}</h3>
             <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-500">
-              Acertaste {levelCorrect} de {questions.length} perguntas. {passed ? "A próxima fase está disponível." : "Precisas de acertar em pelo menos duas perguntas para avançar. Podes repetir esta fase."}
+              Acertaste {levelCorrect} de {questions.length} perguntas. {passed ? "A próxima fase está disponível." : "Precisas de acertar em pelo menos {Math.ceil(questions.length * 0.67)} perguntas para avançar. Podes repetir esta fase."}
             </p>
             {syncMessage && <p role="status" className="mx-auto mt-4 max-w-xl rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600">{syncMessage}</p>}
             {savingProgress && <p className="mt-3 text-xs text-slate-400">A sincronizar progresso…</p>}
