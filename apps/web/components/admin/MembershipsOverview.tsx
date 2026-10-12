@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import { OrganizationSelector, type ZionOrganization } from "@/components/organization/OrganizationSelector";
 
@@ -28,7 +28,7 @@ export default function MembershipsOverview() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  async function load(id: string) {
+  const load = useCallback(async (id: string) => {
     if (!id) return;
     setLoading(true);
     setError("");
@@ -40,11 +40,11 @@ export default function MembershipsOverview() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     if (organizationId) void load(organizationId);
-  }, [organizationId]);
+  }, [organizationId, load]);
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
