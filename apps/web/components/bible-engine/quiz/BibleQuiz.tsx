@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
-import { bibleQuestions } from "@/data/bible/questions";
+import { bibleQuestions, type BibleChallengeQuestion } from "@/data/bible/questions";
 
 const LEVELS = [
   { title: "Descoberta", subtitle: "As primeiras histórias da Palavra", points: 10, marker: "I" },
@@ -42,6 +42,8 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
   const [savingProgress, setSavingProgress] = useState(false);
   const [playMode, setPlayMode] = useState<PlayMode>("classic");
   const [hintUsed, setHintUsed] = useState(false);
+  const [hintVisible, setHintVisible] = useState(false);
+  const [missedQuestions, setMissedQuestions] = useState<BibleChallengeQuestion[]>([]);
   const [hiddenOptions, setHiddenOptions] = useState<string[]>([]);
   const [hintNudge, setHintNudge] = useState(false);
   const [deckVersion, setDeckVersion] = useState(0);
@@ -78,6 +80,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
     setOptionOrder(question ? shuffle(question.options) : null);
     setHiddenOptions([]);
     setHintUsed(false);
+    setHintVisible(false);
   }, [question?.id, deckVersion]);
 
   useEffect(() => {
@@ -157,6 +160,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
       setCurrentStreak(nextStreak);
       setBestStreak((best) => Math.max(best, nextStreak));
     } else {
+      setMissedQuestions((current) => current.some((item) => item.id === question.id) ? current : [...current, question]);
       setCurrentStreak(0);
     }
   }
@@ -165,6 +169,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
     if (!question || selectedOption !== null || hintUsed) return;
     const wrongOptions = shuffle(options.filter((option) => option !== question.answer));
     setHiddenOptions(wrongOptions.slice(0, Math.min(2, wrongOptions.length)));
+    setHintVisible(true);
     setHintUsed(true);
     setHintNudge(false);
   }
@@ -180,6 +185,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
     setLevelIndex((value) => value + 1);
     setQuestionIndex(0);
     setLevelCorrect(0);
+    setMissedQuestions([]);
     setSelectedOption(null);
     setLevelFinished(false);
     setSyncMessage("");
@@ -189,6 +195,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
   function restartLevel() {
     setQuestionIndex(0);
     setLevelCorrect(0);
+    setMissedQuestions([]);
     setSelectedOption(null);
     setLevelFinished(false);
     setSyncMessage("");
@@ -201,6 +208,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
     setQuestionIndex(0);
     setTotalScore(0);
     setLevelCorrect(0);
+    setMissedQuestions([]);
     setCurrentStreak(0);
     setBestStreak(0);
     setSelectedOption(null);
@@ -281,6 +289,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
                   : "A próxima fase está disponível."
                 : "Precisas de pelo menos " + requiredCorrect + " acertos para avançar. Podes repetir esta fase."}
             </p>
+            {missedQuestions.length > 0 && <div className="mx-auto mt-5 max-w-2xl rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-left"><h4 className="text-sm font-semibold text-[#0C1A3D]">Revisão para fixar o que aprendeste</h4><p className="mt-1 text-xs leading-5 text-slate-600">Estas perguntas merecem uma segunda leitura. Rever a referência ajuda a consolidar a aprendizagem.</p><div className="mt-3 space-y-3">{missedQuestions.map((item) => <div key={item.id} className="border-t border-amber-200/70 pt-3"><p className="text-sm font-semibold text-slate-800">{item.question}</p><p className="mt-1 text-xs leading-5 text-slate-600">Resposta: {item.answer} · {item.reference}</p><p className="mt-1 text-xs leading-5 text-slate-500">{item.explanation}</p></div>)}</div></div>}
             {syncMessage && <p role="status" className="mx-auto mt-4 max-w-xl rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600">{syncMessage}</p>}
             {savingProgress && <p className="mt-3 text-xs text-slate-400">A sincronizar progresso…</p>}
             <div className="mt-6 flex flex-wrap justify-center gap-3">
@@ -322,6 +331,8 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
                 );
               })}
             </div>
+
+            {hintVisible && selectedOption === null && <div className="mt-4 rounded-xl border border-[#D4AF37]/30 bg-[#FBF8F0] p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8B6F16]">Pista para pensar</p><p className="mt-1 text-sm leading-6 text-slate-700">{question.hint}</p><p className="mt-2 text-xs text-slate-500">A dica ajuda-te a raciocinar; podes responder quando estiveres pronto.</p></div>}
 
             {selectedOption !== null && (
               <div role="status" aria-live="polite" className={"mt-4 rounded-xl border p-4 " + (isSkipped ? "border-slate-200 bg-slate-50" : selectedOption === question.answer ? "border-emerald-200 bg-emerald-50/70" : "border-amber-200 bg-amber-50/70")}>
