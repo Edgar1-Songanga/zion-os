@@ -43,7 +43,7 @@ export default function BibleSearch() {
   const firstVerse = result?.reference.verseStart ?? 1;
 
   return (
-    <section className="rounded-3xl border border-[var(--zion-border)] bg-white p-6 shadow-[var(--zion-shadow-sm)] sm:p-8">
+    <section id="bible-search" className="scroll-mt-6 rounded-3xl border border-[var(--zion-border)] bg-white p-6 shadow-[var(--zion-shadow-sm)] sm:p-8">
       <div className="h-1 w-12 rounded-full bg-[var(--zion-gold)]" />
       <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
