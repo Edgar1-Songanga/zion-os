@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import { OrganizationSelector, type ZionOrganization } from "@/components/organization/OrganizationSelector";
 
+type ProfileCandidate = { id: string; display_name: string | null; first_name: string | null; last_name: string | null };
+
 type Membership = {
   id: string;
   user_id: string;
@@ -28,7 +30,10 @@ export default function MembershipsOverview() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newUserId, setNewUserId] = useState("");
+  const [profileQuery, setProfileQuery] = useState("");
+  const [profileResults, setProfileResults] = useState<ProfileCandidate[]>([]);
+  const [selectedProfile, setSelectedProfile] = useState<ProfileCandidate | null>(null);
+  const [searchingProfiles, setSearchingProfiles] = useState(false);
   const [adding, setAdding] = useState(false);
 
   const load = useCallback(async (id: string) => {
@@ -49,6 +54,32 @@ export default function MembershipsOverview() {
     if (organizationId) void load(organizationId);
   }, [organizationId, load]);
 
+  useEffect(() => {
+    if (!showAddForm || !organizationId || profileQuery.trim().length < 2 || selectedProfile) {
+      setProfileResults([]);
+      setSearchingProfiles(false);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setSearchingProfiles(true);
+      try {
+        const results = await resaRequest<ProfileCandidate[]>(
+          `/v1/organizations/${encodeURIComponent(organizationId)}/memberships/profiles/search?q=${encodeURIComponent(profileQuery.trim())}`,
+        );
+        if (!cancelled) setProfileResults(results);
+      } catch (reason) {
+        if (!cancelled) {
+          setProfileResults([]);
+          setError(reason instanceof Error ? reason.message : "Não foi possível pesquisar perfis. Confirme as permissões institucionais e a migração da base de dados.");
+        }
+      } finally {
+        if (!cancelled) setSearchingProfiles(false);
+      }
+    }, 300);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [organizationId, profileQuery, selectedProfile, showAddForm]);
+
   const filtered = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
     return memberships.filter((item) =>
@@ -58,7 +89,7 @@ export default function MembershipsOverview() {
 
   async function addExistingProfile(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const userId = newUserId.trim();
+    const userId = selectedProfile?.id;
     if (!organizationId || !userId || adding) return;
     setError("");
     setMessage("");
@@ -74,7 +105,9 @@ export default function MembershipsOverview() {
         { method: "POST", body: JSON.stringify({ user_id: userId, status: "ACTIVE" }) },
       );
       setMemberships((current) => [created, ...current]);
-      setNewUserId("");
+      setProfileQuery("");
+      setProfileResults([]);
+      setSelectedProfile(null);
       setShowAddForm(false);
       setMessage("Perfil associado à organização. Os dados de identidade existentes foram preservados.");
     } catch (reason) {
@@ -122,12 +155,23 @@ export default function MembershipsOverview() {
         <div><p className="text-sm font-semibold text-[#0C1A3D]">Registo de membros</p><p className="mt-1 text-xs leading-5 text-slate-500">Associe um perfil ZION existente à organização, sem duplicar a identidade.</p></div>
         <button type="button" onClick={() => { setShowAddForm((value) => !value); setError(""); }} disabled={!organizationId} className="rounded-xl bg-[#0C1A3D] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#152954] disabled:cursor-not-allowed disabled:opacity-40">{showAddForm ? "Fechar formulário" : "Adicionar membro existente"}</button>
       </div>
-      {showAddForm && <form onSubmit={addExistingProfile} className="mt-4 grid gap-4 rounded-2xl border border-[#D9BD78]/40 bg-[#FBFAF6] p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:p-5">
-        <label className="block text-xs font-semibold text-slate-600">Identificador do perfil ZION (UUID)
-          <input value={newUserId} onChange={(event) => setNewUserId(event.target.value)} required minLength={20} maxLength={80} autoComplete="off" spellCheck={false} placeholder="Cole o ID do perfil existente" className="mt-2 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-mono font-normal text-slate-800 outline-none focus:border-[#B99A52] focus:ring-4 focus:ring-[#B99A52]/10" />
+      {showAddForm && <form onSubmit={addExistingProfile} className="mt-4 grid gap-4 rounded-2xl border border-[#D9BD78]/40 bg-[#FBFAF6] p-4 sm:p-5">
+        <label className="block text-xs font-semibold text-slate-600">Pesquisar perfil existente por nome
+          <input value={profileQuery} onChange={(event) => { setProfileQuery(event.target.value); setSelectedProfile(null); setError(""); }} required minLength={2} maxLength={100} autoComplete="off" placeholder="Introduza pelo menos 2 caracteres" className="mt-2 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-normal text-slate-800 outline-none focus:border-[#B99A52] focus:ring-4 focus:ring-[#B99A52]/10" />
         </label>
-        <button type="submit" disabled={adding || !newUserId.trim()} className="min-h-12 rounded-xl bg-[#9B7A34] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#806328] disabled:cursor-not-allowed disabled:opacity-50">{adding ? "A associar…" : "Associar perfil"}</button>
-        <p className="sm:col-span-2 text-xs leading-5 text-slate-500">A identidade e os dados de perfil existentes não são recriados. O sistema impede duplicação na lista desta organização. A API e as políticas institucionais continuam a decidir se a associação é autorizada.</p>
+        {selectedProfile ? <div className="flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div><p className="text-sm font-semibold text-emerald-900">{selectedProfile.display_name || [selectedProfile.first_name, selectedProfile.last_name].filter(Boolean).join(" ") || "Perfil sem nome público"}</p><p className="mt-1 break-all font-mono text-xs text-emerald-800">{selectedProfile.id}</p></div>
+          <button type="button" onClick={() => { setSelectedProfile(null); setProfileQuery(""); }} className="text-xs font-semibold text-emerald-900 underline">Escolher outro perfil</button>
+        </div> : <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+          {searchingProfiles ? <p className="p-4 text-sm text-slate-500">A pesquisar perfis autorizados…</p>
+            : profileQuery.trim().length < 2 ? <p className="p-4 text-sm text-slate-500">A pesquisa só começa com pelo menos 2 caracteres.</p>
+            : profileResults.length === 0 ? <p className="p-4 text-sm text-slate-500">Nenhum perfil encontrado ou a pesquisa não está disponível para esta conta.</p>
+            : <div className="divide-y divide-slate-100">{profileResults.map((profile) => <button key={profile.id} type="button" onClick={() => { setSelectedProfile(profile); setProfileResults([]); }} className="block w-full px-4 py-3 text-left transition hover:bg-slate-50">
+              <span className="block text-sm font-semibold text-[#0C1A3D]">{profile.display_name || [profile.first_name, profile.last_name].filter(Boolean).join(" ") || "Perfil sem nome público"}</span><span className="mt-1 block break-all font-mono text-[11px] text-slate-500">{profile.id}</span>
+            </button>)}</div>}
+        </div>}
+        <button type="submit" disabled={adding || !selectedProfile} className="min-h-12 justify-self-start rounded-xl bg-[#9B7A34] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#806328] disabled:cursor-not-allowed disabled:opacity-50">{adding ? "A associar…" : "Associar perfil selecionado"}</button>
+        <p className="text-xs leading-5 text-slate-500">A pesquisa devolve apenas identificadores e nomes de perfis e exige permissão institucional. A identidade não é recriada; a base de dados continua a impor as regras de acesso e a impedir associações duplicadas.</p>
       </form>}
       <div className="mt-6 flex flex-col gap-3 sm:flex-row">
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Pesquisar por identificador, papel ou estado…" aria-label="Pesquisar membros" className="min-h-11 flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#C8A24A]" />
