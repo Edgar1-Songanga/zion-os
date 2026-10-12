@@ -40,9 +40,9 @@ begin
     select p.id, p.display_name, p.first_name, p.last_name
     from public.profiles p
     where (
-      coalesce(p.display_name, '') ilike '%' || replace(replace(replace(v_search, '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%'
-      or coalesce(p.first_name, '') ilike '%' || replace(replace(replace(v_search, '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%'
-      or coalesce(p.last_name, '') ilike '%' || replace(replace(replace(v_search, '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%'
+      coalesce(p.display_name, '') ilike '%' || replace(replace(replace(v_search, chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%'
+      or coalesce(p.first_name, '') ilike '%' || replace(replace(replace(v_search, chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%'
+      or coalesce(p.last_name, '') ilike '%' || replace(replace(replace(v_search, chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%'
     )
     order by coalesce(p.display_name, p.first_name || ' ' || p.last_name, '') asc
     limit v_limit;
