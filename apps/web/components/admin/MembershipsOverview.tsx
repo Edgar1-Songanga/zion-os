@@ -118,8 +118,10 @@ export default function MembershipsOverview() {
   }
 
   async function changeStatus(item: Membership) {
-    const nextStatus = item.status.toUpperCase() === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+    const removing = item.status.toUpperCase() === "ACTIVE";
+    const nextStatus = removing ? "INACTIVE" : "ACTIVE";
     if (!organizationId || savingId) return;
+    if (removing && !window.confirm("Remover este membro do rol ativo desta igreja? O histórico será preservado e a adesão poderá ser reativada; a conta e o perfil pessoal não serão apagados.")) return;
     setSavingId(item.id);
     setError("");
     setMessage("");
@@ -129,7 +131,7 @@ export default function MembershipsOverview() {
         { method: "PATCH", body: JSON.stringify({ status: nextStatus }) },
       );
       setMemberships((current) => current.map((membership) => membership.id === item.id ? { ...membership, ...updated, roles: updated.roles ?? membership.roles } : membership));
-      setMessage(nextStatus === "ACTIVE" ? "Adesão reativada." : "Adesão desativada.");
+      setMessage(nextStatus === "ACTIVE" ? "Membro reativado no rol da igreja." : "Membro removido do rol ativo. O histórico e o perfil pessoal foram preservados.");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível atualizar a adesão. Confirme as permissões da organização.");
     } finally {
@@ -196,7 +198,7 @@ export default function MembershipsOverview() {
               <div><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 sm:hidden">Entrada</p><p className="text-sm text-slate-500">{item.joined_at ? new Intl.DateTimeFormat("pt-PT", { dateStyle: "medium" }).format(new Date(item.joined_at)) : "—"}</p></div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${item.status.toUpperCase() === "ACTIVE" ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>{item.status}</span>
-                <button type="button" disabled={savingId === item.id} onClick={() => void changeStatus(item)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-[#0C1A3D] hover:border-[#C8A24A] disabled:opacity-40">{savingId === item.id ? "A guardar…" : item.status.toUpperCase() === "ACTIVE" ? "Desativar" : "Reativar"}</button>
+                <button type="button" disabled={savingId === item.id} onClick={() => void changeStatus(item)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-[#0C1A3D] hover:border-[#C8A24A] disabled:opacity-40">{savingId === item.id ? "A guardar…" : item.status.toUpperCase() === "ACTIVE" ? "Remover do rol" : "Reativar"}</button>
               </div>
             </div>
           ))}</div>}
