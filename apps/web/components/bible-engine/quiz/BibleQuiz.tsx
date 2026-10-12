@@ -369,7 +369,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
               <div className="h-full rounded-full bg-[#C8A24A] transition-all duration-500" style={{ width: progress + "%" }} />
             </div>
-            {reviewSchedule[question.id]?.dueAt <= Date.now() && <p className="mt-5 inline-flex rounded-full border border-[#D4AF37]/30 bg-[#FBF8F0] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8B6F16]">Revisão para consolidar a memória</p>}
+            {Boolean(reviewSchedule[question.id] && reviewSchedule[question.id].dueAt <= Date.now()) && <p className="mt-5 inline-flex rounded-full border border-[#D4AF37]/30 bg-[#FBF8F0] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8B6F16]">Revisão para consolidar a memória</p>}
             <h3 className="mt-3 text-xl font-semibold leading-8 tracking-tight sm:text-2xl">{question.question}</h3>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               {options.map((option, index) => {
