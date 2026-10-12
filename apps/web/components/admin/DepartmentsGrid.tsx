@@ -13,6 +13,7 @@ export default function DepartmentsGrid() {
   const [message, setMessage] = useState("A carregar organizações…");
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   useEffect(() => {
     resaRequest<Organization[]>("/v1/organizations")
@@ -97,7 +98,10 @@ export default function DepartmentsGrid() {
             <p className="text-xs font-semibold uppercase tracking-wide text-[#8B6F16]">{unit.unit_type}</p>
             <h3 className="mt-2 font-semibold text-[#0C1A3D]">{unit.name}</h3>
             <p className="mt-3 text-sm text-slate-500">{unit.description || "Sem descrição"}</p>
-            <p className="mt-5 text-sm font-semibold text-emerald-700">{unit.is_active ? "Ativo" : "Inativo"}</p>
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
+              <p className={`text-sm font-semibold ${unit.is_active ? "text-emerald-700" : "text-slate-500"}`}>{unit.is_active ? "Ativo" : "Inativo"}</p>
+              <button type="button" disabled={updatingId === unit.id} onClick={() => void setUnitActive(unit, !unit.is_active)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-[#0C1A3D] hover:border-[#C8A24A] disabled:opacity-40">{updatingId === unit.id ? "A guardar…" : unit.is_active ? "Desativar unidade" : "Reativar unidade"}</button>
+            </div>
           </article>
         ))}
       </div>
