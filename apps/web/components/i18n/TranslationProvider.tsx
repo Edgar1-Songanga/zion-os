@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { ZION_TRANSLATION_CATALOGS } from "./catalogs";
 
 export const ZION_LOCALES = [
   "pt-AO", "pt-PT", "en", "fr", "es", "de", "it", "zh", "ar", "sw",
@@ -149,6 +150,7 @@ interface TranslationContextValue {
   setLocale: (locale: ZionLocale) => void;
   t: (key: TranslationKey) => string;
   translateText: (text: string, contentType?: "ui" | "dynamic" | "spiritual" | "system") => Promise<string>;
+  dynamicTranslationUnavailable: boolean;
   ready: boolean;
 }
 
@@ -168,10 +170,11 @@ export function TranslationProvider({ children }: { children: React.ReactNode })
   const [locale, setLocaleState] = useState<ZionLocale>(SOURCE_LOCALE);
   const [translations, setTranslations] = useState<Record<string, Record<string, string>>>(readCached);
   const [ready, setReady] = useState(false);
+  const [dynamicTranslationUnavailable, setDynamicTranslationUnavailable] = useState(false);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(STORAGE_KEY) as ZionLocale | null;
-    if (stored && ZION_LOCALES.includes(stored)) setLocaleState(stored);
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    if (stored && (ZION_LOCALES as readonly string[]).includes(stored)) setLocaleState(stored as ZionLocale);
     setReady(true);
   }, []);
 
@@ -182,60 +185,8 @@ export function TranslationProvider({ children }: { children: React.ReactNode })
     window.localStorage.setItem(STORAGE_KEY, locale);
   }, [locale]);
 
-  useEffect(() => {
-    if (!ready || locale === SOURCE_LOCALE) return;
-
-    const cachedForLocale = translations[locale] ?? {};
-    const items = Object.entries(sourceStrings)
-      .filter(([, text]) => !cachedForLocale[`${SOURCE_LOCALE}:${locale}:ui:${text}`])
-      .map(([id, text]) => ({ id, text, contentType: "ui" as const }));
-
-    if (!items.length) return;
-
-    void (async () => {
-      try {
-        const supabase = createClient();
-        const { data } = await supabase.auth.getSession();
-        const token = data.session?.access_token;
-        const apiUrl = process.env.NEXT_PUBLIC_ZION_API_URL;
-        if (!token || !apiUrl) return;
-
-        const response = await fetch(`${apiUrl}/v1/translation/translate/batch`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            sourceLocale: SOURCE_LOCALE,
-            targetLocale: locale,
-            items,
-          }),
-        });
-        if (!response.ok) return;
-
-        const result = (await response.json()) as {
-          items?: Array<{ id: string; text: string }>;
-        };
-        if (!result.items?.length) return;
-
-        setTranslations((current) => {
-          const nextLocale = { ...(current[locale] ?? {}) };
-          for (const item of result.items ?? []) {
-            const source = sourceStrings[item.id as TranslationKey];
-            if (source) nextLocale[`${SOURCE_LOCALE}:${locale}:ui:${source}`] = item.text;
-          }
-          const next = { ...current, [locale]: nextLocale };
-          window.localStorage.setItem(CACHE_KEY, JSON.stringify(next));
-          return next;
-        });
-      } catch {
-        // Source-language fallback remains active.
-      }
-    })();
-  }, [locale, ready]);
-
   const setLocale = useCallback((next: ZionLocale) => {
+    setDynamicTranslationUnavailable(false);
     setLocaleState(next);
   }, []);
 
@@ -254,7 +205,11 @@ export function TranslationProvider({ children }: { children: React.ReactNode })
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
       const apiUrl = process.env.NEXT_PUBLIC_ZION_API_URL;
-      if (!token || !apiUrl) return text;
+      if (!token || !apiUrl) {
+        console.warn("[ZION i18n] Dynamic translation requires an authenticated session and NEXT_PUBLIC_ZION_API_URL.");
+        setDynamicTranslationUnavailable(true);
+        return text;
+      }
 
       const response = await fetch(`${apiUrl}/v1/translation/translate`, {
         method: "POST",
@@ -269,10 +224,17 @@ export function TranslationProvider({ children }: { children: React.ReactNode })
           contentType,
         }),
       });
-      if (!response.ok) return text;
+      if (!response.ok) {
+        console.error(`[ZION i18n] Translation API returned HTTP ${response.status}.`);
+        setDynamicTranslationUnavailable(true);
+        return text;
+      }
 
       const result = (await response.json()) as { text?: string };
-      if (!result.text) return text;
+      if (!result.text) {
+        setDynamicTranslationUnavailable(true);
+        return text;
+      }
 
       setTranslations((current) => {
         const next = {
@@ -285,15 +247,20 @@ export function TranslationProvider({ children }: { children: React.ReactNode })
         window.localStorage.setItem(CACHE_KEY, JSON.stringify(next));
         return next;
       });
+      setDynamicTranslationUnavailable(false);
       return result.text;
-    } catch {
+    } catch (error) {
+      console.error("[ZION i18n] Dynamic translation failed; showing source text.", error);
+      setDynamicTranslationUnavailable(true);
       return text;
     }
   }, [locale, translations]);
 
   const t = useCallback((key: TranslationKey) => {
     if (locale === SOURCE_LOCALE) return sourceStrings[key];
-    return translations[locale]?.[`${SOURCE_LOCALE}:${locale}:ui:${sourceStrings[key]}`] ?? sourceStrings[key];
+    return ZION_TRANSLATION_CATALOGS[locale]?.[key]
+      ?? translations[locale]?.[`${SOURCE_LOCALE}:${locale}:ui:${sourceStrings[key]}`]
+      ?? sourceStrings[key];
   }, [locale, translations]);
 
   const value = useMemo(() => ({
@@ -303,8 +270,9 @@ export function TranslationProvider({ children }: { children: React.ReactNode })
     setLocale,
     t,
     translateText,
+    dynamicTranslationUnavailable,
     ready,
-  }), [locale, setLocale, t, translateText, ready]);
+  }), [locale, setLocale, t, translateText, dynamicTranslationUnavailable, ready]);
 
   return <TranslationContext.Provider value={value}>{children}</TranslationContext.Provider>;
 }

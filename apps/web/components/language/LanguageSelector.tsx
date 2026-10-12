@@ -3,7 +3,7 @@
 import { useTranslation } from "@/components/i18n";
 
 export default function LanguageSelector() {
-  const { locale, locales, localeLabels, setLocale, t } = useTranslation();
+  const { locale, locales, localeLabels, setLocale, t, dynamicTranslationUnavailable } = useTranslation();
 
   return (
     <label className="flex items-center gap-2">
@@ -20,6 +20,17 @@ export default function LanguageSelector() {
           </option>
         ))}
       </select>
+      {dynamicTranslationUnavailable && (
+        <span
+          role="status"
+          aria-live="polite"
+          aria-label="Dynamic translation unavailable; source text is shown for dynamic content."
+          title="Dynamic translation unavailable; source text is shown for dynamic content."
+          className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-800"
+        >
+          !
+        </span>
+      )}
     </label>
   );
 }
