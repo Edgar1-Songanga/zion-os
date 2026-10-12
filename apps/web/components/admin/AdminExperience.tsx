@@ -5,6 +5,7 @@ import AdministrationHero from "./AdministrationHero";
 import OrganizationOverview from "./OrganizationOverview";
 import DepartmentsGrid from "./DepartmentsGrid";
 import MinistryOverview from "./MinistryOverview";
+import MembershipsOverview from "./MembershipsOverview";
 
 
 export default function AdminExperience(){
@@ -36,10 +37,13 @@ mx-auto
 <AdministrationHero />
 
 
-<OrganizationOverview />
+<div id="organization-overview" className="scroll-mt-6"><OrganizationOverview /></div>
 
 
-<DepartmentsGrid />
+<MembershipsOverview />
+
+
+<div id="department-overview" className="scroll-mt-6"><DepartmentsGrid /></div>
 
 
 <MinistryOverview />
