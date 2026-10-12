@@ -9,6 +9,7 @@ export class MembershipsService {
   constructor(private readonly identity: IdentityService) {}
 
   async list(accessToken: string, organizationId: string) {
+    this.assertUuid(organizationId, 'organizationId');
     await this.identity.getCurrentUser(accessToken);
     return this.db.get(
       'organization_memberships',
@@ -18,8 +19,13 @@ export class MembershipsService {
   }
 
   async add(accessToken: string, organizationId: string, input: { user_id: string; role_id?: string; status?: string }) {
+    this.assertUuid(organizationId, 'organizationId');
+    this.assertUuid(input.user_id, 'user_id');
+    if (input.role_id !== undefined) this.assertUuid(input.role_id, 'role_id');
+    if (input.status !== undefined && input.status !== 'ACTIVE') {
+      throw new BadRequestException('New memberships must start as ACTIVE; use the approved status workflow for other states.');
+    }
     const actor = await this.identity.getCurrentUser(accessToken);
-    if (!input.user_id) throw new BadRequestException('user_id is required');
 
     let roleId = input.role_id;
     if (!roleId) {
@@ -48,6 +54,12 @@ export class MembershipsService {
   }
 
   async update(accessToken: string, organizationId: string, membershipId: string, input: { role_id?: string; status?: string }) {
+    this.assertUuid(organizationId, 'organizationId');
+    this.assertUuid(membershipId, 'membershipId');
+    if (input.role_id !== undefined) this.assertUuid(input.role_id, 'role_id');
+    if (input.status !== undefined && !['ACTIVE', 'INACTIVE'].includes(input.status)) {
+      throw new BadRequestException('status must be ACTIVE or INACTIVE');
+    }
     const actor = await this.identity.getCurrentUser(accessToken);
     const patch: Record<string, unknown> = {};
     if (input.role_id !== undefined) patch.role_id = input.role_id;
@@ -111,6 +123,12 @@ export class MembershipsService {
       unit_id: unitId,
     });
     return { success: true };
+  }
+
+  private assertUuid(value: string, field: string) {
+    if (typeof value !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) {
+      throw new BadRequestException(`${field} must be a valid UUID`);
+    }
   }
 
   private async audit(accessToken: string, organizationId: string, actorUserId: string, action: string, resourceType: string, resourceId: string, metadata: unknown) {
