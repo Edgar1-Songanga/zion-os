@@ -153,11 +153,9 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
     if (option === question.answer) {
       setLevelCorrect((value) => value + 1);
       setTotalScore((value) => value + question.points);
-      setCurrentStreak((value) => {
-        const next = value + 1;
-        setBestStreak((best) => Math.max(best, next));
-        return next;
-      });
+      const nextStreak = currentStreak + 1;
+      setCurrentStreak(nextStreak);
+      setBestStreak((best) => Math.max(best, nextStreak));
     } else {
       setCurrentStreak(0);
     }
