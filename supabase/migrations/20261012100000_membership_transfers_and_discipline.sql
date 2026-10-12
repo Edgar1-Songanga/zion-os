@@ -128,6 +128,10 @@ with check (
 );
 
 -- Disciplinary case records are intentionally restricted to authorized membership officers.
+-- A suspension/disciplinary measure must reference the official vote and minutes.
+-- Early lifting must also preserve the authority, vote number and minutes reference.
+-- These are required administrative evidence fields, not a substitute for validating the
+-- church's applicable Manual and local/divisional policy.
 -- Expiry is represented as a timestamp; consumers must treat a case as effective only
 -- while status='ACTIVE' and (ends_at IS NULL OR ends_at > now()). No scheduled job is needed
 -- to stop an expired case from being effective.
@@ -140,10 +144,21 @@ create table if not exists public.membership_disciplinary_cases (
   status text not null default 'ACTIVE' check (status in ('ACTIVE','LIFTED','REVOKED','EXPIRED')),
   reason_summary text not null,
   confidential_notes text,
+  -- Governance evidence: identify the authorized decision and its official minutes.
+  decision_vote_number text not null,
+  meeting_minutes_reference text not null,
+  decision_meeting_date date not null,
+  decision_authority text not null check (decision_authority in ('CHURCH_BOARD','CHURCH_BUSINESS_MEETING','CONFERENCE_OR_MISSION','OTHER_AUTHORIZED_BODY')),
+  decision_summary text,
   starts_at timestamptz not null default now(),
   ends_at timestamptz,
   lifted_at timestamptz,
   lifted_by uuid references auth.users(id) on delete set null,
+  lifting_vote_number text,
+  lifting_minutes_reference text,
+  lifting_decision_date date,
+  lifting_authority text check (lifting_authority is null or lifting_authority in ('CHURCH_BOARD','CHURCH_BUSINESS_MEETING','CONFERENCE_OR_MISSION','OTHER_AUTHORIZED_BODY')),
+  lifting_note text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint disciplinary_end_after_start check (ends_at is null or ends_at > starts_at)
