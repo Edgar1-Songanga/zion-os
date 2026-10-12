@@ -1,4 +1,5 @@
 import BibleSearch from "@/components/bible-engine/BibleSearch";
+import BibleBookExplorer from "@/components/bible-engine/BibleBookExplorer";
 import KnowledgeCards from "@/components/bible-engine/KnowledgeCards";
 import BibleQuiz from "@/components/bible-engine/quiz/BibleQuiz";
 
@@ -24,6 +25,7 @@ export default function BibleEngine() {
         </header>
 
         <BibleSearch />
+        <BibleBookExplorer />
         <KnowledgeCards />
 
         <section id="bible-challenge" className="scroll-mt-6">
