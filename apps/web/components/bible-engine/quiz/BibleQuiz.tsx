@@ -40,6 +40,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
   const [currentStreak, setCurrentStreak] = useState(0);
   const [bestStreak, setBestStreak] = useState(0);
   const [reviewSchedule, setReviewSchedule] = useState<ReviewSchedule>({});
+  const [reviewDeckIds, setReviewDeckIds] = useState<number[]>([]);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [levelFinished, setLevelFinished] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
@@ -61,13 +62,12 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
   );
   const dueReviewQuestions = useMemo(() => {
     const currentIds = new Set(baseQuestionPool.map((item) => item.id));
-    return Object.entries(reviewSchedule)
-      .filter(([id, entry]) => entry.dueAt <= Date.now() && !currentIds.has(Number(id)))
-      .sort(([, left], [, right]) => left.dueAt - right.dueAt)
+    return reviewDeckIds
+      .filter((id) => !currentIds.has(id))
       .slice(0, 3)
-      .map(([id]) => bibleQuestions.find((item) => item.id === Number(id)))
+      .map((id) => bibleQuestions.find((item) => item.id === id))
       .filter((item): item is BibleChallengeQuestion => item !== undefined);
-  }, [baseQuestionPool, reviewSchedule]);
+  }, [baseQuestionPool, reviewDeckIds]);
   const questionPool = useMemo(
     () => [...baseQuestionPool, ...dueReviewQuestions],
     [baseQuestionPool, dueReviewQuestions],
@@ -89,6 +89,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
         }
       }
       setReviewSchedule(valid);
+      setReviewDeckIds(Object.entries(valid).filter(([, entry]) => entry.dueAt <= Date.now()).map(([id]) => Number(id)));
     } catch {
       // The challenge remains playable if local browser storage is unavailable.
     }
@@ -209,6 +210,10 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
     return () => window.clearTimeout(timer);
   }, [selectedOption, levelFinished, isSkipped, advance]);
 
+  function refreshReviewDeck() {
+    setReviewDeckIds(Object.entries(reviewSchedule).filter(([, entry]) => entry.dueAt <= Date.now()).map(([id]) => Number(id)));
+  }
+
   function chooseAnswer(option: string) {
     if (selectedOption !== null || levelFinished || !question) return;
     scheduleReview(question.id, option === question.answer);
@@ -243,6 +248,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
 
   function nextLevel() {
     if (!passed || levelIndex >= LEVELS.length - 1) return;
+    refreshReviewDeck();
     setLevelIndex((value) => value + 1);
     setQuestionIndex(0);
     setLevelCorrect(0);
@@ -254,6 +260,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
   }
 
   function restartLevel() {
+    refreshReviewDeck();
     setQuestionIndex(0);
     setLevelCorrect(0);
     setMissedQuestions([]);
@@ -265,6 +272,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
   }
 
   function restartJourney() {
+    refreshReviewDeck();
     setLevelIndex(0);
     setQuestionIndex(0);
     setTotalScore(0);
