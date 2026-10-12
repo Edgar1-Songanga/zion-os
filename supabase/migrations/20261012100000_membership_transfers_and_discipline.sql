@@ -161,7 +161,18 @@ create table if not exists public.membership_disciplinary_cases (
   lifting_note text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint disciplinary_end_after_start check (ends_at is null or ends_at > starts_at)
+  constraint disciplinary_end_after_start check (ends_at is null or ends_at > starts_at),
+  constraint disciplinary_lift_requires_governance_record check (
+    status <> 'LIFTED'
+    or (
+      lifted_at is not null
+      and lifted_by is not null
+      and nullif(btrim(lifting_vote_number), '') is not null
+      and nullif(btrim(lifting_minutes_reference), '') is not null
+      and lifting_decision_date is not null
+      and lifting_authority is not null
+    )
+  )
 );
 create index if not exists idx_disciplinary_membership_period
   on public.membership_disciplinary_cases(membership_id, starts_at desc, ends_at);
@@ -203,14 +214,19 @@ stable
 security definer
 set search_path = pg_catalog, public
 as $function$
-  select exists (
+  select coalesce((select auth.uid()) is not null, false) and exists (
     select 1
     from public.membership_disciplinary_cases d
+    join public.organization_memberships m on m.id = d.membership_id
     where d.membership_id = target_membership_id
       and d.measure_type = 'SUSPENSION'
       and d.status = 'ACTIVE'
       and d.starts_at <= now()
       and (d.ends_at is null or d.ends_at > now())
+      and (
+        m.user_id = (select auth.uid())
+        or private.has_org_permission(d.organization_id, 'membership.manage')
+      )
   );
 $function$;
 
