@@ -14,6 +14,9 @@ const LEVELS = [
 ] as const;
 
 type PlayMode = "junior" | "classic" | "hyper";
+type ReviewScheduleEntry = { dueAt: number; intervalDays: number; repetitions: number };
+type ReviewSchedule = Record<number, ReviewScheduleEntry>;
+const REVIEW_STORAGE_KEY = "zion:bible-review-schedule:v1";
 const MODE_LABELS: Record<PlayMode, string> = {
   junior: "Júnior",
   classic: "Clássico",
@@ -36,6 +39,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
   const [levelCorrect, setLevelCorrect] = useState(0);
   const [currentStreak, setCurrentStreak] = useState(0);
   const [bestStreak, setBestStreak] = useState(0);
+  const [reviewSchedule, setReviewSchedule] = useState<ReviewSchedule>({});
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [levelFinished, setLevelFinished] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
@@ -51,10 +55,65 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
   const [optionOrder, setOptionOrder] = useState<string[] | null>(null);
 
   const level = LEVELS[levelIndex];
-  const questionPool = useMemo(
+  const baseQuestionPool = useMemo(
     () => bibleQuestions.filter((item) => item.level === levelIndex + 1),
     [levelIndex],
   );
+  const dueReviewQuestions = useMemo(() => {
+    const currentIds = new Set(baseQuestionPool.map((item) => item.id));
+    return Object.entries(reviewSchedule)
+      .filter(([id, entry]) => entry.dueAt <= Date.now() && !currentIds.has(Number(id)))
+      .sort(([, left], [, right]) => left.dueAt - right.dueAt)
+      .slice(0, 3)
+      .map(([id]) => bibleQuestions.find((item) => item.id === Number(id)))
+      .filter((item): item is BibleChallengeQuestion => item !== undefined);
+  }, [baseQuestionPool, reviewSchedule]);
+  const questionPool = useMemo(
+    () => [...baseQuestionPool, ...dueReviewQuestions],
+    [baseQuestionPool, dueReviewQuestions],
+  );
+  const dueReviewCount = Object.values(reviewSchedule).filter((entry) => entry.dueAt <= Date.now()).length;
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(REVIEW_STORAGE_KEY);
+      if (!stored) return;
+      const parsed = JSON.parse(stored) as Record<string, ReviewScheduleEntry>;
+      const valid: ReviewSchedule = {};
+      for (const [id, entry] of Object.entries(parsed)) {
+        const questionId = Number(id);
+        if (Number.isInteger(questionId) && bibleQuestions.some((item) => item.id === questionId)
+          && Number.isFinite(entry?.dueAt) && Number.isFinite(entry?.intervalDays)
+          && Number.isFinite(entry?.repetitions)) {
+          valid[questionId] = entry;
+        }
+      }
+      setReviewSchedule(valid);
+    } catch {
+      // The challenge remains playable if local browser storage is unavailable.
+    }
+  }, []);
+
+  function scheduleReview(questionId: number, correct: boolean) {
+    const existing = reviewSchedule[questionId];
+    if (correct && (!existing || existing.dueAt > Date.now())) return;
+
+    const now = Date.now();
+    const nextEntry: ReviewScheduleEntry = correct && existing
+      ? {
+          dueAt: now + (existing.repetitions === 0 ? 3 : existing.repetitions === 1 ? 7 : existing.repetitions === 2 ? 14 : 30) * 24 * 60 * 60 * 1000,
+          intervalDays: existing.repetitions === 0 ? 3 : existing.repetitions === 1 ? 7 : existing.repetitions === 2 ? 14 : 30,
+          repetitions: existing.repetitions + 1,
+        }
+      : { dueAt: now + 24 * 60 * 60 * 1000, intervalDays: 1, repetitions: 0 };
+    const next = { ...reviewSchedule, [questionId]: nextEntry };
+    setReviewSchedule(next);
+    try {
+      window.localStorage.setItem(REVIEW_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      // The current session continues even when persistence is blocked.
+    }
+  }
   const questions = useMemo(() => {
     if (!shuffledOrder) return questionPool;
     const byId = new Map(questionPool.map((item) => [item.id, item]));
@@ -152,6 +211,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
 
   function chooseAnswer(option: string) {
     if (selectedOption !== null || levelFinished || !question) return;
+    scheduleReview(question.id, option === question.answer);
     setSelectedOption(option);
     if (option === question.answer) {
       setLevelCorrect((value) => value + 1);
@@ -176,6 +236,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
 
   function skipQuestion() {
     if (selectedOption !== null || !question) return;
+    scheduleReview(question.id, false);
     setCurrentStreak(0);
     setSelectedOption("__skip__");
   }
@@ -229,7 +290,8 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
             <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#E2C477]">ZION · Desafio bíblico</p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight">{level.title}</h2>
             <p className="mt-1 text-sm text-slate-300">{level.subtitle}</p>
-            <p className="mt-3 text-xs text-slate-400">120 perguntas disponíveis · 6 níveis progressivos</p>
+            <p className="mt-3 text-xs text-slate-400">120 perguntas · 6 níveis progressivos · revisão espaçada</p>
+            {dueReviewCount > 0 && <p className="mt-2 inline-flex rounded-full border border-[#E2C477]/25 bg-[#E2C477]/10 px-3 py-1.5 text-[11px] font-medium text-[#E2C477]">{dueReviewCount} pergunta(s) prontas para rever</p>}
           </div>
           <div className="flex gap-2">
             <div className="rounded-2xl border border-white/15 bg-white/[0.07] px-3 py-3 text-right">
@@ -307,7 +369,8 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
               <div className="h-full rounded-full bg-[#C8A24A] transition-all duration-500" style={{ width: progress + "%" }} />
             </div>
-            <h3 className="mt-6 text-xl font-semibold leading-8 tracking-tight sm:text-2xl">{question.question}</h3>
+            {Boolean(reviewSchedule[question.id] && reviewSchedule[question.id].dueAt <= Date.now()) && <p className="mt-5 inline-flex rounded-full border border-[#D4AF37]/30 bg-[#FBF8F0] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8B6F16]">Revisão para consolidar a memória</p>}
+            <h3 className="mt-3 text-xl font-semibold leading-8 tracking-tight sm:text-2xl">{question.question}</h3>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               {options.map((option, index) => {
                 const isAnswer = option === question.answer;
