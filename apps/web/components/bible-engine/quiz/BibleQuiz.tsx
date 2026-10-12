@@ -229,7 +229,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
             <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#E2C477]">ZION · Desafio bíblico</p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight">{level.title}</h2>
             <p className="mt-1 text-sm text-slate-300">{level.subtitle}</p>
-            <p className="mt-3 text-xs text-slate-400">60 perguntas disponíveis · 6 níveis progressivos</p>
+            <p className="mt-3 text-xs text-slate-400">120 perguntas disponíveis · 6 níveis progressivos</p>
           </div>
           <div className="flex gap-2">
             <div className="rounded-2xl border border-white/15 bg-white/[0.07] px-3 py-3 text-right">
