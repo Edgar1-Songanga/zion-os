@@ -27,6 +27,9 @@ export default function MembershipsOverview() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newUserId, setNewUserId] = useState("");
+  const [adding, setAdding] = useState(false);
 
   const load = useCallback(async (id: string) => {
     if (!id) return;
@@ -52,6 +55,34 @@ export default function MembershipsOverview() {
       [item.user_id, item.status, roleLabel(item.roles)].some((value) => value.toLocaleLowerCase().includes(normalized)),
     );
   }, [memberships, query]);
+
+  async function addExistingProfile(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const userId = newUserId.trim();
+    if (!organizationId || !userId || adding) return;
+    setError("");
+    setMessage("");
+    const existing = memberships.find((item) => item.user_id.toLowerCase() === userId.toLowerCase());
+    if (existing) {
+      setError("Este perfil já tem uma adesão nesta organização. Não foi criado um registo duplicado.");
+      return;
+    }
+    setAdding(true);
+    try {
+      const created = await resaRequest<Membership>(
+        `/v1/organizations/${encodeURIComponent(organizationId)}/memberships`,
+        { method: "POST", body: JSON.stringify({ user_id: userId, status: "ACTIVE" }) },
+      );
+      setMemberships((current) => [created, ...current]);
+      setNewUserId("");
+      setShowAddForm(false);
+      setMessage("Perfil associado à organização. Os dados de identidade existentes foram preservados.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível associar o perfil. Confirme a existência do perfil e as permissões institucionais.");
+    } finally {
+      setAdding(false);
+    }
+  }
 
   async function changeStatus(item: Membership) {
     const nextStatus = item.status.toUpperCase() === "ACTIVE" ? "INACTIVE" : "ACTIVE";
@@ -87,6 +118,17 @@ export default function MembershipsOverview() {
       {error && <p role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       {message && <p role="status" className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{message}</p>}
 
+      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div><p className="text-sm font-semibold text-[#0C1A3D]">Registo de membros</p><p className="mt-1 text-xs leading-5 text-slate-500">Associe um perfil ZION existente à organização, sem duplicar a identidade.</p></div>
+        <button type="button" onClick={() => { setShowAddForm((value) => !value); setError(""); }} disabled={!organizationId} className="rounded-xl bg-[#0C1A3D] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#152954] disabled:cursor-not-allowed disabled:opacity-40">{showAddForm ? "Fechar formulário" : "Adicionar membro existente"}</button>
+      </div>
+      {showAddForm && <form onSubmit={addExistingProfile} className="mt-4 grid gap-4 rounded-2xl border border-[#D9BD78]/40 bg-[#FBFAF6] p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:p-5">
+        <label className="block text-xs font-semibold text-slate-600">Identificador do perfil ZION (UUID)
+          <input value={newUserId} onChange={(event) => setNewUserId(event.target.value)} required minLength={20} maxLength={80} autoComplete="off" spellCheck={false} placeholder="Cole o ID do perfil existente" className="mt-2 min-h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-mono font-normal text-slate-800 outline-none focus:border-[#B99A52] focus:ring-4 focus:ring-[#B99A52]/10" />
+        </label>
+        <button type="submit" disabled={adding || !newUserId.trim()} className="min-h-12 rounded-xl bg-[#9B7A34] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#806328] disabled:cursor-not-allowed disabled:opacity-50">{adding ? "A associar…" : "Associar perfil"}</button>
+        <p className="sm:col-span-2 text-xs leading-5 text-slate-500">A identidade e os dados de perfil existentes não são recriados. O sistema impede duplicação na lista desta organização. A API e as políticas institucionais continuam a decidir se a associação é autorizada.</p>
+      </form>}
       <div className="mt-6 flex flex-col gap-3 sm:flex-row">
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Pesquisar por identificador, papel ou estado…" aria-label="Pesquisar membros" className="min-h-11 flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-[#C8A24A]" />
         <button type="button" onClick={() => void load(organizationId)} disabled={!organizationId || loading} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-[#0C1A3D] hover:border-[#C8A24A] disabled:opacity-40">{loading ? "A carregar…" : "Atualizar lista"}</button>
