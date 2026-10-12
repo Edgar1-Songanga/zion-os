@@ -68,18 +68,9 @@ with check (
   and source_organization_id <> destination_organization_id
 );
 
--- Only authorized source/destination membership officers may update workflow decisions.
+-- Direct client updates are intentionally disabled. Workflow state changes must be performed
+-- through narrowly scoped SECURITY DEFINER transition RPCs with explicit from/to state checks.
 drop policy if exists membership_transfer_update_authorized on public.membership_transfer_requests;
-create policy membership_transfer_update_authorized on public.membership_transfer_requests
-for update to authenticated
-using (
-  private.has_org_permission(source_organization_id, 'membership.manage')
-  or private.has_org_permission(destination_organization_id, 'membership.manage')
-)
-with check (
-  private.has_org_permission(source_organization_id, 'membership.manage')
-  or private.has_org_permission(destination_organization_id, 'membership.manage')
-);
 
 create table if not exists public.membership_transfer_events (
   id uuid primary key default gen_random_uuid(),
@@ -111,21 +102,9 @@ using (
   )
 );
 
+-- Event history is append-only from trusted transition RPCs; authenticated clients cannot
+-- insert fabricated events directly.
 drop policy if exists membership_transfer_events_insert_scoped on public.membership_transfer_events;
-create policy membership_transfer_events_insert_scoped on public.membership_transfer_events
-for insert to authenticated
-with check (
-  actor_user_id = (select auth.uid())
-  and exists (
-    select 1 from public.membership_transfer_requests r
-    where r.id = transfer_request_id
-      and (
-        r.requester_user_id = (select auth.uid())
-        or private.has_org_permission(r.source_organization_id, 'membership.manage')
-        or private.has_org_permission(r.destination_organization_id, 'membership.manage')
-      )
-  )
-);
 
 -- Disciplinary case records are intentionally restricted to authorized membership officers.
 -- A suspension/disciplinary measure must reference the official vote and minutes.
@@ -200,11 +179,9 @@ with check (
   )
 );
 
+-- Direct updates are intentionally disabled. A separate guarded RPC must validate lifting
+-- evidence and the allowed status transition before modifying a disciplinary case.
 drop policy if exists membership_discipline_update_authorized on public.membership_disciplinary_cases;
-create policy membership_discipline_update_authorized on public.membership_disciplinary_cases
-for update to authenticated
-using (private.has_org_permission(organization_id, 'membership.manage'))
-with check (private.has_org_permission(organization_id, 'membership.manage'));
 
 -- Safe read helper for eligibility checks: exposes no disciplinary reason or confidential notes.
 create or replace function public.membership_has_effective_suspension(target_membership_id uuid)
