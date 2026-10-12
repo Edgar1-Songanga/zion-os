@@ -6,10 +6,12 @@ import { OrganizationUnitsController } from './presentation/organization-units.c
 import { OrganizationUnitsService } from './application/organization-units.service';
 import { MembershipsController } from './presentation/memberships.controller';
 import { MembershipsService } from './application/memberships.service';
+import { MembershipTransferController } from './presentation/membership-transfer.controller';
+import { MembershipTransferService } from './application/membership-transfer.service';
 
 @Module({
   imports: [IdentityModule],
-  controllers: [OrganizationsController, OrganizationUnitsController, MembershipsController],
-  providers: [OrganizationsService, OrganizationUnitsService, MembershipsService],
+  controllers: [OrganizationsController, OrganizationUnitsController, MembershipsController, MembershipTransferController],
+  providers: [OrganizationsService, OrganizationUnitsService, MembershipsService, MembershipTransferService],
 })
 export class OrganizationsModule {}

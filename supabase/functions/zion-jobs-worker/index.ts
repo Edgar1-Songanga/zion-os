@@ -148,6 +148,47 @@ export default {
     if (req.method !== "POST") return Response.json({ error: "method_not_allowed" }, { status: 405 });
 
     const workerId = `edge:${crypto.randomUUID()}`;
+
+    // Queue one in-app reminder per member and disciplinary measure when an active measure
+    // is due to end within seven days. The idempotency key prevents duplicate reminders on
+    // every worker poll; the eligibility check is re-evaluated on each poll.
+    const reminderWindowEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: endingMeasures, error: measuresError } = await ctx.supabaseAdmin
+      .from("membership_disciplinary_cases")
+      .select("id,measure_type,ends_at,organization_id,organization_memberships!inner(user_id)")
+      .eq("status", "ACTIVE")
+      .not("ends_at", "is", null)
+      .gt("ends_at", new Date().toISOString())
+      .lte("ends_at", reminderWindowEnd)
+      .limit(200);
+    if (measuresError) {
+      console.error("discipline_reminder_scan_failed", measuresError);
+    } else {
+      for (const measure of endingMeasures ?? []) {
+        const memberships = Array.isArray(measure.organization_memberships)
+          ? measure.organization_memberships : [measure.organization_memberships];
+        for (const membership of memberships) {
+          const userId = membership?.user_id;
+          if (typeof userId !== "string") continue;
+          const endDate = new Date(String(measure.ends_at)).toISOString().slice(0, 10);
+          const { error: queueError } = await ctx.supabaseAdmin.from("zion_jobs").upsert({
+            job_type: "spiritual.reminder",
+            payload: {
+              user_id: userId,
+              type: "disciplinary_measure_ending",
+              title: "A sua medida disciplinar está perto do fim",
+              body: `A medida ${String(measure.measure_type)} tem data de término em ${endDate}. Contacte a secretaria da sua igreja para confirmar os próximos passos.`,
+              channel: "in_app",
+              priority: "normal",
+              data: { disciplinary_case_id: measure.id, organization_id: measure.organization_id, ends_at: measure.ends_at }
+            },
+            idempotency_key: `discipline-ending:${measure.id}:${userId}`,
+            created_by: null
+          }, { onConflict: "idempotency_key", ignoreDuplicates: true });
+          if (queueError) console.error("discipline_reminder_queue_failed", queueError);
+        }
+      }
+    }
     const { data: jobs, error } = await ctx.supabaseAdmin
       .from("zion_jobs")
       .select("id,job_type,payload,attempts,max_attempts")
@@ -179,7 +220,7 @@ export default {
       if (claimError || !claimed) continue;
 
       try {
-        const result = await processJob(job as Job);
+        const result = await processJob(job as Job, ctx.supabaseAdmin);
         const { error: completeError } = await ctx.supabaseAdmin
           .from("zion_jobs")
           .update({ status: "completed", result, last_error: null, locked_at: null, locked_by: null })

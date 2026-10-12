@@ -27,12 +27,18 @@ export default function OrganizationOverview() {
 
   async function createOrganization() {
     if (!name.trim() || !slug.trim() || creating) return;
+    const normalizedSlug = slug.trim().toLowerCase();
+    const duplicateSlug = organizations.some((organization) => organization.slug.trim().toLowerCase() === normalizedSlug);
+    if (duplicateSlug) {
+      setError("Já existe uma organização com este identificador (slug). Use um identificador único para distinguir igrejas com nomes iguais.");
+      return;
+    }
     setCreating(true);
     setError(null);
     try {
       const created = await resaRequest<Organization>("/v1/organizations", {
         method: "POST",
-        body: JSON.stringify({ name: name.trim(), slug: slug.trim().toLowerCase(), organization_type: type }),
+        body: JSON.stringify({ name: name.trim(), slug: normalizedSlug, organization_type: type }),
       });
       setOrganizations((current) => [created, ...current]);
       setName("");

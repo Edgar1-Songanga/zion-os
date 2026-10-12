@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Patch, Post, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Patch, Post, Query, UnauthorizedException } from '@nestjs/common';
 import { MembershipsService } from '../application/memberships.service';
 
 @Controller('v1/organizations/:organizationId/memberships')
@@ -9,6 +9,15 @@ export class MembershipsController {
     const token = authorization?.replace(/^Bearer\s+/i, '').trim();
     if (!token) throw new UnauthorizedException('Bearer token is required');
     return token;
+  }
+
+  @Get('profiles/search')
+  searchProfiles(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('organizationId') organizationId: string,
+    @Query('q') search: string,
+  ) {
+    return this.memberships.searchProfiles(this.token(authorization), organizationId, search);
   }
 
   @Get()
