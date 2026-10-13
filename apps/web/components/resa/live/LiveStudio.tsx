@@ -19,7 +19,7 @@ const DATA_TOPIC = "zion-live";
 function renderLinkedText(value: string) {
   return value.split(/(https?:\/\/[^\s]+)/g).map((part, index) =>
     /^https?:\/\//i.test(part)
-      ? <a key={index} href={part} target="_blank" rel="noreferrer" className="break-all text-sky-700 underline underline-offset-2 hover:text-sky-900">{part}</a>
+      ? <a key={index} href={part} target="_blank" rel="noreferrer" className="break-all text-sky-300 underline underline-offset-2 hover:text-sky-100">{part}</a>
       : part,
   );
 }
