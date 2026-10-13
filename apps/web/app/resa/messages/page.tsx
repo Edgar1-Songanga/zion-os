@@ -61,6 +61,7 @@ export default function MessagesPage() {
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const searchParams = useSearchParams();
   const startedTarget = useRef<string | null>(null);
+  const startedInvite = useRef<string | null>(null);
 
   const selectedConversation = useMemo(
     () => items.find((item) => item.id === selected) ?? null,
@@ -110,6 +111,15 @@ export default function MessagesPage() {
     if (!target || startedTarget.current === target) return;
     startedTarget.current = target;
     void startConversation({ id: target, title: "Conversa direta" });
+  }, [searchParams]);
+
+  useEffect(() => {
+    const invite = searchParams.get("invite");
+    if (!invite || startedInvite.current === invite) return;
+    startedInvite.current = invite;
+    setBody(invite);
+    setNewOpen(true);
+    setError(null);
   }, [searchParams]);
 
   useEffect(() => {
