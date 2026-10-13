@@ -51,6 +51,7 @@ export default function ChurchDashboard() {
   const [organizationId, setOrganizationId] = useState("");
   const [organization, setOrganization] = useState<ZionOrganization | null>(null);
   const [ministries, setMinistries] = useState<Ministry[]>([]);
+  const [ministriesAvailable, setMinistriesAvailable] = useState<boolean | null>(null);
   const [memberships, setMemberships] = useState<Membership[] | null>(null);
   const [youth, setYouth] = useState<YouthReport | null>(null);
   const [units, setUnits] = useState<OrganizationUnit[] | null>(null);
@@ -71,9 +72,12 @@ export default function ChurchDashboard() {
     ]);
 
     const nextErrors: string[] = [];
-    if (results[0].status === "fulfilled") setMinistries(results[0].value);
-    else {
+    if (results[0].status === "fulfilled") {
+      setMinistries(results[0].value);
+      setMinistriesAvailable(true);
+    } else {
       setMinistries([]);
+      setMinistriesAvailable(false);
       nextErrors.push("Não foi possível carregar os ministérios desta organização.");
     }
     if (results[1].status === "fulfilled") setMemberships(results[1].value);
@@ -167,7 +171,7 @@ export default function ChurchDashboard() {
           </div>
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
             <MetricCard label="Associações ativas" value={formatNumber(activeMemberships)} detail="Acessos associados à organização; não equivale ao cadastro oficial de membros da Igreja." />
-            <MetricCard label="Ministérios ativos" value={formatNumber(activeMinistries)} detail="Ministérios cujo estado está registado como ativo." />
+            <MetricCard label="Ministérios ativos" value={formatNumber(ministriesAvailable ? activeMinistries : undefined)} detail="Ministérios cujo estado está registado como ativo." />
             <MetricCard label="Relatórios pendentes" value={formatNumber(reportsDataAvailable ? pendingReports : undefined)} detail="Relatórios associados aos ministérios que aguardam revisão." />
             <MetricCard label="Relatórios aprovados" value={formatNumber(reportsDataAvailable ? approvedReports : undefined)} detail="Relatórios associados aos ministérios aprovados." />
             <MetricCard label="Clubes jovens ativos" value={formatNumber(youth?.clubs_active)} detail="Clubes ativos segundo o relatório operacional do Ministério Jovem." />
@@ -181,13 +185,15 @@ export default function ChurchDashboard() {
               <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9B7A34]">Atividade departamental</p>
               <h2 className="mt-2 text-xl font-semibold">Ministérios e relatórios recentes</h2>
             </div>
-            <p className="text-xs text-slate-500">{ministries.length.toLocaleString("pt-PT")} ministério(s) carregado(s)</p>
+            <p className="text-xs text-slate-500">{ministriesAvailable === false ? "Dados de ministérios indisponíveis" : `${ministries.length.toLocaleString("pt-PT")} ministério(s) carregado(s)`}</p>
           </div>
 
           {!organizationId ? (
             <p className="mt-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Selecione uma organização para consultar os seus dados.</p>
+          ) : ministriesAvailable === false && !loading ? (
+            <p className="mt-5 rounded-xl bg-amber-50 p-4 text-sm text-amber-800">Não foi possível confirmar os ministérios. Atualize os dados ou tente novamente mais tarde.</p>
           ) : ministries.length === 0 && !loading ? (
-            <p className="mt-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Não há ministérios para apresentar ou os dados ainda não puderam ser carregados.</p>
+            <p className="mt-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Não há ministérios registados nesta organização.</p>
           ) : (
             <div className="mt-5 divide-y divide-slate-100">
               {ministries.map((ministry) => (
