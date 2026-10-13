@@ -16,6 +16,16 @@ type LivePacket =
 
 const DATA_TOPIC = "zion-live";
 
+function renderLinkedText(value: string) {
+  return value.split(/(https?:\/\/[^\s]+)/g).map((part, index) =>
+    /^https?:\/\//i.test(part)
+      ? <a key={index} href={part} target="_blank" rel="noreferrer" className="break-all text-sky-700 underline underline-offset-2 hover:text-sky-900">{part}</a>
+      : part,
+  );
+}
+
+
+
 export default function LiveStudio({ liveId, title, onClose }: { liveId: string; title: string; onClose: () => void }) {
   const roomRef = useRef<Room | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -471,7 +481,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
                   {messages.length ? messages.map((message) => (
                     <div key={message.id} className="text-sm">
                       <span className="font-semibold text-sky-200">{message.name}: </span>
-                      <span className="break-words text-slate-200">{message.text}</span>
+                      <span className="break-words text-slate-200">{renderLinkedText(message.text)}</span>
                     </div>
                   )) : <p className="py-6 text-center text-sm leading-6 text-slate-400">As mensagens desta live aparecerão aqui.</p>}
                   <div ref={chatEndRef} />
