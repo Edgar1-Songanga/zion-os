@@ -2,6 +2,7 @@ import BibleSearch from "@/components/bible-engine/BibleSearch";
 import BibleBookExplorer from "@/components/bible-engine/BibleBookExplorer";
 import KnowledgeCards from "@/components/bible-engine/KnowledgeCards";
 import BibleQuiz from "@/components/bible-engine/quiz/BibleQuiz";
+import BibleChallengeInvite from "@/components/bible-engine/BibleChallengeInvite";
 
 export default function BibleEngine() {
   return (
@@ -36,7 +37,8 @@ export default function BibleEngine() {
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Avance por níveis, receba feedback após cada resposta e ganhe progresso registado quando conclui uma fase.</p>
             </div>
           </div>
-          <BibleQuiz />
+          <BibleChallengeInvite />
+          <div className="mt-5"><BibleQuiz /></div>
         </section>
       </div>
     </main>

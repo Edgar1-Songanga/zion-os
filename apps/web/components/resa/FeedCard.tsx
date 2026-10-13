@@ -35,6 +35,14 @@ const typeMeta: Record<string, { labelKey: "post" | "prayer" | "bibleStudy" | "t
   sermon: { labelKey: "sermon", icon: "story" },
 };
 
+function renderLinkedText(value: string) {
+  return value.split(/(https?:\/\/[^\s]+)/g).map((part, index) =>
+    /^https?:\/\//i.test(part)
+      ? <a key={index} href={part} target="_blank" rel="noreferrer" className="break-all text-sky-700 underline underline-offset-2 hover:text-sky-900">{part}</a>
+      : part,
+  );
+}
+
 export default function FeedCard({ content }: { content: ResaContent }) {
   const { t, locale } = useTranslation();
   const [reaction, setReaction] = useState(false);
@@ -163,7 +171,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
 
         <div className="mt-6">
           {content.title && <h4 className="mb-2 text-lg font-semibold tracking-tight text-[#0C1A3D]">{content.title}</h4>}
-          {content.body && <p className="whitespace-pre-wrap text-[15px] leading-7 text-slate-700">{content.body}</p>}
+          {content.body && <p className="whitespace-pre-wrap text-[15px] leading-7 text-slate-700">{renderLinkedText(content.body)}</p>}
           {content.media_type === "image" && content.media_url && (
             <img src={content.media_url} alt={content.title || t("publishedOnResa")} loading="lazy" className="mt-4 max-h-[620px] w-full rounded-2xl object-cover" />
           )}

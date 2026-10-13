@@ -44,6 +44,14 @@ function formatDate(value?: string) {
   });
 }
 
+function renderLinkedText(value: string) {
+  return value.split(/(https?:\/\/[^\s]+)/g).map((part, index) =>
+    /^https?:\/\//i.test(part)
+      ? <a key={index} href={part} target="_blank" rel="noreferrer" className="break-all text-sky-700 underline underline-offset-2 hover:text-sky-900">{part}</a>
+      : part,
+  );
+}
+
 export default function MessagesPage() {
   const [items, setItems] = useState<Conversation[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -61,6 +69,7 @@ export default function MessagesPage() {
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const searchParams = useSearchParams();
   const startedTarget = useRef<string | null>(null);
+  const startedInvite = useRef<string | null>(null);
 
   const selectedConversation = useMemo(
     () => items.find((item) => item.id === selected) ?? null,
@@ -110,6 +119,15 @@ export default function MessagesPage() {
     if (!target || startedTarget.current === target) return;
     startedTarget.current = target;
     void startConversation({ id: target, title: "Conversa direta" });
+  }, [searchParams]);
+
+  useEffect(() => {
+    const invite = searchParams.get("invite");
+    if (!invite || startedInvite.current === invite) return;
+    startedInvite.current = invite;
+    setBody(invite);
+    setNewOpen(true);
+    setError(null);
   }, [searchParams]);
 
   useEffect(() => {
@@ -298,7 +316,7 @@ export default function MessagesPage() {
                 {messages.map((message) => (
                   <div key={message.id} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
                     {message.parent_message_id && <p className="mb-3 rounded-xl border-l-2 border-[#9aa9c6] bg-slate-50 px-3 py-2 text-xs text-slate-500">Resposta a uma mensagem anterior</p>}
-                    <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{message.body}</p>
+                    <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{renderLinkedText(message.body)}</p>
                     <div className="mt-2 flex items-center justify-between gap-3"><p className="text-[11px] text-slate-400">{formatDate(message.created_at)}</p><button onClick={() => { setReplyTo(message); }} className="text-[11px] font-semibold text-[#0C1A3D]">Responder</button></div>
                   </div>
                 ))}
