@@ -95,9 +95,15 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$(find supabase/migrations -maxdepth 1 -type f -name '*.sql' -print -quit)"
-          names="$(find supabase/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\\n' | sort)"
-          test "$(printf '%s\\n' "$names" | awk '{print substr($0,1,14)}' | sort | uniq -d | wc -l)" -eq 0
-          printf '%s\\n' "$names"
+          names="$(find supabase/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort)"
+          timestamped_names="$(printf '%s\n' "$names" | grep -E '^[0-9]{14}_' || true)"
+          duplicate_versions="$(printf '%s\n' "$timestamped_names" | cut -c1-14 | sort | uniq -d)"
+          if [[ -n "$duplicate_versions" ]]; then
+            echo "Duplicate 14-digit migration timestamps:" >&2
+            printf '%s\n' "$duplicate_versions" >&2
+            exit 1
+          fi
+          printf '%s\n' "$names"
 
       - name: Check whitespace
         run: git diff --check

@@ -52,6 +52,12 @@ function renderLinkedText(value: string) {
   );
 }
 
+function mergeMessages(current: Message[], incoming: Message[]) {
+  const byId = new Map(current.map((message) => [message.id, message]));
+  for (const message of incoming) byId.set(message.id, message);
+  return [...byId.values()].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+}
+
 export default function MessagesPage() {
   const [items, setItems] = useState<Conversation[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -67,6 +73,7 @@ export default function MessagesPage() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const messageRequestId = useRef(0);
   const searchParams = useSearchParams();
   const startedTarget = useRef<string | null>(null);
   const startedInvite = useRef<string | null>(null);
@@ -76,16 +83,27 @@ export default function MessagesPage() {
     [items, selected],
   );
 
+  const selectedRef = useRef<string | null>(selected);
+  selectedRef.current = selected;
+
+  const selectConversation = useCallback((conversationId: string | null) => {
+    setMessages([]);
+    setReplyTo(null);
+    setLoadingMessages(Boolean(conversationId));
+    setSelected(conversationId);
+  }, []);
+
   const loadConversations = useCallback(async (autoSelect = true) => {
     try {
       const next = await resaRequest<Conversation[]>("/v1/resa/conversations");
       setItems(next);
       setError(null);
-      if (autoSelect && !selected && next[0]) setSelected(next[0].id);
+      if (autoSelect && !selected && next[0]) selectConversation(next[0].id);
+      else if (autoSelect && selected && !next.some((item) => item.id === selected)) selectConversation(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível carregar as conversas.");
     }
-  }, [selected]);
+  }, [selected, selectConversation]);
 
   useEffect(() => {
     if (!selected) return;
@@ -94,17 +112,22 @@ export default function MessagesPage() {
   }, [selected]);
 
   const loadMessages = useCallback(async (conversationId: string) => {
-    setLoadingMessages(true);
+    const requestId = ++messageRequestId.current;
+    if (selectedRef.current === conversationId) setLoadingMessages(true);
     try {
       const next = await resaRequest<Message[]>(
         "/v1/resa/conversations/" + conversationId + "/messages?limit=100",
       );
-      setMessages(next);
-      setError(null);
+      if (requestId === messageRequestId.current && selectedRef.current === conversationId) {
+        setMessages((current) => mergeMessages(current, next));
+        setError(null);
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Não foi possível carregar as mensagens.");
+      if (requestId === messageRequestId.current && selectedRef.current === conversationId) {
+        setError(e instanceof Error ? e.message : "Não foi possível carregar as mensagens.");
+      }
     } finally {
-      setLoadingMessages(false);
+      if (requestId === messageRequestId.current && selectedRef.current === conversationId) setLoadingMessages(false);
     }
   }, []);
 
@@ -135,7 +158,7 @@ export default function MessagesPage() {
     const supabase = createClient();
     const channel = supabase.channel("resa-messages-" + selected).on("postgres_changes", { event: "INSERT", schema: "public", table: "resa_messages", filter: "conversation_id=eq." + selected }, (payload) => {
       const incoming = payload.new as Message;
-      setMessages((current) => current.some((item) => item.id === incoming.id) ? current : [incoming, ...current]);
+      setMessages((current) => mergeMessages(current, [incoming]));
       if (incoming.sender_id !== undefined && typeof window !== "undefined") {
         try { window.dispatchEvent(new CustomEvent("resa-message-received")); } catch {}
       }
@@ -146,11 +169,19 @@ export default function MessagesPage() {
   useEffect(() => {
     if (!selected) {
       setMessages([]);
+      setReplyTo(null);
+      setLoadingMessages(false);
       return;
     }
+    messageRequestId.current += 1;
+    setMessages([]);
+    setReplyTo(null);
     void loadMessages(selected);
     const timer = window.setInterval(() => void loadMessages(selected), 5000);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearInterval(timer);
+      messageRequestId.current += 1;
+    };
   }, [selected, loadMessages]);
 
   async function searchPeople() {
@@ -184,7 +215,7 @@ export default function MessagesPage() {
       setPeople([]);
       // Select the new conversation immediately so the composer is available
       // even if the sidebar refresh is slow or temporarily fails.
-      setSelected(conversation.id);
+      selectConversation(conversation.id);
       setNewOpen(false);
       try {
         await loadConversations(false);
@@ -206,7 +237,7 @@ export default function MessagesPage() {
         "/v1/resa/conversations/" + selected + "/messages",
         { method: "POST", body: JSON.stringify({ body: value, parent_message_id: replyTo?.id ?? undefined }) },
       );
-      setMessages((current) => [msg, ...current]);
+      setMessages((current) => mergeMessages(current, [msg]));
       setBody("");
       setReplyTo(null);
       void loadConversations();
@@ -256,7 +287,7 @@ export default function MessagesPage() {
                 return (
                   <button
                     key={item.id}
-                    onClick={() => setSelected(item.id)}
+                    onClick={() => selectConversation(item.id)}
                     className={"mb-1 w-full rounded-2xl p-4 text-left transition " + (active ? "bg-[#0C1A3D] text-white shadow-sm" : "hover:bg-slate-50")}
                   >
                     <div className="flex items-center gap-3">

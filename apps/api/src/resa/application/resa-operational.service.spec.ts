@@ -1,8 +1,11 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ResaOperationalService } from './resa-operational.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 
 const LIVE_ID = '11111111-1111-4111-8111-111111111111';
+const CONVERSATION_ID = '22222222-2222-4222-8222-222222222222';
+const ACTOR_ID = '33333333-3333-4333-8333-333333333333';
+const TARGET_ID = '44444444-4444-4444-8444-444444444444';
 
 describe('ResaOperationalService live permissions', () => {
   let service: ResaOperationalService;
@@ -86,5 +89,44 @@ describe('ResaOperationalService live permissions', () => {
       expect.stringContaining('host_id=eq.host-user'),
     );
     expect(result.status).toBe('ended');
+  });
+
+  it('creates a conversation through one atomic RPC and deduplicates participant ids', async () => {
+    actorId = ACTOR_ID;
+    const rpcSpy = jest.spyOn(SupabaseRestClient.prototype, 'rpc')
+      .mockResolvedValue({ id: CONVERSATION_ID, kind: 'direct' } as never);
+
+    const result = await service.createConversation('session-token', [TARGET_ID, TARGET_ID, ACTOR_ID], '  Direct chat  ');
+
+    expect(rpcSpy).toHaveBeenCalledTimes(1);
+    expect(rpcSpy).toHaveBeenCalledWith('resa_create_conversation', 'session-token', {
+      p_member_ids: [TARGET_ID],
+      p_title: 'Direct chat',
+    });
+    expect(getSpy).not.toHaveBeenCalled();
+    expect(result.id).toBe(CONVERSATION_ID);
+  });
+
+  it('rejects creating a conversation with no other participant', async () => {
+    actorId = ACTOR_ID;
+    const rpcSpy = jest.spyOn(SupabaseRestClient.prototype, 'rpc').mockResolvedValue(null as never);
+
+    await expect(service.createConversation('session-token', [ACTOR_ID])).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(rpcSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not return an empty message list to a non-member', async () => {
+    actorId = ACTOR_ID;
+    getSpy.mockResolvedValueOnce([] as never);
+
+    await expect(service.listMessages('session-token', CONVERSATION_ID)).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(getSpy).toHaveBeenCalledTimes(1);
+    expect(getSpy).toHaveBeenCalledWith(
+      'resa_conversation_members',
+      'session-token',
+      expect.stringContaining(`conversation_id=eq.${CONVERSATION_ID}`),
+    );
   });
 });
