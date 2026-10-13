@@ -131,7 +131,7 @@ export default function ReportsPage() {
         {errors.length > 0 && <div role="alert" className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{errors.map((error) => <p key={error}>{error}</p>)}</div>}
 
         <section>
-          <div className="mb-4"><p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9B7A34]">Resumo executivo</p><h2 className="mt-2 text-2xl font-semibold tracking-tight">Indicadores recolhidos automaticamente</h2></div>
+          <div className="mb-4"><p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9B7A34]">Resumo executivo</p><h2 className="mt-2 text-2xl font-semibold tracking-tight">Indicadores dos registos existentes</h2></div>
           <div className="grid gap-3 grid-cols-2 xl:grid-cols-4">
             {[
               { label: "Ministérios", value: ministryDataAvailable ? numberLabel(ministries.length) : "—", detail: "Registados na organização" },
@@ -160,7 +160,7 @@ export default function ReportsPage() {
                 {ministries.map((ministry) => (
                   <div key={ministry.id} className="p-5">
                     <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#9B7A34]">{ministry.department}</p><h3 className="mt-1 font-semibold">{ministry.name}</h3></div><span className="rounded-full border border-slate-200 px-3 py-1 text-[10px] font-semibold text-slate-500">{ministry.status}</span></div>
-                    <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-500"><span>{ministry.metrics?.members ?? 0} membros</span><span>{ministry.leadership?.length ?? 0} dirigentes</span><span>{ministry.programs?.length ?? 0} programas</span><span>{ministry.reports?.length ?? 0} relatórios</span></div>
+                    <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-500"><span>{typeof ministry.metrics?.members === "number" ? numberLabel(ministry.metrics.members) : "—"} membros</span><span>{Array.isArray(ministry.leadership) ? ministry.leadership.length.toLocaleString("pt-PT") : "—"} dirigentes</span><span>{Array.isArray(ministry.programs) ? ministry.programs.length.toLocaleString("pt-PT") : "—"} programas</span><span>{Array.isArray(ministry.reports) ? ministry.reports.length.toLocaleString("pt-PT") : "—"} relatórios</span></div>
                     {(ministry.reports ?? []).length > 0 && <div className="mt-4 space-y-2">{ministry.reports?.map((report) => <div key={report.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2.5"><div><p className="text-sm font-medium">{report.title}</p><p className="mt-0.5 text-[10px] text-slate-400">{report.submitted_at ? new Intl.DateTimeFormat("pt-PT", { dateStyle: "medium" }).format(new Date(report.submitted_at)) : "Data não disponível"}</p></div><span className="text-xs text-slate-500">{report.status}</span></div>)}</div>}
                   </div>
                 ))}
@@ -190,7 +190,7 @@ export default function ReportsPage() {
         </section>
 
         <footer className="rounded-2xl border border-[#C8A24A]/30 bg-[#FBF8F0] p-5 text-sm leading-6 text-slate-600">
-          <strong className="text-[#0C1A3D]">Como funciona:</strong> o centro recolhe os dados reais da API quando a organização é selecionada e atualiza a compilação automaticamente a cada minuto enquanto esta página está aberta. Também pode atualizar manualmente ou imprimir/guardar em PDF. A submissão hierárquica para distrito/conferência/união exige um fluxo de destinatários, permissões e aprovação; esta página não declara um envio institucional que ainda não foi confirmado.
+          <strong className="text-[#0C1A3D]">Como funciona:</strong> o centro recolhe os dados reais da API quando a organização é selecionada e volta a consultar os dados a cada minuto enquanto esta página está aberta. Esta atualização da página não equivale à geração de um relatório institucional periódico. Também pode atualizar manualmente ou imprimir/guardar em PDF. A submissão hierárquica para distrito/conferência/união exige um fluxo de destinatários, permissões e aprovação; esta página não declara um envio institucional que ainda não foi confirmado.
         </footer>
       </div>
       <style jsx global>{`@media print { aside, header, button, footer { print-color-adjust: exact; } body { background: white !important; } main { padding: 0 !important; } }`}</style>
