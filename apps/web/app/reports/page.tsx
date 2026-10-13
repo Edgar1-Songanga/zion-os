@@ -110,8 +110,8 @@ export default function ReportsPage() {
               <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">Uma visão consolidada dos registos operacionais da organização. Os indicadores são recolhidos dos dados existentes; informação em falta é identificada, nunca substituída por números fictícios.</p>
             </div>
             <div className="relative min-w-0 rounded-2xl border border-white/15 bg-white/[0.07] p-4 lg:min-w-[285px]">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Estado da compilação</p>
-              <p className="mt-2 text-sm font-semibold">{loading ? "A recolher dados…" : lastUpdated ? "Relatório atualizado" : "À espera da organização"}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Estado da consulta</p>
+              <p className="mt-2 text-sm font-semibold">{loading ? "A recolher dados…" : lastUpdated ? "Dados consultados" : "À espera da organização"}</p>
               <p className="mt-1 text-xs text-slate-400">{lastUpdated ? new Intl.DateTimeFormat("pt-PT", { dateStyle: "medium", timeStyle: "short" }).format(new Date(lastUpdated)) : "Selecione uma organização para iniciar"}</p>
             </div>
           </div>
