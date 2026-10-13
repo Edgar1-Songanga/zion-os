@@ -43,6 +43,7 @@ export default function ReportsPage() {
   const [organizationId, setOrganizationId] = useState("");
   const [organization, setOrganization] = useState<ZionOrganization | null>(null);
   const [ministries, setMinistries] = useState<MinistryRow[]>([]);
+  const [ministryDataAvailable, setMinistryDataAvailable] = useState<boolean | null>(null);
   const [youth, setYouth] = useState<YouthReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
@@ -51,13 +52,20 @@ export default function ReportsPage() {
   const refresh = useCallback(async (id: string, quiet = false) => {
     if (!id) return;
     if (!quiet) setLoading(true);
+    setMinistryDataAvailable(null);
     const results = await Promise.allSettled([
       resaRequest<MinistryRow[]>(`/v1/ministries/organization/${encodeURIComponent(id)}`),
       resaRequest<YouthReport>(`/v1/youth/activities/organization/${encodeURIComponent(id)}/report`),
     ]);
     const nextErrors: string[] = [];
-    if (results[0].status === "fulfilled") setMinistries(results[0].value);
-    else nextErrors.push("Não foi possível carregar os ministérios e os relatórios associados.");
+    if (results[0].status === "fulfilled") {
+      setMinistries(results[0].value);
+      setMinistryDataAvailable(true);
+    } else {
+      setMinistries([]);
+      setMinistryDataAvailable(false);
+      nextErrors.push("Não foi possível carregar os ministérios e os relatórios associados.");
+    }
     if (results[1].status === "fulfilled") setYouth(results[1].value);
     else {
       setYouth(null);
@@ -126,12 +134,12 @@ export default function ReportsPage() {
           <div className="mb-4"><p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9B7A34]">Resumo executivo</p><h2 className="mt-2 text-2xl font-semibold tracking-tight">Indicadores recolhidos automaticamente</h2></div>
           <div className="grid gap-3 grid-cols-2 xl:grid-cols-4">
             {[
-              { label: "Ministérios", value: numberLabel(ministries.length), detail: "Registados na organização" },
-              { label: "Membros nos ministérios", value: numberLabel(members), detail: "Soma das adesões por ministério; pode incluir membros em mais de um" },
-              { label: "Liderança registada", value: numberLabel(leaders), detail: "Dirigentes associados" },
-              { label: "Programas ativos", value: numberLabel(activePrograms), detail: "Programas com estado ativo" },
-              { label: "Relatórios pendentes", value: numberLabel(pendingReports), detail: "Aguardam revisão" },
-              { label: "Relatórios aprovados", value: numberLabel(approvedReports), detail: "Registos aprovados" },
+              { label: "Ministérios", value: ministryDataAvailable ? numberLabel(ministries.length) : "—", detail: "Registados na organização" },
+              { label: "Membros nos ministérios", value: ministryDataAvailable ? numberLabel(members) : "—", detail: "Soma das adesões por ministério; pode incluir membros em mais de um" },
+              { label: "Liderança registada", value: ministryDataAvailable ? numberLabel(leaders) : "—", detail: "Dirigentes associados" },
+              { label: "Programas ativos", value: ministryDataAvailable ? numberLabel(activePrograms) : "—", detail: "Programas com estado ativo" },
+              { label: "Relatórios pendentes", value: ministryDataAvailable ? numberLabel(pendingReports) : "—", detail: "Aguardam revisão" },
+              { label: "Relatórios aprovados", value: ministryDataAvailable ? numberLabel(approvedReports) : "—", detail: "Registos aprovados" },
               { label: "Clubes jovens ativos", value: numberLabel(youth?.clubs_active), detail: "Ministério Jovem" },
               { label: "Membros jovens únicos", value: numberLabel(youth?.active_members_unique), detail: "Membros ativos deduplicados entre clubes" },
             ].map((item) => (
@@ -147,7 +155,7 @@ export default function ReportsPage() {
         <section className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
           <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
             <div className="border-b border-slate-100 p-5"><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#9B7A34]">Ministérios e relatórios</p><h2 className="mt-1 text-lg font-semibold">Registos disponíveis</h2></div>
-            {ministries.length === 0 ? <p className="p-6 text-sm text-slate-500">{organizationId ? "Ainda não existem ministérios registados ou não foi possível carregá-los." : "Selecione uma organização."}</p> : (
+            {ministryDataAvailable === false ? <p className="p-6 text-sm text-amber-800">Não foi possível confirmar os ministérios. Atualize os dados ou tente novamente mais tarde.</p> : ministries.length === 0 ? <p className="p-6 text-sm text-slate-500">{organizationId ? "Ainda não existem ministérios registados nesta organização." : "Selecione uma organização."}</p> : (
               <div className="divide-y divide-slate-100">
                 {ministries.map((ministry) => (
                   <div key={ministry.id} className="p-5">
