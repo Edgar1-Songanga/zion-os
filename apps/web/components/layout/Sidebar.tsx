@@ -51,6 +51,7 @@ export default function Sidebar() {
       title: t("organization"),
       items: [
         { name: t("administration"), path: "/admin" },
+        { name: "Administração da Igreja", path: "/church-administration" },
         { name: t("finance"), path: "/finance" },
         { name: t("humanResources"), path: "/hr" },
         { name: t("payroll"), path: "/payroll" },
