@@ -111,6 +111,7 @@ export default function ChurchDashboard() {
     (ministry.reports ?? []).map((report) => ({ ...report, ministryName: ministry.name })),
   );
   const activeMinistries = ministries.filter((ministry) => ministry.status?.toLowerCase() === "active").length;
+  const reportsDataAvailable = ministries.length > 0 && ministries.every((ministry) => Array.isArray(ministry.reports));
   const pendingReports = countStatus(allReports, "PENDING");
   const approvedReports = countStatus(allReports, "APPROVED");
   const activeMemberships = memberships?.filter((membership) => membership.status?.toUpperCase() === "ACTIVE").length;
@@ -167,8 +168,8 @@ export default function ChurchDashboard() {
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
             <MetricCard label="Associações ativas" value={formatNumber(activeMemberships)} detail="Acessos associados à organização; não equivale ao cadastro oficial de membros da Igreja." />
             <MetricCard label="Ministérios ativos" value={formatNumber(activeMinistries)} detail="Ministérios cujo estado está registado como ativo." />
-            <MetricCard label="Relatórios pendentes" value={formatNumber(allReports.length ? pendingReports : ministries.length ? 0 : undefined)} detail="Relatórios associados aos ministérios que aguardam revisão." />
-            <MetricCard label="Relatórios aprovados" value={formatNumber(allReports.length ? approvedReports : ministries.length ? 0 : undefined)} detail="Relatórios associados aos ministérios aprovados." />
+            <MetricCard label="Relatórios pendentes" value={formatNumber(reportsDataAvailable ? pendingReports : undefined)} detail="Relatórios associados aos ministérios que aguardam revisão." />
+            <MetricCard label="Relatórios aprovados" value={formatNumber(reportsDataAvailable ? approvedReports : undefined)} detail="Relatórios associados aos ministérios aprovados." />
             <MetricCard label="Clubes jovens ativos" value={formatNumber(youth?.clubs_active)} detail="Clubes ativos segundo o relatório operacional do Ministério Jovem." />
             <MetricCard label="Atividades jovens" value={formatNumber(youth?.activities_total)} detail={youth ? `${formatNumber(youth.activities_upcoming)} futuras · ${formatNumber(youth.activities_completed)} concluídas` : "Relatório operacional indisponível."} />
           </div>
