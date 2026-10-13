@@ -16,6 +16,8 @@ type Ministry = {
   metrics?: { members?: number };
 };
 type Membership = { id: string; user_id: string; status?: string; role_id?: string };
+type OrganizationUnit = { id: string; organization_id: string; parent_id: string | null; name: string; unit_type: string; description: string | null; is_active: boolean };
+type OrganizationNode = { id: string; name: string; organization_type: string; parent_id: string | null };
 type YouthReport = {
   clubs_total?: number;
   clubs_active?: number;
@@ -51,6 +53,8 @@ export default function ChurchDashboard() {
   const [ministries, setMinistries] = useState<Ministry[]>([]);
   const [memberships, setMemberships] = useState<Membership[] | null>(null);
   const [youth, setYouth] = useState<YouthReport | null>(null);
+  const [units, setUnits] = useState<OrganizationUnit[] | null>(null);
+  const [organizationTree, setOrganizationTree] = useState<OrganizationNode[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
@@ -62,6 +66,8 @@ export default function ChurchDashboard() {
       resaRequest<Ministry[]>(`/v1/ministries/organization/${encodeURIComponent(id)}`),
       resaRequest<Membership[]>(`/v1/organizations/${encodeURIComponent(id)}/memberships`),
       resaRequest<YouthReport>(`/v1/youth/activities/organization/${encodeURIComponent(id)}/report`),
+      resaRequest<OrganizationUnit[]>(`/v1/organizations/${encodeURIComponent(id)}/units`),
+      resaRequest<OrganizationNode[]>("/v1/organizations"),
     ]);
 
     const nextErrors: string[] = [];
@@ -79,6 +85,17 @@ export default function ChurchDashboard() {
     else {
       setYouth(null);
       nextErrors.push("O relatório operacional do Ministério Jovem não está disponível neste momento.");
+    }
+
+    if (results[3].status === "fulfilled") setUnits(results[3].value);
+    else {
+      setUnits(null);
+      nextErrors.push("A estrutura interna (unidades/departamentos) não pôde ser carregada.");
+    }
+    if (results[4].status === "fulfilled") setOrganizationTree(results[4].value);
+    else {
+      setOrganizationTree(null);
+      nextErrors.push("A hierarquia institucional acessível não pôde ser carregada.");
     }
 
     setErrors(nextErrors);
@@ -195,6 +212,42 @@ export default function ChurchDashboard() {
               ))}
             </div>
           )}
+        </section>
+
+        <section className="grid gap-5 xl:grid-cols-2">
+          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9B7A34]">Estrutura institucional</p>
+            <h2 className="mt-2 text-xl font-semibold">Organizações acessíveis</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500">Mostra apenas organizações devolvidas pela API para a sua sessão. Relações superiores não são inventadas quando não estão acessíveis.</p>
+            {!organizationTree ? <p className="mt-4 text-sm text-slate-500">Estrutura indisponível.</p> : organizationTree.length === 0 ? <p className="mt-4 text-sm text-slate-500">Não existem organizações acessíveis nesta sessão.</p> : (
+              <div className="mt-4 space-y-2">
+                {organizationTree.map((item) => {
+                  const parent = item.parent_id ? organizationTree.find((candidate) => candidate.id === item.parent_id) : null;
+                  return <div key={item.id} className={`rounded-xl border p-3 ${item.id === organizationId ? "border-[#C8A24A] bg-[#FBF8F0]" : "border-slate-100 bg-slate-50"}`}>
+                    <p className="font-semibold text-[#0C1A3D]">{item.name}</p>
+                    <p className="mt-1 text-xs text-slate-500">{item.organization_type}{parent ? ` · Unidade superior: ${parent.name}` : item.parent_id ? " · Unidade superior fora da lista acessível" : " · Sem unidade superior registada"}</p>
+                  </div>;
+                })}
+              </div>
+            )}
+          </article>
+          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9B7A34]">Estrutura local</p>
+            <h2 className="mt-2 text-xl font-semibold">Unidades e departamentos</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500">Unidades realmente registadas para a organização selecionada. A tipologia pode ser configurada conforme a estrutura usada em cada país.</p>
+            {!organizationId ? <p className="mt-4 text-sm text-slate-500">Selecione uma organização.</p> : units === null ? <p className="mt-4 text-sm text-slate-500">Unidades indisponíveis ou sem permissão de leitura.</p> : units.length === 0 ? <p className="mt-4 rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">Ainda não há unidades/departamentos registados nesta organização.</p> : (
+              <div className="mt-4 space-y-2">
+                {units.map((unit) => {
+                  const parent = unit.parent_id ? units.find((candidate) => candidate.id === unit.parent_id) : null;
+                  return <div key={unit.id} className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2"><p className="font-semibold text-[#0C1A3D]">{unit.name}</p><span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-500">{unit.unit_type}</span></div>
+                    <p className="mt-1 text-xs text-slate-500">{parent ? `Subunidade de ${parent.name}` : unit.parent_id ? "Unidade superior não devolvida pela API" : "Unidade de nível superior"} · {unit.is_active ? "Ativa" : "Inativa"}</p>
+                    {unit.description && <p className="mt-2 text-sm leading-5 text-slate-600">{unit.description}</p>}
+                  </div>;
+                })}
+              </div>
+            )}
+          </article>
         </section>
 
         <p className="text-xs leading-5 text-slate-500">
