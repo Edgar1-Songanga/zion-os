@@ -311,6 +311,24 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
     }
   }
 
+  async function shareBibleChallenge() {
+    if (!connected) return;
+    const text = "✦ Convite espiritual: vem fazer o Bible Challenge comigo no ZION OS! Explora as Escrituras e avança ao teu ritmo: " + window.location.origin + "/bible-engine#bible-challenge";
+    try {
+      await sendPacket({ type: "chat", text, name: roomRef.current?.localParticipant.name || "Participante" });
+      setMessages((current) => [...current, {
+        id: selfIdentity + "-bible-challenge-" + Date.now(),
+        identity: selfIdentity,
+        name: "Tu",
+        text,
+        sentAt: Date.now(),
+      }].slice(-200));
+      setNotice("Convite para o Bible Challenge enviado ao chat desta Live.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível partilhar o convite no chat da Live.");
+    }
+  }
+
   async function sendMessage(event: React.FormEvent) {
     event.preventDefault();
     const text = draft.trim();
@@ -444,6 +462,11 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
 
             {tab === "chat" ? (
               <>
+                <div className="border-b border-white/10 p-3">
+                  <button type="button" onClick={() => void shareBibleChallenge()} disabled={!connected} className="w-full rounded-xl border border-[#e2c477]/30 bg-[#e2c477]/10 px-3 py-2.5 text-left text-xs font-semibold text-[#f0d996] transition hover:bg-[#e2c477]/15 disabled:cursor-not-allowed disabled:opacity-50">
+                    ✦ Convidar para o Bible Challenge
+                  </button>
+                </div>
                 <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
                   {messages.length ? messages.map((message) => (
                     <div key={message.id} className="text-sm">
