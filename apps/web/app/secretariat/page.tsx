@@ -164,7 +164,8 @@ export default function SecretariatPage() {
   async function createFamilyRelationship(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!organizationId) return;
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const payload = {
       member_record_id: String(form.get("member_record_id") ?? ""),
       related_member_record_id: String(form.get("related_member_record_id") ?? ""),
@@ -181,7 +182,7 @@ export default function SecretariatPage() {
       });
       const relationships = await resaRequest<FamilyRelationship[]>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-member-families`);
       setFamilyRelationships(relationships);
-      event.currentTarget.reset();
+      formElement.reset();
       setFamilyNotice("Relação familiar registada.");
     } catch (reason) {
       setFamilyError(reason instanceof Error ? reason.message : "Não foi possível guardar a relação familiar.");
@@ -261,7 +262,7 @@ export default function SecretariatPage() {
               <h2 className="mt-2 text-xl font-semibold">Dados do membro</h2>
               <p className="mt-1 text-sm text-slate-500">Os dados são enviados para a API autenticada; a base de dados aplica as permissões RLS.</p>
             </div>
-            <form onSubmit={createMember} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <form key={editingMember?.id ?? "new-member"} onSubmit={createMember} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <label className="grid gap-1.5 text-xs font-medium text-slate-600">Nome próprio *<input required name="first_name" defaultValue={editingMember?.first_name ?? ""} maxLength={120} className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#C8A24A]" /></label>
               <label className="grid gap-1.5 text-xs font-medium text-slate-600">Apelido *<input required name="last_name" defaultValue={editingMember?.last_name ?? ""} maxLength={160} className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#C8A24A]" /></label>
               <label className="grid gap-1.5 text-xs font-medium text-slate-600">N.º de membro<input name="member_number" defaultValue={editingMember?.member_number ?? ""} maxLength={80} className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#C8A24A]" /></label>
