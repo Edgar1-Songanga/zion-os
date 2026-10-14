@@ -12,10 +12,12 @@ import { ChurchMemberFamiliesController } from './presentation/church-member-fam
 import { ChurchMemberFamiliesService } from './application/church-member-families.service';
 import { ChurchMemberTransfersController } from './presentation/church-member-transfers.controller';
 import { ChurchMemberTransfersService } from './application/church-member-transfers.service';
+import { ChurchMemberBaptismsController } from './presentation/church-member-baptisms.controller';
+import { ChurchMemberBaptismsService } from './application/church-member-baptisms.service';
 
 @Module({
   imports: [IdentityModule],
-  controllers: [OrganizationsController, OrganizationUnitsController, MembershipsController, ChurchMembersController, ChurchMemberFamiliesController, ChurchMemberTransfersController],
-  providers: [OrganizationsService, OrganizationUnitsService, MembershipsService, ChurchMembersService, ChurchMemberFamiliesService, ChurchMemberTransfersService],
+  controllers: [OrganizationsController, OrganizationUnitsController, MembershipsController, ChurchMembersController, ChurchMemberFamiliesController, ChurchMemberTransfersController, ChurchMemberBaptismsController],
+  providers: [OrganizationsService, OrganizationUnitsService, MembershipsService, ChurchMembersService, ChurchMemberFamiliesService, ChurchMemberTransfersService, ChurchMemberBaptismsService],
 })
 export class OrganizationsModule {}
