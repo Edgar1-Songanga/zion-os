@@ -427,6 +427,83 @@ export default function SecretariatPage() {
     }
   }
 
+  const reportSummary = useMemo(() => ({
+    totalMembers: members.length,
+    activeMembers: members.filter((member) => member.membership_status === "ACTIVE").length,
+    transferredMembers: members.filter((member) => member.membership_status === "TRANSFERRED").length,
+    inactiveMembers: members.filter((member) => member.membership_status === "INACTIVE").length,
+    deceasedMembers: members.filter((member) => member.membership_status === "DECEASED").length,
+    dismissedMembers: members.filter((member) => member.membership_status === "DISMISSED").length,
+    baptismsPending: baptisms.filter((record) => record.status === "PENDING").length,
+    baptismsValidated: baptisms.filter((record) => record.status === "VALIDATED").length,
+    baptismsRejected: baptisms.filter((record) => record.status === "REJECTED").length,
+    outgoingTransfers: transfers.filter((transfer) => transfer.origin_organization_id === organizationId).length,
+    incomingTransfers: transfers.filter((transfer) => transfer.destination_organization_id === organizationId).length,
+    transfersPending: transfers.filter((transfer) => transfer.status === "SUBMITTED").length,
+    transfersAccepted: transfers.filter((transfer) => transfer.status === "ACCEPTED").length,
+    transfersRejected: transfers.filter((transfer) => transfer.status === "REJECTED").length,
+    transfersDraft: transfers.filter((transfer) => transfer.status === "DRAFT").length,
+  }), [members, baptisms, transfers, organizationId]);
+
+  function downloadSecretariatReport() {
+    if (!organizationId || !organization) return;
+    const rows: string[][] = [
+      ["Relatório operacional da Secretaria"],
+      ["Organização", organization.name],
+      ["Tipo de organização", organization.organization_type],
+      ["Gerado em", new Date().toLocaleString("pt-PT")],
+      [],
+      ["Indicador", "Quantidade"],
+      ["Membros registados", String(reportSummary.totalMembers)],
+      ["Membros activos", String(reportSummary.activeMembers)],
+      ["Membros transferidos", String(reportSummary.transferredMembers)],
+      ["Membros inactivos", String(reportSummary.inactiveMembers)],
+      ["Membros falecidos", String(reportSummary.deceasedMembers)],
+      ["Membros removidos", String(reportSummary.dismissedMembers)],
+      ["Baptismos pendentes", String(reportSummary.baptismsPending)],
+      ["Baptismos validados", String(reportSummary.baptismsValidated)],
+      ["Baptismos rejeitados", String(reportSummary.baptismsRejected)],
+      ["Transferências de saída", String(reportSummary.outgoingTransfers)],
+      ["Transferências de entrada", String(reportSummary.incomingTransfers)],
+      ["Transferências submetidas / pendentes", String(reportSummary.transfersPending)],
+      ["Transferências aceites", String(reportSummary.transfersAccepted)],
+      ["Transferências recusadas", String(reportSummary.transfersRejected)],
+      ["Transferências em rascunho", String(reportSummary.transfersDraft)],
+      [],
+      ["Registos de membros"],
+      ["Número", "Nome", "Estado", "Data de entrada", "Data de baptismo"],
+      ...members.map((member) => [
+        member.member_number ?? "",
+        `${member.first_name} ${member.last_name}`,
+        STATUS_LABELS[member.membership_status] ?? member.membership_status,
+        member.joined_on ?? "",
+        member.baptism_date ?? "",
+      ]),
+      [],
+      ["Transferências"],
+      ["Direcção", "Membro", "Estado", "Data do pedido", "Organização de origem", "Organização de destino"],
+      ...transfers.map((transfer) => {
+        const member = members.find((item) => item.id === transfer.member_record_id);
+        return [
+          transfer.origin_organization_id === organizationId ? "Saída" : "Entrada",
+          member ? `${member.first_name} ${member.last_name}` : "Membro não carregado",
+          TRANSFER_STATUS_LABELS[transfer.status] ?? transfer.status,
+          transfer.request_date,
+          transfer.origin_organization_id,
+          transfer.destination_organization_id,
+        ];
+      }),
+    ];
+    const csv = rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(";")).join("\r\n");
+    const blob = new Blob(["\\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `secretaria-${organizationId}-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <main className="min-h-screen bg-[#F4F6FA] px-4 py-6 text-[#101B35] sm:px-8 sm:py-10">
       <div className="mx-auto max-w-7xl space-y-7">
@@ -617,7 +694,44 @@ export default function SecretariatPage() {
             </div>;
           })}</div>}
         </section>
-        <p className="px-1 text-xs leading-5 text-slate-400">Nesta primeira entrega estão incluídos o registo básico de membros, dados de baptismo, pesquisa e histórico automático de estado. Famílias, transferências formais, cartas, declarações, arquivo documental e relatórios administrativos exigem os seus próprios modelos de dados e fluxos auditáveis; não são simulados nesta página.</p>
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm print:border-0 print:shadow-none">
+          <div className="flex flex-col gap-4 border-b border-slate-100 p-5 sm:flex-row sm:items-end sm:justify-between sm:p-7">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9B7A34]">Relatórios administrativos</p>
+              <h2 className="mt-2 text-xl font-semibold">Relatório operacional da Secretaria</h2>
+              <p className="mt-1 text-sm text-slate-500">Resumo calculado exclusivamente a partir dos registos reais devolvidos pela API para a organização seleccionada. Não substitui os mapas oficiais exigidos pela Associação/Conferência.</p>
+              {organization && <p className="mt-2 text-xs text-slate-600">Organização: {organization.name} · Emitido em {new Date().toLocaleDateString("pt-PT")}</p>}
+            </div>
+            <div className="flex flex-wrap gap-2 print:hidden">
+              <button type="button" onClick={() => window.print()} disabled={!organizationId || loading} className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 disabled:opacity-40">Imprimir / Guardar PDF</button>
+              <button type="button" onClick={downloadSecretariatReport} disabled={!organizationId || loading} className="rounded-xl bg-[#0C1A3D] px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">Exportar CSV</button>
+            </div>
+          </div>
+          {!organizationId ? <p className="p-6 text-sm text-slate-500">Seleccione uma organização para gerar o relatório.</p> : (
+            <div className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 sm:p-7">
+              {[
+                ["Membros registados", reportSummary.totalMembers],
+                ["Membros activos", reportSummary.activeMembers],
+                ["Transferidos", reportSummary.transferredMembers],
+                ["Baptismos pendentes", reportSummary.baptismsPending],
+                ["Baptismos validados", reportSummary.baptismsValidated],
+                ["Baptismos rejeitados", reportSummary.baptismsRejected],
+                ["Transferências de saída", reportSummary.outgoingTransfers],
+                ["Transferências de entrada", reportSummary.incomingTransfers],
+                ["Transferências pendentes", reportSummary.transfersPending],
+                ["Transferências aceites", reportSummary.transfersAccepted],
+                ["Transferências recusadas", reportSummary.transfersRejected],
+                ["Transferências em rascunho", reportSummary.transfersDraft],
+              ].map(([label, value]) => <div key={label} className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                <p className="text-xs font-medium text-slate-500">{label}</p>
+                <p className="mt-2 text-2xl font-semibold text-[#0C1A3D]">{Number(value).toLocaleString("pt-PT")}</p>
+              </div>)}
+            </div>
+          )}
+          <div className="border-t border-slate-100 px-5 py-4 text-xs leading-5 text-slate-500 sm:px-7">
+            Os números reflectem apenas os dados acessíveis à sessão autenticada e carregados nesta página. Antes de usar um relatório para submissão institucional, deve ser comparado com os formulários e prazos oficiais da Associação/Conferência local.
+          </div>
+        </section>
       </div>
     </main>
   );
