@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { resaRequest } from "@/lib/resa/api";
 import { playNotificationAlert, type NotificationAlertPreferences } from "@/lib/notifications/notification-alerts";
@@ -34,6 +34,7 @@ export default function NotificationBell() {
   const [busy, setBusy] = useState(false);
   const [preferences, setPreferences] = useState<Preferences>(DEFAULT_PREFERENCES);
   const [settingsBusy, setSettingsBusy] = useState(false);
+  const preferencesRef = useRef<Preferences>(DEFAULT_PREFERENCES);
 
   async function load() {
     try {
@@ -97,7 +98,6 @@ export default function NotificationBell() {
   }, []);
 
   // Realtime handlers need the latest saved preferences without resubscribing.
-  const preferencesRef = { current: preferences };
   useEffect(() => { preferencesRef.current = preferences; }, [preferences]);
 
   const unread = items.filter((item) => !item.read_at).length;
