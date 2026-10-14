@@ -8,10 +8,13 @@ describe('ChurchMemberTransfersController', () => {
   it('extracts a bearer token from the Authorization header', () => {
     expect((controller as any).token('Bearer access-token')).toBe('access-token');
     expect((controller as any).token('bearer access-token')).toBe('access-token');
+    expect((controller as any).token('Bearer   access-token  ')).toBe('access-token');
   });
 
-  it('rejects a missing or malformed bearer header', () => {
+  it('rejects a missing, empty, or malformed bearer header', () => {
     expect(() => (controller as any).token(undefined)).toThrow(UnauthorizedException);
     expect(() => (controller as any).token('Basic access-token')).toThrow(UnauthorizedException);
+    expect(() => (controller as any).token('Bearer')).toThrow(UnauthorizedException);
+    expect(() => (controller as any).token('Bearer   ')).toThrow(UnauthorizedException);
   });
 });
