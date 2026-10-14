@@ -7,7 +7,7 @@ export class IdentityController {
 
   @Get('me')
   async me(@Headers('authorization') authorization?: string) {
-    const token = authorization?.replace(/^Bearer\\s+/i, '').trim();
+    const token = authorization?.replace(/^Bearer\s+/i, '').trim();
     if (!token) throw new UnauthorizedException('Bearer token is required');
     return this.identityService.getCurrentUser(token);
   }
