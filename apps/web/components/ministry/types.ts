@@ -60,6 +60,7 @@ export interface MinistryMetrics {
 
 export interface Ministry {
   id: string;
+  organizationId?: string;
 
   name: string;
   department: string;
