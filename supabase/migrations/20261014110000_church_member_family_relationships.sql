@@ -82,6 +82,48 @@ create trigger church_member_family_touch
 before update on public.church_member_family_relationships
 for each row execute function public.touch_church_member_family_relationship();
 
+create or replace function public.audit_church_member_family_relationship_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $function$
+declare
+  changed_fields text[];
+begin
+  if tg_op = 'INSERT' then
+    insert into public.audit_logs
+      (organization_id, actor_user_id, action, resource_type, resource_id, metadata)
+    values
+      (new.organization_id, auth.uid(), 'church_member_family.created',
+       'church_member_family_relationship', new.id,
+       jsonb_build_object('relationship_type', new.relationship_type));
+    return new;
+  end if;
+
+  select array_agg(field_name order by field_name)
+    into changed_fields
+  from jsonb_each(to_jsonb(new)) as new_field(field_name, field_value)
+  where field_name not in ('updated_at')
+    and (to_jsonb(old) -> field_name) is distinct from field_value;
+
+  insert into public.audit_logs
+    (organization_id, actor_user_id, action, resource_type, resource_id, metadata)
+  values
+    (new.organization_id, auth.uid(), 'church_member_family.updated',
+     'church_member_family_relationship', new.id,
+     jsonb_build_object('changed_fields', coalesce(to_jsonb(changed_fields), '[]'::jsonb)));
+
+  return new;
+end;
+$function$;
+
+drop trigger if exists church_member_family_audit on public.church_member_family_relationships;
+create trigger church_member_family_audit
+after insert or update on public.church_member_family_relationships
+for each row execute function public.audit_church_member_family_relationship_change();
+
+revoke all on function public.audit_church_member_family_relationship_change() from public, anon, authenticated;
 revoke all on function public.touch_church_member_family_relationship() from public, anon, authenticated;
 
 commit;
