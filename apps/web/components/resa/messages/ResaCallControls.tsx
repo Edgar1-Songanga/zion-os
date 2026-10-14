@@ -155,6 +155,9 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
   async function accept() {
     const target = incoming;
     if (!target) return;
+    incomingAlertCleanup.current?.();
+    incomingAlertCleanup.current = null;
+    incomingCallRef.current = null;
     try {
       setError(null);
       callRef.current = target; setCall(target);
@@ -177,6 +180,9 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
   async function decline() {
     if (!incoming) return;
     const target = incoming;
+    incomingAlertCleanup.current?.();
+    incomingAlertCleanup.current = null;
+    incomingCallRef.current = null;
     setIncoming(null);
     const { error: updateError } = await supabase.from("resa_calls")
       .update({ status: "ended", ended_at: new Date().toISOString() }).eq("id", target.id);
