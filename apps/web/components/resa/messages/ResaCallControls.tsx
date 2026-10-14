@@ -42,7 +42,18 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
     const channel = supabase.channel("resa-call-events-" + conversationId)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "resa_calls", filter: "conversation_id=eq." + conversationId }, (payload) => {
         const next = payload.new as CallRow;
-        if (next.initiator_id !== userId.current && next.status === "ringing" && !callRef.current) {\n          setIncoming(next);\n          void resaRequest<NotificationAlertPreferences>("/v1/notifications/preferences")\n            .then((preferences) => {\n              incomingAlertCleanup.current?.();\n              incomingAlertCleanup.current = playNotificationAlert("resa.call.incoming", preferences, true);\n            })\n            .catch(() => {\n              incomingAlertCleanup.current?.();\n              incomingAlertCleanup.current = playNotificationAlert("resa.call.incoming", undefined, true);\n            });\n        }
+        if (next.initiator_id !== userId.current && next.status === "ringing" && !callRef.current) {
+          setIncoming(next);
+          void resaRequest<NotificationAlertPreferences>("/v1/notifications/preferences")
+            .then((preferences) => {
+              incomingAlertCleanup.current?.();
+              incomingAlertCleanup.current = playNotificationAlert("resa.call.incoming", preferences, true);
+            })
+            .catch(() => {
+              incomingAlertCleanup.current?.();
+              incomingAlertCleanup.current = playNotificationAlert("resa.call.incoming", undefined, true);
+            });
+        }
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "resa_calls", filter: "conversation_id=eq." + conversationId }, (payload) => {
         const next = payload.new as CallRow;
@@ -52,9 +63,17 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
           callRef.current = null;
           setCall(null); setActive(false); setConnected(false);
         }
-        if (incoming?.id === next.id && ["ended", "declined", "missed"].includes(next.status)) {\n          incomingAlertCleanup.current?.();\n          incomingAlertCleanup.current = null;\n          setIncoming(null);\n        }
+        if (incoming?.id === next.id && ["ended", "declined", "missed"].includes(next.status)) {
+          incomingAlertCleanup.current?.();
+          incomingAlertCleanup.current = null;
+          setIncoming(null);
+        }
       }).subscribe();
-    return () => {\n      incomingAlertCleanup.current?.();\n      incomingAlertCleanup.current = null;\n      void supabase.removeChannel(channel);\n    };
+    return () => {
+      incomingAlertCleanup.current?.();
+      incomingAlertCleanup.current = null;
+      void supabase.removeChannel(channel);
+    };
   }, [conversationId, incoming?.id, supabase]);
 
   async function otherMembers() {
