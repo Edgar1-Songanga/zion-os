@@ -7,6 +7,8 @@ export type NotificationAlertPreferences = {
   quiet_end?: string | null;
 };
 
+let sharedAudioContext: AudioContext | undefined;
+
 function isQuietNow(start?: string | null, end?: string | null): boolean {
   if (!start || !end) return false;
   const now = new Date();
@@ -37,15 +39,14 @@ export function playNotificationAlert(
 
   let stopped = false;
   let timer: number | undefined;
-  let closeTimer: number | undefined;
-  let audio: AudioContext | undefined;
 
   const beep = () => {
     if (stopped || settings.sound_enabled === false || typeof window === 'undefined') return;
     const AudioContextClass = window.AudioContext;
     if (!AudioContextClass) return;
     try {
-      audio ??= new AudioContextClass();
+      sharedAudioContext ??= new AudioContextClass();
+      const audio = sharedAudioContext;
       if (audio.state === 'suspended') void audio.resume().catch(() => undefined);
       const oscillator = audio.createOscillator();
       const gain = audio.createGain();
@@ -75,13 +76,11 @@ export function playNotificationAlert(
   const alertOnce = () => { beep(); vibrate(); };
   alertOnce();
   if (repeat) timer = window.setInterval(alertOnce, 1800);
-  else closeTimer = window.setTimeout(() => { if (audio) void audio.close().catch(() => undefined); }, 500);
+
 
   return () => {
     stopped = true;
     if (timer !== undefined) window.clearInterval(timer);
-    if (closeTimer !== undefined) window.clearTimeout(closeTimer);
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate(0);
-    if (audio) void audio.close().catch(() => undefined);
   };
 }
