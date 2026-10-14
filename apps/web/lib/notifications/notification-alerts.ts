@@ -37,6 +37,7 @@ export function playNotificationAlert(
 
   let stopped = false;
   let timer: number | undefined;
+  let closeTimer: number | undefined;
   let audio: AudioContext | undefined;
 
   const beep = () => {
@@ -74,10 +75,12 @@ export function playNotificationAlert(
   const alertOnce = () => { beep(); vibrate(); };
   alertOnce();
   if (repeat) timer = window.setInterval(alertOnce, 1800);
+  else closeTimer = window.setTimeout(() => { if (audio) void audio.close().catch(() => undefined); }, 500);
 
   return () => {
     stopped = true;
     if (timer !== undefined) window.clearInterval(timer);
+    if (closeTimer !== undefined) window.clearTimeout(closeTimer);
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate(0);
     if (audio) void audio.close().catch(() => undefined);
   };
