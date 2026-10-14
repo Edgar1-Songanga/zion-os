@@ -5,6 +5,7 @@ import Card from "../ui/Card";
 import StatCard from "../ui/StatCard";
 import { resaRequest } from "@/lib/resa/api";
 import { getMinistryCatalogEntry } from "./ministry-catalog";
+import MinistryBibleStudyWorkspace from "./MinistryBibleStudyWorkspace";
 import type { Ministry } from "./types";
 
 interface MinistryDashboardProps {
@@ -172,6 +173,14 @@ export default function MinistryDashboard({ ministry, onUpdated }: MinistryDashb
               <a href={officialUrl} target="_blank" rel="noreferrer" className="inline-flex text-sm font-semibold text-[#0C1A3D] underline decoration-[#C8A24A] underline-offset-4">
                 Consultar referência oficial: {sourceLabel ?? "Igreja Adventista"}
               </a>
+            )}
+
+            {(ministryKey.includes("sabbath-school-personal-ministries") || ministryKey.includes("evangelism")) && (
+              <MinistryBibleStudyWorkspace
+                ministryId={ministry.id}
+                organizationId={(ministry as Ministry & { organizationId?: string }).organizationId}
+                ministryName={ministry.name}
+              />
             )}
 
             {relatedTools.length > 0 && (
