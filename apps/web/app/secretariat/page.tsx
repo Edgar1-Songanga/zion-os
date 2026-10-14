@@ -57,6 +57,7 @@ export default function SecretariatPage() {
   const [history, setHistory] = useState<StatusEvent[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
+  const [editingMember, setEditingMember] = useState<Member | null>(null);
 
   const loadMembers = useCallback(async (id: string) => {
     if (!id) return;
@@ -89,7 +90,8 @@ export default function SecretariatPage() {
   async function createMember(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!organizationId) return;
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const payload = {
       first_name: String(form.get("first_name") ?? "").trim(),
       last_name: String(form.get("last_name") ?? "").trim(),
@@ -106,13 +108,15 @@ export default function SecretariatPage() {
     setError("");
     setNotice("");
     try {
-      await resaRequest<Member>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-members`, {
-        method: "POST",
+      const path = `/v1/organizations/${encodeURIComponent(organizationId)}/church-members${editingMember ? `/${encodeURIComponent(editingMember.id)}` : ""}`;
+      await resaRequest<Member>(path, {
+        method: editingMember ? "PATCH" : "POST",
         body: JSON.stringify(payload),
       });
-      setNotice("Registo de membro criado e guardado na base de dados.");
+      setNotice(editingMember ? "Registo de membro actualizado." : "Registo de membro criado e guardado na base de dados.");
       setFormOpen(false);
-      event.currentTarget.reset();
+      setEditingMember(null);
+      formElement.reset();
       await loadMembers(organizationId);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível guardar o membro.");
@@ -175,7 +179,7 @@ export default function SecretariatPage() {
               className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-40">
               {loading ? "A actualizar…" : "Actualizar"}
             </button>
-            <button type="button" onClick={() => setFormOpen((open) => !open)} disabled={!organizationId}
+            <button type="button" onClick={() => { if (formOpen) { setFormOpen(false); setEditingMember(null); } else { setEditingMember(null); setFormOpen(true); } }} disabled={!organizationId}
               className="rounded-xl bg-[#0C1A3D] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#172c55] disabled:opacity-40">
               {formOpen ? "Fechar formulário" : "Adicionar membro"}
             </button>
@@ -188,24 +192,24 @@ export default function SecretariatPage() {
         {formOpen && (
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
             <div className="mb-5">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9B7A34]">Novo registo</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9B7A34]">{editingMember ? "Editar registo" : "Novo registo"}</p>
               <h2 className="mt-2 text-xl font-semibold">Dados do membro</h2>
               <p className="mt-1 text-sm text-slate-500">Os dados são enviados para a API autenticada; a base de dados aplica as permissões RLS.</p>
             </div>
             <form onSubmit={createMember} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <label className="grid gap-1.5 text-xs font-medium text-slate-600">Nome próprio *<input required name="first_name" maxLength={120} className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#C8A24A]" /></label>
-              <label className="grid gap-1.5 text-xs font-medium text-slate-600">Apelido *<input required name="last_name" maxLength={160} className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#C8A24A]" /></label>
-              <label className="grid gap-1.5 text-xs font-medium text-slate-600">N.º de membro<input name="member_number" maxLength={80} className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#C8A24A]" /></label>
-              <label className="grid gap-1.5 text-xs font-medium text-slate-600">Data de nascimento<input type="date" name="birth_date" className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#C8A24A]" /></label>
-              <label className="grid gap-1.5 text-xs font-medium text-slate-600">Data de baptismo<input type="date" name="baptism_date" className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#C8A24A]" /></label>
-              <label className="grid gap-1.5 text-xs font-medium text-slate-600">Data de entrada<input type="date" name="joined_on" className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#C8A24A]" /></label>
-              <label className="grid gap-1.5 text-xs font-medium text-slate-600">Sexo<select name="gender" defaultValue="" className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-[#C8A24A]"><option value="">Não especificado</option><option value="FEMALE">Feminino</option><option value="MALE">Masculino</option><option value="UNSPECIFIED">Não declarado</option></select></label>
-              <label className="grid gap-1.5 text-xs font-medium text-slate-600">Telefone<input name="phone" maxLength={40} autoComplete="tel" className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#C8A24A]" /></label>
-              <label className="grid gap-1.5 text-xs font-medium text-slate-600">Email<input name="email" type="email" maxLength={254} autoComplete="email" className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#C8A24A]" /></label>
-              <label className="grid gap-1.5 text-xs font-medium text-slate-600">Estado<select name="membership_status" defaultValue="ACTIVE" className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-[#C8A24A]">{Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+              <label className="grid gap-1.5 text-xs font-medium text-slate-600">Nome próprio *<input required name="first_name" defaultValue={editingMember?.first_name ?? ""} maxLength={120} className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#C8A24A]" /></label>
+              <label className="grid gap-1.5 text-xs font-medium text-slate-600">Apelido *<input required name="last_name" defaultValue={editingMember?.last_name ?? ""} maxLength={160} className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#C8A24A]" /></label>
+              <label className="grid gap-1.5 text-xs font-medium text-slate-600">N.º de membro<input name="member_number" defaultValue={editingMember?.member_number ?? ""} maxLength={80} className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#C8A24A]" /></label>
+              <label className="grid gap-1.5 text-xs font-medium text-slate-600">Data de nascimento<input type="date" name="birth_date" defaultValue={editingMember?.birth_date ?? ""} className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#C8A24A]" /></label>
+              <label className="grid gap-1.5 text-xs font-medium text-slate-600">Data de baptismo<input type="date" name="baptism_date" defaultValue={editingMember?.baptism_date ?? ""} className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#C8A24A]" /></label>
+              <label className="grid gap-1.5 text-xs font-medium text-slate-600">Data de entrada<input type="date" name="joined_on" defaultValue={editingMember?.joined_on ?? ""} className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#C8A24A]" /></label>
+              <label className="grid gap-1.5 text-xs font-medium text-slate-600">Sexo<select name="gender" defaultValue={editingMember?.gender ?? ""} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-[#C8A24A]"><option value="">Não especificado</option><option value="FEMALE">Feminino</option><option value="MALE">Masculino</option><option value="UNSPECIFIED">Não declarado</option></select></label>
+              <label className="grid gap-1.5 text-xs font-medium text-slate-600">Telefone<input name="phone" defaultValue={editingMember?.phone ?? ""} maxLength={40} autoComplete="tel" className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#C8A24A]" /></label>
+              <label className="grid gap-1.5 text-xs font-medium text-slate-600">Email<input name="email" type="email" defaultValue={editingMember?.email ?? ""} maxLength={254} autoComplete="email" className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#C8A24A]" /></label>
+              <label className="grid gap-1.5 text-xs font-medium text-slate-600">Estado<select name="membership_status" defaultValue={editingMember?.membership_status ?? "ACTIVE"} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-[#C8A24A]">{Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
               <div className="flex items-end sm:col-span-2 lg:col-span-3">
                 <button type="submit" disabled={saving} className="w-full rounded-xl bg-[#0C1A3D] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#172c55] disabled:opacity-50 sm:w-auto">
-                  {saving ? "A guardar…" : "Guardar registo"}
+                  {saving ? "A guardar…" : editingMember ? "Guardar alterações" : "Guardar registo"}
                 </button>
               </div>
             </form>
@@ -234,7 +238,7 @@ export default function SecretariatPage() {
                     <td className="px-5 py-4 text-slate-600">{dateLabel(member.baptism_date)}</td>
                     <td className="px-5 py-4 text-slate-600"><p>{member.phone || "—"}</p><p className="mt-1 text-xs text-slate-400">{member.email || ""}</p></td>
                     <td className="px-5 py-4"><span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${member.membership_status === "ACTIVE" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{STATUS_LABELS[member.membership_status] ?? member.membership_status}</span></td>
-                    <td className="px-5 py-4"><button type="button" onClick={() => void toggleHistory(member.id)} className="text-xs font-semibold text-[#7B6127] underline-offset-4 hover:underline">{historyMemberId === member.id ? "Fechar" : "Ver histórico"}</button></td>
+                    <td className="px-5 py-4"><div className="flex items-center gap-3"><button type="button" onClick={() => { setEditingMember(member); setFormOpen(true); setError(""); setNotice(""); }} className="text-xs font-semibold text-[#0C1A3D] underline-offset-4 hover:underline">Editar</button><button type="button" onClick={() => void toggleHistory(member.id)} className="text-xs font-semibold text-[#7B6127] underline-offset-4 hover:underline">{historyMemberId === member.id ? "Fechar" : "Histórico"}</button></div></td>
                   </tr>).flatMap((row, index) => {
                     const member = filteredMembers[index];
                     if (historyMemberId !== member.id) return [row];
