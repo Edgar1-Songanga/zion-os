@@ -172,6 +172,17 @@ begin
      new.status, auth.uid(),
      case when new.status in ('VALIDATED', 'REJECTED') then new.validation_note else new.notes end);
 
+  insert into public.audit_logs
+    (organization_id, actor_user_id, action, resource_type, resource_id, metadata)
+  values
+    (new.organization_id, auth.uid(),
+     case when tg_op = 'INSERT' then 'church_member_baptism.created' else 'church_member_baptism.status_changed' end,
+     'church_member_baptism_record', new.id,
+     jsonb_build_object(
+       'previous_status', case when tg_op = 'INSERT' then null else old.status end,
+       'new_status', new.status
+     ));
+
   if new.status = 'VALIDATED' then
     update public.church_member_records
       set baptism_date = new.baptism_date, updated_at = now()
