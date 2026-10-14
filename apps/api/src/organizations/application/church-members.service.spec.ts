@@ -53,6 +53,15 @@ describe('ChurchMembersService', () => {
     expect(postSpy).not.toHaveBeenCalled();
   });
 
+  it('rejects impossible calendar dates before writing to the database', async () => {
+    await expect(service.create(accessToken, organizationId, {
+      first_name: 'Ana',
+      last_name: 'Silva',
+      birth_date: '2026-02-31',
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+
   it('rejects unsupported membership states', async () => {
     await expect(service.create(accessToken, organizationId, {
       first_name: 'Ana',
