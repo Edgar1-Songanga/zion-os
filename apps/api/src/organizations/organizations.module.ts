@@ -8,10 +8,12 @@ import { MembershipsController } from './presentation/memberships.controller';
 import { MembershipsService } from './application/memberships.service';
 import { ChurchMembersController } from './presentation/church-members.controller';
 import { ChurchMembersService } from './application/church-members.service';
+import { ChurchMemberFamiliesController } from './presentation/church-member-families.controller';
+import { ChurchMemberFamiliesService } from './application/church-member-families.service';
 
 @Module({
   imports: [IdentityModule],
-  controllers: [OrganizationsController, OrganizationUnitsController, MembershipsController, ChurchMembersController],
-  providers: [OrganizationsService, OrganizationUnitsService, MembershipsService, ChurchMembersService],
+  controllers: [OrganizationsController, OrganizationUnitsController, MembershipsController, ChurchMembersController, ChurchMemberFamiliesController],
+  providers: [OrganizationsService, OrganizationUnitsService, MembershipsService, ChurchMembersService, ChurchMemberFamiliesService],
 })
 export class OrganizationsModule {}
