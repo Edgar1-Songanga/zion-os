@@ -138,6 +138,15 @@ begin
       raise exception 'Validation metadata requires a decision transition' using errcode = '42501';
     end if;
   elsif new.status in ('VALIDATED', 'REJECTED') then
+    if new.baptism_date is distinct from old.baptism_date
+      or new.location is distinct from old.location
+      or new.congregation_name is distinct from old.congregation_name
+      or new.minister_name is distinct from old.minister_name
+      or new.document_reference is distinct from old.document_reference
+      or new.notes is distinct from old.notes
+    then
+      raise exception 'Baptism details must be saved before the validation decision' using errcode = '42501';
+    end if;
     new.validated_by := actor;
     new.validated_at := now();
   else
@@ -172,17 +181,6 @@ begin
      new.status, auth.uid(),
      case when new.status in ('VALIDATED', 'REJECTED') then new.validation_note else new.notes end);
 
-  insert into public.audit_logs
-    (organization_id, actor_user_id, action, resource_type, resource_id, metadata)
-  values
-    (new.organization_id, auth.uid(),
-     case when tg_op = 'INSERT' then 'church_member_baptism.created' else 'church_member_baptism.status_changed' end,
-     'church_member_baptism_record', new.id,
-     jsonb_build_object(
-       'previous_status', case when tg_op = 'INSERT' then null else old.status end,
-       'new_status', new.status
-     ));
-
   if new.status = 'VALIDATED' then
     update public.church_member_records
       set baptism_date = new.baptism_date, updated_at = now()
@@ -197,7 +195,49 @@ create trigger church_member_baptism_history_write
 after insert or update of status on public.church_member_baptism_records
 for each row execute function public.record_church_member_baptism_history();
 
+create or replace function public.audit_church_member_baptism_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $function$
+declare
+  changed_fields text[];
+begin
+  if tg_op = 'INSERT' then
+    insert into public.audit_logs
+      (organization_id, actor_user_id, action, resource_type, resource_id, metadata)
+    values
+      (new.organization_id, auth.uid(), 'church_member_baptism.created',
+       'church_member_baptism_record', new.id,
+       jsonb_build_object('status', new.status));
+    return new;
+  end if;
+
+  select array_agg(field_name order by field_name)
+    into changed_fields
+  from jsonb_each(to_jsonb(new)) as new_field(field_name, field_value)
+  where field_name not in ('updated_at')
+    and (to_jsonb(old) -> field_name) is distinct from field_value;
+
+  insert into public.audit_logs
+    (organization_id, actor_user_id, action, resource_type, resource_id, metadata)
+  values
+    (new.organization_id, auth.uid(), 'church_member_baptism.updated',
+     'church_member_baptism_record', new.id,
+     jsonb_build_object('changed_fields', coalesce(to_jsonb(changed_fields), '[]'::jsonb)));
+
+  return new;
+end;
+$function$;
+
+drop trigger if exists church_member_baptism_audit on public.church_member_baptism_records;
+create trigger church_member_baptism_audit
+after insert or update on public.church_member_baptism_records
+for each row execute function public.audit_church_member_baptism_change();
+
 revoke all on function public.guard_church_member_baptism_change() from public, anon, authenticated;
 revoke all on function public.record_church_member_baptism_history() from public, anon, authenticated;
+revoke all on function public.audit_church_member_baptism_change() from public, anon, authenticated;
 
 commit;
