@@ -155,7 +155,7 @@ export default function NotificationBell() {
                 Vibração: {preferences.vibration_enabled === false ? "Desativada" : "Ativada"}
               </button>
             </div>
-            <p className="mt-2 text-[10px] leading-4 text-slate-500">A reprodução depende das permissões do navegador e do suporte do dispositivo.</p>
+            <div className="mt-2 flex items-center justify-between gap-2"><p className="text-[10px] leading-4 text-slate-500">O navegador e o dispositivo podem limitar estes alertas.</p><button type="button" onClick={() => { playNotificationAlert("notification.test", preferences); }} className="shrink-0 rounded-lg px-2 py-1 text-[10px] font-semibold text-[var(--zion-primary)] hover:bg-white">Testar alerta</button></div>
           </div>
           <div className="max-h-80 overflow-y-auto">
             {!items.length && <p className="px-5 py-10 text-center text-sm text-[var(--zion-muted)]">Não há notificações.</p>}
