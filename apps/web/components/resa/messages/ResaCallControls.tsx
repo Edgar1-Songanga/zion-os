@@ -164,8 +164,6 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
   async function decline() {
     if (!incoming) return;
     const target = incoming;
-    incomingAlertCleanup.current?.();
-    incomingAlertCleanup.current = null;
     incomingCallRef.current = null;
     setIncoming(null);
     const { error: updateError } = await supabase.from("resa_calls")
