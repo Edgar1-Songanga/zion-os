@@ -25,7 +25,7 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
   const remoteMedia = useRef<HTMLDivElement | null>(null);
   const userId = useRef<string | null>(null);
   const callRef = useRef<CallRow | null>(null);
-  const incomingAlertCleanup = useRef<(() => void) | null>(null);
+  const incomingAlertCleanup = useRef<(() => void) | null>(null);\n  const incomingCallRef = useRef<CallRow | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -43,7 +43,7 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "resa_calls", filter: "conversation_id=eq." + conversationId }, (payload) => {
         const next = payload.new as CallRow;
         if (next.initiator_id !== userId.current && next.status === "ringing" && !callRef.current) {
-          setIncoming(next);
+          incomingCallRef.current = next;\n          setIncoming(next);
           void resaRequest<NotificationAlertPreferences>("/v1/notifications/preferences")
             .then((preferences) => {
               incomingAlertCleanup.current?.();
@@ -63,10 +63,10 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
           callRef.current = null;
           setCall(null); setActive(false); setConnected(false);
         }
-        if (incoming?.id === next.id && ["ended", "declined", "missed"].includes(next.status)) {
+        if (incomingCallRef.current?.id === next.id && ["ended", "declined", "missed"].includes(next.status)) {
           incomingAlertCleanup.current?.();
           incomingAlertCleanup.current = null;
-          setIncoming(null);
+          incomingCallRef.current = null;\n          setIncoming(null);
         }
       }).subscribe();
     return () => {
@@ -74,7 +74,7 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
       incomingAlertCleanup.current = null;
       void supabase.removeChannel(channel);
     };
-  }, [conversationId, incoming?.id, supabase]);
+  }, [conversationId, supabase]);
 
   async function otherMembers() {
     if (!userId.current) throw new Error("Sessão ZION não encontrada.");
