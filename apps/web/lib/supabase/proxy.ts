@@ -10,6 +10,10 @@ const protectedPrefixes = [
   "/admin",
   "/finance",
   "/reports",
+  "/secretariat",
+  "/church-administration",
+  "/hr",
+  "/payroll",
 ];
 
 function isProtectedPath(pathname: string) {
@@ -20,51 +24,35 @@ function isProtectedPath(pathname: string) {
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
-
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {
       cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
+        getAll() { return request.cookies.getAll(); },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value),
-          );
-
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           response = NextResponse.next({ request });
-
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options),
-          );
+          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
         },
       },
     },
   );
-
   const { data: claimsData } = await supabase.auth.getClaims();
   const isAuthenticated = Boolean(claimsData?.claims?.sub);
   const { pathname, search } = request.nextUrl;
-
   if (!isAuthenticated && isProtectedPath(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/auth/sign-in";
     url.searchParams.set("next", `${pathname}${search}`);
     return NextResponse.redirect(url);
   }
-
-  if (
-    isAuthenticated &&
-    (pathname === "/auth/sign-in" || pathname === "/auth/sign-up")
-  ) {
+  if (isAuthenticated && (pathname === "/auth/sign-in" || pathname === "/auth/sign-up")) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     url.search = "";
     return NextResponse.redirect(url);
   }
-
   response.headers.set("Cache-Control", "private, no-store");
   return response;
 }
