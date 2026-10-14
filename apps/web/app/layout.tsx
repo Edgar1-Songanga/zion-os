@@ -3,6 +3,7 @@ import "./globals.css";
 import AppShell from "@/components/layout/AppShell";
 import { TranslationProvider } from "@/components/i18n";
 import BibleChallengeNudge from "@/components/bible-engine/BibleChallengeNudge";
+import GlobalResaCallAlerts from "@/components/notifications/GlobalResaCallAlerts";
 
 export const metadata: Metadata = {
   title: "ZION OS",
@@ -18,6 +19,7 @@ export default function RootLayout({
     <html lang="pt">
       <body className="min-h-screen bg-slate-100">
         <TranslationProvider>
+          <GlobalResaCallAlerts />
           <AppShell>{children}</AppShell>
           <BibleChallengeNudge />
         </TranslationProvider>
