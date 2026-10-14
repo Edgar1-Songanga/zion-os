@@ -22,6 +22,28 @@ type Member = {
   created_at: string;
   updated_at: string;
 };
+type BaptismRecord = {
+  id: string;
+  organization_id: string;
+  member_record_id: string;
+  baptism_date: string;
+  location: string;
+  congregation_name: string;
+  minister_name: string;
+  document_reference: string | null;
+  notes: string | null;
+  status: "PENDING" | "VALIDATED" | "REJECTED";
+  validated_at: string | null;
+  validation_note: string | null;
+  created_at: string;
+};
+type BaptismEvent = { id: string; previous_status: string | null; new_status: string; actor_user_id: string | null; note: string | null; changed_at: string };
+const BAPTISM_STATUS_LABELS: Record<BaptismRecord["status"], string> = {
+  PENDING: "Pendente de validação",
+  VALIDATED: "Validado",
+  REJECTED: "Rejeitado",
+};
+
 type MemberTransfer = {
   id: string;
   member_record_id: string;
@@ -105,6 +127,13 @@ export default function SecretariatPage() {
   const [familySaving, setFamilySaving] = useState(false);
   const [familyError, setFamilyError] = useState("");
   const [familyNotice, setFamilyNotice] = useState("");
+  const [baptisms, setBaptisms] = useState<BaptismRecord[]>([]);
+  const [baptismsLoading, setBaptismsLoading] = useState(false);
+  const [baptismSaving, setBaptismSaving] = useState(false);
+  const [baptismError, setBaptismError] = useState("");
+  const [baptismNotice, setBaptismNotice] = useState("");
+  const [baptismHistoryId, setBaptismHistoryId] = useState("");
+  const [baptismHistory, setBaptismHistory] = useState<BaptismEvent[]>([]);
   const [destinationOrganizationId, setDestinationOrganizationId] = useState("");
   const [transfers, setTransfers] = useState<MemberTransfer[]>([]);
   const [transfersLoading, setTransfersLoading] = useState(false);
@@ -142,6 +171,17 @@ export default function SecretariatPage() {
         setFamilyError(familyReason instanceof Error ? familyReason.message : "Não foi possível carregar as relações familiares.");
       } finally {
         setFamilyLoading(false);
+      }
+      setBaptismsLoading(true);
+      setBaptismError("");
+      try {
+        const baptismItems = await resaRequest<BaptismRecord[]>(`/v1/organizations/${encodeURIComponent(id)}/church-baptisms`);
+        setBaptisms(baptismItems);
+      } catch (baptismReason) {
+        setBaptisms([]);
+        setBaptismError(baptismReason instanceof Error ? baptismReason.message : "Não foi possível carregar os registos de baptismo.");
+      } finally {
+        setBaptismsLoading(false);
       }
     } catch (reason) {
       setMembers([]);
@@ -199,6 +239,73 @@ export default function SecretariatPage() {
       setError(reason instanceof Error ? reason.message : "Não foi possível guardar o membro.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function createBaptism(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!organizationId) return;
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    const payload = {
+      member_record_id: String(form.get("member_record_id") ?? ""),
+      baptism_date: String(form.get("baptism_date") ?? ""),
+      location: String(form.get("location") ?? "").trim(),
+      congregation_name: String(form.get("congregation_name") ?? "").trim(),
+      minister_name: String(form.get("minister_name") ?? "").trim(),
+      document_reference: String(form.get("document_reference") ?? "").trim() || null,
+      notes: String(form.get("notes") ?? "").trim() || null,
+    };
+    setBaptismSaving(true);
+    setBaptismError("");
+    setBaptismNotice("");
+    try {
+      await resaRequest<BaptismRecord>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-baptisms`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      const items = await resaRequest<BaptismRecord[]>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-baptisms`);
+      setBaptisms(items);
+      formElement.reset();
+      setBaptismNotice("Registo de baptismo criado e enviado para validação.");
+    } catch (reason) {
+      setBaptismError(reason instanceof Error ? reason.message : "Não foi possível registar o baptismo.");
+    } finally {
+      setBaptismSaving(false);
+    }
+  }
+
+  async function decideBaptism(record: BaptismRecord, status: "VALIDATED" | "REJECTED") {
+    const note = window.prompt(status === "VALIDATED" ? "Nota de validação (opcional):" : "Motivo da rejeição (recomendado):");
+    if (note === null) return;
+    setBaptismError("");
+    setBaptismNotice("");
+    try {
+      await resaRequest<BaptismRecord>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-baptisms/${encodeURIComponent(record.id)}/decision`, {
+        method: "PATCH",
+        body: JSON.stringify({ status, validation_note: note.trim() || null }),
+      });
+      const items = await resaRequest<BaptismRecord[]>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-baptisms`);
+      setBaptisms(items);
+      setBaptismNotice(status === "VALIDATED" ? "Baptismo validado; a data oficial do membro foi actualizada." : "Registo de baptismo rejeitado e decisão auditada.");
+    } catch (reason) {
+      setBaptismError(reason instanceof Error ? reason.message : "Não foi possível decidir este registo.");
+    }
+  }
+
+  async function toggleBaptismHistory(baptismId: string) {
+    if (baptismHistoryId === baptismId) {
+      setBaptismHistoryId("");
+      setBaptismHistory([]);
+      return;
+    }
+    setBaptismHistoryId(baptismId);
+    setBaptismHistory([]);
+    try {
+      const events = await resaRequest<BaptismEvent[]>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-baptisms/${encodeURIComponent(baptismId)}/history`);
+      setBaptismHistory(events);
+    } catch (reason) {
+      setBaptismError(reason instanceof Error ? reason.message : "Não foi possível consultar o histórico do baptismo.");
     }
   }
 
@@ -332,7 +439,7 @@ export default function SecretariatPage() {
               <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-[#E2C477]">ZION OS · Administração eclesiástica</p>
               <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-5xl">Secretaria</h1>
               <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
-                Registo oficial de membros, dados de baptismo e histórico de estado, protegido pelo âmbito e pelas permissões da organização seleccionada.
+                Registo oficial de membros, baptismos validados, relações familiares e transferências, protegido pelo âmbito e pelas permissões da organização seleccionada.
               </p>
             </div>
             <div className="relative rounded-2xl border border-white/15 bg-white/[0.07] p-4 lg:min-w-[220px]">
@@ -443,6 +550,40 @@ export default function SecretariatPage() {
             return <div key={relationship.id} className="flex flex-col gap-1 px-5 py-4 sm:px-7"><p className="text-sm font-semibold">{member ? `${member.first_name} ${member.last_name}` : "Membro"} <span className="font-normal text-slate-500">{RELATIONSHIP_LABELS[relationship.relationship_type] ?? relationship.relationship_type}</span> {related ? `${related.first_name} ${related.last_name}` : "membro relacionado"}</p>{relationship.notes && <p className="text-xs text-slate-500">{relationship.notes}</p>}</div>;
           })}</div>}
         </section>
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-100 p-5 sm:p-7">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9B7A34]">Registo sacramental</p>
+            <h2 className="mt-2 text-xl font-semibold">Baptismos e validação documental</h2>
+            <p className="mt-1 text-sm text-slate-500">Cada registo inclui membro, data, local, congregação, ministro e referência documental. A validação é uma decisão explícita, com histórico auditável.</p>
+          </div>
+          {baptismError && <p role="alert" className="mx-5 mt-5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 sm:mx-7">{baptismError}</p>}
+          {baptismNotice && <p role="status" className="mx-5 mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 sm:mx-7">{baptismNotice}</p>}
+          <form onSubmit={createBaptism} className="grid gap-4 border-b border-slate-100 p-5 sm:grid-cols-2 lg:grid-cols-3 sm:p-7">
+            <label className="grid gap-1.5 text-xs font-medium text-slate-600">Membro<select required name="member_record_id" defaultValue="" className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm"><option value="" disabled>Seleccionar membro</option>{members.map((member) => <option key={member.id} value={member.id}>{member.first_name} {member.last_name}{member.member_number ? ` · ${member.member_number}` : ""}</option>)}</select></label>
+            <label className="grid gap-1.5 text-xs font-medium text-slate-600">Data do baptismo<input required type="date" name="baptism_date" className="rounded-xl border border-slate-200 px-3 py-3 text-sm" /></label>
+            <label className="grid gap-1.5 text-xs font-medium text-slate-600">Local<input required name="location" maxLength={250} className="rounded-xl border border-slate-200 px-3 py-3 text-sm" /></label>
+            <label className="grid gap-1.5 text-xs font-medium text-slate-600">Congregação<input required name="congregation_name" maxLength={250} className="rounded-xl border border-slate-200 px-3 py-3 text-sm" /></label>
+            <label className="grid gap-1.5 text-xs font-medium text-slate-600">Ministro responsável<input required name="minister_name" maxLength={200} className="rounded-xl border border-slate-200 px-3 py-3 text-sm" /></label>
+            <label className="grid gap-1.5 text-xs font-medium text-slate-600">Referência documental<input name="document_reference" maxLength={500} className="rounded-xl border border-slate-200 px-3 py-3 text-sm" placeholder="Identificador do arquivo oficial" /></label>
+            <label className="grid gap-1.5 text-xs font-medium text-slate-600 sm:col-span-2 lg:col-span-3">Observações<textarea name="notes" maxLength={4000} rows={2} className="rounded-xl border border-slate-200 px-3 py-3 text-sm" /></label>
+            <div className="sm:col-span-2 lg:col-span-3"><button type="submit" disabled={baptismSaving || !organizationId || members.length === 0} className="rounded-xl bg-[#0C1A3D] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{baptismSaving ? "A guardar…" : "Registar baptismo para validação"}</button></div>
+          </form>
+          {baptismsLoading ? <p className="p-6 text-sm text-slate-500">A carregar registos de baptismo…</p> : baptisms.length === 0 ? <p className="p-6 text-sm text-slate-500">Não existem registos de baptismo visíveis nesta organização.</p> : <div className="divide-y divide-slate-100">{baptisms.map((record) => {
+            const member = members.find((item) => item.id === record.member_record_id);
+            return <div key={record.id} className="space-y-3 p-5 sm:p-7">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div><p className="font-semibold">{member ? `${member.first_name} ${member.last_name}` : "Membro"}</p><p className="mt-1 text-sm text-slate-600">{dateLabel(record.baptism_date)} · {record.location} · {record.congregation_name}</p><p className="mt-1 text-xs text-slate-500">Ministro: {record.minister_name}{record.document_reference ? ` · Documento: ${record.document_reference}` : ""}</p>{record.notes && <p className="mt-2 text-sm text-slate-500">{record.notes}</p>}{record.validation_note && <p className="mt-2 text-sm text-slate-600">Nota da decisão: {record.validation_note}</p>}</div>
+                <span className={`inline-flex w-fit rounded-full px-3 py-1.5 text-xs font-semibold ${record.status === "VALIDATED" ? "bg-emerald-50 text-emerald-700" : record.status === "REJECTED" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-800"}`}>{BAPTISM_STATUS_LABELS[record.status]}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                {record.status === "PENDING" && <><button type="button" onClick={() => void decideBaptism(record, "VALIDATED")} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white">Validar</button><button type="button" onClick={() => void decideBaptism(record, "REJECTED")} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">Rejeitar</button></>}
+                <button type="button" onClick={() => void toggleBaptismHistory(record.id)} className="text-xs font-semibold text-[#7B6127] underline-offset-4 hover:underline">{baptismHistoryId === record.id ? "Fechar histórico" : "Ver histórico"}</button>
+              </div>
+              {baptismHistoryId === record.id && <div className="rounded-xl bg-slate-50 p-4">{baptismHistory.length === 0 ? <p className="text-xs text-slate-500">Sem eventos disponíveis para este registo.</p> : <ol className="space-y-2">{baptismHistory.map((event) => <li key={event.id} className="text-xs text-slate-600">{event.previous_status ? `${BAPTISM_STATUS_LABELS[event.previous_status as keyof typeof BAPTISM_STATUS_LABELS] ?? event.previous_status} → ` : "Criado → "}{BAPTISM_STATUS_LABELS[event.new_status as keyof typeof BAPTISM_STATUS_LABELS] ?? event.new_status} · {dateLabel(event.changed_at)}{event.note ? ` · ${event.note}` : ""}</li>)}</ol>}</div>}
+            </div>;
+          })}</div>}
+        </section>
+
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-100 p-5 sm:p-7">
             <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9B7A34]">Movimentação eclesiástica</p>
