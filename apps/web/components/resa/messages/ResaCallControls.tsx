@@ -48,10 +48,12 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
           setIncoming(next);
           void resaRequest<NotificationAlertPreferences>("/v1/notifications/preferences")
             .then((preferences) => {
+              if (incomingCallRef.current?.id !== next.id) return;
               incomingAlertCleanup.current?.();
               incomingAlertCleanup.current = playNotificationAlert("resa.call.incoming", preferences, true);
             })
             .catch(() => {
+              if (incomingCallRef.current?.id !== next.id) return;
               incomingAlertCleanup.current?.();
               incomingAlertCleanup.current = playNotificationAlert("resa.call.incoming", undefined, true);
             });
