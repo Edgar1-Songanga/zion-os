@@ -16,8 +16,9 @@ export class ChurchMemberTransfersController {
   constructor(private readonly transfers: ChurchMemberTransfersService) {}
 
   private token(authorization?: string) {
-    const token = authorization?.replace(/^Bearer\s+/i, '').trim();
-    if (!token) throw new UnauthorizedException('Bearer token is required');
+    const match = authorization?.match(/^Bearer\s+(.+)$/i);
+    const token = match?.[1]?.trim();
+    if (!token) throw new UnauthorizedException('A valid Bearer token is required');
     return token;
   }
 
