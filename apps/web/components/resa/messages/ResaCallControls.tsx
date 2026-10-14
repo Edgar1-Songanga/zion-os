@@ -65,7 +65,7 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
           callRef.current = null;
           setCall(null); setActive(false); setConnected(false);
         }
-        if (incomingCallRef.current?.id === next.id && ["ended", "declined", "missed"].includes(next.status)) {
+        if (incomingCallRef.current?.id === next.id && ["ended", "declined", "missed", "active"].includes(next.status)) {
           incomingAlertCleanup.current?.();
           incomingAlertCleanup.current = null;
           incomingCallRef.current = null;
