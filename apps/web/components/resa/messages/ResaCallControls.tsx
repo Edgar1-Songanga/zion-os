@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Room, RoomEvent, Track } from "livekit-client";
 import { createClient } from "@/lib/supabase/client";
 import { resaRequest } from "@/lib/resa/api";
+import { playNotificationAlert, type NotificationAlertPreferences } from "@/lib/notifications/notification-alerts";
 
 type CallKind = "audio" | "video";
 type CallRow = { id: string; conversation_id: string; initiator_id: string; kind: CallKind; status: string };
@@ -24,6 +25,7 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
   const remoteMedia = useRef<HTMLDivElement | null>(null);
   const userId = useRef<string | null>(null);
   const callRef = useRef<CallRow | null>(null);
+  const incomingAlertCleanup = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -40,7 +42,7 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
     const channel = supabase.channel("resa-call-events-" + conversationId)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "resa_calls", filter: "conversation_id=eq." + conversationId }, (payload) => {
         const next = payload.new as CallRow;
-        if (next.initiator_id !== userId.current && next.status === "ringing" && !callRef.current) setIncoming(next);
+        if (next.initiator_id !== userId.current && next.status === "ringing" && !callRef.current) {\n          setIncoming(next);\n          void resaRequest<NotificationAlertPreferences>("/v1/notifications/preferences")\n            .then((preferences) => {\n              incomingAlertCleanup.current?.();\n              incomingAlertCleanup.current = playNotificationAlert("resa.call.incoming", preferences, true);\n            })\n            .catch(() => {\n              incomingAlertCleanup.current?.();\n              incomingAlertCleanup.current = playNotificationAlert("resa.call.incoming", undefined, true);\n            });\n        }
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "resa_calls", filter: "conversation_id=eq." + conversationId }, (payload) => {
         const next = payload.new as CallRow;
@@ -50,9 +52,9 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
           callRef.current = null;
           setCall(null); setActive(false); setConnected(false);
         }
-        if (incoming?.id === next.id && ["ended", "declined", "missed"].includes(next.status)) setIncoming(null);
+        if (incoming?.id === next.id && ["ended", "declined", "missed"].includes(next.status)) {\n          incomingAlertCleanup.current?.();\n          incomingAlertCleanup.current = null;\n          setIncoming(null);\n        }
       }).subscribe();
-    return () => { void supabase.removeChannel(channel); };
+    return () => {\n      incomingAlertCleanup.current?.();\n      incomingAlertCleanup.current = null;\n      void supabase.removeChannel(channel);\n    };
   }, [conversationId, incoming?.id, supabase]);
 
   async function otherMembers() {
