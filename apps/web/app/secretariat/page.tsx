@@ -285,8 +285,7 @@ export default function SecretariatPage() {
         method: "PATCH",
         body: JSON.stringify({ status, validation_note: note.trim() || null }),
       });
-      const items = await resaRequest<BaptismRecord[]>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-baptisms`);
-      setBaptisms(items);
+      await loadMembers(organizationId);
       setBaptismNotice(status === "VALIDATED" ? "Baptismo validado; a data oficial do membro foi actualizada." : "Registo de baptismo rejeitado e decisão auditada.");
     } catch (reason) {
       setBaptismError(reason instanceof Error ? reason.message : "Não foi possível decidir este registo.");
