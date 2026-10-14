@@ -137,7 +137,7 @@ export class ChurchMembersService {
         result[field] = null;
         continue;
       }
-      if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(`${value}T00:00:00Z`))) {
+      if (typeof value !== 'string' || !this.isValidDate(value)) {
         throw new BadRequestException(`${field} must be a valid date in YYYY-MM-DD format.`);
       }
       result[field] = value;
@@ -167,8 +167,10 @@ export class ChurchMembersService {
   }
 
   private isValidDate(value: string): boolean {
-    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false;
-    const [year, month, day] = value.split('-').map(Number);
+    if (value.length !== 10 || value[4] !== '-' || value[7] !== '-') return false;
+    const digits = value.slice(0, 4) + value.slice(5, 7) + value.slice(8, 10);
+    if ([...digits].some((character) => character < '0' || character > '9')) return false;
+    const [year, month, day] = [Number(digits.slice(0, 4)), Number(digits.slice(4, 6)), Number(digits.slice(6, 8))];
     const parsed = new Date(Date.UTC(year, month - 1, day));
     return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day;
   }
