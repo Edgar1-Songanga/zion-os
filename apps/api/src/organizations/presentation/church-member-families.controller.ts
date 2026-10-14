@@ -13,7 +13,7 @@ export class ChurchMemberFamiliesController {
   constructor(private readonly families: ChurchMemberFamiliesService) {}
 
   private token(authorization?: string) {
-    const token = authorization?.replace(/^Bearer\\s+/i, '').trim();
+    const token = authorization?.replace(/^Bearer\s+/i, '').trim();
     if (!token) throw new UnauthorizedException('Bearer token is required');
     return token;
   }
