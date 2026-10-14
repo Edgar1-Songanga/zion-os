@@ -22,6 +22,21 @@ type Member = {
   created_at: string;
   updated_at: string;
 };
+type MemberTransfer = {
+  id: string;
+  member_record_id: string;
+  origin_organization_id: string;
+  destination_organization_id: string;
+  status: "DRAFT" | "SUBMITTED" | "ACCEPTED" | "REJECTED" | "CANCELLED";
+  request_date: string;
+  reason: string | null;
+  document_reference: string | null;
+  submitted_at: string | null;
+  decided_at: string | null;
+  decision_note: string | null;
+  created_at: string;
+};
+type TransferEvent = { id: string; previous_status: string | null; new_status: string; actor_user_id: string | null; note: string | null; changed_at: string };
 type FamilyRelationship = {
   id: string;
   organization_id: string;
@@ -40,6 +55,13 @@ type StatusEvent = {
   changed_at: string;
 };
 
+const TRANSFER_STATUS_LABELS: Record<MemberTransfer["status"], string> = {
+  DRAFT: "Rascunho",
+  SUBMITTED: "Submetido",
+  ACCEPTED: "Aceite",
+  REJECTED: "Recusado",
+  CANCELLED: "Cancelado",
+};
 const RELATIONSHIP_LABELS: Record<FamilyRelationship["relationship_type"], string> = {
   PARENT_OF: "É progenitor de",
   CHILD_OF: "É filho/a de",
@@ -83,6 +105,14 @@ export default function SecretariatPage() {
   const [familySaving, setFamilySaving] = useState(false);
   const [familyError, setFamilyError] = useState("");
   const [familyNotice, setFamilyNotice] = useState("");
+  const [destinationOrganizationId, setDestinationOrganizationId] = useState("");
+  const [transfers, setTransfers] = useState<MemberTransfer[]>([]);
+  const [transfersLoading, setTransfersLoading] = useState(false);
+  const [transferSaving, setTransferSaving] = useState(false);
+  const [transferError, setTransferError] = useState("");
+  const [transferNotice, setTransferNotice] = useState("");
+  const [transferHistoryId, setTransferHistoryId] = useState("");
+  const [transferHistory, setTransferHistory] = useState<TransferEvent[]>([]);
 
   const loadMembers = useCallback(async (id: string) => {
     if (!id) return;
@@ -91,6 +121,17 @@ export default function SecretariatPage() {
     try {
       const data = await resaRequest<Member[]>(`/v1/organizations/${encodeURIComponent(id)}/church-members`);
       setMembers(data);
+      setTransfersLoading(true);
+      setTransferError("");
+      try {
+        const transferItems = await resaRequest<MemberTransfer[]>(`/v1/organizations/${encodeURIComponent(id)}/church-member-transfers`);
+        setTransfers(transferItems);
+      } catch (transferReason) {
+        setTransfers([]);
+        setTransferError(transferReason instanceof Error ? transferReason.message : "Não foi possível carregar as transferências.");
+      } finally {
+        setTransfersLoading(false);
+      }
       setFamilyLoading(true);
       setFamilyError("");
       try {
@@ -158,6 +199,73 @@ export default function SecretariatPage() {
       setError(reason instanceof Error ? reason.message : "Não foi possível guardar o membro.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function createTransfer(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!organizationId) return;
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    const payload = {
+      member_record_id: String(form.get("member_record_id") ?? ""),
+      destination_organization_id: destinationOrganizationId,
+      request_date: String(form.get("request_date") ?? ""),
+      reason: String(form.get("reason") ?? "").trim() || null,
+      document_reference: String(form.get("document_reference") ?? "").trim() || null,
+    };
+    setTransferSaving(true);
+    setTransferError("");
+    setTransferNotice("");
+    try {
+      await resaRequest<MemberTransfer>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-member-transfers`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      const items = await resaRequest<MemberTransfer[]>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-member-transfers`);
+      setTransfers(items);
+      formElement.reset();
+      setTransferNotice("Pedido de transferência criado como rascunho. Submeta-o para decisão da organização de destino.");
+    } catch (reason) {
+      setTransferError(reason instanceof Error ? reason.message : "Não foi possível criar o pedido de transferência.");
+    } finally {
+      setTransferSaving(false);
+    }
+  }
+
+  async function changeTransferStatus(transfer: MemberTransfer, status: MemberTransfer["status"]) {
+    const note = status === "ACCEPTED" || status === "REJECTED"
+      ? window.prompt(status === "ACCEPTED" ? "Nota da decisão de aceitação (opcional):" : "Motivo da recusa (recomendado):")
+      : null;
+    if ((status === "ACCEPTED" || status === "REJECTED") && note === null) return;
+    setTransferError("");
+    setTransferNotice("");
+    try {
+      await resaRequest<MemberTransfer>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-member-transfers/${encodeURIComponent(transfer.id)}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status, decision_note: note }),
+      });
+      const items = await resaRequest<MemberTransfer[]>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-member-transfers`);
+      setTransfers(items);
+      setTransferNotice("Estado da transferência actualizado e registado no histórico.");
+    } catch (reason) {
+      setTransferError(reason instanceof Error ? reason.message : "A transição foi recusada. Confirme o âmbito e as permissões da organização.");
+    }
+  }
+
+  async function toggleTransferHistory(transferId: string) {
+    if (transferHistoryId === transferId) {
+      setTransferHistoryId("");
+      setTransferHistory([]);
+      return;
+    }
+    setTransferHistoryId(transferId);
+    setTransferHistory([]);
+    try {
+      const events = await resaRequest<TransferEvent[]>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-member-transfers/${encodeURIComponent(transferId)}/history`);
+      setTransferHistory(events);
+    } catch (reason) {
+      setTransferError(reason instanceof Error ? reason.message : "Não foi possível carregar o histórico da transferência.");
     }
   }
 
@@ -333,6 +441,40 @@ export default function SecretariatPage() {
             const member = members.find((item) => item.id === relationship.member_record_id);
             const related = members.find((item) => item.id === relationship.related_member_record_id);
             return <div key={relationship.id} className="flex flex-col gap-1 px-5 py-4 sm:px-7"><p className="text-sm font-semibold">{member ? `${member.first_name} ${member.last_name}` : "Membro"} <span className="font-normal text-slate-500">{RELATIONSHIP_LABELS[relationship.relationship_type] ?? relationship.relationship_type}</span> {related ? `${related.first_name} ${related.last_name}` : "membro relacionado"}</p>{relationship.notes && <p className="text-xs text-slate-500">{relationship.notes}</p>}</div>;
+          })}</div>}
+        </section>
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-100 p-5 sm:p-7">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9B7A34]">Movimentação eclesiástica</p>
+            <h2 className="mt-2 text-xl font-semibold">Transferências de membros</h2>
+            <p className="mt-1 text-sm text-slate-500">Pedidos entre organizações, com submissão, decisão pela organização de destino e histórico gerado na base de dados.</p>
+          </div>
+          {transferError && <p role="alert" className="mx-5 mt-5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 sm:mx-7">{transferError}</p>}
+          {transferNotice && <p role="status" className="mx-5 mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 sm:mx-7">{transferNotice}</p>}
+          <form onSubmit={createTransfer} className="grid gap-4 border-b border-slate-100 p-5 sm:grid-cols-2 lg:grid-cols-3 sm:p-7">
+            <label className="grid gap-1.5 text-xs font-medium text-slate-600">Membro a transferir<select required name="member_record_id" defaultValue="" className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm"><option value="" disabled>Seleccionar membro</option>{members.map((member) => <option key={member.id} value={member.id}>{member.first_name} {member.last_name}{member.member_number ? ` · ${member.member_number}` : ""}</option>)}</select></label>
+            <OrganizationSelector value={destinationOrganizationId} onChange={(id) => setDestinationOrganizationId(id)} />
+            <label className="grid gap-1.5 text-xs font-medium text-slate-600">Data do pedido<input required type="date" name="request_date" defaultValue={new Date().toISOString().slice(0, 10)} className="rounded-xl border border-slate-200 px-3 py-3 text-sm" /></label>
+            <label className="grid gap-1.5 text-xs font-medium text-slate-600">Motivo (opcional)<input name="reason" maxLength={2000} className="rounded-xl border border-slate-200 px-3 py-3 text-sm" /></label>
+            <label className="grid gap-1.5 text-xs font-medium text-slate-600">Referência documental (opcional)<input name="document_reference" maxLength={500} className="rounded-xl border border-slate-200 px-3 py-3 text-sm" placeholder="Referência do documento já arquivado" /></label>
+            <div className="flex items-end"><button type="submit" disabled={transferSaving || !organizationId || !destinationOrganizationId || members.length === 0} className="rounded-xl bg-[#0C1A3D] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{transferSaving ? "A guardar…" : "Criar pedido"}</button></div>
+          </form>
+          {transfersLoading ? <p className="p-6 text-sm text-slate-500">A carregar transferências…</p> : transfers.length === 0 ? <p className="p-6 text-sm text-slate-500">Não existem transferências visíveis para esta organização.</p> : <div className="divide-y divide-slate-100">{transfers.map((transfer) => {
+            const member = members.find((item) => item.id === transfer.member_record_id);
+            const isOrigin = transfer.origin_organization_id === organizationId;
+            return <div key={transfer.id} className="space-y-3 p-5 sm:p-7">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div><p className="font-semibold">{member ? `${member.first_name} ${member.last_name}` : "Registo de membro"}</p><p className="mt-1 text-xs text-slate-500">{isOrigin ? "Saída para" : "Entrada de"} organização · {(isOrigin ? transfer.destination_organization_id : transfer.origin_organization_id).slice(0, 8)}… · Pedido: {dateLabel(transfer.request_date)}</p>{transfer.reason && <p className="mt-2 text-sm text-slate-600">{transfer.reason}</p>}{transfer.decision_note && <p className="mt-1 text-sm text-slate-600">Decisão: {transfer.decision_note}</p>}</div>
+                <span className="inline-flex w-fit rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold">{TRANSFER_STATUS_LABELS[transfer.status]}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                {isOrigin && transfer.status === "DRAFT" && <button type="button" onClick={() => void changeTransferStatus(transfer, "SUBMITTED")} className="rounded-lg bg-[#0C1A3D] px-3 py-2 text-xs font-semibold text-white">Submeter</button>}
+                {isOrigin && ["DRAFT", "SUBMITTED"].includes(transfer.status) && <button type="button" onClick={() => void changeTransferStatus(transfer, "CANCELLED")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold">Cancelar</button>}
+                {!isOrigin && transfer.status === "SUBMITTED" && <><button type="button" onClick={() => void changeTransferStatus(transfer, "ACCEPTED")} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white">Aceitar</button><button type="button" onClick={() => void changeTransferStatus(transfer, "REJECTED")} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">Recusar</button></>}
+                <button type="button" onClick={() => void toggleTransferHistory(transfer.id)} className="text-xs font-semibold text-[#7B6127] underline-offset-4 hover:underline">{transferHistoryId === transfer.id ? "Fechar histórico" : "Ver histórico"}</button>
+              </div>
+              {transferHistoryId === transfer.id && <div className="rounded-xl bg-slate-50 p-4">{transferHistory.length === 0 ? <p className="text-xs text-slate-500">Sem eventos ou sem permissão para consultar o histórico.</p> : <ol className="space-y-2">{transferHistory.map((event) => <li key={event.id} className="text-xs text-slate-600">{event.previous_status ? `${TRANSFER_STATUS_LABELS[event.previous_status as keyof typeof TRANSFER_STATUS_LABELS] ?? event.previous_status} → ` : "Criado → "}{TRANSFER_STATUS_LABELS[event.new_status as keyof typeof TRANSFER_STATUS_LABELS] ?? event.new_status} · {dateLabel(event.changed_at)}{event.note ? ` · ${event.note}` : ""}</li>)}</ol>}</div>}
+            </div>;
           })}</div>}
         </section>
         <p className="px-1 text-xs leading-5 text-slate-400">Nesta primeira entrega estão incluídos o registo básico de membros, dados de baptismo, pesquisa e histórico automático de estado. Famílias, transferências formais, cartas, declarações, arquivo documental e relatórios administrativos exigem os seus próprios modelos de dados e fluxos auditáveis; não são simulados nesta página.</p>
