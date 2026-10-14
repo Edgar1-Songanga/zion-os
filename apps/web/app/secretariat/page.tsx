@@ -22,12 +22,32 @@ type Member = {
   created_at: string;
   updated_at: string;
 };
+type FamilyRelationship = {
+  id: string;
+  organization_id: string;
+  member_record_id: string;
+  related_member_record_id: string;
+  relationship_type: "PARENT_OF" | "CHILD_OF" | "SPOUSE" | "SIBLING" | "GUARDIAN_OF" | "WARD_OF" | "OTHER";
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+};
 type StatusEvent = {
   id: string;
   previous_status: string | null;
   new_status: string;
   note: string | null;
   changed_at: string;
+};
+
+const RELATIONSHIP_LABELS: Record<FamilyRelationship["relationship_type"], string> = {
+  PARENT_OF: "É progenitor de",
+  CHILD_OF: "É filho/a de",
+  SPOUSE: "Cônjuge de",
+  SIBLING: "Irmão/irmã de",
+  GUARDIAN_OF: "Tutor/a de",
+  WARD_OF: "Pessoa sob tutela de",
+  OTHER: "Outra relação com",
 };
 
 const STATUS_LABELS: Record<Member["membership_status"], string> = {
@@ -58,6 +78,11 @@ export default function SecretariatPage() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [familyRelationships, setFamilyRelationships] = useState<FamilyRelationship[]>([]);
+  const [familyLoading, setFamilyLoading] = useState(false);
+  const [familySaving, setFamilySaving] = useState(false);
+  const [familyError, setFamilyError] = useState("");
+  const [familyNotice, setFamilyNotice] = useState("");
 
   const loadMembers = useCallback(async (id: string) => {
     if (!id) return;
@@ -66,6 +91,17 @@ export default function SecretariatPage() {
     try {
       const data = await resaRequest<Member[]>(`/v1/organizations/${encodeURIComponent(id)}/church-members`);
       setMembers(data);
+      setFamilyLoading(true);
+      setFamilyError("");
+      try {
+        const relationships = await resaRequest<FamilyRelationship[]>(`/v1/organizations/${encodeURIComponent(id)}/church-member-families`);
+        setFamilyRelationships(relationships);
+      } catch (familyReason) {
+        setFamilyRelationships([]);
+        setFamilyError(familyReason instanceof Error ? familyReason.message : "Não foi possível carregar as relações familiares.");
+      } finally {
+        setFamilyLoading(false);
+      }
     } catch (reason) {
       setMembers([]);
       setError(reason instanceof Error ? reason.message : "Não foi possível carregar o registo de membros.");
@@ -122,6 +158,35 @@ export default function SecretariatPage() {
       setError(reason instanceof Error ? reason.message : "Não foi possível guardar o membro.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function createFamilyRelationship(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!organizationId) return;
+    const form = new FormData(event.currentTarget);
+    const payload = {
+      member_record_id: String(form.get("member_record_id") ?? ""),
+      related_member_record_id: String(form.get("related_member_record_id") ?? ""),
+      relationship_type: String(form.get("relationship_type") ?? ""),
+      notes: String(form.get("notes") ?? "").trim() || null,
+    };
+    setFamilySaving(true);
+    setFamilyError("");
+    setFamilyNotice("");
+    try {
+      await resaRequest<FamilyRelationship>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-member-families`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      const relationships = await resaRequest<FamilyRelationship[]>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-member-families`);
+      setFamilyRelationships(relationships);
+      event.currentTarget.reset();
+      setFamilyNotice("Relação familiar registada.");
+    } catch (reason) {
+      setFamilyError(reason instanceof Error ? reason.message : "Não foi possível guardar a relação familiar.");
+    } finally {
+      setFamilySaving(false);
     }
   }
 
@@ -247,6 +312,27 @@ export default function SecretariatPage() {
                 </tbody>
               </table>
             </div>}
+        </section>
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-100 p-5 sm:p-7">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9B7A34]">Estrutura familiar</p>
+            <h2 className="mt-2 text-xl font-semibold">Relações entre membros</h2>
+            <p className="mt-1 text-sm text-slate-500">As duas pessoas têm de pertencer à mesma organização; a base de dados impede relações entre organizações diferentes.</p>
+          </div>
+          {familyError && <p role="alert" className="mx-5 mt-5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 sm:mx-7">{familyError}</p>}
+          {familyNotice && <p role="status" className="mx-5 mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 sm:mx-7">{familyNotice}</p>}
+          <form onSubmit={createFamilyRelationship} className="grid gap-4 border-b border-slate-100 p-5 sm:grid-cols-2 sm:p-7 lg:grid-cols-4">
+            <label className="grid gap-1.5 text-xs font-medium text-slate-600">Membro<select required name="member_record_id" defaultValue="" className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm"><option value="" disabled>Seleccionar membro</option>{members.map((member) => <option key={member.id} value={member.id}>{member.first_name} {member.last_name}{member.member_number ? ` · ${member.member_number}` : ""}</option>)}</select></label>
+            <label className="grid gap-1.5 text-xs font-medium text-slate-600">Relação<select required name="relationship_type" defaultValue="PARENT_OF" className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm">{Object.entries(RELATIONSHIP_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <label className="grid gap-1.5 text-xs font-medium text-slate-600">Membro relacionado<select required name="related_member_record_id" defaultValue="" className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm"><option value="" disabled>Seleccionar membro</option>{members.map((member) => <option key={member.id} value={member.id}>{member.first_name} {member.last_name}{member.member_number ? ` · ${member.member_number}` : ""}</option>)}</select></label>
+            <label className="grid gap-1.5 text-xs font-medium text-slate-600">Observação (opcional)<input name="notes" maxLength={2000} className="rounded-xl border border-slate-200 px-3 py-3 text-sm" placeholder="Nota administrativa" /></label>
+            <div className="sm:col-span-2 lg:col-span-4"><button type="submit" disabled={familySaving || familyLoading || members.length < 2} className="rounded-xl bg-[#0C1A3D] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{familySaving ? "A guardar…" : "Registar relação familiar"}</button></div>
+          </form>
+          {familyLoading ? <p className="p-6 text-sm text-slate-500">A carregar relações familiares…</p> : familyRelationships.length === 0 ? <p className="p-6 text-sm text-slate-500">Ainda não existem relações familiares visíveis nesta organização.</p> : <div className="divide-y divide-slate-100">{familyRelationships.map((relationship) => {
+            const member = members.find((item) => item.id === relationship.member_record_id);
+            const related = members.find((item) => item.id === relationship.related_member_record_id);
+            return <div key={relationship.id} className="flex flex-col gap-1 px-5 py-4 sm:px-7"><p className="text-sm font-semibold">{member ? `${member.first_name} ${member.last_name}` : "Membro"} <span className="font-normal text-slate-500">{RELATIONSHIP_LABELS[relationship.relationship_type] ?? relationship.relationship_type}</span> {related ? `${related.first_name} ${related.last_name}` : "membro relacionado"}</p>{relationship.notes && <p className="text-xs text-slate-500">{relationship.notes}</p>}</div>;
+          })}</div>}
         </section>
         <p className="px-1 text-xs leading-5 text-slate-400">Nesta primeira entrega estão incluídos o registo básico de membros, dados de baptismo, pesquisa e histórico automático de estado. Famílias, transferências formais, cartas, declarações, arquivo documental e relatórios administrativos exigem os seus próprios modelos de dados e fluxos auditáveis; não são simulados nesta página.</p>
       </div>
