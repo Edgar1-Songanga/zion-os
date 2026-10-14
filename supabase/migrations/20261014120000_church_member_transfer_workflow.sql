@@ -127,11 +127,22 @@ begin
     raise exception 'Transfer parties and member cannot be changed after creation' using errcode = '42501';
   end if;
 
+  if new.created_at is distinct from old.created_at then
+    raise exception 'Transfer creation timestamp is immutable' using errcode = '42501';
+  end if;
+
   if new.status is not distinct from old.status then
     if old.status <> 'DRAFT'
       or not private.has_org_permission(old.origin_organization_id, 'church.members.manage')
     then
       raise exception 'Only the originating organization can edit a draft transfer' using errcode = '42501';
+    end if;
+    if new.submitted_at is distinct from old.submitted_at
+      or new.decided_by is distinct from old.decided_by
+      or new.decided_at is distinct from old.decided_at
+      or new.decision_note is distinct from old.decision_note
+    then
+      raise exception 'Workflow metadata can only change during a valid state transition' using errcode = '42501';
     end if;
     new.updated_at := now();
     return new;
@@ -141,16 +152,43 @@ begin
     if not private.has_org_permission(old.origin_organization_id, 'church.members.manage') then
       raise exception 'Only the originating organization can submit or cancel this transfer' using errcode = '42501';
     end if;
-    if new.status = 'SUBMITTED' then new.submitted_at := now(); end if;
+    if new.decided_by is distinct from old.decided_by
+      or new.decided_at is distinct from old.decided_at
+      or new.decision_note is distinct from old.decision_note
+    then
+      raise exception 'Decision metadata cannot be set by the originating workflow' using errcode = '42501';
+    end if;
+    if new.status = 'SUBMITTED' then
+      new.submitted_at := now();
+    elsif new.submitted_at is distinct from old.submitted_at then
+      raise exception 'Submission timestamp cannot be changed when cancelling a draft' using errcode = '42501';
+    end if;
   elsif old.status = 'SUBMITTED' and new.status in ('ACCEPTED', 'REJECTED') then
     if not private.has_org_permission(old.destination_organization_id, 'church.members.manage') then
       raise exception 'Only the destination organization can decide this transfer' using errcode = '42501';
+    end if;
+    if new.request_date is distinct from old.request_date
+      or new.reason is distinct from old.reason
+      or new.document_reference is distinct from old.document_reference
+      or new.submitted_at is distinct from old.submitted_at
+    then
+      raise exception 'The destination organization cannot rewrite the submitted request' using errcode = '42501';
     end if;
     new.decided_by := actor;
     new.decided_at := now();
   elsif old.status = 'SUBMITTED' and new.status = 'CANCELLED' then
     if not private.has_org_permission(old.origin_organization_id, 'church.members.manage') then
       raise exception 'Only the originating organization can cancel a submitted transfer' using errcode = '42501';
+    end if;
+    if new.request_date is distinct from old.request_date
+      or new.reason is distinct from old.reason
+      or new.document_reference is distinct from old.document_reference
+      or new.submitted_at is distinct from old.submitted_at
+      or new.decided_by is distinct from old.decided_by
+      or new.decided_at is distinct from old.decided_at
+      or new.decision_note is distinct from old.decision_note
+    then
+      raise exception 'Only the transfer status may change when cancelling a submitted request' using errcode = '42501';
     end if;
   else
     raise exception 'Invalid transfer state transition: % -> %', old.status, new.status using errcode = '23514';
