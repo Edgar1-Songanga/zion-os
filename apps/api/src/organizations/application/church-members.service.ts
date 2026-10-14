@@ -73,6 +73,10 @@ export class ChurchMembersService {
       },
     );
     if (!created[0]) throw new BadRequestException('The member record was not created.');
+    await this.audit(accessToken, organizationId, user.id, 'church_member.created', created[0].id, {
+      member_number: created[0].member_number,
+      membership_status: created[0].membership_status,
+    });
     return created[0];
   }
 
@@ -91,6 +95,9 @@ export class ChurchMembersService {
       `?id=eq.${memberId}&organization_id=eq.${organizationId}`,
     );
     if (!updated[0]) throw new NotFoundException('Member record not found or not accessible.');
+    await this.audit(accessToken, organizationId, user.id, 'church_member.updated', updated[0].id, {
+      changed_fields: Object.keys(values),
+    });
     return updated[0];
   }
 
@@ -164,6 +171,24 @@ export class ChurchMembersService {
       }
     }
     return result;
+  }
+
+  private isValidDate(value: string): boolean {
+    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false;
+    const [year, month, day] = value.split('-').map(Number);
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+    return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day;
+  }
+
+  private async audit(accessToken: string, organizationId: string, actorUserId: string, action: string, resourceId: string, metadata: unknown) {
+    await this.db.post('audit_logs', accessToken, {
+      organization_id: organizationId,
+      actor_user_id: actorUserId,
+      action,
+      resource_type: 'church_member_record',
+      resource_id: resourceId,
+      metadata,
+    });
   }
 
   private assertUuid(value: string, field: string) {
