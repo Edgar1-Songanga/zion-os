@@ -145,7 +145,7 @@ export class ChurchMemberBaptismsService {
     if (typeof value !== 'string' || value.length !== 10 || value[4] !== '-' || value[7] !== '-') return false;
     const digits = value.slice(0, 4) + value.slice(5, 7) + value.slice(8, 10);
     if ([...digits].some((character) => character < '0' || character > '9')) return false;
-    const [year, month, day] = [Number(digits.slice(0, 4)), Number(digits.slice(5, 7)), Number(digits.slice(8, 10))];
+    const [year, month, day] = [Number(digits.slice(0, 4)), Number(digits.slice(5, 7)), Number(digits.slice(6, 8))];
     const parsed = new Date(Date.UTC(year, month - 1, day));
     return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day;
   }
