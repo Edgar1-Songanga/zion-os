@@ -18,18 +18,37 @@ export class VerificationService {
 
   async getStatus(accessToken: string): Promise<IdentityStatus> {
     const user = await this.identity.getCurrentUser(accessToken);
-    const rows = await this.db.get<IdentityStatus[]>(
-      'account_identity_status',
-      accessToken,
-      `?select=user_id,is_founder,verification_status,verification_type,verified_at&user_id=eq.${user.id}&limit=1`,
-    );
-    return rows[0] ?? {
+    const [rows, pendingRequests] = await Promise.all([
+      this.db.get<IdentityStatus[]>(
+        'account_identity_status',
+        accessToken,
+        `?select=user_id,is_founder,verification_status,verification_type,verified_at&user_id=eq.${user.id}&limit=1`,
+      ),
+      this.db.get<Array<{ requested_type: string }>>(
+        'account_verification_requests',
+        accessToken,
+        `?select=requested_type&user_id=eq.${user.id}&status=eq.pending&order=submitted_at.desc&limit=1`,
+      ),
+    ]);
+    const status = rows[0] ?? {
       user_id: user.id,
       is_founder: false,
-      verification_status: 'not_verified',
+      verification_status: 'not_verified' as const,
       verification_type: null,
       verified_at: null,
     };
+    if (
+      pendingRequests[0] &&
+      status.verification_status !== 'verified' &&
+      status.verification_status !== 'suspended'
+    ) {
+      return {
+        ...status,
+        verification_status: 'pending' as const,
+        verification_type: status.verification_type ?? pendingRequests[0].requested_type,
+      };
+    }
+    return status;
   }
 
   async requestVerification(accessToken: string, requestedType: string) {
