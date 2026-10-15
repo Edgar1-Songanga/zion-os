@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { IdentityService } from './identity.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 
@@ -34,9 +34,13 @@ export class VerificationService {
 
   async requestVerification(accessToken: string, requestedType: string) {
     const user = await this.identity.getCurrentUser(accessToken);
+    const currentStatus = await this.getStatus(accessToken);
+    if (currentStatus.verification_status === 'verified' || currentStatus.verification_status === 'suspended') {
+      throw new ConflictException('A conta já tem um estado de verificação que impede um novo pedido.');
+    }
     const allowed = ['personal', 'professional', 'pastor', 'ministry', 'organization'];
     if (!allowed.includes(requestedType)) {
-      throw new ConflictException('Tipo de verificação inválido.');
+      throw new BadRequestException('Tipo de verificação inválido.');
     }
     const existing = await this.db.get<Array<{ id: string }>>(
       'account_verification_requests',
