@@ -103,7 +103,7 @@ create trigger zion_founder_identity_sync
   for each row execute function public.sync_zion_founder_identity();
 
 -- Backfill the designated founder account if it already exists.
-insert into public.account_identity_status (
+insert into public.account_identity_status as current_status (
   user_id, is_founder, verification_status, verification_type, verified_at
 )
 select
