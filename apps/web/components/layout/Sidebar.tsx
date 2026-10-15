@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useTranslation } from "@/components/i18n";
+import { resaRequest } from "@/lib/resa/api";
+import { createClient } from "@/lib/supabase/client";
 
 const administrationRoutes = [
   "/admin",
@@ -31,9 +34,29 @@ function NavIcon({ index }: { index: number }) {
   return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={paths[index % paths.length]} /></svg>;
 }
 
+type SidebarProfile = { display_name: string | null; first_name: string | null; last_name: string | null };
+
 export default function Sidebar() {
   const pathname = usePathname();
   const { t } = useTranslation();
+  const [displayName, setDisplayName] = useState("Utilizador ZION");
+
+  useEffect(() => {
+    let active = true;
+    const supabase = createClient();
+    void Promise.all([resaRequest<SidebarProfile>("/v1/identity/profile"), supabase.auth.getUser()])
+      .then(([profile, userResult]) => {
+        if (!active) return;
+        const profileName = profile.display_name?.trim() ||
+          [profile.first_name, profile.last_name].filter(Boolean).join(" ").trim();
+        setDisplayName(profileName || userResult.data.user?.email || "Utilizador ZION");
+      })
+      .catch(async () => {
+        const { data } = await supabase.auth.getUser();
+        if (active) setDisplayName(data.user?.email || "Utilizador ZION");
+      });
+    return () => { active = false; };
+  }, []);
   const sections = [
     { title: t("core"), items: [{ name: t("dashboard"), path: "/dashboard" }, { name: t("resa"), path: "/resa" }] },
     { title: t("spiritualExperience"), items: [
@@ -60,8 +83,8 @@ export default function Sidebar() {
       </div>
       <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.07] p-3.5 shadow-inner">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-sm font-semibold text-[#E0B85A]">E</div>
-          <div className="min-w-0"><p className="truncate text-sm font-semibold">Edgar</p><p className="mt-0.5 truncate text-[11px] text-slate-300">{t("globalAdministrator")}</p></div>
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-sm font-semibold text-[#E0B85A]">{displayName.trim().charAt(0).toUpperCase() || "Z"}</div>
+          <div className="min-w-0"><p className="truncate text-sm font-semibold">{displayName}</p><p className="mt-0.5 truncate text-[11px] text-slate-300">Conta ZION</p></div>
         </div>
       </div>
       <nav className="mt-6 flex-1">
