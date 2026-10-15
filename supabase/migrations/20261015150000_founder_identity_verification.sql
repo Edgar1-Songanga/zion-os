@@ -1,5 +1,6 @@
 -- Persistent founder identity and verification requests.
--- Founder recognition is tied to the authenticated account email, never signup order or display name.
+-- Founder recognition is tied to the designated account email, not signup order or display name.
+-- Confirming an email proves mailbox access; it does NOT verify a person's identity.
 
 create table if not exists public.account_identity_status (
   user_id uuid primary key references auth.users(id) on delete cascade,
@@ -9,10 +10,7 @@ create table if not exists public.account_identity_status (
   verification_type text,
   verified_at timestamptz,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  constraint founder_has_verified_identity check (
-    not is_founder or verification_status in ('pending', 'verified')
-  )
+  updated_at timestamptz not null default now()
 );
 
 create table if not exists public.account_verification_requests (
@@ -67,8 +65,8 @@ create policy account_verification_requests_insert_own
     and reviewed_by is null
   );
 
--- No client INSERT/UPDATE/DELETE policies are granted for account_identity_status.
--- No client UPDATE/DELETE policies are granted for verification requests; review must be server-controlled.
+-- Clients cannot change identity status or mutate/review requests after submission.
+-- A separately authorized server-side review workflow must perform approvals/rejections.
 
 create or replace function public.sync_zion_founder_identity()
 returns trigger
@@ -84,21 +82,51 @@ begin
     values (
       new.id,
       true,
-      case when new.email_confirmed_at is not null then 'verified' else 'pending' end,
+      'pending',
       'founder',
-      new.email_confirmed_at,
+      null,
       now()
     )
     on conflict (user_id) do update set
       is_founder = true,
       verification_status = case
-        when excluded.verification_status = 'verified' then 'verified'
-        when current_status.verification_status = 'verified' then 'verified'
+        when current_status.verification_status = 'verified'
+          and current_status.verification_type is distinct from 'founder'
+          then 'verified'
         else 'pending'
       end,
-      verification_type = 'founder',
-      verified_at = coalesce(current_status.verified_at, excluded.verified_at),
+      verification_type = case
+        when current_status.verification_status = 'verified'
+          and current_status.verification_type is distinct from 'founder'
+          then current_status.verification_type
+        else 'founder'
+      end,
+      verified_at = case
+        when current_status.verification_status = 'verified'
+          and current_status.verification_type is distinct from 'founder'
+          then current_status.verified_at
+        else null
+      end,
       updated_at = now();
+  else
+    -- If the designated email is changed away, remove founder recognition.
+    -- Preserve any independently verified identity that is not founder-only.
+    update public.account_identity_status
+    set is_founder = false,
+        verification_status = case
+          when verification_type = 'founder' then 'not_verified'
+          else verification_status
+        end,
+        verification_type = case
+          when verification_type = 'founder' then null
+          else verification_type
+        end,
+        verified_at = case
+          when verification_type = 'founder' then null
+          else verified_at
+        end,
+        updated_at = now()
+    where user_id = new.id and is_founder = true;
   end if;
   return new;
 end;
@@ -111,25 +139,36 @@ create trigger zion_founder_identity_sync
   after insert or update of email, email_confirmed_at on auth.users
   for each row execute function public.sync_zion_founder_identity();
 
--- Backfill the designated founder account if it already exists.
+-- Backfill the designated founder account as recognized but NOT identity-verified.
 insert into public.account_identity_status as current_status (
   user_id, is_founder, verification_status, verification_type, verified_at
 )
 select
   id,
   true,
-  case when email_confirmed_at is not null then 'verified' else 'pending' end,
+  'pending',
   'founder',
-  email_confirmed_at
+  null
 from auth.users
 where lower(coalesce(email, '')) = 'veudaed@gmail.com'
 on conflict (user_id) do update set
   is_founder = true,
   verification_status = case
-    when excluded.verification_status = 'verified' then 'verified'
-    when current_status.verification_status = 'verified' then 'verified'
+    when current_status.verification_status = 'verified'
+      and current_status.verification_type is distinct from 'founder'
+      then 'verified'
     else 'pending'
   end,
-  verification_type = 'founder',
-  verified_at = coalesce(current_status.verified_at, excluded.verified_at),
+  verification_type = case
+    when current_status.verification_status = 'verified'
+      and current_status.verification_type is distinct from 'founder'
+      then current_status.verification_type
+    else 'founder'
+  end,
+  verified_at = case
+    when current_status.verification_status = 'verified'
+      and current_status.verification_type is distinct from 'founder'
+      then current_status.verified_at
+    else null
+  end,
   updated_at = now();
