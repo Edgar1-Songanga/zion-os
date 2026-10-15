@@ -39,6 +39,7 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
   const userId = useRef<string | null>(null);
   const callRef = useRef<CallRow | null>(null);
   const incomingCallRef = useRef<CallRow | null>(null);
+  const resolvedIncomingCallIds = useRef(new Set<string>());
   const callerRequestId = useRef(0);
 
   useEffect(() => {
@@ -56,13 +57,14 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
     const channel = supabase.channel("resa-call-events-" + conversationId)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "resa_calls", filter: "conversation_id=eq." + conversationId }, (payload) => {
         const next = payload.new as CallRow;
-        if (next.initiator_id !== userId.current && next.status === "ringing" && !callRef.current) {
+        if (next.initiator_id !== userId.current && next.status === "ringing" && !callRef.current && !resolvedIncomingCallIds.current.has(next.id)) {
           incomingCallRef.current = next;
           setIncoming(next);
         }
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "resa_calls", filter: "conversation_id=eq." + conversationId }, (payload) => {
         const next = payload.new as CallRow;
+        if (next.status !== "ringing") resolvedIncomingCallIds.current.add(next.id);
         if (callRef.current?.id === next.id && ["ended", "declined", "missed"].includes(next.status)) {
           void roomRef.current?.disconnect(true);
           roomRef.current = null;
@@ -75,6 +77,27 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
           setIncomingCaller(null);
         }
       }).subscribe();
+
+    // Recover an incoming call if it started before this conversation subscribed.
+    // Realtime updates remain authoritative if the call was already answered or ended.
+    void supabase.auth.getUser().then(async ({ data, error: authError }) => {
+      if (authError || !data.user?.id) return;
+      userId.current = data.user.id;
+      const { data: ringingCalls, error: ringingError } = await supabase
+        .from("resa_calls")
+        .select("id,conversation_id,initiator_id,kind,status")
+        .eq("conversation_id", conversationId)
+        .eq("status", "ringing")
+        .neq("initiator_id", data.user.id)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (ringingError || !ringingCalls?.length || callRef.current) return;
+      const existing = ringingCalls[0] as CallRow;
+      if (resolvedIncomingCallIds.current.has(existing.id)) return;
+      incomingCallRef.current = existing;
+      setIncoming(existing);
+    });
+
     return () => {
       void supabase.removeChannel(channel);
     };
