@@ -238,7 +238,7 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
   }
 
   const callerName = getCallerName(incomingCaller);
-  const callerInitials = callerName.split(/\\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "Z";
+  const callerInitials = callerName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "Z";
 
   return <div className="flex items-center gap-2">
     <button disabled={!ready || active} onClick={() => void start("audio")} aria-label="Iniciar chamada de áudio" title="Chamada de áudio" className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-[#0C1A3D] shadow-sm transition hover:bg-slate-50 disabled:opacity-40"><span aria-hidden="true">☎</span><span className="hidden sm:inline">Áudio</span></button>
