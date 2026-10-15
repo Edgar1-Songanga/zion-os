@@ -4,12 +4,20 @@
 **Referência consultada:** branch `main`, commit `eed6b8155400bf72af7f0020d6ffd15fdf26f839` (`fix(admin): centralize department navigation and remove duplicates`)
 **Âmbito:** análise estática do repositório, pipelines disponíveis e execução local de build/testes. Não houve acesso à produção nem à base de dados.
 
+## Base normativa
+
+Foi confirmada como fonte de trabalho a versão publicada pela União Portuguesa dos Adventistas do Sétimo Dia (UPASD): **Manual da Igreja Adventista do Sétimo Dia, 21.ª edição, revisão de 2025, edição portuguesa de fevereiro de 2026**. O PDF credita o original à Conferência Geral e a tradução portuguesa à UPASD/Publicadora SerVir; foi obtido na página oficial de recursos da UPASD. A General Conference identifica a sua edição inglesa de 2025 como incorporando as emendas votadas na sessão de 2025 e orienta o uso da edição mais recente.
+
+Para esta correção, a referência relevante é o capítulo 9, secção «Tesoureiro», páginas impressas 115–119: custódia e finalidade dos fundos, desembolso sujeito à autorização competente, recibos e registos rigorosos, preservação de documentos, verificação dos livros e confidencialidade dos registos financeiros. O Manual não descreve cálculo de salários nem estados de software. Por isso, bloquear o recálculo em `REVIEW` é uma **salvaguarda técnica inferida** para reduzir duplicação e preservar a integridade dos registos; não se apresenta como regra textual ou mandato de payroll do Manual. A correção também não determina quem autoriza salários nem substitui as políticas da Associação/organização.
+
+Proveniência: [página UPASD — Manual da IASD](https://recursos.adventistas.org.pt/secretaria/manuais-e-guias/manual-da-igreja/) (publicação indicada em 3 de abril de 2026); [PDF português «Manual de Igreja 2026»](https://s3.eu-central-003.backblazeb2.com/upasd-recursos/secretaria/manuais/igreja/Manual%20de%20Igreja%202026.pdf); [página da Conferência Geral — Church Manual](https://gc.adventist.org/church-manual/); [PDF inglês, revisão de 13 de outubro de 2025](https://gc.adventist.org/wp-content/uploads/2025/10/Seventh-day_Adventist_Church_Manual-2025-10-13.pdf).
+
 ## Resumo executivo
 
 - A `main` existe e contém rotas administrativas separadas para Secretaria, Finanças, RH, Payroll, Ministérios, Relatórios, Administração da Igreja e Juventude. A navegação centralizada foi alterada no último commit; não foram encontrados indícios de que seja necessário criar módulos duplicados.
 - As páginas de Finanças, RH, Payroll, Secretaria, Relatórios e Juventude fazem chamadas à API e há controladores/serviços reais para parte relevante do percurso. A existência de código não confirma que os endpoints, migrations e políticas estejam aplicados na instalação de produção.
 - Há políticas RLS e grants por organização/função nas migrations observadas. O estado aplicado, o isolamento efetivo em dados reais, os papéis provisionados e as permissões observadas em produção **não puderam ser verificados**.
-- Foi identificada e corrigida uma falha no Payroll: a API permitia recalcular uma execução `REVIEW`, apesar de o primeiro cálculo já ter criado itens; repetir a operação podia duplicar itens/linhas e tornar os totais inconsistentes. A API agora só calcula em `DRAFT`; foi adicionado teste de regressão.
+- Foi identificada e corrigida uma falha no Payroll: a API permitia recalcular uma execução `REVIEW`, apesar de o primeiro cálculo já ter criado itens; repetir a operação podia duplicar itens/linhas e tornar os totais inconsistentes. À luz do dever de manter registos financeiros rigorosos e verificáveis (Manual, pp. 118–119), a API agora só calcula em `DRAFT`; foi adicionado teste de regressão. Esta é uma salvaguarda de implementação, não uma regra de processamento salarial especificada pelo Manual.
 - **Não há módulos classificados como VERDE**, pois não houve verificação autenticada de ponta a ponta contra uma instalação e uma base de dados reais, nem confirmação de aplicação das migrations pelo Frame.
 - Estado global: **AMARELO — auditoria estática inicial e validações locais concluídas; produção e dependências Frame pendentes**.
 
