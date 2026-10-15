@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { resaRequest } from "@/lib/resa/api";
+import { playNotificationAlert, type NotificationAlertPreferences } from "@/lib/notifications/notification-alerts";
 
 type NotificationItem = {
   id: string;
@@ -13,10 +14,27 @@ type NotificationItem = {
   read_at?: string | null;
 };
 
+type Preferences = NotificationAlertPreferences & {
+  channels?: string[];
+  muted_types?: string[];
+};
+
+const DEFAULT_PREFERENCES: Preferences = {
+  enabled: true,
+  sound_enabled: true,
+  vibration_enabled: true,
+  muted_types: [],
+  quiet_start: null,
+  quiet_end: null,
+};
+
 export default function NotificationBell() {
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [preferences, setPreferences] = useState<Preferences>(DEFAULT_PREFERENCES);
+  const [settingsBusy, setSettingsBusy] = useState(false);
+  const preferencesRef = useRef<Preferences>(DEFAULT_PREFERENCES);
 
   async function load() {
     try {
@@ -25,12 +43,35 @@ export default function NotificationBell() {
     } catch {}
   }
 
+  async function savePreference(patch: Partial<Preferences>) {
+    if (settingsBusy) return;
+    setSettingsBusy(true);
+    const next = { ...preferences, ...patch };
+    setPreferences(next);
+    try {
+      const saved = await resaRequest<Preferences>("/v1/notifications/preferences", {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      });
+      setPreferences({ ...next, ...saved });
+    } catch {
+      setPreferences(preferences);
+    } finally {
+      setSettingsBusy(false);
+    }
+  }
+
   useEffect(() => {
     void load();
+    void resaRequest<Preferences>("/v1/notifications/preferences")
+      .then((saved) => setPreferences({ ...DEFAULT_PREFERENCES, ...saved }))
+      .catch(() => undefined);
+
     const supabase = createClient();
     let channel: ReturnType<typeof supabase.channel> | null = null;
+    let disposed = false;
     void supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) return;
+      if (disposed || !data.user) return;
       channel = supabase
         .channel("resa-notifications-" + data.user.id)
         .on("postgres_changes", {
@@ -40,16 +81,24 @@ export default function NotificationBell() {
           filter: "user_id=eq." + data.user.id,
         }, (payload) => {
           const next = payload.new as NotificationItem;
-          setItems((current) => [next, ...current.filter((item) => item.id !== next.id)].slice(0, 20));
+          setItems((current) => {
+            if (current.some((item) => item.id === next.id)) return current;
+            return [next, ...current].slice(0, 20);
+          });
+          playNotificationAlert(next.type, preferencesRef.current);
         })
         .subscribe();
     });
     const timer = window.setInterval(() => void load(), 30000);
     return () => {
+      disposed = true;
       window.clearInterval(timer);
       if (channel) void supabase.removeChannel(channel);
     };
   }, []);
+
+  // Realtime handlers need the latest saved preferences without resubscribing.
+  useEffect(() => { preferencesRef.current = preferences; }, [preferences]);
 
   const unread = items.filter((item) => !item.read_at).length;
 
@@ -95,6 +144,18 @@ export default function NotificationBell() {
               <p className="text-[11px] text-[var(--zion-muted)]">{unread ? `${unread} por ler` : "Tudo em dia"}</p>
             </div>
             {unread > 0 && <button onClick={() => void markAllRead()} disabled={busy} className="text-xs font-semibold text-[var(--zion-primary)] hover:text-[var(--zion-primary-deep)]">Marcar todas como lidas</button>}
+          </div>
+          <div className="border-b border-[var(--zion-border)] bg-slate-50 px-4 py-3">
+            <p className="mb-2 text-xs font-semibold text-slate-700">Alertas neste dispositivo</p>
+            <div className="flex gap-2">
+              <button type="button" disabled={settingsBusy} onClick={() => void savePreference({ sound_enabled: preferences.sound_enabled === false })} aria-pressed={preferences.sound_enabled !== false} className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium disabled:opacity-50">
+                Som: {preferences.sound_enabled === false ? "Desativado" : "Ativado"}
+              </button>
+              <button type="button" disabled={settingsBusy} onClick={() => void savePreference({ vibration_enabled: preferences.vibration_enabled === false })} aria-pressed={preferences.vibration_enabled !== false} className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium disabled:opacity-50">
+                Vibração: {preferences.vibration_enabled === false ? "Desativada" : "Ativada"}
+              </button>
+            </div>
+            <div className="mt-2 flex items-center justify-between gap-2"><p className="text-[10px] leading-4 text-slate-500">O navegador e o dispositivo podem limitar estes alertas.</p><button type="button" onClick={() => { playNotificationAlert("notification.test", preferences); }} className="shrink-0 rounded-lg px-2 py-1 text-[10px] font-semibold text-[var(--zion-primary)] hover:bg-white">Testar alerta</button></div>
           </div>
           <div className="max-h-80 overflow-y-auto">
             {!items.length && <p className="px-5 py-10 text-center text-sm text-[var(--zion-muted)]">Não há notificações.</p>}
