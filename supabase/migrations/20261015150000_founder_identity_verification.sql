@@ -91,19 +91,16 @@ begin
       is_founder = true,
       verification_status = case
         when current_status.verification_status = 'verified'
-          and current_status.verification_type is distinct from 'founder'
           then 'verified'
         else 'pending'
       end,
       verification_type = case
         when current_status.verification_status = 'verified'
-          and current_status.verification_type is distinct from 'founder'
           then current_status.verification_type
         else 'founder'
       end,
       verified_at = case
         when current_status.verification_status = 'verified'
-          and current_status.verification_type is distinct from 'founder'
           then current_status.verified_at
         else null
       end,
@@ -155,19 +152,16 @@ on conflict (user_id) do update set
   is_founder = true,
   verification_status = case
     when current_status.verification_status = 'verified'
-      and current_status.verification_type is distinct from 'founder'
       then 'verified'
     else 'pending'
   end,
   verification_type = case
     when current_status.verification_status = 'verified'
-      and current_status.verification_type is distinct from 'founder'
       then current_status.verification_type
     else 'founder'
   end,
   verified_at = case
     when current_status.verification_status = 'verified'
-      and current_status.verification_type is distinct from 'founder'
       then current_status.verified_at
     else null
   end,
