@@ -138,7 +138,7 @@ export class HrPayrollService {
       'payroll_runs', accessToken, `?select=id,period_start,period_end,status&organization_id=eq.${organizationId}&id=eq.${runId}&limit=1`);
     const run = runs[0];
     if (!run) throw new NotFoundException('Payroll run not found');
-    if (!['DRAFT', 'REVIEW'].includes(run.status)) throw new BadRequestException('Payroll run cannot be recalculated in its current state');
+    if (run.status !== 'DRAFT') throw new BadRequestException('Payroll run can only be calculated while in DRAFT status');
 
     const employees = await this.db.get<Employee[]>('hr_employees', accessToken,
       `?select=id,organization_id,employee_number,legal_first_name,legal_last_name,preferred_name,employment_status,job_title,currency_code&organization_id=eq.${organizationId}&employment_status=eq.ACTIVE`);
