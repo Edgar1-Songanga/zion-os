@@ -1,7 +1,7 @@
 # Auditoria dos departamentos administrativos — ZION OS
 
-**Data:** 15 de outubro de 2026
-**Base de código examinada:** `main`, SHA `0574f484c7e1fb603c7b28ac682ef7aacb49726b`
+**Data:** 15 de outubro de 2026 (atualizado às 21:59 WET)
+**Base de código examinada:** snapshot inicial de `main`, SHA `0574f484c7e1fb603c7b28ac682ef7aacb49726b`; revisão final integrada em `main`, SHA `5e865f823fa85b34ad7e86573570359558b8c55c`.
 **Âmbito:** Tesouraria/Finanças, RH/Payroll, Ministério Pessoal/Escola Sabatina, Mordomia Cristã, Juventude, Ministérios, Administração/governação e Relatórios.
 **Exclusão expressa:** **Secretaria**. Não foram propostas nem feitas alterações aos seus ficheiros ou fluxos.
 
@@ -26,7 +26,7 @@ O Manual orienta a estrutura e princípios e não especifica uma aplicação inf
 4. **Mordomia Cristã:** identificada no catálogo de ministérios, com perfil/recurso informativo; não foi encontrado fluxo administrativo próprio de planeamento, programas ou relatórios de Mordomia. Não se deve converter dados confidenciais de doação individual em indicadores visíveis a dirigentes de Mordomia.
 5. **Juventude:** é a área não financeira com mais implementação operacional observada: clubes, membros, liderança, atividades, progressão/investiduras e relatório, com serviços e testes unitários. Ainda falta validar migrations, RLS e matriz de permissões num ambiente real.
 6. **Secretaria:** fora do âmbito desta ronda, conforme pedido.
-7. **Produção:** na consulta Vercel, a versão de produção do frontend correspondia ao SHA anterior `0574f48` e estava `READY`. Isso não verifica o estado da API Vercel separada, da base de dados, das migrations ou dos dados. A alteração desta ronda ainda não está integrada nem implantada.
+7. **Produção:** PR #60 integrada na `main`; ZION CI e GitHub Pages passaram. Os projetos Vercel `zion-os` e `zion-os-api` foram publicados como `READY` no SHA `5e865f8`. Smoke tests públicos: frontend `https://zion-os-omega.vercel.app/` HTTP 200; API `https://zion-os-api-delta.vercel.app/api/health` HTTP 200. Isto não verifica autenticação, RLS, Frame/base de dados, migrations aplicadas ou dados.
 
 ## Estado por área
 
@@ -60,12 +60,12 @@ O Manual orienta a estrutura e princípios e não especifica uma aplicação inf
 5. Para Ministério Pessoal, Escola Bíblica e Mordomia, acordar com dirigentes quais operações devem ser registadas, dados mínimos, base de acesso, conservação e relatórios. Só então propor esquema/fluxos específicos.
 6. Para Escola Sabatina, validar origem/licença/versão das lições e definir se o objetivo é conteúdo ou gestão local de unidades e presenças.
 7. Para Juventude, validar papéis, proteção e consentimentos relacionados com menores, retenção e escopo de clube/organização em ambiente controlado.
-8. Depois do CI e deploy, smoke test das páginas públicas/aplicação e da API; isso não substitui teste autenticado de dados, RLS ou aprovação denominacional.
+8. CI e deploy foram concluídos nesta ronda; os smoke tests públicos responderam HTTP 200. Fazer testes autenticados de dados/RLS num ambiente de teste autorizado e confirmar aprovação denominacional antes de declarar os fluxos conformes.
 
 ## Fora do que foi verificado
 
 - A migration não foi aplicada e nenhuma base de dados/Frame foi modificada.
 - Não houve teste autenticado contra a aplicação ou API de produção.
-- O deployment Vercel `READY` observado no SHA `0574f48` é a produção anterior à correção financeira desta ronda; não prova estado da API separada ou da base de dados.
+- Os deployments Vercel de frontend e API ficaram `READY` no SHA `5e865f8` e os smoke tests públicos passaram; isso não prova o estado da base de dados nem que migrations/RLS foram aplicadas.
 - O termo «classe batina» foi entendido como possivelmente «classe batismal», mas requer confirmação. Nenhum fluxo novo de batismo/membresia foi concebido ou alterado; esses registos pertencem ao âmbito da Secretaria, explicitamente excluído.
 - A auditoria não equivale a certificação de conformidade, auditoria independente, nem autorização para registar informação pessoal/financeira real.
