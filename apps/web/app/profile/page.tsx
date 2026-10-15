@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import { createClient } from "@/lib/supabase/client";
 import ResaSocialNetwork from "@/components/resa/social/ResaSocialNetwork";
+import VerificationCenter from "@/components/profile/verification/VerificationCenter";
 
 type Profile = {
   id: string;
@@ -188,6 +189,7 @@ export default function ProfilePage() {
           </div>
         </form>
 
+        <VerificationCenter />
         {profile.id && <ResaSocialNetwork userId={profile.id} />}
       </div>
     </main>
