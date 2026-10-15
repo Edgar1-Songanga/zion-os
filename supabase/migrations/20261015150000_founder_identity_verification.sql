@@ -38,6 +38,15 @@ create unique index if not exists idx_account_verification_one_pending
 alter table public.account_identity_status enable row level security;
 alter table public.account_verification_requests enable row level security;
 
+-- Explicit Data API privileges: RLS policies then restrict which rows are visible or insertable.
+revoke all on table public.account_identity_status from anon;
+revoke all on table public.account_identity_status from authenticated;
+grant select on table public.account_identity_status to authenticated;
+
+revoke all on table public.account_verification_requests from anon;
+revoke all on table public.account_verification_requests from authenticated;
+grant select, insert on table public.account_verification_requests to authenticated;
+
 drop policy if exists account_identity_status_read on public.account_identity_status;
 create policy account_identity_status_read
   on public.account_identity_status for select to authenticated
