@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslation } from "@/components/i18n";
+import { resaRequest } from "@/lib/resa/api";
 
 const administrationRoutes = [
   "/admin",
@@ -14,6 +16,17 @@ const administrationRoutes = [
   "/reports",
   "/ministry",
 ];
+
+type CurrentProfile = {
+  display_name?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+};
+
+type IdentityStatus = {
+  is_founder: boolean;
+  verification_status: "not_verified" | "pending" | "verified" | "rejected" | "suspended";
+};
 
 function NavIcon({ index }: { index: number }) {
   const paths = [
@@ -34,6 +47,8 @@ function NavIcon({ index }: { index: number }) {
 export default function Sidebar() {
   const pathname = usePathname();
   const { t } = useTranslation();
+  const [displayName, setDisplayName] = useState("Membro ZION");
+  const [identity, setIdentity] = useState<IdentityStatus | null>(null);
   const sections = [
     { title: t("core"), items: [{ name: t("dashboard"), path: "/dashboard" }, { name: t("resa"), path: "/resa" }] },
     { title: t("spiritualExperience"), items: [
@@ -52,6 +67,32 @@ export default function Sidebar() {
     { title: t("organization"), items: [{ name: "Administração", path: "/admin" }] },
   ];
 
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      resaRequest<CurrentProfile>("/v1/identity/profile"),
+      resaRequest<IdentityStatus>("/v1/identity/verification"),
+    ]).then(([profile, status]) => {
+      if (!active) return;
+      const name = profile.display_name?.trim() ||
+        [profile.first_name, profile.last_name].filter(Boolean).join(" ").trim();
+      setDisplayName(name || "Membro ZION");
+      setIdentity(status);
+    }).catch(() => {
+      if (active) {
+        setDisplayName("Membro ZION");
+        setIdentity(null);
+      }
+    });
+    return () => { active = false; };
+  }, []);
+
+  const isVerified = identity?.verification_status === "verified";
+  const accountLabel = identity?.is_founder
+    ? (isVerified ? "Fundador ZION OS" : "Fundador · verificação pendente")
+    : isVerified ? "Conta verificada" : "Membro ZION";
+  const initials = displayName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "Z";
+
   return (
     <aside className="sticky top-0 flex h-screen w-[248px] shrink-0 flex-col overflow-y-auto border-r border-white/10 bg-[linear-gradient(180deg,#0B2D4D_0%,#071E35_100%)] px-4 py-5 text-white shadow-[8px_0_30px_rgba(7,30,53,0.10)]">
       <div className="px-3">
@@ -60,8 +101,14 @@ export default function Sidebar() {
       </div>
       <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.07] p-3.5 shadow-inner">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-sm font-semibold text-[#E0B85A]">E</div>
-          <div className="min-w-0"><p className="truncate text-sm font-semibold">Edgar</p><p className="mt-0.5 truncate text-[11px] text-slate-300">{t("globalAdministrator")}</p></div>
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-sm font-semibold text-[#E0B85A]">{initials}</div>
+          <div className="min-w-0">
+            <p className="flex items-center gap-1.5 truncate text-sm font-semibold">
+              <span className="truncate">{displayName}</span>
+              {isVerified && <span aria-label="Conta verificada" title="Conta verificada" className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white">✓</span>}
+            </p>
+            <p className="mt-0.5 truncate text-[11px] text-slate-300">{accountLabel}</p>
+          </div>
         </div>
       </div>
       <nav className="mt-6 flex-1">
