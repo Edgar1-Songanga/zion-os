@@ -36,7 +36,7 @@ as $$
 $$;
 
 -- Prevent new or updated organization parent links from creating a cycle.
-create or replace function public.prevent_organization_hierarchy_cycle()
+create or replace function private.prevent_organization_hierarchy_cycle()
 returns trigger
 language plpgsql
 security definer
@@ -76,7 +76,7 @@ $$;
 drop trigger if exists organizations_prevent_hierarchy_cycle on public.organizations;
 create trigger organizations_prevent_hierarchy_cycle
 before insert or update of parent_id on public.organizations
-for each row execute function public.prevent_organization_hierarchy_cycle();
+for each row execute function private.prevent_organization_hierarchy_cycle();
 
 -- Existing cycles, if any, must be detected and corrected before relying on
 -- hierarchy inheritance. This migration prevents new cycles and makes reads terminate.
