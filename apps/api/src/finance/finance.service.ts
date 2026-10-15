@@ -40,7 +40,8 @@ export class FinanceService {
   }
 
   async createJournal(token:string, organizationId:string, input:{description:string;entry_date?:string;lines:Array<{account_id:string;debit?:number;credit?:number;description?:string}>}) {
-    if (!input.description?.trim() || !Array.isArray(input.lines) || input.lines.length < 2 || input.lines.length > 200) {
+    const description = input.description?.trim();
+    if (!description || description.length < 2 || description.length > 500 || !Array.isArray(input.lines) || input.lines.length < 2 || input.lines.length > 200) {
       throw new BadRequestException('A journal entry requires a description and at least two lines');
     }
     let debitCents = 0, creditCents = 0;
@@ -53,6 +54,12 @@ export class FinanceService {
       debitCents += Math.round(d * 100); creditCents += Math.round(c * 100);
     }
     if (debitCents !== creditCents) throw new BadRequestException('Journal entry is not balanced');
+    const entryDate = input.entry_date ?? new Date().toISOString().slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(entryDate)) throw new BadRequestException('entry_date must be a valid YYYY-MM-DD date');
+    const parsedEntryDate = new Date(`${entryDate}T00:00:00.000Z`);
+    if (Number.isNaN(parsedEntryDate.getTime()) || parsedEntryDate.toISOString().slice(0, 10) !== entryDate) {
+      throw new BadRequestException('entry_date must be a valid YYYY-MM-DD date');
+    }
     const accounts = await this.db.get<Array<{ id: string; currency_code: string; is_active: boolean }>>(
       'finance_accounts', token,
       `?select=id,currency_code,is_active&organization_id=eq.${encodeURIComponent(organizationId)}&id=in.(${[...accountIds].map(encodeURIComponent).join(',')})&limit=200`,
@@ -60,11 +67,9 @@ export class FinanceService {
     if (accounts.length !== accountIds.size || accounts.some((account) => !account.is_active)) throw new BadRequestException('All journal accounts must be active and belong to this organization');
     if (new Set(accounts.map((account) => account.currency_code)).size !== 1) throw new BadRequestException('A journal entry cannot mix currencies without an exchange-rate record');
     await this.identity.getCurrentUser(token);
-    const entryDate = input.entry_date ?? new Date().toISOString().slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(entryDate) || Number.isNaN(Date.parse(`${entryDate}T00:00:00Z`))) throw new BadRequestException('entry_date must be a valid YYYY-MM-DD date');
     return this.db.rpc<Record<string, unknown>>('create_finance_manual_journal_entry', token, {
       p_organization_id: organizationId,
-      p_description: input.description.trim(),
+      p_description: description,
       p_entry_date: entryDate,
       p_lines: input.lines.map((line) => ({
         account_id: line.account_id,
