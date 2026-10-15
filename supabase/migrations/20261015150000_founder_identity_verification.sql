@@ -69,7 +69,7 @@ set search_path = pg_catalog, public
 as $$
 begin
   if lower(coalesce(new.email, '')) = 'veudaed@gmail.com' then
-    insert into public.account_identity_status (
+    insert into public.account_identity_status as current_status (
       user_id, is_founder, verification_status, verification_type, verified_at, updated_at
     )
     values (
@@ -84,11 +84,11 @@ begin
       is_founder = true,
       verification_status = case
         when excluded.verification_status = 'verified' then 'verified'
-        when public.account_identity_status.verification_status = 'verified' then 'verified'
+        when current_status.verification_status = 'verified' then 'verified'
         else 'pending'
       end,
       verification_type = 'founder',
-      verified_at = coalesce(public.account_identity_status.verified_at, excluded.verified_at),
+      verified_at = coalesce(current_status.verified_at, excluded.verified_at),
       updated_at = now();
   end if;
   return new;
@@ -118,9 +118,9 @@ on conflict (user_id) do update set
   is_founder = true,
   verification_status = case
     when excluded.verification_status = 'verified' then 'verified'
-    when public.account_identity_status.verification_status = 'verified' then 'verified'
+    when current_status.verification_status = 'verified' then 'verified'
     else 'pending'
   end,
   verification_type = 'founder',
-  verified_at = coalesce(public.account_identity_status.verified_at, excluded.verified_at),
+  verified_at = coalesce(current_status.verified_at, excluded.verified_at),
   updated_at = now();
