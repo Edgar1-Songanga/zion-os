@@ -58,12 +58,11 @@ export default function Sidebar() {
         <h1 className="text-[25px] font-semibold tracking-[0.24em] text-white">ZION<span className="text-[#C8A24A]">OS</span></h1>
         <p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-slate-300">{t("globalDigitalEcosystem")}</p>
       </div>
-      <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.07] p-3.5 shadow-inner">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-sm font-semibold text-[#E0B85A]">E</div>
-          <div className="min-w-0"><p className="truncate text-sm font-semibold">Edgar</p><p className="mt-0.5 truncate text-[11px] text-slate-300">{t("globalAdministrator")}</p></div>
-        </div>
-      </div>
+      <Link href="/profile" className="mt-6 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.07] p-3.5 text-sm text-slate-100 transition hover:bg-white/[0.12]">
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-lg text-[#E0B85A]" aria-hidden="true">◎</span>
+        <span className="min-w-0 flex-1"><span className="block font-semibold">O meu perfil</span><span className="mt-0.5 block text-[11px] text-slate-300">Identidade e fotografia</span></span>
+        <span aria-hidden="true" className="text-slate-400">↗</span>
+      </Link>
       <nav className="mt-6 flex-1">
         {sections.map((section, sectionIndex) => (
           <div key={section.title} className="mb-5">
@@ -85,6 +84,9 @@ export default function Sidebar() {
           </div>
         ))}
       </nav>
+      <div className="border-t border-white/10 px-3 pt-4 text-[10px] leading-5 text-slate-400">
+        A tua conta e os teus acessos são pessoais.
+      </div>
     </aside>
   );
 }
