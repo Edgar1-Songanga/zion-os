@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { resaRequest } from "@/lib/resa/api";
 
@@ -11,9 +12,12 @@ type NotificationItem = {
   type: string;
   created_at: string;
   read_at?: string | null;
+  data?: Record<string, unknown> | null;
 };
 
 export default function NotificationBell() {
+  const router = useRouter();
+  const rootRef = useRef<HTMLDivElement>(null);
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -53,6 +57,22 @@ export default function NotificationBell() {
 
   const unread = items.filter((item) => !item.read_at).length;
 
+  useEffect(() => {
+    if (!open) return;
+    function closeOnOutside(event: MouseEvent) {
+      if (event.target instanceof Node && !rootRef.current?.contains(event.target)) setOpen(false);
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", closeOnOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
   async function markAllRead() {
     if (!unread || busy) return;
     setBusy(true);
@@ -71,8 +91,30 @@ export default function NotificationBell() {
     } catch {}
   }
 
+  function notificationDestination(item: NotificationItem) {
+    const data = item.data ?? {};
+    const value = (key: string) => typeof data[key] === "string" ? String(data[key]) : "";
+    const conversationId = value("conversation_id");
+    const contentId = value("content_id");
+    if (conversationId) return "/resa/messages?conversation=" + encodeURIComponent(conversationId);
+    if (contentId) return "/resa?post=" + encodeURIComponent(contentId);
+    if (value("live_id")) return "/resa/live?live=" + encodeURIComponent(value("live_id"));
+    if (value("event_id")) return "/resa/events?event=" + encodeURIComponent(value("event_id"));
+    if (value("prayer_id")) return "/resa/prayer?prayer=" + encodeURIComponent(value("prayer_id"));
+    if (item.type === "resa.follow" && value("actor_id")) return "/profile?user=" + encodeURIComponent(value("actor_id"));
+    if (item.type.startsWith("resa.message")) return "/resa/messages";
+    if (item.type.startsWith("resa.")) return "/resa";
+    return "/notifications";
+  }
+
+  function openNotification(item: NotificationItem) {
+    setOpen(false);
+    void markRead(item.id);
+    router.push(notificationDestination(item));
+  }
+
   return (
-    <div className="relative shrink-0">
+    <div ref={rootRef} className="relative shrink-0">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
@@ -102,10 +144,10 @@ export default function NotificationBell() {
               <button
                 key={item.id}
                 type="button"
-                onClick={() => void markRead(item.id)}
+                onClick={() => openNotification(item)}
                 className={`flex w-full gap-3 border-b border-[var(--zion-border)] px-4 py-3 text-left transition hover:bg-[var(--zion-light)] ${item.read_at ? "bg-white" : "bg-[var(--zion-sky)]/5"}`}
               >
-                <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[var(--zion-gold)]" />
+                <span className={"mt-1 h-2 w-2 shrink-0 rounded-full " + (item.read_at ? "bg-slate-200" : "bg-[var(--zion-gold)]")} />
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold text-[var(--zion-dark)]">{item.title}</span>
                   <span className="mt-0.5 block text-xs leading-5 text-[var(--zion-muted)]">{item.body}</span>
