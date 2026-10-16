@@ -7,6 +7,7 @@ import LanguageSelector from "@/components/language/LanguageSelector";
 import { useTranslation } from "@/components/i18n";
 import { createClient } from "@/lib/supabase/client";
 import { resaRequest } from "@/lib/resa/api";
+import NotificationBell from "@/components/notifications/NotificationBell";
 
 type Profile = {
   display_name: string | null;
@@ -141,9 +142,7 @@ export default function Topbar() {
         <button type="button" aria-label="Tema" className="hidden h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-[#C8A24A] hover:text-[#0B2D4D] sm:flex">
           <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4" strokeLinecap="round" /><circle cx="12" cy="12" r="3.5" /></svg>
         </button>
-        <button type="button" aria-label="Notificações" className="relative hidden h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-[#C8A24A] hover:text-[#0B2D4D] sm:flex">
-          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" strokeLinecap="round" strokeLinejoin="round" /></svg>
-        </button>
+        <NotificationBell />
 
         <div ref={menuRef} className="relative ml-1 border-l border-slate-200 pl-3">
           <button type="button" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)} className="flex max-w-[230px] items-center gap-2 rounded-2xl p-1.5 text-left transition hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8A24A]">
