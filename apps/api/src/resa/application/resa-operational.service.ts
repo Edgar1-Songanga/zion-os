@@ -501,11 +501,13 @@ export class ResaOperationalService {
   }
 
   async search(token: string, query: string, type?: string, limit = 30) {
-    await this.actor(token);
+    const actor = await this.actor(token);
     const normalized = this.text(query, 'query', 2, 120).replace(/[(),]/g, ' ');
     const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
     if (type === 'profile') {
-      return this.db.rpc('resa_search_profiles', token, { p_query: normalized, p_limit: size });
+      const profiles = await this.db.rpc<any[]>('resa_search_profiles', token, { p_query: normalized, p_limit: size });
+      // Do not offer the signed-in user as a target for a new direct conversation.
+      return profiles.filter((profile) => profile.id !== actor.id);
     }
     const typeFilter = type ? `&entity_type=eq.${encodeURIComponent(this.text(type, 'type', 1, 40))}` : '';
     return this.db.get('zion_search_documents', token, `?select=*&or=(title.ilike.*${encodeURIComponent(normalized)}*,body.ilike.*${encodeURIComponent(normalized)}*)&order=updated_at.desc&limit=${size}${typeFilter}`);
