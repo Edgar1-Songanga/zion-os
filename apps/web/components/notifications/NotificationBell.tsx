@@ -21,6 +21,96 @@ export default function NotificationBell() {
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushMessage, setPushMessage] = useState("");
+  const pushPublicKey = process.env.NEXT_PUBLIC_RESA_VAPID_PUBLIC_KEY;
+
+  useEffect(() => {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    void navigator.serviceWorker.getRegistration("/sw.js")
+      .then((registration) => registration?.pushManager.getSubscription())
+      .then((subscription) => setPushEnabled(Boolean(subscription)))
+      .catch(() => setPushEnabled(false));
+  }, []);
+
+  function decodeVapidPublicKey(value: string): Uint8Array {
+    const padding = "=".repeat((4 - value.length % 4) % 4);
+    const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const raw = window.atob(base64);
+    return Uint8Array.from(raw, (character) => character.charCodeAt(0));
+  }
+
+  async function togglePush() {
+    if (pushBusy) return;
+    setPushBusy(true);
+    setPushMessage("");
+    try {
+      if (!pushPublicKey) {
+        setPushMessage("A configuração segura de Web Push ainda não foi concluída.");
+        return;
+      }
+      if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+        setPushMessage("Este navegador não suporta notificações push. Em alguns telemóveis, instale o RESA como aplicação.");
+        return;
+      }
+      const supabase = createClient();
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError || !authData.user) throw new Error("Inicie sessão para configurar as notificações.");
+
+      const registration = await navigator.serviceWorker.register("/sw.js");
+      if (pushEnabled) {
+        const subscription = await registration.pushManager.getSubscription();
+        if (subscription) {
+          const endpoint = subscription.endpoint;
+          await subscription.unsubscribe();
+          const { error } = await supabase.from("resa_push_subscriptions")
+            .delete().eq("user_id", authData.user.id).eq("endpoint", endpoint);
+          if (error) throw error;
+        }
+        setPushEnabled(false);
+        setPushMessage("Notificações push desativadas neste dispositivo.");
+        return;
+      }
+
+      let permission = Notification.permission;
+      if (permission === "default") permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setPushMessage("Permita notificações nas definições do navegador para continuar.");
+        return;
+      }
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: decodeVapidPublicKey(pushPublicKey) as BufferSource,
+      });
+      const serialized = subscription.toJSON();
+      const p256dh = serialized.keys?.p256dh;
+      const auth = serialized.keys?.auth;
+      if (!p256dh || !auth) {
+        await subscription.unsubscribe();
+        throw new Error("O navegador não devolveu as chaves necessárias para o push.");
+      }
+      const { error } = await supabase.from("resa_push_subscriptions").upsert({
+        user_id: authData.user.id,
+        endpoint: subscription.endpoint,
+        p256dh,
+        auth_secret: auth,
+        expiration_time: subscription.expirationTime,
+        user_agent: navigator.userAgent.slice(0, 500),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "endpoint" });
+      if (error) {
+        await subscription.unsubscribe();
+        throw error;
+      }
+      setPushEnabled(true);
+      setPushMessage("Notificações push ativadas neste dispositivo.");
+    } catch (error) {
+      setPushMessage(error instanceof Error ? error.message : "Não foi possível configurar as notificações push.");
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   async function load() {
     try {
@@ -154,6 +244,18 @@ export default function NotificationBell() {
                 </span>
               </button>
             ))}
+          </div>
+          <div className="border-t border-[var(--zion-border)] bg-slate-50 px-4 py-3">
+            <button
+              type="button"
+              onClick={() => void togglePush()}
+              disabled={pushBusy || (!pushPublicKey && !pushEnabled)}
+              className="w-full rounded-xl border border-[var(--zion-border)] bg-white px-3 py-2 text-xs font-semibold text-[var(--zion-primary)] transition hover:bg-[var(--zion-light)] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {pushBusy ? "A configurar…" : pushEnabled ? "Desativar notificações neste dispositivo" : "Ativar notificações no telemóvel"}
+            </button>
+            {pushMessage && <p role="status" className="mt-2 text-xs leading-5 text-[var(--zion-muted)]">{pushMessage}</p>}
+            {!pushPublicKey && !pushEnabled && <p className="mt-2 text-[11px] text-[var(--zion-muted)]">A infraestrutura está a ser configurada; a ativação ficará disponível após a configuração das chaves.</p>}
           </div>
         </div>
       )}
