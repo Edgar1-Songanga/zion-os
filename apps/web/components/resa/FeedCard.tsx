@@ -180,8 +180,9 @@ export default function FeedCard({ content }: { content: ResaContent }) {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <Link
-                href={"/profile?user=" + encodeURIComponent(content.author_id)}
+                href={"/resa/messages?to=" + encodeURIComponent(content.author_id)}
                 className="font-semibold text-[#0C1A3D] underline-offset-4 hover:underline"
+                aria-label={t("openConversation")}
               >
                 {content.author_display_name?.trim() || t("resaProfile")}
               </Link>
