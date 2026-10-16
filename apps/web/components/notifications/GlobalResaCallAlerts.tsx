@@ -3,13 +3,16 @@
 import { useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { resaRequest } from "@/lib/resa/api";
-import { playNotificationAlert, type NotificationAlertPreferences } from "@/lib/notifications/notification-alerts";
+import { playNotificationAlert, unlockNotificationAudio, type NotificationAlertPreferences } from "@/lib/notifications/notification-alerts";
 
 type CallAlertRow = { id: string; initiator_id: string; status: string; kind: "audio" | "video"; conversation_id: string };
 const STOP_STATUSES = new Set(["active", "ended", "declined", "missed"]);
 
 export default function GlobalResaCallAlerts() {
   useEffect(() => {
+    const unlock = () => unlockNotificationAudio();
+    window.addEventListener("pointerdown", unlock, { once: true });
+    window.addEventListener("keydown", unlock, { once: true });
     const supabase = createClient();
     let disposed = false;
     let userId: string | null = null;
@@ -46,6 +49,8 @@ export default function GlobalResaCallAlerts() {
 
     return () => {
       disposed = true;
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
       for (const cleanup of cleanups.values()) cleanup();
       cleanups.clear(); pending.clear();
       if (channel) void supabase.removeChannel(channel);
