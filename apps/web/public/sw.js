@@ -26,8 +26,10 @@ self.addEventListener("push", (event) => {
     icon: "/favicon.ico",
     badge: "/favicon.ico",
     data: { url: safeUrl },
-    renotify: false,
+    renotify: true,
     requireInteraction: false,
+    silent: false,
+    vibrate: [180, 80, 180],
   }));
 });
 
