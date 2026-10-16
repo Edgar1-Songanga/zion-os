@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslation } from "@/components/i18n";
 import { createClient } from "@/lib/supabase/client";
+import { resaRequest } from "@/lib/resa/api";
 
 const administrationRoutes = [
   "/admin",
@@ -37,21 +38,43 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { t } = useTranslation();
   const [globalAdmin, setGlobalAdmin] = useState(false);
+  const [roleKeys, setRoleKeys] = useState<string[]>([]);
 
   useEffect(() => {
     const supabase = createClient();
     let active = true;
+    const loadAccess = async (user: { app_metadata?: Record<string, unknown> } | null) => {
+      setGlobalAdmin(user?.app_metadata?.zion_global_role === "global_admin");
+      if (!user) { setRoleKeys([]); return; }
+      try {
+        const context = await resaRequest<{ memberships?: Array<{ role?: { key?: string } | null }> }>("/v1/identity/profile/access");
+        if (active) setRoleKeys((context.memberships ?? []).map((membership) => membership.role?.key ?? "").filter(Boolean));
+      } catch {
+        if (active) setRoleKeys([]);
+      }
+    };
     void supabase.auth.getUser().then(({ data }) => {
-      if (active) setGlobalAdmin(data.user?.app_metadata?.zion_global_role === "global_admin");
+      if (active) void loadAccess(data.user ?? null);
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setGlobalAdmin(session?.user?.app_metadata?.zion_global_role === "global_admin");
+      void loadAccess(session?.user ?? null);
     });
     return () => {
       active = false;
       listener.subscription.unsubscribe();
     };
   }, []);
+
+  const hasRole = (...keys: string[]) => globalAdmin || roleKeys.some((key) => keys.includes(key));
+  const organizationItems = [
+    ...(globalAdmin ? [{ name: "Administração Global", path: "/admin" }] : []),
+    ...(hasRole("organization_owner", "organization_admin", "organization_leader") ? [{ name: "Administração da Igreja", path: "/church-administration" }] : []),
+    ...(hasRole("secretary") ? [{ name: "Secretaria", path: "/secretariat" }] : []),
+    ...(hasRole("finance_manager", "organization_owner", "organization_admin") ? [{ name: "Finanças", path: "/finance" }] : []),
+    ...(hasRole("hr_manager", "organization_owner", "organization_admin") ? [{ name: "Recursos Humanos", path: "/hr" }] : []),
+    ...(hasRole("payroll_manager", "organization_owner", "organization_admin") ? [{ name: "Processamento salarial", path: "/payroll" }] : []),
+    ...(hasRole("organization_owner", "organization_admin", "finance_manager", "hr_manager", "payroll_manager", "secretary") ? [{ name: "Relatórios", path: "/reports" }] : []),
+  ];
 
   const sections = [
     { title: t("core"), items: [{ name: t("dashboard"), path: "/dashboard" }, { name: t("resa"), path: "/resa" }] },
@@ -68,7 +91,7 @@ export default function Sidebar() {
       { name: t("spiritualChat"), path: "/spiritual-chat" },
       { name: t("communities"), path: "/resa/communities" },
     ] },
-    { title: t("organization"), items: [{ name: "Administração", path: "/admin" }] },
+    { title: t("organization"), items: organizationItems },
   ];
 
   return (
@@ -83,7 +106,7 @@ export default function Sidebar() {
         <span aria-hidden="true" className="text-slate-400">↗</span>
       </Link>
       <nav className="mt-6 flex-1">
-        {sections.filter((section) => section.title !== t("organization") || globalAdmin).map((section, sectionIndex) => (
+        {sections.filter((section) => section.items.length > 0).map((section, sectionIndex) => (
           <div key={section.title} className="mb-5">
             <p className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-400">{section.title}</p>
             <div className="space-y-1">
