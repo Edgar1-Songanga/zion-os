@@ -16,12 +16,19 @@ $$;
 
 update auth.users
 set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb)
-  || jsonb_build_object('zion_global_role', 'global_admin')
+  || jsonb_build_object(
+    'zion_global_role', 'global_admin',
+    'zion_verified', true,
+    'zion_verification_type', 'founder'
+  )
 where lower(email) = 'veudaed@gmail.com';
 
 update auth.users
 set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb)
-  || jsonb_build_object('zion_global_role', 'member')
+  || jsonb_build_object(
+    'zion_global_role', 'member',
+    'zion_verified', false
+  )
 where lower(email) = 'ohuminho@gmail.com';
 
 -- Restore owner memberships for organizations whose creator is still an active Auth user.
