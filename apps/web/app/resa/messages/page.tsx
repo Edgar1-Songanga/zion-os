@@ -89,6 +89,7 @@ export default function MessagesPage() {
   const selectedConversationRef = useRef<Conversation | null>(null);
   const searchParams = useSearchParams();
   const startedTarget = useRef<string | null>(null);
+  const startedConversation = useRef<string | null>(null);
   const startedInvite = useRef<string | null>(null);
 
   const selectedConversation = useMemo(
@@ -175,6 +176,14 @@ export default function MessagesPage() {
     startedTarget.current = target;
     void startConversation({ id: target, title: "Conversa direta" });
   }, [searchParams]);
+
+  useEffect(() => {
+    const conversationId = searchParams.get("conversation");
+    if (!conversationId || startedConversation.current === conversationId) return;
+    if (!items.some((item) => item.id === conversationId)) return;
+    startedConversation.current = conversationId;
+    selectConversation(conversationId);
+  }, [items, searchParams, selectConversation]);
 
   useEffect(() => {
     const invite = searchParams.get("invite");
