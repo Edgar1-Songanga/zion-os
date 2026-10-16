@@ -23,6 +23,32 @@ export class ResaOperationalService {
     return user;
   }
 
+  private async profilesById(token: string, ids: string[], actorId: string) {
+    const uniqueIds = [...new Set(ids.filter((id) => /^[0-9a-f-]{16,80}$/i.test(id)))];
+    const visibleProfiles = uniqueIds.length
+      ? await this.db.rpc<any[]>('resa_profiles_for_ids', token, { p_user_ids: uniqueIds })
+      : [];
+    const profileById = new Map<string, any>(visibleProfiles.map((profile) => [profile.id, profile]));
+
+    // The current user may choose a private profile; they must still see their own identity.
+    if (!profileById.has(actorId)) {
+      const own = await this.db.get<any[]>(
+        'profiles',
+        token,
+        `?select=id,display_name,first_name,last_name,avatar_url&id=eq.${actorId}&limit=1`,
+      );
+      if (own[0]) profileById.set(actorId, own[0]);
+    }
+    return profileById;
+  }
+
+  private profileDisplayName(profile: any, fallback = 'Membro RESA') {
+    return profile?.display_name?.trim()
+      || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim()
+      || profile?.email
+      || fallback;
+  }
+
   private text(value: unknown, field: string, min = 1, max = 10000): string {
     if (typeof value !== 'string') throw new BadRequestException(`${field} must be text`);
     const result = value.trim();
@@ -329,19 +355,72 @@ export class ResaOperationalService {
   }
   async listConversations(token: string) {
     const actor = await this.actor(token);
-    const members = await this.db.get<any[]>('resa_conversation_members', token, `?select=conversation_id,role,joined_at,last_read_at&user_id=eq.${actor.id}&order=joined_at.desc`);
-    if (!members.length) return [];
-    const ids = members.map((item) => item.conversation_id).join(',');
-    return this.db.get('resa_conversations', token, `?select=*&id=in.(${ids})&order=updated_at.desc`);
+    const memberships = await this.db.get<any[]>(
+      'resa_conversation_members',
+      token,
+      `?select=conversation_id,role,joined_at,last_read_at&user_id=eq.${actor.id}&order=joined_at.desc`,
+    );
+    if (!memberships.length) return [];
+
+    const ids = [...new Set(memberships.map((item) => item.conversation_id))];
+    const idFilter = ids.join(',');
+    const [conversations, participants] = await Promise.all([
+      this.db.get<any[]>('resa_conversations', token, `?select=*&id=in.(${idFilter})&order=updated_at.desc`),
+      this.db.get<any[]>('resa_conversation_members', token, `?select=conversation_id,user_id,role&conversation_id=in.(${idFilter})`),
+    ]);
+    const profiles = await this.profilesById(token, participants.map((item) => item.user_id), actor.id);
+    const participantsByConversation = new Map<string, any[]>();
+    for (const participant of participants) {
+      const profile = profiles.get(participant.user_id);
+      const row = {
+        id: participant.user_id,
+        role: participant.role,
+        display_name: this.profileDisplayName(profile),
+        avatar_url: profile?.avatar_url ?? null,
+      };
+      const rows = participantsByConversation.get(participant.conversation_id) ?? [];
+      rows.push(row);
+      participantsByConversation.set(participant.conversation_id, rows);
+    }
+
+    return conversations.map((conversation) => {
+      const conversationParticipants = participantsByConversation.get(conversation.id) ?? [];
+      const otherParticipants = conversationParticipants.filter((item) => item.id !== actor.id);
+      const directTitle = otherParticipants[0]?.display_name ?? 'Conversa privada';
+      return {
+        ...conversation,
+        // Direct conversations must be named for the other person from each viewer's perspective,
+        // not by the creator-supplied title (which made the recipient see their own name).
+        title: conversation.kind === 'direct' ? directTitle : (conversation.title || 'Conversa de grupo'),
+        members: conversationParticipants,
+      };
+    });
   }
 
   async listMessages(token: string, conversationId: string, limit = 50) {
     const actor = await this.actor(token);
     const id = this.id(conversationId, 'conversation_id');
-    const memberships = await this.db.get<any[]>('resa_conversation_members', token, `?select=conversation_id&conversation_id=eq.${id}&user_id=eq.${actor.id}&limit=1`);
+    const memberships = await this.db.get<any[]>(
+      'resa_conversation_members',
+      token,
+      `?select=conversation_id&conversation_id=eq.${id}&user_id=eq.${actor.id}&limit=1`,
+    );
     if (!memberships[0]) throw new NotFoundException('Conversation not found');
     const size = Math.min(Math.max(Number(limit) || 50, 1), 100);
-    return this.db.get('resa_messages', token, `?select=*&conversation_id=eq.${id}&order=created_at.desc&limit=${size}`);
+    const messages = await this.db.get<any[]>(
+      'resa_messages',
+      token,
+      `?select=*&conversation_id=eq.${id}&order=created_at.desc&limit=${size}`,
+    );
+    const profiles = await this.profilesById(token, messages.map((message) => message.sender_id), actor.id);
+    return messages.map((message) => {
+      const profile = profiles.get(message.sender_id);
+      return {
+        ...message,
+        sender_name: this.profileDisplayName(profile, message.sender_id === actor.id ? actor.email ?? 'Tu' : 'Membro RESA'),
+        sender_avatar_url: profile?.avatar_url ?? null,
+      };
+    });
   }
 
   async sendMessage(token: string, conversationId: string, body: unknown, parentMessageId?: unknown) {
