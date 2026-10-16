@@ -65,7 +65,7 @@ function renderLinkedText(value: string) {
 function mergeMessages(current: Message[], incoming: Message[]) {
   const byId = new Map(current.map((message) => [message.id, message]));
   for (const message of incoming) byId.set(message.id, message);
-  return [...byId.values()].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+  return [...byId.values()].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
 }
 
 export default function MessagesPage() {
