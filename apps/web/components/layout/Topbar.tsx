@@ -107,6 +107,7 @@ export default function Topbar() {
 
   const initials = displayName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "Z";
   const role = roleLabel(user, memberships);
+  const profileVerified = user?.app_metadata?.zion_verified === true;
   const emailVerified = Boolean(user?.email_confirmed_at);
 
   async function signOut() {
@@ -150,7 +151,7 @@ export default function Topbar() {
               {profile?.avatar_url ? <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" /> : initials}
             </span>
             <span className="hidden min-w-0 text-left lg:block">
-              <span className="block max-w-[145px] truncate text-xs font-semibold text-[#0B2D4D]">{displayName}</span>
+              <span className="flex max-w-[145px] items-center gap-1 truncate text-xs font-semibold text-[#0B2D4D]">{displayName}{profileVerified && <svg aria-label="Perfil verificado" role="img" viewBox="0 0 20 20" className="h-3.5 w-3.5 shrink-0 text-sky-600" fill="currentColor"><path fillRule="evenodd" d="M10 1.5a2.3 2.3 0 0 1 1.85.93l.46.62.76.1a2.3 2.3 0 0 1 1.93 1.38l.28.71.71.28a2.3 2.3 0 0 1 1.38 1.93l.1.76.62.46a2.3 2.3 0 0 1 .93 1.85 2.3 2.3 0 0 1-.93 1.85l-.62.46-.1.76a2.3 2.3 0 0 1-1.38 1.93l-.71.28-.28.71a2.3 2.3 0 0 1-1.93 1.38l-.76.1-.46.62a2.3 2.3 0 0 1-1.85.93 2.3 2.3 0 0 1-1.85-.93l-.46-.62-.76-.1A2.3 2.3 0 0 1 5 15.97l-.28-.71-.71-.28a2.3 2.3 0 0 1-1.38-1.93l-.1-.76-.62-.46A2.3 2.3 0 0 1 .98 10a2.3 2.3 0 0 1 .93-1.85l.62-.46.1-.76A2.3 2.3 0 0 1 4 5.0l.71-.28L5 4.01a2.3 2.3 0 0 1 1.93-1.38l.76-.1.46-.62A2.3 2.3 0 0 1 10 1.5Zm3.12 6.77a.75.75 0 0 0-1.06-1.06L8.9 10.37 7.94 9.4a.75.75 0 1 0-1.06 1.06l1.5 1.5a.75.75 0 0 0 1.06 0l3.68-3.69Z" clipRule="evenodd" /></svg>}</span>
               <span className="block max-w-[145px] truncate text-[10px] text-slate-500">{role}</span>
             </span>
             <svg aria-hidden="true" viewBox="0 0 20 20" className={"hidden h-4 w-4 text-slate-400 transition sm:block " + (menuOpen ? "rotate-180" : "")} fill="currentColor"><path fillRule="evenodd" d="M5.22 7.47a.75.75 0 0 1 1.06 0L10 11.19l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 8.53a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" /></svg>
@@ -174,7 +175,10 @@ export default function Topbar() {
                     ))}
                   </div>
                 </div>
-                <p className={"mt-3 rounded-lg px-2.5 py-1.5 text-[11px] " + (emailVerified ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800")}>
+                <p className={"mt-3 rounded-lg px-2.5 py-1.5 text-[11px] " + (profileVerified ? "bg-sky-50 text-sky-700" : "bg-slate-100 text-slate-600")}>
+                  {profileVerified ? "Perfil verificado" : "Perfil não verificado"}
+                </p>
+                <p className={"mt-2 rounded-lg px-2.5 py-1.5 text-[11px] " + (emailVerified ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800")}>
                   {emailVerified ? "Email confirmado" : "Email por confirmar"}
                 </p>
               </div>
