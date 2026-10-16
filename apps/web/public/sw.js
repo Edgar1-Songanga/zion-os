@@ -36,9 +36,10 @@ self.addEventListener("push", (event) => {
     badge: "/favicon.ico",
     data: { url: safeUrl },
     renotify: true,
-    requireInteraction: false,
+    // Keep urgent calls and bank alerts visible until the user dismisses them where supported.
+    requireInteraction: urgent,
     silent: false,
-    vibrate: [180, 80, 180],
+    vibrate,
   }));
 });
 
