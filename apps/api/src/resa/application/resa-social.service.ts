@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { IdentityService } from '../../identity/application/identity.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 import { ResaRecommendationService } from './recommendation.service';
@@ -17,6 +17,17 @@ export class ResaSocialService {
     const filter = before ? `&created_at=lt.${encodeURIComponent(before)}` : '';
     return this.db.get('resa_contents', token, `?select=*&order=created_at.desc&limit=${size}${filter}`);
   }
+  async getContentById(token: string, contentId: string) {
+    await this.actor(token);
+    const rows = await this.db.get<any[]>(
+      'resa_contents',
+      token,
+      `?select=*&id=eq.${encodeURIComponent(contentId)}&limit=1`,
+    );
+    if (!rows[0]) throw new NotFoundException('RESA publication not found');
+    return rows[0];
+  }
+
   async feed(token: string, limit = 30) {
     const a = await this.actor(token);
     const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
