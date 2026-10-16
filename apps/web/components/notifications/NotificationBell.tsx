@@ -248,16 +248,22 @@ export default function NotificationBell() {
     try {
       await resaRequest("/v1/notifications/read-all", { method: "POST" });
       setItems((current) => current.map((item) => ({ ...item, read_at: new Date().toISOString() })));
-    } catch {} finally {
+      setLoadError(false);
+    } catch {
+      setLoadError(true);
+    } finally {
       setBusy(false);
     }
   }
 
   async function markRead(id: string) {
     try {
-      await resaRequest("/v1/notifications/" + id + "/read", { method: "PATCH" });
+      await resaRequest("/v1/notifications/" + encodeURIComponent(id) + "/read", { method: "PATCH" });
       setItems((current) => current.map((item) => item.id === id ? { ...item, read_at: new Date().toISOString() } : item));
-    } catch {}
+      setLoadError(false);
+    } catch {
+      setLoadError(true);
+    }
   }
 
   function notificationDestination(item: NotificationItem) {
