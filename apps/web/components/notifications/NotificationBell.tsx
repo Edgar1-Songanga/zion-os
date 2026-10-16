@@ -221,12 +221,32 @@ export default function NotificationBell() {
 
       {open && (
         <div className="absolute right-0 top-12 z-50 w-[min(380px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-[var(--zion-border)] bg-white shadow-[var(--zion-shadow-lg)]">
-          <div className="flex items-center justify-between border-b border-[var(--zion-border)] px-4 py-3">
-            <div>
-              <p className="text-sm font-semibold text-[var(--zion-dark)]">Notificações</p>
-              <p className="text-[11px] text-[var(--zion-muted)]">{unread ? `${unread} por ler` : "Tudo em dia"}</p>
+          <div className="border-b border-[var(--zion-border)] px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-[var(--zion-dark)]">Notificações</p>
+                <p className="text-[11px] text-[var(--zion-muted)]">{unread ? `${unread} por ler` : "Tudo em dia"}</p>
+              </div>
+              {unread > 0 && <button onClick={() => void markAllRead()} disabled={busy} className="text-xs font-semibold text-[var(--zion-primary)] hover:text-[var(--zion-primary-deep)]">Marcar todas como lidas</button>}
             </div>
-            {unread > 0 && <button onClick={() => void markAllRead()} disabled={busy} className="text-xs font-semibold text-[var(--zion-primary)] hover:text-[var(--zion-primary-deep)]">Marcar todas como lidas</button>}
+            <div className="mt-3 rounded-xl border border-[var(--zion-border)] bg-slate-50 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-[var(--zion-dark)]">Notificações neste dispositivo</p>
+                  <p className="mt-1 text-[11px] leading-4 text-[var(--zion-muted)]">{pushEnabled ? "Ativadas neste dispositivo." : "Ativa para receber alertas mesmo quando não estás com o RESA aberto."}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void togglePush()}
+                  disabled={pushBusy || (!pushPublicKey && !pushEnabled)}
+                  className="shrink-0 rounded-lg bg-[var(--zion-primary)] px-3 py-2 text-[11px] font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {pushBusy ? "A configurar…" : pushEnabled ? "Desativar" : "Ativar"}
+                </button>
+              </div>
+              {pushMessage && <p role="status" className="mt-2 text-xs leading-5 text-[var(--zion-muted)]">{pushMessage}</p>}
+              {!pushPublicKey && !pushEnabled && <p className="mt-2 text-[11px] text-[var(--zion-muted)]">A configuração das chaves ainda não está concluída.</p>}
+            </div>
           </div>
           <div className="max-h-80 overflow-y-auto">
             {!items.length && <p className="px-5 py-10 text-center text-sm text-[var(--zion-muted)]">Não há notificações.</p>}
@@ -245,18 +265,7 @@ export default function NotificationBell() {
               </button>
             ))}
           </div>
-          <div className="border-t border-[var(--zion-border)] bg-slate-50 px-4 py-3">
-            <button
-              type="button"
-              onClick={() => void togglePush()}
-              disabled={pushBusy || (!pushPublicKey && !pushEnabled)}
-              className="w-full rounded-xl border border-[var(--zion-border)] bg-white px-3 py-2 text-xs font-semibold text-[var(--zion-primary)] transition hover:bg-[var(--zion-light)] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {pushBusy ? "A configurar…" : pushEnabled ? "Desativar notificações neste dispositivo" : "Ativar notificações no telemóvel"}
-            </button>
-            {pushMessage && <p role="status" className="mt-2 text-xs leading-5 text-[var(--zion-muted)]">{pushMessage}</p>}
-            {!pushPublicKey && !pushEnabled && <p className="mt-2 text-[11px] text-[var(--zion-muted)]">A infraestrutura está a ser configurada; a ativação ficará disponível após a configuração das chaves.</p>}
-          </div>
+
         </div>
       )}
     </div>
