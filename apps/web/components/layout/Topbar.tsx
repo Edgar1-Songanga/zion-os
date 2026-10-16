@@ -25,7 +25,14 @@ type Membership = {
 function roleLabel(user: User | null, memberships: Membership[]) {
   const metadata = user?.app_metadata ?? {};
   if (metadata.zion_global_role === "global_admin") return "Administrador Global";
-  if (memberships.length) return memberships.map((item) => item.role?.name).filter(Boolean).join(" · ") || "Membro institucional";
+  if (memberships.length) {
+    const labels = memberships.map((item) => {
+      const role = item.role?.name;
+      const level = item.organization?.organization_type?.replace(/_/g, " ").toLowerCase();
+      return [role, level].filter(Boolean).join(" · ");
+    }).filter(Boolean);
+    return labels.join(" / ") || "Membro institucional";
+  }
   if (metadata.zion_global_role === "member") return "Membro ZION";
   return "Perfil institucional por configurar";
 }
