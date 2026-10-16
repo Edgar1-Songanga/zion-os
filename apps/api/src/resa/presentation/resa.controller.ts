@@ -6,6 +6,7 @@ export class ResaController {
   constructor(private readonly resa: ResaSocialService) {}
   private token(a?: string) { const t = a?.replace(/^Bearer\s+/i, '').trim(); if (!t) throw new UnauthorizedException('Bearer token is required'); return t; }
   @Get('content') content(@Headers('authorization') a: string | undefined, @Query('limit') limit?: string, @Query('before') before?: string) { return this.resa.listContent(this.token(a), Number(limit) || 30, before); }
+  @Get('content/:contentId') getContent(@Headers('authorization') a: string | undefined, @Param('contentId') id: string) { return this.resa.getContentById(this.token(a), id); }
   @Get('feed') feed(@Headers('authorization') a: string | undefined, @Query('limit') limit?: string) { return this.resa.feed(this.token(a), Number(limit) || 30); }
   @Get('explore') explore(@Headers('authorization') a: string | undefined, @Query('q') query?: string, @Query('limit') limit?: string) { return this.resa.explore(this.token(a), query, Number(limit) || 30); }
   @Get('stories') stories(@Headers('authorization') a: string | undefined, @Query('limit') limit?: string) { return this.resa.stories(this.token(a), Number(limit) || 30); }
