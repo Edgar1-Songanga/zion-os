@@ -16,6 +16,11 @@ export class ProfileController {
     return this.profiles.getOrCreate(this.token(authorization));
   }
 
+  @Get('access')
+  access(@Headers('authorization') authorization?: string) {
+    return this.profiles.getAccessContext(this.token(authorization));
+  }
+
   @Patch()
   update(
     @Headers('authorization') authorization: string | undefined,
