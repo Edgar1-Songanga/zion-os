@@ -1,6 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
-import type { MinistryDirectoryPort, MinistryProfileInput, MinistryRecord } from './ministry.types';
+import type {
+  MinistryDirectoryPort,
+  MinistryProfileInput,
+  MinistryProgramInput,
+  MinistryProgramRecord,
+  MinistryProgramStatus,
+  MinistryRecord,
+} from './ministry.types';
 
 @Injectable()
 export class SupabaseMinistryDirectory implements MinistryDirectoryPort {
@@ -59,6 +66,41 @@ export class SupabaseMinistryDirectory implements MinistryDirectoryPort {
     return rows[0] ? this.hydrate(rows[0], token) : null;
   }
 
+  async createProgram(ministryId: string, input: MinistryProgramInput, token?: string): Promise<MinistryProgramRecord | null> {
+    if (!token) return null;
+    const rows = await this.db.post<any[]>('ministry_programs', token, {
+      ministry_id: ministryId,
+      name: input.name,
+      description: input.description ?? null,
+      status: input.status ?? 'PLANNED',
+      start_date: input.startDate ?? null,
+      end_date: input.endDate ?? null,
+    });
+    return rows[0] ? this.mapProgram(rows[0]) : null;
+  }
+
+  async updateProgram(
+    ministryId: string,
+    programId: string,
+    input: MinistryProgramInput,
+    token?: string,
+  ): Promise<MinistryProgramRecord | null> {
+    if (!token) return null;
+    const body: Record<string, unknown> = {};
+    if (input.name !== undefined) body.name = input.name;
+    if (input.description !== undefined) body.description = input.description;
+    if (input.status !== undefined) body.status = input.status;
+    if (input.startDate !== undefined) body.start_date = input.startDate;
+    if (input.endDate !== undefined) body.end_date = input.endDate;
+    const rows = await this.db.patch<any[]>(
+      'ministry_programs',
+      token,
+      body,
+      `?id=eq.${encodeURIComponent(programId)}&ministry_id=eq.${encodeURIComponent(ministryId)}`,
+    );
+    return rows[0] ? this.mapProgram(rows[0]) : null;
+  }
+
   async getById(id: string, token?: string): Promise<MinistryRecord | null> {
     if (!token) return null;
     const rows = await this.db.get<any[]>('ministries', token, `?select=*&id=eq.${encodeURIComponent(id)}&limit=1`);
@@ -100,7 +142,7 @@ export class SupabaseMinistryDirectory implements MinistryDirectoryPort {
       department: row.department,
       organization: organization[0] ? { church: organization[0].name, district: row.department } : {},
       leadership: leaders.map((leader) => ({ ...leader, name: leader.user_id })),
-      programs,
+      programs: programs.map((program) => this.mapProgram(program)),
       reports,
       metrics: {
         members: members.length,
@@ -112,6 +154,17 @@ export class SupabaseMinistryDirectory implements MinistryDirectoryPort {
         growth: null,
         impact: null,
       },
+    };
+  }
+
+  private mapProgram(row: any): MinistryProgramRecord {
+    return {
+      id: row.id,
+      name: row.name,
+      description: row.description ?? null,
+      status: row.status as MinistryProgramStatus,
+      startDate: row.start_date ?? null,
+      endDate: row.end_date ?? null,
     };
   }
 }

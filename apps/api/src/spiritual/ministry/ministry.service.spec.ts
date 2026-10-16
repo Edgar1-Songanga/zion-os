@@ -26,6 +26,22 @@ describe('SpiritualMinistryService ministry profile management', () => {
     directory = {
       create: jest.fn().mockResolvedValue(null),
       update: jest.fn().mockResolvedValue(record),
+      createProgram: jest.fn().mockResolvedValue({
+        id: ministryId,
+        name: 'Plano de visitas',
+        description: 'Ações trimestrais',
+        status: 'PLANNED',
+        startDate: '2026-10-01',
+        endDate: '2026-12-31',
+      }),
+      updateProgram: jest.fn().mockResolvedValue({
+        id: ministryId,
+        name: 'Plano de visitas',
+        description: null,
+        status: 'ACTIVE',
+        startDate: null,
+        endDate: null,
+      }),
       getById: jest.fn().mockResolvedValue(null),
       listByOrganization: jest.fn().mockResolvedValue([]),
     };
@@ -97,5 +113,48 @@ describe('SpiritualMinistryService ministry profile management', () => {
     await expect(
       service.update(ministryId, 'access-token', { description: 'x'.repeat(2001) }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('normalizes a program plan and its dates before persistence', async () => {
+    await service.createProgram(ministryId, 'access-token', {
+      name: ' Plano de visitas ',
+      description: ' Ações trimestrais ',
+      start_date: '2026-10-01',
+      end_date: '2026-12-31',
+    });
+
+    expect(directory.createProgram).toHaveBeenCalledWith(ministryId, {
+      name: 'Plano de visitas',
+      description: 'Ações trimestrais',
+      status: 'PLANNED',
+      startDate: '2026-10-01',
+      endDate: '2026-12-31',
+    }, 'access-token');
+  });
+
+  it('rejects invalid dates, reversed program periods, invalid statuses, and empty updates', async () => {
+    await expect(service.createProgram(ministryId, 'access-token', {
+      name: 'Plano', start_date: '2026-02-30',
+    })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.createProgram(ministryId, 'access-token', {
+      name: 'Plano', start_date: '0000-01-01',
+    })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.createProgram(ministryId, 'access-token', {
+      name: 'Plano', start_date: '2026-11-01', end_date: '2026-10-01',
+    })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.createProgram(ministryId, 'access-token', {
+      name: 'Plano', status: 'CANCELLED',
+    })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.updateProgram(ministryId, ministryId, 'access-token', {}))
+      .rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.updateProgram(ministryId, ministryId, 'access-token', { start_date: '2026-10-01' }))
+      .rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('updates only provided program fields and rejects malformed ids', async () => {
+    await service.updateProgram(ministryId, ministryId, 'access-token', { status: 'ACTIVE' });
+    expect(directory.updateProgram).toHaveBeenCalledWith(ministryId, ministryId, { status: 'ACTIVE' }, 'access-token');
+    await expect(service.updateProgram('not-a-uuid', ministryId, 'access-token', { status: 'ACTIVE' }))
+      .rejects.toBeInstanceOf(BadRequestException);
   });
 });

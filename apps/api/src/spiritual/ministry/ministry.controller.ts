@@ -14,6 +14,14 @@ type MinistryBody = {
   source_label?: string | null;
 };
 
+type MinistryProgramBody = {
+  name?: string;
+  description?: string | null;
+  status?: 'PLANNED' | 'ACTIVE' | 'COMPLETED';
+  start_date?: string | null;
+  end_date?: string | null;
+};
+
 @Controller('v1/ministries')
 export class MinistryController {
   constructor(private readonly ministries: SpiritualMinistryService) {}
@@ -39,6 +47,25 @@ export class MinistryController {
     @Body() body: Partial<Omit<MinistryBody, 'organization_id'>>,
   ) {
     return this.ministries.update(id, this.token(authorization), body);
+  }
+
+  @Post(':id/programs')
+  createProgram(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+    @Body() body: MinistryProgramBody,
+  ) {
+    return this.ministries.createProgram(id, this.token(authorization), body);
+  }
+
+  @Patch(':id/programs/:programId')
+  updateProgram(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+    @Param('programId') programId: string,
+    @Body() body: MinistryProgramBody,
+  ) {
+    return this.ministries.updateProgram(id, programId, this.token(authorization), body);
   }
 
   @Get(':id')

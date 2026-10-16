@@ -5,7 +5,23 @@ import Card from "../ui/Card";
 import StatCard from "../ui/StatCard";
 import { resaRequest } from "@/lib/resa/api";
 import { getMinistryCatalogEntry } from "./ministry-catalog";
-import type { Ministry } from "./types";
+import type { Ministry, MinistryProgram, ProgramStatus } from "./types";
+
+type ProgramForm = {
+  name: string;
+  description: string;
+  status: ProgramStatus;
+  startDate: string;
+  endDate: string;
+};
+
+const EMPTY_PROGRAM_FORM: ProgramForm = {
+  name: "",
+  description: "",
+  status: "PLANNED",
+  startDate: "",
+  endDate: "",
+};
 
 interface MinistryDashboardProps {
   ministry: Ministry;
@@ -46,6 +62,11 @@ export default function MinistryDashboard({ ministry, onUpdated }: MinistryDashb
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [form, setForm] = useState<MinistryProfileForm>(() => formFromMinistry(ministry));
+  const [programs, setPrograms] = useState<MinistryProgram[]>(ministry.programs ?? []);
+  const [programForm, setProgramForm] = useState<ProgramForm>(EMPTY_PROGRAM_FORM);
+  const [editingProgramId, setEditingProgramId] = useState<string | null>(null);
+  const [programSaving, setProgramSaving] = useState(false);
+  const [programError, setProgramError] = useState<string | null>(null);
 
   useEffect(() => {
     setForm(formFromMinistry(ministry));
@@ -63,6 +84,13 @@ export default function MinistryDashboard({ ministry, onUpdated }: MinistryDashb
     ministry.sourceLabel,
   ]);
 
+  useEffect(() => {
+    setPrograms(ministry.programs ?? []);
+    setProgramForm(EMPTY_PROGRAM_FORM);
+    setEditingProgramId(null);
+    setProgramError(null);
+  }, [ministry.id, ministry.programs]);
+
   const coverImage = ministry.coverImageUrl ?? catalogEntry?.coverImage;
   const summary = ministry.description || catalogEntry?.summary || "A descrição deste ministério ainda não foi preenchida.";
   const mission = ministry.philosophy || catalogEntry?.mission;
@@ -70,7 +98,6 @@ export default function MinistryDashboard({ ministry, onUpdated }: MinistryDashb
   const ageRange = ministry.ageRange ?? catalogEntry?.ageRange;
   const officialUrl = ministry.officialUrl ?? catalogEntry?.officialUrl;
   const sourceLabel = ministry.sourceLabel ?? catalogEntry?.sourceLabel;
-  const programs = ministry.programs ?? [];
   const reports = ministry.reports ?? [];
   const activeProgramCount = programs.filter((program) => program.status.toLowerCase() === "active").length;
   const plannedProgramCount = programs.filter((program) => program.status.toLowerCase() === "planned").length;
@@ -109,6 +136,53 @@ export default function MinistryDashboard({ ministry, onUpdated }: MinistryDashb
     } finally {
       setSaving(false);
     }
+  }
+
+  async function saveProgram(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (programSaving) return;
+    setProgramSaving(true);
+    setProgramError(null);
+    try {
+      const payload = {
+        name: programForm.name.trim(),
+        description: programForm.description.trim() || null,
+        status: programForm.status,
+        start_date: programForm.startDate || null,
+        end_date: programForm.endDate || null,
+      };
+      const path = editingProgramId
+        ? `/v1/ministries/${encodeURIComponent(ministry.id)}/programs/${encodeURIComponent(editingProgramId)}`
+        : `/v1/ministries/${encodeURIComponent(ministry.id)}/programs`;
+      const saved = await resaRequest<MinistryProgram>(path, {
+        method: editingProgramId ? "PATCH" : "POST",
+        body: JSON.stringify(payload),
+      });
+      const nextPrograms = (editingProgramId
+        ? programs.map((program) => program.id === saved.id ? saved : program)
+        : [...programs, saved]
+      ).sort((a, b) => a.name.localeCompare(b.name, "pt"));
+      setPrograms(nextPrograms);
+      onUpdated?.({ ...ministry, programs: nextPrograms, metrics: { ...ministry.metrics, programs: nextPrograms.length } });
+      setProgramForm(EMPTY_PROGRAM_FORM);
+      setEditingProgramId(null);
+    } catch (reason) {
+      setProgramError(reason instanceof Error ? reason.message : "Não foi possível guardar o programa.");
+    } finally {
+      setProgramSaving(false);
+    }
+  }
+
+  function editProgram(program: MinistryProgram) {
+    setEditingProgramId(program.id);
+    setProgramForm({
+      name: program.name,
+      description: program.description ?? "",
+      status: program.status,
+      startDate: program.startDate ?? "",
+      endDate: program.endDate ?? "",
+    });
+    setProgramError(null);
   }
 
   return (
@@ -239,13 +313,50 @@ export default function MinistryDashboard({ ministry, onUpdated }: MinistryDashb
 
         <Card>
           <h2 className="text-lg font-semibold text-[#0C1A3D]">Programas e atividades</h2>
-          <div className="mt-5 space-y-4">
-            {ministry.programs?.length ? ministry.programs.map((program) => (
-              <div key={program.id} className="flex items-start justify-between gap-4 border-b border-slate-100 pb-3">
-                <div><p className="font-medium text-[#0C1A3D]">{program.name}</p>{program.description && <p className="mt-1 text-sm text-slate-500">{program.description}</p>}</div>
-                <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">{program.status}</span>
+          <p className="mt-2 text-sm leading-6 text-slate-500">Registe planos e atividades do departamento. A gravação exige a permissão de gestão da organização; não inclua dados pessoais, informações de interessados ou valores de ofertas.</p>
+          <div className="mt-5 grid gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+            <form onSubmit={saveProgram} className="space-y-3 rounded-xl border border-slate-100 bg-slate-50 p-4">
+              <h3 className="font-semibold text-[#0C1A3D]">{editingProgramId ? "Editar programa" : "Novo programa"}</h3>
+              {programError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{programError}</p>}
+              <label className="block text-sm font-medium text-slate-700">Nome
+                <input required minLength={2} maxLength={160} value={programForm.name} onChange={(event) => setProgramForm({ ...programForm, name: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2" />
+              </label>
+              <label className="block text-sm font-medium text-slate-700">Descrição do plano
+                <textarea maxLength={2000} rows={3} value={programForm.description} onChange={(event) => setProgramForm({ ...programForm, description: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2" />
+              </label>
+              <label className="block text-sm font-medium text-slate-700">Estado
+                <select value={programForm.status} onChange={(event) => setProgramForm({ ...programForm, status: event.target.value as ProgramStatus })} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2">
+                  <option value="PLANNED">Planeado</option>
+                  <option value="ACTIVE">Em curso</option>
+                  <option value="COMPLETED">Concluído</option>
+                </select>
+              </label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block text-sm font-medium text-slate-700">Início
+                  <input type="date" value={programForm.startDate} onChange={(event) => setProgramForm({ ...programForm, startDate: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2" />
+                </label>
+                <label className="block text-sm font-medium text-slate-700">Fim
+                  <input type="date" value={programForm.endDate} onChange={(event) => setProgramForm({ ...programForm, endDate: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2" />
+                </label>
               </div>
-            )) : <p className="text-sm text-slate-500">Nenhum programa registado.</p>}
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button type="submit" disabled={programSaving || !programForm.name.trim()} className="rounded-lg bg-[#0C1A3D] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{programSaving ? "A guardar…" : editingProgramId ? "Guardar alterações" : "Registar programa"}</button>
+                {editingProgramId && <button type="button" onClick={() => { setEditingProgramId(null); setProgramForm(EMPTY_PROGRAM_FORM); setProgramError(null); }} className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600">Cancelar edição</button>}
+              </div>
+            </form>
+            <div className="space-y-3">
+              {programs.length ? programs.map((program) => (
+                <div key={program.id} className="flex items-start justify-between gap-3 rounded-xl border border-slate-100 p-4">
+                  <div className="min-w-0">
+                    <p className="font-medium text-[#0C1A3D]">{program.name}</p>
+                    {program.description && <p className="mt-1 whitespace-pre-wrap text-sm text-slate-500">{program.description}</p>}
+                    {(program.startDate || program.endDate) && <p className="mt-2 text-xs text-slate-400">{program.startDate || "Data por definir"}{program.endDate ? ` — ${program.endDate}` : ""}</p>}
+                    <span className="mt-2 inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">{program.status === "ACTIVE" ? "Em curso" : program.status === "COMPLETED" ? "Concluído" : "Planeado"}</span>
+                  </div>
+                  <button type="button" onClick={() => editProgram(program)} className="shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50">Editar</button>
+                </div>
+              )) : <p className="rounded-xl border border-dashed border-slate-200 p-5 text-sm text-slate-500">Nenhum programa registado.</p>}
+            </div>
           </div>
         </Card>
       </div>
