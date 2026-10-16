@@ -39,6 +39,23 @@ function numberLabel(value: number | undefined) {
   return typeof value === "number" ? value.toLocaleString("pt-PT") : "—";
 }
 
+function reportFailureMessage(reason: unknown, area: string) {
+  const message = reason instanceof Error ? reason.message.toLowerCase() : "";
+  if (/42501|insufficient permission|permission denied|forbidden|not authorized/.test(message)) {
+    return `A conta autenticada não tem permissão para consultar ${area} nesta organização. Verifique o perfil e as permissões atribuídas; o controlo de acesso foi mantido.`;
+  }
+  if (/401|pgrst303|unauthorized|bearer token|sessão.*expir|session.*expired|jwt.*invalid|token.*invalid/.test(message)) {
+    return `A sessão não foi autorizada ao consultar ${area}. Inicie novamente a sessão e tente outra vez.`;
+  }
+  if (/does not exist|could not find the function|schema cache|migration|404|estrutura da base de dados|sincronizada com a versão atual/.test(message)) {
+    return `${area}: o endpoint ou a função necessária não está disponível nesta instalação. Confirme a implantação da API e as migrações pelo processo oficial.`;
+  }
+  if (/timeout|timed out|504|gateway/.test(message)) {
+    return `${area}: a consulta excedeu o tempo de resposta. Tente novamente; se persistir, verifique os registos da API.`;
+  }
+  return `Não foi possível carregar ${area}. Atualize os dados e, se o erro persistir, verifique os registos da API.`;
+}
+
 export default function ReportsPage() {
   const [organizationId, setOrganizationId] = useState("");
   const [organization, setOrganization] = useState<ZionOrganization | null>(null);
@@ -64,12 +81,12 @@ export default function ReportsPage() {
     } else {
       setMinistries([]);
       setMinistryDataAvailable(false);
-      nextErrors.push("Não foi possível carregar os ministérios e os relatórios associados.");
+      nextErrors.push(reportFailureMessage(results[0].reason, "os ministérios e os relatórios associados"));
     }
     if (results[1].status === "fulfilled") setYouth(results[1].value);
     else {
       setYouth(null);
-      nextErrors.push("O relatório operacional do Ministério Jovem não respondeu. Confirme a ligação da API e a migração de relatórios.");
+      nextErrors.push(reportFailureMessage(results[1].reason, "o relatório operacional do Ministério Jovem"));
     }
     setErrors(nextErrors);
     setLastUpdated(new Date().toISOString());
