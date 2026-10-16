@@ -62,6 +62,65 @@ export class ProfileService {
     return created[0];
   }
 
+  async getAccessContext(accessToken: string) {
+    const user = await this.identity.getCurrentUser(accessToken);
+    const memberships = await this.db.get<Array<{
+      id: string;
+      organization_id: string;
+      role_id: string;
+      status: string;
+    }>>(
+      'organization_memberships',
+      accessToken,
+      `?select=id,organization_id,role_id,status&user_id=eq.${user.id}&status=eq.ACTIVE&order=created_at.asc`,
+    );
+
+    if (!memberships.length) {
+      return { user_id: user.id, memberships: [] };
+    }
+
+    const roleIds = [...new Set(memberships.map((item) => item.role_id))];
+    const organizationIds = [...new Set(memberships.map((item) => item.organization_id))];
+    const [roles, organizations, unitMemberships] = await Promise.all([
+      this.db.get<Array<{ id: string; key: string; name: string }>>(
+        'roles', accessToken, `?select=id,key,name&id=in.(${roleIds.join(',')})`,
+      ),
+      this.db.get<Array<{ id: string; name: string; organization_type: string; parent_id: string | null }>>(
+        'organizations', accessToken, `?select=id,name,organization_type,parent_id&id=in.(${organizationIds.join(',')})`,
+      ),
+      this.db.get<Array<{ membership_id: string; unit_id: string }>>(
+        'unit_memberships', accessToken, `?select=membership_id,unit_id&membership_id=in.(${memberships.map((item) => item.id).join(',')})`,
+      ),
+    ]);
+    const unitIds = [...new Set(unitMemberships.map((item) => item.unit_id))];
+    const units = unitIds.length
+      ? await this.db.get<Array<{ id: string; name: string; unit_type: string; organization_id: string }>>(
+        'organization_units', accessToken, `?select=id,name,unit_type,organization_id&id=in.(${unitIds.join(',')})`,
+      )
+      : [];
+    const roleById = new Map(roles.map((item) => [item.id, item]));
+    const organizationById = new Map(organizations.map((item) => [item.id, item]));
+    const unitsByMembership = new Map<string, Array<{ id: string; name: string; unit_type: string }>>();
+    for (const assignment of unitMemberships) {
+      const unit = units.find((item) => item.id === assignment.unit_id);
+      if (!unit) continue;
+      const assigned = unitsByMembership.get(assignment.membership_id) ?? [];
+      assigned.push({ id: unit.id, name: unit.name, unit_type: unit.unit_type });
+      unitsByMembership.set(assignment.membership_id, assigned);
+    }
+
+    return {
+      user_id: user.id,
+      memberships: memberships.map((membership) => ({
+        id: membership.id,
+        status: membership.status,
+        role: roleById.get(membership.role_id) ?? null,
+        organization: organizationById.get(membership.organization_id) ?? null,
+        units: unitsByMembership.get(membership.id) ?? [],
+      })),
+    };
+  }
+
   async update(accessToken: string, input: Partial<Omit<Profile, 'id'>>) {
     const user = await this.identity.getCurrentUser(accessToken);
 
