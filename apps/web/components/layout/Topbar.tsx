@@ -97,7 +97,7 @@ export default function Topbar() {
     };
   }, [menuOpen]);
 
-  const displayName = useMemo(() => {
+  const displayName = useMemo<string>(() => {
     return profile?.display_name?.trim() ||
       [profile?.first_name, profile?.last_name].filter(Boolean).join(" ").trim() ||
       user?.user_metadata?.full_name?.trim() ||
