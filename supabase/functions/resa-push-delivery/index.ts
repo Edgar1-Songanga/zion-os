@@ -73,13 +73,25 @@ Deno.serve(async (request: Request) => {
     if (error) throw error;
     if (!subscriptions?.length) return json({ delivered: 0, stale: 0 });
 
-    const isMessage = event.type.startsWith("resa.message");
+    const type = event.type.toLowerCase();
+    const isMessage = type.startsWith("resa.message");
+    const isCall = type.includes("call") || type.includes("chamada");
+    const isBank = type.includes("bank") || type.includes("payment") || type.includes("transaction") || type.includes("finance");
+    const category = isCall ? "call" : isBank ? "bank" : isMessage ? "message" : "general";
     const payload = JSON.stringify({
-      title: isMessage ? "Nova mensagem no RESA" : (event.title || "Notificação RESA"),
-      body: isMessage ? "Recebeste uma nova mensagem." : (event.body || "Tens uma nova notificação."),
+      title: isCall
+        ? (type.includes("video") ? "Videochamada recebida no RESA" : "Chamada recebida no RESA")
+        : isBank
+          ? (event.title || "Alerta financeiro ZION")
+          : isMessage ? "Nova mensagem no RESA" : (event.title || "Notificação RESA"),
+      body: isCall
+        ? "Toca para abrir o RESA e atender."
+        : isMessage ? "Recebeste uma nova mensagem." : (event.body || "Tens uma nova notificação."),
       url: destination(event),
+      category,
+      priority: isCall || isBank ? "critical" : isMessage ? "high" : "normal",
       notificationId: event.notification_id,
-      tag: "resa-" + event.notification_id,
+      tag: isCall ? "resa-incoming-call-" + String(event.data?.call_id || event.notification_id) : "resa-" + event.notification_id,
     });
 
     let delivered = 0;
@@ -89,7 +101,7 @@ Deno.serve(async (request: Request) => {
         await webpush.sendNotification({
           endpoint: row.endpoint,
           keys: { p256dh: row.p256dh, auth: row.auth_secret },
-        }, payload, { TTL: 60 * 60, urgency: "high" });
+        }, payload, { TTL: isCall ? 30 : isMessage ? 300 : 60 * 60, urgency: "high" });
         delivered += 1;
       } catch (error) {
         const statusCode = (error as { statusCode?: number })?.statusCode;
