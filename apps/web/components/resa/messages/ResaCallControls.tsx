@@ -24,7 +24,8 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
   const remoteMedia = useRef<HTMLDivElement | null>(null);
   const userId = useRef<string | null>(null);
   const callRef = useRef<CallRow | null>(null);
-  const ringAudioRef = useRef<AudioContext | null>(null);\n  const ringTimerRef = useRef<number | null>(null);
+  const ringAudioRef = useRef<AudioContext | null>(null);
+  const ringTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     let mounted = true;
