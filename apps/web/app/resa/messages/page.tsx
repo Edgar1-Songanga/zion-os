@@ -7,16 +7,26 @@ import { createClient } from "@/lib/supabase/client";
 import { useSearchParams } from "next/navigation";
 import ResaCallControls from "@/components/resa/messages/ResaCallControls";
 
+type ConversationMember = {
+  id: string;
+  role?: string | null;
+  display_name: string;
+  avatar_url?: string | null;
+};
+
 type Conversation = {
   id: string;
   title?: string | null;
   kind: string;
   updated_at?: string;
+  members?: ConversationMember[];
 };
 
 type Message = {
   id: string;
   sender_id: string;
+  sender_name?: string | null;
+  sender_avatar_url?: string | null;
   body: string;
   created_at: string;
   parent_message_id?: string | null;
@@ -72,8 +82,11 @@ export default function MessagesPage() {
   const [sending, setSending] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const messageRequestId = useRef(0);
+  const currentUserIdRef = useRef<string | null>(null);
+  const selectedConversationRef = useRef<Conversation | null>(null);
   const searchParams = useSearchParams();
   const startedTarget = useRef<string | null>(null);
   const startedInvite = useRef<string | null>(null);
@@ -82,6 +95,7 @@ export default function MessagesPage() {
     () => items.find((item) => item.id === selected) ?? null,
     [items, selected],
   );
+  selectedConversationRef.current = selectedConversation;
 
   const selectedRef = useRef<string | null>(selected);
   selectedRef.current = selected;
@@ -132,9 +146,27 @@ export default function MessagesPage() {
   }, []);
 
   useEffect(() => {
+    const supabase = createClient();
+    let active = true;
+    void supabase.auth.getUser().then(({ data }) => {
+      if (active) {
+        const id = data.user?.id ?? null;
+        setCurrentUserId(id);
+        currentUserIdRef.current = id;
+      }
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      const id = session?.user?.id ?? null;
+      setCurrentUserId(id);
+      currentUserIdRef.current = id;
+    });
     void loadConversations();
     const timer = window.setInterval(() => void loadConversations(), 10000);
-    return () => window.clearInterval(timer);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      listener.subscription.unsubscribe();
+    };
   }, [loadConversations]);
 
   useEffect(() => {
@@ -158,7 +190,13 @@ export default function MessagesPage() {
     const supabase = createClient();
     const channel = supabase.channel("resa-messages-" + selected).on("postgres_changes", { event: "INSERT", schema: "public", table: "resa_messages", filter: "conversation_id=eq." + selected }, (payload) => {
       const incoming = payload.new as Message;
-      setMessages((current) => mergeMessages(current, [incoming]));
+      const participant = selectedConversationRef.current?.members?.find((member) => member.id === incoming.sender_id);
+      const hydrated: Message = {
+        ...incoming,
+        sender_name: participant?.display_name ?? (incoming.sender_id === currentUserIdRef.current ? "A tua conta" : "Membro RESA"),
+        sender_avatar_url: participant?.avatar_url ?? null,
+      };
+      setMessages((current) => mergeMessages(current, [hydrated]));
       if (incoming.sender_id !== undefined && typeof window !== "undefined") {
         try { window.dispatchEvent(new CustomEvent("resa-message-received")); } catch {}
       }
@@ -291,8 +329,10 @@ export default function MessagesPage() {
                     className={"mb-1 w-full rounded-2xl p-4 text-left transition " + (active ? "bg-[#0C1A3D] text-white shadow-sm" : "hover:bg-slate-50")}
                   >
                     <div className="flex items-center gap-3">
-                      <div className={"flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-sm font-bold " + (active ? "bg-white/15 text-white" : "bg-[#eef2f8] text-[#0C1A3D]")}>
-                        {(item.title || "C").slice(0, 1).toUpperCase()}
+                      <div className={"flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl text-sm font-bold " + (active ? "bg-white/15 text-white" : "bg-[#eef2f8] text-[#0C1A3D]")}>
+                        {item.kind === "direct" && item.members?.find((member) => member.id !== currentUserId)?.avatar_url
+                          ? <img src={item.members.find((member) => member.id !== currentUserId)?.avatar_url ?? ""} alt="" className="h-full w-full object-cover" />
+                          : (item.title || "C").slice(0, 1).toUpperCase()}
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold">{item.title || "Conversa direta"}</p>
@@ -344,13 +384,25 @@ export default function MessagesPage() {
                 </div>
               )}
               <div className="space-y-3">
-                {messages.map((message) => (
-                  <div key={message.id} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-                    {message.parent_message_id && <p className="mb-3 rounded-xl border-l-2 border-[#9aa9c6] bg-slate-50 px-3 py-2 text-xs text-slate-500">Resposta a uma mensagem anterior</p>}
-                    <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{renderLinkedText(message.body)}</p>
-                    <div className="mt-2 flex items-center justify-between gap-3"><p className="text-[11px] text-slate-400">{formatDate(message.created_at)}</p><button onClick={() => { setReplyTo(message); }} className="text-[11px] font-semibold text-[#0C1A3D]">Responder</button></div>
-                  </div>
-                ))}
+                {messages.map((message) => {
+                  const mine = Boolean(currentUserId && message.sender_id === currentUserId);
+                  const senderName = message.sender_name || (mine ? "A tua conta" : "Membro RESA");
+                  return (
+                    <div key={message.id} className={"flex " + (mine ? "justify-end" : "justify-start")}>
+                      <article className={"max-w-[92%] rounded-2xl border p-4 shadow-sm sm:max-w-[82%] " + (mine ? "border-[#d7e2f5] bg-[#eef4ff]" : "border-slate-100 bg-white")}>
+                        <div className="mb-3 flex items-center gap-2.5">
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#0C1A3D] text-xs font-semibold text-white">
+                            {message.sender_avatar_url ? <img src={message.sender_avatar_url} alt="" className="h-full w-full object-cover" /> : senderName.slice(0, 1).toUpperCase()}
+                          </span>
+                          <span className="text-xs font-semibold text-[#0C1A3D]">{senderName}{mine ? " · Tu" : ""}</span>
+                        </div>
+                        {message.parent_message_id && <p className="mb-3 rounded-xl border-l-2 border-[#9aa9c6] bg-slate-50 px-3 py-2 text-xs text-slate-500">Resposta a uma mensagem anterior</p>}
+                        <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{renderLinkedText(message.body)}</p>
+                        <div className="mt-3 flex items-center justify-between gap-4 border-t border-slate-200/70 pt-2"><p className="text-[11px] text-slate-400">{formatDate(message.created_at)}</p><button onClick={() => { setReplyTo(message); }} className="text-[11px] font-semibold text-[#0C1A3D]">Responder</button></div>
+                      </article>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
