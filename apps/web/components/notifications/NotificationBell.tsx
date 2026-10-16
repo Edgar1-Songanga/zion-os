@@ -28,6 +28,12 @@ export default function NotificationBell() {
   const pushPublicKey = process.env.NEXT_PUBLIC_RESA_VAPID_PUBLIC_KEY || "BEmbs-5tKPOjip3OfVkjD4VynTnbOTxGQkXohOT_3KTCF-vCRJzbpLrJubl1y6CowFavkTDf1gSIJdXqNK2CJP8";
 
   useEffect(() => {
+    const unlockAudio = () => prepareNotificationAudio();
+    window.addEventListener("pointerdown", unlockAudio, { once: true });
+    return () => window.removeEventListener("pointerdown", unlockAudio);
+  }, []);
+
+  useEffect(() => {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
     void navigator.serviceWorker.getRegistration("/sw.js")
       .then((registration) => registration?.pushManager.getSubscription())
