@@ -61,21 +61,41 @@ export default function FeedCard({ content }: { content: ResaContent }) {
     ? `${window.location.origin}/resa?post=${encodeURIComponent(content.id)}`
     : `/resa?post=${encodeURIComponent(content.id)}`;
 
+  async function copyShareLink() {
+    const absoluteUrl = new URL(shareUrl, window.location.origin).toString();
+    try {
+      if (navigator.clipboard?.writeText && window.isSecureContext) {
+        await navigator.clipboard.writeText(absoluteUrl);
+      } else {
+        const input = document.createElement("textarea");
+        input.value = absoluteUrl;
+        input.setAttribute("readonly", "");
+        input.style.position = "fixed";
+        input.style.opacity = "0";
+        document.body.appendChild(input);
+        input.select();
+        const copied = document.execCommand("copy");
+        input.remove();
+        if (!copied) throw new Error("clipboard_unavailable");
+      }
+      setShareFeedback(t("copied"));
+    } catch {
+      setShareFeedback(absoluteUrl);
+    }
+  }
+
   async function nativeShare() {
     setShareFeedback("");
     if (typeof navigator !== "undefined" && navigator.share) {
       try {
-        await navigator.share({ title: shareTitle, text: shareText, url: shareUrl });
-        setShareFeedback(t("share"))
+        await navigator.share({ title: shareTitle, text: shareText, url: new URL(shareUrl, window.location.origin).toString() });
+        setShareFeedback(t("share"));
         return;
-      } catch {}
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      }
     }
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      setShareFeedback(t("copied"));
-    } catch {
-      setShareFeedback(t("copyPrompt"));
-    }
+    await copyShareLink();
   }
 
   function openExternalShare(network: "whatsapp" | "facebook" | "messenger" | "telegram" | "x") {
@@ -145,7 +165,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
   }
 
   return (
-    <article className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.05)] transition-shadow hover:shadow-[0_18px_55px_rgba(15,23,42,0.08)]">
+    <article id={`resa-post-${content.id}`} className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.05)] transition-shadow hover:shadow-[0_18px_55px_rgba(15,23,42,0.08)]">
       <div className="p-6 sm:p-7">
         <header className="flex items-start gap-4">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#0C1A3D] text-sm font-bold text-white shadow-sm">
@@ -181,7 +201,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 border-t border-slate-100 bg-slate-50/50 px-6 py-4 sm:px-7">
+      <div className="relative flex flex-wrap gap-2 border-t border-slate-100 bg-slate-50/50 px-6 py-4 sm:px-7">
         <Link href={"/resa/messages?to=" + encodeURIComponent(content.author_id)} className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-white hover:text-[#0C1A3D]"><ResaIcon name="message" size={16} />{t("message")}</Link>
         <Link href={"/resa/messages?to=" + encodeURIComponent(content.author_id)} className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-white hover:text-[#0C1A3D]" aria-label={t("call")}><span aria-hidden="true">☎</span>{t("call")}</Link>
         <button type="button" onClick={() => void toggleReaction()} className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium transition ${
@@ -222,7 +242,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
               <button type="button" onClick={() => void nativeShare()} className="rounded-xl bg-slate-50 px-3 py-2.5 text-left text-sm font-semibold text-[#0C1A3D] hover:bg-slate-100">{t("moreOptions")}</button>
             </div>
             <div className="mt-2 flex items-center justify-between gap-2 border-t border-slate-100 px-2 pt-2">
-              <button type="button" onClick={() => void navigator.clipboard.writeText(shareUrl).then(() => setShareFeedback(t("copied"))).catch(() => setShareFeedback(t("cannotCopy")))} className="text-xs font-semibold text-[#0C1A3D]">{t("copyLink")}</button>
+              <button type="button" onClick={() => void copyShareLink()} className="text-xs font-semibold text-[#0C1A3D]">{t("copyLink")}</button>
               {shareFeedback && <span className="text-xs text-slate-400">{shareFeedback}</span>}
             </div>
           </div>
