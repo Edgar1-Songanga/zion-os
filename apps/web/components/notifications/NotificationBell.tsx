@@ -18,6 +18,7 @@ type NotificationItem = {
 export default function NotificationBell() {
   const router = useRouter();
   const rootRef = useRef<HTMLDivElement>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -34,6 +35,38 @@ export default function NotificationBell() {
       .catch(() => setPushEnabled(false));
   }, []);
 
+  function prepareNotificationAudio() {
+    if (typeof window === "undefined" || !("AudioContext" in window)) return;
+    try {
+      const AudioContextConstructor = window.AudioContext;
+      if (!audioContextRef.current) audioContextRef.current = new AudioContextConstructor();
+      if (audioContextRef.current.state === "suspended") void audioContextRef.current.resume();
+    } catch {
+      // Audio is an enhancement; notification delivery must continue without it.
+    }
+  }
+
+  function playNotificationSound() {
+    const context = audioContextRef.current;
+    if (!context || context.state !== "running" || document.visibilityState !== "visible") return;
+    try {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(880, context.currentTime);
+      oscillator.frequency.setValueAtTime(660, context.currentTime + 0.12);
+      gain.gain.setValueAtTime(0.0001, context.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.12, context.currentTime + 0.025);
+      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.24);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start();
+      oscillator.stop(context.currentTime + 0.25);
+    } catch {
+      // Audio is an enhancement; notification delivery must continue without it.
+    }
+  }
+
   function decodeVapidPublicKey(value: string): Uint8Array {
     const padding = "=".repeat((4 - value.length % 4) % 4);
     const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -45,6 +78,7 @@ export default function NotificationBell() {
     if (pushBusy) return;
     setPushBusy(true);
     setPushMessage("");
+    prepareNotificationAudio();
     try {
       if (!pushPublicKey) {
         setPushMessage("A configuração segura de Web Push ainda não foi concluída.");
@@ -135,6 +169,7 @@ export default function NotificationBell() {
         }, (payload) => {
           const next = payload.new as NotificationItem;
           setItems((current) => [next, ...current.filter((item) => item.id !== next.id)].slice(0, 20));
+          playNotificationSound();
         })
         .subscribe();
     });
