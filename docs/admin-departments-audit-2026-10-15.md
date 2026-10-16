@@ -1,7 +1,7 @@
 # Auditoria dos departamentos administrativos — ZION OS
 
 **Data:** 15 de outubro de 2026 (auditoria inicial); atualizado em 16 de outubro de 2026.
-**Base de código examinada:** snapshot inicial de `main`, SHA `0574f484c7e1fb603c7b28ac682ef7aacb49726b`; correção financeira integrada em `5e865f823fa85b34ad7e86573570359558b8c55c`; fase 1 ministerial em revisão na branch `feature/ministry-program-operations-2026-10-16`.
+**Base de código examinada:** snapshot inicial de `main`, SHA `0574f484c7e1fb603c7b28ac682ef7aacb49726b`; correção financeira integrada em `5e865f823fa85b34ad7e86573570359558b8c55c`; fase 1 ministerial integrada em `main`, SHA `b25a2bd377b3e183faee4b0c7f4ade553dc65ef7` (PR #62).
 **Âmbito:** Tesouraria/Finanças, RH/Payroll, Ministério Pessoal/Escola Sabatina, Mordomia Cristã, Juventude, Ministérios, Administração/governação e Relatórios.
 **Exclusão expressa:** **Secretaria**. Não foram propostas nem feitas alterações aos seus ficheiros ou fluxos.
 
@@ -26,7 +26,7 @@ O Manual orienta a estrutura e princípios e não especifica uma aplicação inf
 4. **Mordomia Cristã:** o catálogo e a fase 1 permitem planear programas departamentais, mas ainda não há fluxo próprio de indicadores ou gestão financeira. Não se devem expor registos pessoais de ofertas/dízimos a dirigentes de Mordomia.
 5. **Juventude:** é a área não financeira com mais implementação operacional observada: clubes, membros, liderança, atividades, progressão/investiduras e relatório, com serviços e testes unitários. Ainda falta validar migrations, RLS e matriz de permissões num ambiente real.
 6. **Secretaria:** fora do âmbito desta ronda, conforme pedido.
-7. **Produção:** a correção financeira da PR #60 está integrada e publicada no SHA `5e865f8`; a fase 1 ministerial desta revisão ainda aguarda CI, merge e deployment. Os smoke tests anteriores não verificam autenticação, RLS, Frame/base de dados, migrations aplicadas ou dados.
+7. **Produção:** PR #62 integrada; ZION CI e GitHub Pages passaram no SHA `b25a2bd`. Vercel frontend `zion-os` e API `zion-os-api` estão `READY` nesse SHA; aliases `https://zion-os-omega.vercel.app` e `https://zion-os-api-delta.vercel.app`. Smoke tests: `/` e `/ministry` do frontend HTTP 200 e `/api/health` da API HTTP 200. Não são testes autenticados e não verificam RLS, Frame/base de dados, migrations aplicadas ou escrita de programas.
 
 ## Estado por área
 
@@ -54,26 +54,26 @@ O Manual orienta a estrutura e princípios e não especifica uma aplicação inf
 ## Fase 1 — programas e atividades dos departamentos
 
 - **Objetivo:** dar a Ministério Pessoal, Escola Sabatina, Mordomia e aos demais ministérios do catálogo um registo comum para planear e acompanhar programas, sem esperar pela conceção de fluxos com dados pessoais.
-- **Implementação em revisão:** `POST /v1/ministries/:id/programs` e `PATCH /v1/ministries/:id/programs/:programId`; a página `/ministry` permite criar/editar nome, descrição, estado e datas. Reutiliza `ministry_programs`; não acrescenta migration.
+- **Implementação em produção:** PR [#62](https://github.com/Edgar1-Songanga/zion-os/pull/62), integrada em `b25a2bd`; `POST /v1/ministries/:id/programs` e `PATCH /v1/ministries/:id/programs/:programId`; a página `/ministry` permite criar/editar nome, descrição, estado e datas. Reutiliza `ministry_programs`; não acrescentou migration.
 - **Permissões:** o token autenticado aplica a RLS já existente; escrita exige `organization.manage`. O update filtra também por `ministry_id` para impedir alteração cruzada entre ministérios. A política local de quem deve receber esta permissão continua por confirmar.
 - **Validação:** datas de calendário, intervalo coerente, estado permitido, limites de texto e escopo de atualização. Testes da API após a fase 1: **22 suites / 77 testes aprovados**; builds local de API e Web passaram.
-- **Limite:** o Manual orienta organização e responsabilidades; este planeador é uma salvaguarda/ferramenta técnica, não uma exigência expressa do Manual. Não inclui presenças, classes/unidades, acompanhamento de interessados, ofertas/dízimos, pagamentos ou métricas individuais. A fase aguarda CI, merge e deploy.
+- **Limite:** o Manual orienta organização e responsabilidades; este planeador é uma ferramenta técnica de apoio, não uma exigência expressa do Manual. Não inclui presenças, classes/unidades, acompanhamento de interessados, ofertas/dízimos, pagamentos ou métricas individuais. Não foram feitos testes autenticados nem escrita em dados de produção.
 
 ## Ações recomendadas por ordem
 
-1. Fazer merge/deploy da fase 1 ministerial só depois de CI verde e confirmar a versão em produção.
+1. Desenhar fases departamentais específicas com os dirigentes, mantendo a fase 1 genérica disponível em produção e sem recolher dados sensíveis não aprovados.
 2. Consultar a UPASD/Associação sobre o processo oficial de recolha, contagem, recibos, confidencialidade e reporte de fundos antes de desenhar um módulo de Tesouraria de doações/ofertas. Não inferir política local a partir do Manual.
 3. Validar RLS e matriz de permissões de Finanças, RH/Payroll, Ministérios e Juventude em ambiente de teste autorizado com contas por função e por organização; confirmar migrations aplicadas pelo Frame. Não fazer escrita em produção nesta ronda.
 4. Para Payroll, testar transações concorrentes/recuperáveis e todas as regras e componentes salariais aprovados pela entidade empregadora antes de salários reais.
 5. Para Ministério Pessoal e Mordomia, acordar com dirigentes quais operações adicionais devem ser registadas, dados mínimos, base de acesso, conservação e relatórios.
 6. Para Escola Sabatina, validar origem/licença/versão das lições e decidir separadamente se quer gestão local de classes/unidades e presenças; não recolher presenças até aprovar papéis e retenção.
 7. Para Juventude, validar papéis, proteção e consentimentos relacionados com menores, retenção e escopo de clube/organização em ambiente controlado.
-8. CI e deploy da correção financeira anterior foram concluídos; a fase 1 ministerial ainda aguarda CI/produção. Depois do deploy, fazer smoke test e realizar testes autenticados de dados/RLS num ambiente de teste autorizado antes de declarar os fluxos conformes.
+8. A fase 1 ministerial foi integrada/deployed e os smoke tests públicos passaram; realizar testes autenticados de dados/RLS num ambiente de teste autorizado antes de declarar os fluxos conformes.
 
 ## Fora do que foi verificado
 
 - A migration não foi aplicada e nenhuma base de dados/Frame foi modificada.
 - Não houve teste autenticado contra a aplicação ou API de produção.
-- Os deployments Vercel de frontend e API ficaram `READY` no SHA `5e865f8` e os smoke tests públicos passaram; isso não prova o estado da base de dados nem que migrations/RLS foram aplicadas.
+- Os deployments Vercel de frontend e API ficaram `READY` no SHA `b25a2bd` e os smoke tests públicos passaram; isso não prova o estado da base de dados nem que migrations/RLS foram aplicadas.
 - O termo «classe batina» foi entendido como possivelmente «classe batismal», mas requer confirmação. Nenhum fluxo novo de batismo/membresia foi concebido ou alterado; esses registos pertencem ao âmbito da Secretaria, explicitamente excluído.
 - A auditoria não equivale a certificação de conformidade, auditoria independente, nem autorização para registar informação pessoal/financeira real.
