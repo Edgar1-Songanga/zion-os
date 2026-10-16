@@ -9,6 +9,14 @@ export type NotificationAlertPreferences = {
 
 let sharedAudioContext: AudioContext | undefined;
 
+export function unlockNotificationAudio(): void {
+  if (typeof window === 'undefined' || !window.AudioContext) return;
+  try {
+    sharedAudioContext ??= new window.AudioContext();
+    if (sharedAudioContext.state === 'suspended') void sharedAudioContext.resume().catch(() => undefined);
+  } catch { /* Audio is optional and subject to browser policy. */ }
+}
+
 function isQuietNow(start?: string | null, end?: string | null): boolean {
   if (!start || !end) return false;
   const now = new Date();
