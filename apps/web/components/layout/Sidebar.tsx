@@ -57,7 +57,7 @@ export default function Sidebar() {
       if (active) void loadAccess(data.user ?? null);
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      void loadAccess(session?.user ?? null);
+      window.setTimeout(() => void loadAccess(session?.user ?? null), 0);
     });
     return () => {
       active = false;
