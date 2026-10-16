@@ -27,6 +27,7 @@ export default function ResaLiveFeed() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlightRef = useRef(false);
+  const deepLinkHandledRef = useRef<string | null>(null);
 
   const load = useCallback(async (silent = false) => {
     // Prevent slow connections from accumulating overlapping feed requests.
@@ -64,6 +65,35 @@ export default function ResaLiveFeed() {
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, [load]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || loading) return;
+    const postId = new URLSearchParams(window.location.search).get("post");
+    if (!postId || deepLinkHandledRef.current === postId) return;
+
+    const scrollToPublication = () => {
+      window.setTimeout(() => {
+        document.getElementById("resa-post-" + postId)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 120);
+    };
+
+    const existing = items.find((item) => item.id === postId);
+    if (existing) {
+      deepLinkHandledRef.current = postId;
+      scrollToPublication();
+      return;
+    }
+
+    deepLinkHandledRef.current = postId;
+    void resaRequest<ResaContent>("/v1/resa/content/" + encodeURIComponent(postId))
+      .then((publication) => {
+        setItems((current) => [publication, ...current.filter((item) => item.id !== publication.id)]);
+        scrollToPublication();
+      })
+      .catch(() => {
+        // The publication may have been removed or may not be visible to this account.
+      });
+  }, [items, loading]);
 
   return (
     <div className="space-y-6">
