@@ -84,6 +84,7 @@ export default function MessagesPage() {
   const [error, setError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const messageRequestId = useRef(0);
   const currentUserIdRef = useRef<string | null>(null);
   const selectedConversationRef = useRef<Conversation | null>(null);
@@ -231,6 +232,17 @@ export default function MessagesPage() {
     };
   }, [selected, loadMessages]);
 
+  const latestMessageId = messages[messages.length - 1]?.id ?? null;
+
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container || !selected) return;
+    const frame = window.requestAnimationFrame(() => {
+      container.scrollTop = container.scrollHeight;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [selected, latestMessageId]);
+
   async function searchPeople() {
     const value = query.trim();
     if (value.length < 2) return;
@@ -372,7 +384,7 @@ export default function MessagesPage() {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto bg-[#fbfcfe] px-4 py-5 sm:px-6">
+            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto bg-[#fbfcfe] px-4 py-5 sm:px-6">
               {!selected && (
                 <div className="flex h-full min-h-[480px] items-center justify-center text-center">
                   <div className="max-w-sm">
