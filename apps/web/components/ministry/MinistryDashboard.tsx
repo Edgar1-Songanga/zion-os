@@ -5,6 +5,7 @@ import Card from "../ui/Card";
 import StatCard from "../ui/StatCard";
 import { resaRequest } from "@/lib/resa/api";
 import { getMinistryCatalogEntry } from "./ministry-catalog";
+import MinistryBibleStudyWorkspace from "./MinistryBibleStudyWorkspace";
 import type { Ministry, MinistryProgram, ProgramStatus } from "./types";
 
 type ProgramForm = {
@@ -105,6 +106,26 @@ export default function MinistryDashboard({ ministry, onUpdated }: MinistryDashb
   const participation = ministry.metrics?.participation;
   const growth = ministry.metrics?.growth;
   const impact = ministry.metrics?.impact;
+
+  const ministryKey = (catalogEntry?.id ?? ministry.department).toLowerCase();
+  const relatedTools = ministryKey.includes("sabbath-school-personal-ministries") || ministryKey.includes("evangelism")
+    ? [
+        { title: "Bible Engine", description: "Pesquisar passagens, explorar livros bíblicos e consultar recursos de estudo.", href: "/bible-engine" },
+        { title: "Escola Sabatina", description: "Consultar lições e referências bíblicas carregadas pelo serviço espiritual.", href: "/sabbath-school" },
+        { title: "Devocional", description: "Aceder à experiência de reflexão e registo espiritual.", href: "/devotion" },
+        { title: "Oração", description: "Aceder aos pedidos e à experiência de oração do RESA.", href: "/resa/prayer" },
+      ]
+    : ministryKey.includes("spirit-of-prophecy")
+      ? [
+          { title: "Bible Engine", description: "Consultar as Escrituras como referência primária para o estudo.", href: "/bible-engine" },
+          { title: "Escola Sabatina", description: "Aceder às lições e leituras bíblicas disponíveis.", href: "/sabbath-school" },
+        ]
+      : ministryKey.includes("prayer-ministry")
+        ? [
+            { title: "Oração no RESA", description: "Abrir a experiência de pedidos e acompanhamento de oração.", href: "/resa/prayer" },
+            { title: "Bible Engine", description: "Pesquisar referências bíblicas para apoio ao estudo e à oração.", href: "/bible-engine" },
+          ]
+        : [];
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -226,6 +247,32 @@ export default function MinistryDashboard({ ministry, onUpdated }: MinistryDashb
               <a href={officialUrl} target="_blank" rel="noreferrer" className="inline-flex text-sm font-semibold text-[#0C1A3D] underline decoration-[#C8A24A] underline-offset-4">
                 Consultar referência oficial: {sourceLabel ?? "Igreja Adventista"}
               </a>
+            )}
+
+            {(ministryKey.includes("sabbath-school-personal-ministries") || ministryKey.includes("evangelism")) && (
+              <MinistryBibleStudyWorkspace
+                ministryId={ministry.id}
+                organizationId={ministry.organizationId}
+                ministryName={ministry.name}
+              />
+            )}
+
+            {relatedTools.length > 0 && (
+              <section className="rounded-2xl border border-sky-100 bg-sky-50/60 p-5 sm:p-6">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-800">Ferramentas relacionadas</p>
+                <h2 className="mt-2 text-lg font-semibold text-[#0C1A3D]">Recursos de apoio ao ministério</h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Estas ligações dão acesso a ferramentas existentes no ZION OS. A ligação de navegação não significa que os dados ou relatórios do ministério já estejam sincronizados automaticamente com esses módulos; essa integração será validada e implementada por etapas.</p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  {relatedTools.map((tool) => (
+                    <a key={tool.href} href={tool.href} className="group rounded-xl border border-slate-200 bg-white p-4 transition hover:border-sky-300 hover:shadow-sm">
+                      <span className="flex items-center justify-between gap-3 text-sm font-semibold text-[#0C1A3D]">
+                        {tool.title}<span aria-hidden="true" className="text-slate-400 transition group-hover:translate-x-0.5">↗</span>
+                      </span>
+                      <span className="mt-2 block text-sm leading-5 text-slate-500">{tool.description}</span>
+                    </a>
+                  ))}
+                </div>
+              </section>
             )}
             <div className="grid gap-4 border-t border-slate-100 pt-5 sm:grid-cols-2 xl:grid-cols-4">
               <div><p className="text-xs text-slate-400">Igreja / organização</p><p className="mt-1 font-semibold text-[#0C1A3D]">{ministry.organization?.church ?? "Não definida"}</p></div>
