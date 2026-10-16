@@ -9,6 +9,8 @@ import { useTranslation } from "@/components/i18n";
 type ResaContent = {
   id: string;
   author_id: string;
+  author_display_name?: string | null;
+  author_avatar_url?: string | null;
   type: string;
   title?: string | null;
   body?: string | null;
@@ -168,17 +170,20 @@ export default function FeedCard({ content }: { content: ResaContent }) {
     <article id={`resa-post-${content.id}`} className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.05)] transition-shadow hover:shadow-[0_18px_55px_rgba(15,23,42,0.08)]">
       <div className="p-6 sm:p-7">
         <header className="flex items-start gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#0C1A3D] text-sm font-bold text-white shadow-sm">
-            {content.author_id.slice(0, 1).toUpperCase()}
-          </div>
+          {content.author_avatar_url ? (
+            <img src={content.author_avatar_url} alt="" loading="lazy" className="h-12 w-12 shrink-0 rounded-2xl object-cover" />
+          ) : (
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#0C1A3D] text-sm font-bold text-white shadow-sm">
+              {(content.author_display_name || "M").trim().slice(0, 1).toUpperCase()}
+            </div>
+          )}
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <Link
-                href={"/resa/messages?to=" + encodeURIComponent(content.author_id)}
+                href={"/profile?user=" + encodeURIComponent(content.author_id)}
                 className="font-semibold text-[#0C1A3D] underline-offset-4 hover:underline"
-                aria-label={t("openConversation")}
               >
-                {t("resaProfile")} · {content.author_id.slice(0, 8)}
+                {content.author_display_name?.trim() || t("resaProfile")}
               </Link>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-500">
                 <ResaIcon name={meta.icon} size={12} />
