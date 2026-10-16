@@ -16,9 +16,17 @@ type Profile = {
   avatar_url: string | null;
 };
 
-function roleLabel(user: User | null) {
+type Membership = {
+  id: string;
+  role: { key: string; name: string } | null;
+  organization: { id: string; name: string; organization_type: string; parent_id: string | null } | null;
+  units: Array<{ id: string; name: string; unit_type: string }>;
+};
+
+function roleLabel(user: User | null, memberships: Membership[]) {
   const metadata = user?.app_metadata ?? {};
   if (metadata.zion_global_role === "global_admin") return "Administrador Global";
+  if (memberships.length) return memberships.map((item) => item.role?.name).filter(Boolean).join(" · ") || "Membro institucional";
   if (metadata.zion_global_role === "member") return "Membro ZION";
   return "Perfil institucional por configurar";
 }
@@ -29,6 +37,7 @@ export default function Topbar() {
   const menuRef = useRef<HTMLDivElement>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [memberships, setMemberships] = useState<Membership[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
@@ -41,17 +50,20 @@ export default function Topbar() {
         if (!active) return;
         setUser(current ?? null);
         if (current) {
-          try {
-            const nextProfile = await resaRequest<Profile>("/v1/identity/profile");
-            if (active) setProfile(nextProfile);
-          } catch {
-            if (active) setProfile(null);
+          const [profileResult, accessResult] = await Promise.allSettled([
+            resaRequest<Profile>("/v1/identity/profile"),
+            resaRequest<{ memberships?: Membership[] }>("/v1/identity/profile/access"),
+          ]);
+          if (active) {
+            setProfile(profileResult.status === "fulfilled" ? profileResult.value : null);
+            setMemberships(accessResult.status === "fulfilled" ? accessResult.value.memberships ?? [] : []);
           }
         } else if (active) {
           setProfile(null);
+          setMemberships([]);
         }
       } catch {
-        if (active) { setUser(null); setProfile(null); }
+        if (active) { setUser(null); setProfile(null); setMemberships([]); }
       }
     };
     void loadIdentity();
@@ -89,7 +101,7 @@ export default function Topbar() {
   }, [profile, user]);
 
   const initials = displayName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "Z";
-  const role = roleLabel(user);
+  const role = roleLabel(user, memberships);
   const emailVerified = Boolean(user?.email_confirmed_at);
 
   async function signOut() {
@@ -150,6 +162,11 @@ export default function Topbar() {
                     <p className="truncate text-sm font-semibold text-[#0B2D4D]">{displayName}</p>
                     <p className="truncate text-xs text-slate-500">{user?.email ?? "Sessão não identificada"}</p>
                     <p className="mt-1 text-[11px] font-medium text-slate-600">{role}</p>
+                    {memberships.slice(0, 3).map((membership) => (
+                      <p key={membership.id} className="mt-1 truncate text-[10px] text-slate-500">
+                        {membership.organization?.name ?? "Organização"}{membership.units.length ? " · " + membership.units.map((unit) => unit.name).join(", ") : ""}
+                      </p>
+                    ))}
                   </div>
                 </div>
                 <p className={"mt-3 rounded-lg px-2.5 py-1.5 text-[11px] " + (emailVerified ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800")}>
