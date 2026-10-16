@@ -66,7 +66,7 @@ export default function Topbar() {
     };
     void loadIdentity();
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      void loadIdentity(session?.user ?? null);
+      window.setTimeout(() => void loadIdentity(session?.user ?? null), 0);
     });
     return () => {
       active = false;
