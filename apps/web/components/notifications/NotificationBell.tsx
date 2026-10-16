@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { resaRequest } from "@/lib/resa/api";
@@ -25,6 +25,9 @@ export default function NotificationBell() {
   const [pushBusy, setPushBusy] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushMessage, setPushMessage] = useState("");
+  const [loadError, setLoadError] = useState(false);
+  const loadingRef = useRef(false);
+  const mountedRef = useRef(true);
   const pushPublicKey = process.env.NEXT_PUBLIC_RESA_VAPID_PUBLIC_KEY || "BEmbs-5tKPOjip3OfVkjD4VynTnbOTxGQkXohOT_3KTCF-vCRJzbpLrJubl1y6CowFavkTDf1gSIJdXqNK2CJP8";
 
   useEffect(() => {
@@ -152,39 +155,74 @@ export default function NotificationBell() {
     }
   }
 
-  async function load() {
+  const load = useCallback(async () => {
+    if (loadingRef.current || document.visibilityState === "hidden") return;
+    loadingRef.current = true;
     try {
       const next = await resaRequest<NotificationItem[]>("/v1/notifications?limit=20");
-      setItems(next);
-    } catch {}
-  }
+      if (mountedRef.current) {
+        setItems(Array.isArray(next) ? next : []);
+        setLoadError(false);
+      }
+    } catch {
+      if (mountedRef.current) setLoadError(true);
+    } finally {
+      loadingRef.current = false;
+    }
+  }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
     void load();
     const supabase = createClient();
     let channel: ReturnType<typeof supabase.channel> | null = null;
-    void supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) return;
+    let disposed = false;
+    void supabase.auth.getUser().then(({ data, error }) => {
+      if (disposed) return;
+      if (error || !data.user) {
+        if (error) setLoadError(true);
+        return;
+      }
       channel = supabase
-        .channel("resa-notifications-" + data.user.id)
+        .channel("zion-notifications-" + data.user.id)
         .on("postgres_changes", {
-          event: "INSERT",
+          event: "*",
           schema: "public",
           table: "notifications",
           filter: "user_id=eq." + data.user.id,
         }, (payload) => {
-          const next = payload.new as NotificationItem;
-          setItems((current) => [next, ...current.filter((item) => item.id !== next.id)].slice(0, 20));
-          playNotificationSound();
+          if (payload.eventType === "INSERT") {
+            const next = payload.new as NotificationItem;
+            setItems((current) => [next, ...current.filter((item) => item.id !== next.id)].slice(0, 20));
+            playNotificationSound();
+          } else {
+            void load();
+          }
         })
-        .subscribe();
+        .subscribe((status) => {
+          if (status === "SUBSCRIBED") void load();
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+            if (mountedRef.current) setLoadError(true);
+          }
+        });
+    }).catch(() => {
+      if (mountedRef.current) setLoadError(true);
     });
-    const timer = window.setInterval(() => void load(), 30000);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void load();
+    }, 60000);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
+      disposed = true;
+      mountedRef.current = false;
       window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
       if (channel) void supabase.removeChannel(channel);
     };
-  }, []);
+  }, [load]);
 
   const unread = items.filter((item) => !item.read_at).length;
 
@@ -210,16 +248,22 @@ export default function NotificationBell() {
     try {
       await resaRequest("/v1/notifications/read-all", { method: "POST" });
       setItems((current) => current.map((item) => ({ ...item, read_at: new Date().toISOString() })));
-    } catch {} finally {
+      setLoadError(false);
+    } catch {
+      setLoadError(true);
+    } finally {
       setBusy(false);
     }
   }
 
   async function markRead(id: string) {
     try {
-      await resaRequest("/v1/notifications/" + id + "/read", { method: "PATCH" });
+      await resaRequest("/v1/notifications/" + encodeURIComponent(id) + "/read", { method: "PATCH" });
       setItems((current) => current.map((item) => item.id === id ? { ...item, read_at: new Date().toISOString() } : item));
-    } catch {}
+      setLoadError(false);
+    } catch {
+      setLoadError(true);
+    }
   }
 
   function notificationDestination(item: NotificationItem) {
@@ -289,8 +333,8 @@ export default function NotificationBell() {
               {!pushPublicKey && !pushEnabled && <p className="mt-2 text-[11px] text-[var(--zion-muted)]">A configuração das chaves ainda não está concluída.</p>}
             </div>
           </div>
-          <div className="max-h-80 overflow-y-auto">
-            {!items.length && <p className="px-5 py-10 text-center text-sm text-[var(--zion-muted)]">Não há notificações.</p>}
+          {loadError && <div role="status" className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">A ligação às notificações está instável. O sistema tentará atualizar novamente.</div>}\n          <div className="max-h-80 overflow-y-auto">
+            {!items.length && <p className="px-5 py-10 text-center text-sm text-[var(--zion-muted)]">{loadError ? "Não foi possível atualizar as notificações." : "Não há notificações."}</p>}
             {items.map((item) => (
               <button
                 key={item.id}
