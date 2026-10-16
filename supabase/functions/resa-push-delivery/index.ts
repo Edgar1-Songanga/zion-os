@@ -36,7 +36,7 @@ Deno.serve(async (request: Request) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY");
+  const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY") || "BEmbs-5tKPOjip3OfVkjD4VynTnbOTxGQkXohOT_3KTCF-vCRJzbpLrJubl1y6CowFavkTDf1gSIJdXqNK2CJP8";
   const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY");
   const vapidSubject = Deno.env.get("VAPID_SUBJECT") || "mailto:admin@zion-os.org";
 
