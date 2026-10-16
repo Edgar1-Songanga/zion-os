@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslation } from "@/components/i18n";
+import { createClient } from "@/lib/supabase/client";
 
 const administrationRoutes = [
   "/admin",
@@ -34,6 +36,23 @@ function NavIcon({ index }: { index: number }) {
 export default function Sidebar() {
   const pathname = usePathname();
   const { t } = useTranslation();
+  const [globalAdmin, setGlobalAdmin] = useState(false);
+
+  useEffect(() => {
+    const supabase = createClient();
+    let active = true;
+    void supabase.auth.getUser().then(({ data }) => {
+      if (active) setGlobalAdmin(data.user?.app_metadata?.zion_global_role === "global_admin");
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setGlobalAdmin(session?.user?.app_metadata?.zion_global_role === "global_admin");
+    });
+    return () => {
+      active = false;
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
   const sections = [
     { title: t("core"), items: [{ name: t("dashboard"), path: "/dashboard" }, { name: t("resa"), path: "/resa" }] },
     { title: t("spiritualExperience"), items: [
@@ -64,7 +83,7 @@ export default function Sidebar() {
         <span aria-hidden="true" className="text-slate-400">↗</span>
       </Link>
       <nav className="mt-6 flex-1">
-        {sections.map((section, sectionIndex) => (
+        {sections.filter((section) => section.title !== t("organization") || globalAdmin).map((section, sectionIndex) => (
           <div key={section.title} className="mb-5">
             <p className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-400">{section.title}</p>
             <div className="space-y-1">
