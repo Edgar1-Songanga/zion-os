@@ -69,7 +69,7 @@ export default function Sidebar() {
   const organizationItems = [
     ...(globalAdmin ? [{ name: "Administração Global", path: "/admin" }] : []),
     ...(hasRole("organization_owner", "organization_admin", "organization_leader") ? [{ name: "Administração da Igreja", path: "/church-administration" }] : []),
-    ...(hasRole("secretary") ? [{ name: "Secretaria", path: "/secretariat" }] : []),
+    ...(hasRole("secretary", "organization_owner", "organization_admin") ? [{ name: "Secretaria", path: "/secretariat" }] : []),
     ...(hasRole("finance_manager", "organization_owner", "organization_admin") ? [{ name: "Finanças", path: "/finance" }] : []),
     ...(hasRole("hr_manager", "organization_owner", "organization_admin") ? [{ name: "Recursos Humanos", path: "/hr" }] : []),
     ...(hasRole("payroll_manager", "organization_owner", "organization_admin") ? [{ name: "Processamento salarial", path: "/payroll" }] : []),
