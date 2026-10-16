@@ -12,6 +12,15 @@ self.addEventListener("push", (event) => {
     : "Notificação RESA";
   const body = typeof payload.body === "string" ? payload.body : "Tens uma nova notificação.";
   const rawUrl = typeof payload.url === "string" ? payload.url : "/resa";
+  const category = typeof payload.category === "string" ? payload.category : "general";
+  const urgent = category === "call" || category === "bank";
+  const vibration = category === "call"
+    ? [400, 120, 400, 120, 700, 180, 700]
+    : category === "bank"
+      ? [350, 100, 350, 100, 600]
+      : category === "message"
+        ? [220, 100, 220]
+        : [180, 80, 180];
   let safeUrl = "/resa";
   try {
     const parsed = new URL(rawUrl, self.location.origin);
