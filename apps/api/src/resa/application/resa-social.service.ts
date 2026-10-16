@@ -83,7 +83,22 @@ export class ResaSocialService {
         contentType: item.type,
         ageHours: Math.max(0, (Date.now() - Date.parse(item.created_at)) / 3600000),
       })));
-    return ranked.slice(0, size);
+    const visibleProfiles = authorIds.length
+      ? await this.db.rpc<any[]>('resa_profiles_for_ids', token, { p_user_ids: authorIds })
+      : [];
+    const profilesById = new Map(visibleProfiles.map((profile) => [profile.id, profile]));
+
+    return ranked.slice(0, size).map((item) => {
+      const profile = profilesById.get(item.author_id);
+      const displayName = profile?.display_name?.trim()
+        || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim()
+        || 'Membro RESA';
+      return {
+        ...item,
+        author_display_name: displayName,
+        author_avatar_url: profile?.avatar_url ?? null,
+      };
+    });
   }
 
   async explore(token: string, query?: string, limit = 30) {
