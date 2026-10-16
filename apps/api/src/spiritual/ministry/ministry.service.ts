@@ -1,5 +1,12 @@
 import { BadRequestException, Injectable, Inject, Optional, NotFoundException } from '@nestjs/common';
-import type { MinistryDirectoryPort, MinistryProfileInput, MinistryRecord } from './ministry.types';
+import type {
+  MinistryDirectoryPort,
+  MinistryProfileInput,
+  MinistryProgramInput,
+  MinistryProgramRecord,
+  MinistryProgramStatus,
+  MinistryRecord,
+} from './ministry.types';
 
 export const MINISTRY_DIRECTORY = Symbol('MINISTRY_DIRECTORY');
 
@@ -14,6 +21,14 @@ type MinistryRequestInput = {
   age_range?: string | null;
   official_url?: string | null;
   source_label?: string | null;
+};
+
+type MinistryProgramRequestInput = {
+  name?: unknown;
+  description?: unknown;
+  status?: unknown;
+  start_date?: unknown;
+  end_date?: unknown;
 };
 
 @Injectable()
@@ -72,6 +87,71 @@ export class SpiritualMinistryService {
   async list(organizationId: string, token?: string): Promise<MinistryRecord[]> {
     if (!this.isUuid(organizationId)) throw new BadRequestException('A valid organization id is required.');
     return this.directory ? this.directory.listByOrganization(organizationId, token) : [];
+  }
+
+  async createProgram(ministryId: string, token: string, input: MinistryProgramRequestInput): Promise<MinistryProgramRecord | null> {
+    if (!this.isUuid(ministryId)) throw new BadRequestException('A valid ministry id is required.');
+    const program = this.normalizeProgram(input, true);
+    const created = await this.directory?.createProgram?.(ministryId, program, token);
+    if (!created) throw new NotFoundException('Ministry not found or you do not have permission to add a program.');
+    return created;
+  }
+
+  async updateProgram(
+    ministryId: string,
+    programId: string,
+    token: string,
+    input: MinistryProgramRequestInput,
+  ): Promise<MinistryProgramRecord | null> {
+    if (!this.isUuid(ministryId) || !this.isUuid(programId)) {
+      throw new BadRequestException('Valid ministry and program ids are required.');
+    }
+    const program = this.normalizeProgram(input, false);
+    const updated = await this.directory?.updateProgram?.(ministryId, programId, program, token);
+    if (!updated) throw new NotFoundException('Program not found or you do not have permission to edit it.');
+    return updated;
+  }
+
+  private normalizeProgram(input: MinistryProgramRequestInput, creating: boolean): MinistryProgramInput {
+    const result: MinistryProgramInput = {};
+    if (!creating && (input.start_date !== undefined) !== (input.end_date !== undefined)) {
+      throw new BadRequestException('start_date and end_date must be updated together.');
+    }
+    if (creating || input.name !== undefined) result.name = this.requiredText(input.name, 'name', 2, 160);
+    if (creating || input.description !== undefined) {
+      result.description = input.description === null ? null : (this.optionalText(input.description, 'description', 2000) ?? null);
+    }
+    if (creating || input.status !== undefined) {
+      const status = input.status ?? 'PLANNED';
+      if (status !== 'PLANNED' && status !== 'ACTIVE' && status !== 'COMPLETED') {
+        throw new BadRequestException('status must be PLANNED, ACTIVE, or COMPLETED.');
+      }
+      result.status = status as MinistryProgramStatus;
+    }
+    if (creating || input.start_date !== undefined) result.startDate = this.optionalDate(input.start_date, 'start_date');
+    if (creating || input.end_date !== undefined) result.endDate = this.optionalDate(input.end_date, 'end_date');
+    if (!creating && Object.keys(result).length === 0) {
+      throw new BadRequestException('At least one program field must be provided.');
+    }
+    if (result.startDate && result.endDate && result.endDate < result.startDate) {
+      throw new BadRequestException('end_date must be on or after start_date.');
+    }
+    return result;
+  }
+
+  private optionalDate(value: unknown, field: string): string | null {
+    if (value === undefined || value === null || value === '') return null;
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith('0000-')) {
+      throw new BadRequestException(`${field} must be a valid YYYY-MM-DD date.`);
+    }
+    try {
+      if (new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) !== value) {
+        throw new Error('invalid date');
+      }
+    } catch {
+      throw new BadRequestException(`${field} must be a valid YYYY-MM-DD date.`);
+    }
+    return value;
   }
 
   private normalizeProfile(input: MinistryRequestInput, creating: boolean): MinistryProfileInput {

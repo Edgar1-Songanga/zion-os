@@ -1,5 +1,23 @@
 export type MinistryStatus = 'active' | 'inactive';
 export type MinistryVerification = 'unverified' | 'pending' | 'verified';
+export type MinistryProgramStatus = 'ACTIVE' | 'COMPLETED' | 'PLANNED';
+
+export interface MinistryProgramRecord {
+  id: string;
+  name: string;
+  description?: string | null;
+  status: MinistryProgramStatus;
+  startDate?: string | null;
+  endDate?: string | null;
+}
+
+export interface MinistryProgramInput {
+  name?: string;
+  description?: string | null;
+  status?: MinistryProgramStatus;
+  startDate?: string | null;
+  endDate?: string | null;
+}
 
 export interface MinistryRecord {
   id: string;
@@ -24,14 +42,7 @@ export interface MinistryRecord {
     division?: string;
   };
   leadership: Array<{ id: string; user_id: string; role: string; verified: boolean }>;
-  programs: Array<{
-    id: string;
-    name: string;
-    description?: string;
-    status: string;
-    start_date?: string;
-    end_date?: string;
-  }>;
+  programs: MinistryProgramRecord[];
   reports: Array<{ id: string; title: string; status: string; submitted_at: string }>;
   metrics: {
     members: number;
@@ -76,6 +87,13 @@ export interface MinistryDirectoryPort {
     input: MinistryProfileInput,
     token?: string,
   ): Promise<MinistryRecord | null>;
+  createProgram?(ministryId: string, input: MinistryProgramInput, token?: string): Promise<MinistryProgramRecord | null>;
+  updateProgram?(
+    ministryId: string,
+    programId: string,
+    input: MinistryProgramInput,
+    token?: string,
+  ): Promise<MinistryProgramRecord | null>;
   getById(id: string, token?: string): Promise<MinistryRecord | null>;
   listByOrganization(organizationId: string, token?: string): Promise<MinistryRecord[]>;
 }
