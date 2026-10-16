@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import LanguageSelector from "@/components/language/LanguageSelector";
 import { useTranslation } from "@/components/i18n";
@@ -33,7 +32,6 @@ function roleLabel(user: User | null, memberships: Membership[]) {
 
 export default function Topbar() {
   const { t } = useTranslation();
-  const router = useRouter();
   const menuRef = useRef<HTMLDivElement>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
