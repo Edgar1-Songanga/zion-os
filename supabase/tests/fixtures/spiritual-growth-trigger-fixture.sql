@@ -22,6 +22,7 @@ create table public.spiritual_devotions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null,
   completed_at timestamptz,
+  created_at timestamptz not null default now(),
   title text
 );
 create table public.resa_prayer_requests (
