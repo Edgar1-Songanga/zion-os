@@ -1,0 +1,47 @@
+name: Spiritual growth SQL regression
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/tests/**"
+      - ".github/workflows/spiritual-growth-sql.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prayer-trigger-regression:
+    name: PostgreSQL prayer trigger regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: zion_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d zion_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: zion_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare disposable schema
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/fixtures/spiritual-growth-trigger-fixture.sql
+      - name: Apply original trigger migration to fixture
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261006170000_spiritual_growth_event_integration.sql
+      - name: Apply forward-only correction
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261017170000_fix_spiritual_growth_partial_conflict_target.sql
+      - name: Verify prayer, answer, devotion and idempotency
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/spiritual-growth-trigger-regression.sql
