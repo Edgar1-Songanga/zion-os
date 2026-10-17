@@ -43,7 +43,9 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261006170000_spiritual_growth_event_integration.sql
       - name: Match currently deployed hardened trigger definitions
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/fixtures/spiritual-growth-production-function-state.sql
-      - name: Apply forward-only correction
+      - name: Apply forward-only partial-index correction
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261017170000_fix_spiritual_growth_partial_conflict_target.sql
+      - name: Apply optional created_at correction
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261017180000_fix_spiritual_devotion_optional_created_at.sql
       - name: Verify prayer, answer, devotion and idempotency
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/spiritual-growth-trigger-regression.sql
