@@ -71,13 +71,24 @@ Deno.serve(async (request: Request) => {
       .eq("user_id", event.user_id)
       .limit(50);
     if (error) throw error;
-    if (!subscriptions?.length) return json({ delivered: 0, stale: 0 });
 
     const type = event.type.toLowerCase();
     const isMessage = type.startsWith("resa.message");
     const isCall = type.includes("call") || type.includes("chamada");
     const isBank = type.includes("bank") || type.includes("payment") || type.includes("transaction") || type.includes("finance");
     const category = isCall ? "call" : isBank ? "bank" : isMessage ? "message" : "general";
+
+    if (!subscriptions?.length) {
+      console.info("RESA push delivery result", JSON.stringify({
+        category,
+        subscriptionCount: 0,
+        delivered: 0,
+        stale: 0,
+        failed: 0,
+      }));
+      return json({ delivered: 0, stale: 0, failed: 0 });
+    }
+
     const payload = JSON.stringify({
       title: isCall
         ? (type.includes("video") ? "Videochamada recebida no RESA" : "Chamada recebida no RESA")
@@ -96,6 +107,7 @@ Deno.serve(async (request: Request) => {
 
     let delivered = 0;
     let stale = 0;
+    let failed = 0;
     await Promise.all(subscriptions.map(async (row) => {
       try {
         await webpush.sendNotification({
@@ -106,14 +118,26 @@ Deno.serve(async (request: Request) => {
       } catch (error) {
         const statusCode = (error as { statusCode?: number })?.statusCode;
         if (statusCode === 404 || statusCode === 410) {
-          await admin.from("resa_push_subscriptions").delete().eq("id", row.id);
-          stale += 1;
+          const { error: deleteError } = await admin.from("resa_push_subscriptions").delete().eq("id", row.id);
+          if (deleteError) {
+            failed += 1;
+            console.error("RESA stale push subscription cleanup failed.", JSON.stringify({ category, statusCode, databaseError: deleteError.code ?? "unknown" }));
+          } else {
+            stale += 1;
+          }
         } else {
-          console.error("RESA push delivery failed for a subscription.", statusCode ?? "unknown");
+          failed += 1;
+          // Never log endpoints, notification bodies, user IDs, or authentication material.
+          console.error("RESA push delivery failed for a subscription.", JSON.stringify({ category, statusCode: statusCode ?? "unknown" }));
         }
       }
     }));
-    return json({ delivered, stale });
+
+    const result = { category, subscriptionCount: subscriptions.length, delivered, stale, failed };
+    // A 200 response means the function ran; these counters separately show whether
+    // each push provider accepted the notification or rejected a subscription.
+    console.info("RESA push delivery result", JSON.stringify(result));
+    return json({ delivered, stale, failed });
   } catch (error) {
     console.error("RESA push delivery failed.", error instanceof Error ? error.message : "unknown");
     return json({ error: "Push delivery failed" }, 500);
