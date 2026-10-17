@@ -31,10 +31,12 @@ import { YouthProgressionService } from "./youth/youth-progression.service";
 import { IdentityModule } from "../identity/identity.module";
 import { YouthActivityController } from "./youth/youth-activity.controller";
 import { YouthActivityService } from "./youth/youth-activity.service";
+import { DepartmentOperationsController } from "./ministry/department-operations.controller";
+import { DepartmentOperationsService } from "./ministry/department-operations.service";
 
 @Module({
   imports: [IdentityModule],
-  controllers: [BibleController, AdventistCanonController, SabbathSchoolController, MinistryController, YouthClubController, YouthProgressionController, YouthActivityController, SpiritualProgressController, GamificationController, ReferralController],
+  controllers: [BibleController, AdventistCanonController, SabbathSchoolController, MinistryController, DepartmentOperationsController, YouthClubController, YouthProgressionController, YouthActivityController, SpiritualProgressController, GamificationController, ReferralController],
   providers: [
     SupabaseRestClient,
     BibleService,
@@ -48,6 +50,7 @@ import { YouthActivityService } from "./youth/youth-activity.service";
     SupabaseGrowthRepository,
     { provide: GROWTH_REPOSITORY, useExisting: SupabaseGrowthRepository },
     SpiritualMinistryService,
+    DepartmentOperationsService,
     AdventistCanonService,
     SupabaseAdventistCanonRepository,
     { provide: ADVENTIST_CANON_REPOSITORY, useExisting: SupabaseAdventistCanonRepository },

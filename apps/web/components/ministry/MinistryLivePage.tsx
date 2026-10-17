@@ -5,6 +5,7 @@ import { resaRequest } from "@/lib/resa/api";
 import { OrganizationSelector, type ZionOrganization } from "@/components/organization/OrganizationSelector";
 import MinistryDashboard from "./MinistryDashboard";
 import type { Ministry } from "./types";
+import DepartmentOperationsPanel from "./DepartmentOperationsPanel";
 import {
   ADVENTIST_MINISTRY_CATALOG,
   type MinistryCatalogCategory,
@@ -277,6 +278,7 @@ export default function MinistryLivePage() {
               ))}
             </div>
             {selected && <MinistryDashboard ministry={selected} onUpdated={handleMinistryUpdated} />}
+            {selected && <DepartmentOperationsPanel ministry={selected} organizationId={organizationId} />}
           </>
         )}
 
