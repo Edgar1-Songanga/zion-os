@@ -1,4 +1,5 @@
 -- Disposable PostgreSQL fixture for the spiritual-growth trigger regression test.
+-- Deliberately mirrors the production devotion row shape: created_at is absent.
 -- Used only by GitHub Actions service container; never run against production.
 create extension if not exists pgcrypto;
 
@@ -22,7 +23,6 @@ create table public.spiritual_devotions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null,
   completed_at timestamptz,
-  created_at timestamptz not null default now(),
   title text
 );
 create table public.resa_prayer_requests (
