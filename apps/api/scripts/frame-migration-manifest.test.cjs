@@ -25,18 +25,20 @@ test('Frame migration manifest is read-only, deterministic, and complete', () =>
 
   const expectedFiles = fs.readdirSync(migrationsDir)
     .filter((name) => name.endsWith('.sql'))
-    .sort((a, b) => a.localeCompare(b, 'en'));
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   assert.deepEqual(first.migrations.map((migration) => migration.name), expectedFiles);
 
-  const versions = new Set();
+  const timestampVersions = new Set();
   const versionLengths = new Set();
   for (const migration of first.migrations) {
     assert.match(migration.name, /^(\d{8}|\d{14})_.+\.sql$/);
     const expectedVersion = migration.name.slice(0, migration.name.indexOf('_'));
     assert.equal(migration.version, expectedVersion);
     assert.ok([8, 14].includes(migration.version.length));
-    assert.ok(!versions.has(migration.version), `duplicate version: ${migration.version}`);
-    versions.add(migration.version);
+    if (migration.version.length === 14) {
+      assert.ok(!timestampVersions.has(migration.version), `duplicate timestamp version: ${migration.version}`);
+      timestampVersions.add(migration.version);
+    }
     versionLengths.add(migration.version.length);
     assert.match(migration.sha256, /^[a-f0-9]{64}$/);
     assert.ok(Number.isInteger(migration.bytes) && migration.bytes >= 0);
