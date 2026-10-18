@@ -17,20 +17,25 @@ function main() {
 
   const files = fs.readdirSync(migrationsDir)
     .filter((name) => name.endsWith('.sql'))
-    .sort((a, b) => a.localeCompare(b, 'en'));
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 
   if (files.length === 0) throw new Error('No SQL migrations found.');
 
-  const seenVersions = new Set();
+  const seenTimestampVersions = new Set();
   const manifest = files.map((name) => {
     // Preserve the repository's two established naming forms: YYYYMMDD_name
-    // and YYYYMMDDHHMMSS_name. The complete numeric prefix is the version;
-    // the date alone is not unique for legacy migrations.
+    // and YYYYMMDDHHMMSS_name. The date alone is not unique for legacy files.
     const match = name.match(/^(\d{8}|\d{14})_(.+)\.sql$/);
     if (!match) throw new Error(`Invalid migration filename: ${name}`);
     const [, version] = match;
-    if (seenVersions.has(version)) throw new Error(`Duplicate migration version: ${version}`);
-    seenVersions.add(version);
+    // Only 14-digit versions are intended to be unique timestamps. Multiple
+    // legacy migrations may legitimately share the same YYYYMMDD prefix.
+    if (version.length === 14) {
+      if (seenTimestampVersions.has(version)) {
+        throw new Error(`Duplicate migration version: ${version}`);
+      }
+      seenTimestampVersions.add(version);
+    }
 
     const content = fs.readFileSync(path.join(migrationsDir, name));
     return {
