@@ -90,6 +90,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - name: Validate migration names
         shell: bash
         run: |
@@ -105,11 +110,34 @@ jobs:
           fi
           printf '%s\n' "$names"
 
-      - name: Generate read-only Frame migration manifest
+      - name: Generate and validate read-only Frame migration manifest
+        shell: bash
         run: |
           set -euo pipefail
           node apps/api/scripts/frame-migration-manifest.cjs > "$RUNNER_TEMP/frame-migration-manifest.json"
-          node -e "const m=require(process.env.RUNNER_TEMP + '/frame-migration-manifest.json'); if (m.mode !== 'read-only' || !m.count || m.count !== m.migrations.length) process.exit(1); console.log('Frame manifest validated:', m.count, 'migrations; no database access performed.')"
+          node - "$RUNNER_TEMP/frame-migration-manifest.json" <<'NODE'
+          const fs = require('node:fs');
+          const manifest = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (manifest.mode !== 'read-only' ||
+              !Number.isInteger(manifest.count) ||
+              manifest.count < 1 ||
+              manifest.count !== manifest.migrations.length) {
+            throw new Error('Frame manifest has an invalid envelope');
+          }
+          const versions = new Set();
+          for (const item of manifest.migrations) {
+            if (!/^\d{14}_.+\.sql$/.test(item.name) ||
+                item.version !== item.name.slice(0, 14) ||
+                !/^[a-f0-9]{64}$/.test(item.sha256) ||
+                !Number.isInteger(item.bytes) || item.bytes < 0 ||
+                versions.has(item.version)) {
+              throw new Error('Frame manifest contains an invalid or duplicate migration entry');
+            }
+            versions.add(item.version);
+          }
+          console.log('Frame manifest validated:', manifest.count, 'migrations; no database access performed.');
+          NODE
+          node --test apps/api/scripts/frame-migration-manifest.test.cjs
 
       - name: Check whitespace
         run: git diff --check
