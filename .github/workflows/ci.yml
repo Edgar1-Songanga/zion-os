@@ -67,12 +67,6 @@ jobs:
           version: 10.32.1
           run_install: false
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -104,6 +98,12 @@ jobs:
             exit 1
           fi
           printf '%s\n' "$names"
+
+      - name: Generate read-only Frame migration manifest
+        run: |
+          set -euo pipefail
+          node apps/api/scripts/frame-migration-manifest.cjs > "$RUNNER_TEMP/frame-migration-manifest.json"
+          node -e "const m=require(process.env.RUNNER_TEMP + '/frame-migration-manifest.json'); if (m.mode !== 'read-only' || !m.count || m.count !== m.migrations.length) process.exit(1); console.log('Frame manifest validated:', m.count, 'migrations; no database access performed.')"
 
       - name: Check whitespace
         run: git diff --check
