@@ -4,6 +4,12 @@ export interface SupabaseAuthUser {
   id: string;
   email?: string;
   phone?: string;
+  // Supabase Auth returns app_metadata from the server-managed user record.
+  // Never read authorization decisions from user_metadata, which the user can edit.
+  app_metadata?: {
+    zion_global_role?: string;
+    zion_verified?: boolean;
+  };
 }
 
 export async function getSupabaseUser(accessToken: string): Promise<SupabaseAuthUser | null> {
