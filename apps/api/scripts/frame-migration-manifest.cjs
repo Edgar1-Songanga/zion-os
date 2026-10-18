@@ -23,7 +23,10 @@ function main() {
 
   const seenVersions = new Set();
   const manifest = files.map((name) => {
-    const match = name.match(/^(\d{14})_(.+)\.sql$/);
+    // Preserve the repository's two established naming forms: YYYYMMDD_name
+    // and YYYYMMDDHHMMSS_name. The complete numeric prefix is the version;
+    // the date alone is not unique for legacy migrations.
+    const match = name.match(/^(\d{8}|\d{14})_(.+)\.sql$/);
     if (!match) throw new Error(`Invalid migration filename: ${name}`);
     const [, version] = match;
     if (seenVersions.has(version)) throw new Error(`Duplicate migration version: ${version}`);
