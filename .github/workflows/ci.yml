@@ -100,15 +100,15 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$(find supabase/migrations -maxdepth 1 -type f -name '*.sql' -print -quit)"
-          names="$(find supabase/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\\n' | sort)"
-          timestamped_names="$(printf '%s\\n' "$names" | grep -E '^[0-9]{14}_' || true)"
-          duplicate_versions="$(printf '%s\\n' "$timestamped_names" | cut -c1-14 | sort | uniq -d)"
+          names="$(find supabase/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort)"
+          timestamped_names="$(printf '%s\n' "$names" | grep -E '^[0-9]{14}_' || true)"
+          duplicate_versions="$(printf '%s\n' "$timestamped_names" | cut -c1-14 | sort | uniq -d)"
           if [[ -n "$duplicate_versions" ]]; then
             echo "Duplicate 14-digit migration timestamps:" >&2
-            printf '%s\\n' "$duplicate_versions" >&2
+            printf '%s\n' "$duplicate_versions" >&2
             exit 1
           fi
-          printf '%s\\n' "$names"
+          printf '%s\n' "$names"
 
       - name: Generate and validate read-only Frame migration manifest
         shell: bash
@@ -126,7 +126,7 @@ jobs:
           }
           const canonicalVersions = new Set();
           for (const item of manifest.migrations) {
-            const match = typeof item.name === 'string' && item.name.match(/^(\\d{8}|\\d{14})_.+\\.sql$/);
+            const match = typeof item.name === 'string' && item.name.match(/^(\d{8}|\d{14})_.+\.sql$/);
             if (!match ||
                 item.version !== match[1] ||
                 !/^[a-f0-9]{64}$/.test(item.sha256) ||
