@@ -29,11 +29,15 @@ test('Frame migration manifest is read-only, deterministic, and complete', () =>
   assert.deepEqual(first.migrations.map((migration) => migration.name), expectedFiles);
 
   const versions = new Set();
+  const versionLengths = new Set();
   for (const migration of first.migrations) {
-    assert.match(migration.name, /^\d{14}_.+\.sql$/);
-    assert.equal(migration.version, migration.name.slice(0, 14));
+    assert.match(migration.name, /^(\d{8}|\d{14})_.+\.sql$/);
+    const expectedVersion = migration.name.slice(0, migration.name.indexOf('_'));
+    assert.equal(migration.version, expectedVersion);
+    assert.ok([8, 14].includes(migration.version.length));
     assert.ok(!versions.has(migration.version), `duplicate version: ${migration.version}`);
     versions.add(migration.version);
+    versionLengths.add(migration.version.length);
     assert.match(migration.sha256, /^[a-f0-9]{64}$/);
     assert.ok(Number.isInteger(migration.bytes) && migration.bytes >= 0);
 
@@ -41,4 +45,7 @@ test('Frame migration manifest is read-only, deterministic, and complete', () =>
     assert.equal(migration.bytes, content.length);
     assert.equal(migration.sha256, crypto.createHash('sha256').update(content).digest('hex'));
   }
+
+  assert.ok(versionLengths.has(8), 'legacy YYYYMMDD migration names must be supported');
+  assert.ok(versionLengths.has(14), 'YYYYMMDDHHMMSS migration names must be supported');
 });
