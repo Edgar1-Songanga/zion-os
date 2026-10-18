@@ -74,7 +74,7 @@ describe('AuditService Frame events', () => {
     });
 
     expect(post).toHaveBeenCalledWith('audit_logs', 'admin-token', expect.objectContaining({
-      metadata: { migration_versions: ['20261001'] },
+      metadata: {},
     }));
   });
 });
