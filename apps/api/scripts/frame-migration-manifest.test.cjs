@@ -29,6 +29,7 @@ test('Frame migration manifest is read-only, deterministic, and complete', () =>
   assert.deepEqual(first.migrations.map((migration) => migration.name), expectedFiles);
 
   const timestampVersions = new Set();
+  const legacyPrefixCounts = new Map();
   const versionLengths = new Set();
   for (const migration of first.migrations) {
     assert.match(migration.name, /^(\d{8}|\d{14})_.+\.sql$/);
@@ -38,6 +39,8 @@ test('Frame migration manifest is read-only, deterministic, and complete', () =>
     if (migration.version.length === 14) {
       assert.ok(!timestampVersions.has(migration.version), `duplicate timestamp version: ${migration.version}`);
       timestampVersions.add(migration.version);
+    } else {
+      legacyPrefixCounts.set(migration.version, (legacyPrefixCounts.get(migration.version) || 0) + 1);
     }
     versionLengths.add(migration.version.length);
     assert.match(migration.sha256, /^[a-f0-9]{64}$/);
@@ -50,4 +53,6 @@ test('Frame migration manifest is read-only, deterministic, and complete', () =>
 
   assert.ok(versionLengths.has(8), 'legacy YYYYMMDD migration names must be supported');
   assert.ok(versionLengths.has(14), 'YYYYMMDDHHMMSS migration names must be supported');
+  assert.ok([...legacyPrefixCounts.values()].some((count) => count > 1),
+    'legacy migrations may share a date prefix and must not be rejected as duplicate timestamps');
 });
