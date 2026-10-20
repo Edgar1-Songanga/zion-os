@@ -88,7 +88,10 @@ export class ResaSocialService {
       : [];
     const profilesById = new Map(visibleProfiles.map((profile) => [profile.id, profile]));
 
-    return ranked.slice(0, size).map((item) => {
+    // The home mural is chronological: a new publication must never be buried
+    // beneath an older, more popular item. Ranking signals remain available for
+    // discovery, while the main feed always shows the newest eligible content first.
+    return ranked.map((item) => {
       const profile = profilesById.get(item.author_id);
       const displayName = profile?.display_name?.trim()
         || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim()
@@ -98,7 +101,11 @@ export class ResaSocialService {
         author_display_name: displayName,
         author_avatar_url: profile?.avatar_url ?? null,
       };
-    });
+    }).sort((a, b) => {
+      const aTime = Date.parse(a.created_at);
+      const bTime = Date.parse(b.created_at);
+      return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
+    }).slice(0, size);
   }
 
   async explore(token: string, query?: string, limit = 30) {
