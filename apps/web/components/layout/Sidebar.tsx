@@ -106,6 +106,10 @@ export default function Sidebar() {
         <span className="min-w-0 flex-1"><span className="block font-semibold">O meu perfil</span><span className="mt-0.5 block text-[11px] text-slate-300">Identidade e fotografia</span></span>
         <span aria-hidden="true" className="text-slate-400">↗</span>
       </Link>
+      <Link href="/auth/access" className="mt-2 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 text-sm text-slate-100 transition hover:bg-white/[0.10]">
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#C8A24A]/15 text-sm font-bold text-[#E0B85A]" aria-hidden="true">↗</span>
+        <span className="min-w-0 flex-1"><span className="block font-semibold">Áreas e acessos</span><span className="mt-0.5 block text-[11px] text-slate-300">Abrir a área da sua função</span></span>
+      </Link>
       <nav className="mt-6 flex-1">
         {sections.filter((section) => section.items.length > 0).map((section, sectionIndex) => (
           <div key={section.title} className="mb-5">
