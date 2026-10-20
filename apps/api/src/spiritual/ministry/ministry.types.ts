@@ -71,6 +71,7 @@ export interface MinistryDirectoryPort {
     organizationId: string,
     input: {
       name: string;
+      createdBy: string;
       department: string;
       philosophy: string;
       description: string;
