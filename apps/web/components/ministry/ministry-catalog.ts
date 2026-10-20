@@ -20,8 +20,8 @@ export interface MinistryCatalogEntry {
  * this catalogue is an editable starting point, not a claim that every entity is
  * a separately elected department in every congregation.
  *
- * Cover images are illustrative photography, not official logos or endorsements.
- * Replace them with authorized local/official images where available.
+ * Department/program cover art uses official Adventist media assets where identified below.
+ * Local club profile photos override these reference images; the official image is only a fallback, never presented as a photo of a specific local club.
  */
 export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
   {
@@ -32,7 +32,7 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
     mission: "Ajudar os jovens a desenvolver uma relação salvadora com Jesus e a viver o seu chamado ao discipulado e ao serviço.",
     focusAreas: ["Discipulado e vida espiritual", "Liderança jovem", "Evangelismo e missão", "Serviço comunitário", "Programas e clubes"],
     ageRange: "Programas por faixa etária",
-    coverImage: "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1400&q=85",
+    coverImage: "https://files.adventistas.org/downloads_v2/pt/2013/09/15150109/capa-ja-480x270.jpg",
     officialUrl: "https://www.gcyouthministries.org/",
     sourceLabel: "Adventist Youth Ministries — Associação Geral",
     featured: true
@@ -45,7 +45,7 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
     mission: "Promover experiências espirituais seguras, relevantes e adequadas à idade, em parceria com as famílias e a igreja.",
     focusAreas: ["Discipulado infantil", "Recursos bíblicos por idade", "Formação de professores", "Parceria com famílias"],
     ageRange: "Infância",
-    coverImage: "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?auto=format&fit=crop&w=1400&q=85",
+    coverImage: "https://files.adventistas.org/downloads_v2/pt/2020/01/16081930/capa-aventureiros-480x270.jpg",
     officialUrl: "https://gc.adventist.org/about-us/departments-services/",
     sourceLabel: "Associação Geral — Departamentos e Serviços"
   },
@@ -56,7 +56,7 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
     summary: "Fortalece relacionamentos familiares saudáveis e apoia o crescimento espiritual no lar.",
     mission: "Equipar famílias e indivíduos para construírem relações centradas em Cristo e comunidades de cuidado.",
     focusAreas: ["Preparação para o casamento", "Enriquecimento conjugal", "Educação parental", "Relações intergeracionais"],
-    coverImage: "https://images.unsplash.com/photo-1511895426328-dc8714191300?auto=format&fit=crop&w=1400&q=85",
+    coverImage: "https://files.adventistas.org/downloads_v2/pt/2013/05/15124329/capa-familia-480x270.jpg",
     officialUrl: "https://gc.adventist.org/about-us/departments-services/",
     sourceLabel: "Associação Geral — Departamentos e Serviços"
   },
@@ -68,7 +68,7 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
     mission: "Ajudar crianças a crescerem em sabedoria, estatura e graça através de experiências centradas em Jesus.",
     focusAreas: ["Classes e atividades", "Participação familiar", "Descoberta da natureza", "Desenvolvimento espiritual"],
     ageRange: "Aproximadamente 4–9 anos",
-    coverImage: "https://images.unsplash.com/photo-1472162072942-cd5147eb3902?auto=format&fit=crop&w=1400&q=85",
+    coverImage: "https://files.adventistas.org/downloads_v2/pt/2020/01/16081930/capa-aventureiros-480x270.jpg",
     officialUrl: "https://www.gcyouthministries.org/ministries/adventurers/",
     sourceLabel: "Adventist Youth Ministries — Aventureiros"
   },
@@ -80,7 +80,7 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
     mission: "Formar jovens para seguirem Jesus e servirem a igreja e a comunidade através de aprendizagem ativa.",
     focusAreas: ["Classes e especialidades", "Acampamentos e natureza", "Liderança", "Serviço comunitário", "Investiduras"],
     ageRange: "Aproximadamente 10–15 anos",
-    coverImage: "https://images.unsplash.com/photo-1478131143081-80f7f84ca84d?auto=format&fit=crop&w=1400&q=85",
+    coverImage: "https://files.adventistas.org/downloads_v2/pt/2020/01/16081900/capa-desbravadores-480x270.jpg",
     officialUrl: "https://www.gcyouthministries.org/ministries/pathfinders/",
     sourceLabel: "Adventist Youth Ministries — Desbravadores"
   },
@@ -92,7 +92,7 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
     mission: "Apoiar jovens a tornarem-se discípulos de Cristo, líderes de influência positiva e agentes de serviço.",
     focusAreas: ["Discipulado", "Liderança", "Mentoria", "Projetos de serviço", "Formação e conquistas"],
     ageRange: "Aproximadamente 16–21 anos",
-    coverImage: "https://images.unsplash.com/photo-1529390079861-591de354faf5?auto=format&fit=crop&w=1400&q=85",
+    coverImage: "https://files.adventistas.org/downloads_v2/pt/2013/09/15150109/capa-ja-480x270.jpg",
     officialUrl: "https://www.gcyouthministries.org/ministries/ambassadors/",
     sourceLabel: "Adventist Youth Ministries — Embaixadores"
   },
@@ -104,7 +104,7 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
     mission: "Ajudar jovens adultos a crescerem em Cristo e a integrarem fé, vida profissional, família e missão.",
     focusAreas: ["Discipulado adulto", "Liderança e mentoria", "Missão", "Comunidade e pertença", "Desenvolvimento vocacional"],
     ageRange: "Aproximadamente 22–30+ anos",
-    coverImage: "https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&fit=crop&w=1400&q=85",
+    coverImage: "https://files.adventistas.org/downloads_v2/pt/2013/09/15150109/capa-ja-480x270.jpg",
     officialUrl: "https://www.gcyouthministries.org/",
     sourceLabel: "Adventist Youth Ministries — Jovens Adultos"
   },
@@ -116,7 +116,7 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
     mission: "Ajudar estudantes a permanecerem enraizados em Jesus e a criar relações de discipulado com colegas no campus.",
     focusAreas: ["Grupos de campus", "Discipulado entre estudantes", "Apoio a professores", "Liderança estudantil", "Missão no meio académico"],
     ageRange: "Estudantes universitários e comunidade académica",
-    coverImage: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1400&q=85",
+    coverImage: "https://files.adventistas.org/downloads_v2/pt/2013/09/15150109/capa-ja-480x270.jpg",
     officialUrl: "https://ted.adventist.org/youth/public-campus-ministries/",
     sourceLabel: "Trans-European Division — Public Campus Ministries"
   },
@@ -160,7 +160,7 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
     summary: "Apoia mulheres no crescimento espiritual, liderança, serviço e desenvolvimento de todo o seu potencial.",
     mission: "Encorajar, equipar e mobilizar mulheres como discípulas e líderes que servem a igreja e a sociedade.",
     focusAreas: ["Discipulado", "Liderança", "Mentoria", "Desenvolvimento pessoal", "Prevenção da violência"],
-    coverImage: "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1400&q=85",
+    coverImage: "https://files.adventistas.org/downloads_v2/pt/2013/09/15132259/capa-min-mulher-480x270.jpg",
     officialUrl: "https://women.adventist.org/",
     sourceLabel: "Adventist Women's Ministries"
   },
@@ -204,7 +204,7 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
     summary: "Ensina a administração fiel e generosa do tempo, dons, recursos e responsabilidades confiadas por Deus.",
     mission: "Cultivar uma vida de fidelidade, gratidão, generosidade e responsabilidade cristã.",
     focusAreas: ["Dons espirituais", "Gestão de recursos", "Generosidade", "Tempo e talentos", "Educação financeira cristã"],
-    coverImage: "https://images.unsplash.com/photo-1490730141103-6cac27aaab94?auto=format&fit=crop&w=1400&q=85",
+    coverImage: "https://files.adventistas.org/downloads_v2/pt/2013/04/15131239/capa-mordomia-480x270.jpg",
     officialUrl: "https://stewardship.adventist.org/",
     sourceLabel: "Adventist Stewardship Ministries"
   },
