@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { YOUTH_PROGRAMS } from "@/components/youth/core/YouthProgram";
 
 type Organization = { id: string; name: string; organization_type: string; parent_id: string | null };
-type Club = { id: string; organizationId: string; name: string; programId: string; status: "ACTIVE" | "INACTIVE" };
+type Club = { id: string; organizationId: string; name: string; programId: string; status: "ACTIVE" | "INACTIVE"; logoUrl?: string | null; coverImageUrl?: string | null };
 type ClubMember = { clubId: string; userId: string; status: "ACTIVE" | "INACTIVE"; joinedAt: string };
 
 export default function YouthPersonalJourney() {
@@ -129,10 +129,17 @@ export default function YouthPersonalJourney() {
           <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-800">Os meus clubes ativos</p>
             {memberships.map((club) => (
-              <div key={club.id} className="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
-                <h3 className="text-lg font-semibold text-emerald-950">{club.name}</h3>
-                <p className="mt-1 text-sm text-emerald-800">{YOUTH_PROGRAMS.find((program) => program.id === club.programId)?.name ?? club.programId} · Associação ativa</p>
-                <button type="button" onClick={() => { setOrganizationId(club.organizationId); setProgramId(club.programId); setClubId(club.id); }} className="mt-3 rounded-lg border border-emerald-300 px-3 py-2 text-sm font-semibold text-emerald-950">Abrir este percurso</button>
+              <div key={club.id} className="overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-sm">
+                <div className="relative flex items-center gap-4 bg-gradient-to-r from-[#0C1A3D] to-[#1B3768] p-5 text-white">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-[#D9BC70] bg-white/10 text-lg font-bold shadow-lg ring-4 ring-[#D9BC70]/15">
+                    {club.logoUrl ? <img src={club.logoUrl} alt={`Fotografia de perfil do clube ${club.name}`} className="h-full w-full object-cover" loading="lazy" /> : <span>{club.name.trim().split(/\\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "Z"}</span>}
+                  </div>
+                  <div className="min-w-0"><h3 className="text-lg font-semibold">{club.name}</h3>
+                    <p className="mt-1 text-sm text-white/75">{YOUTH_PROGRAMS.find((program) => program.id === club.programId)?.name ?? club.programId} · Associação ativa</p></div>
+                </div>
+                <div className="p-5">
+                <button type="button" onClick={() => { setOrganizationId(club.organizationId); setProgramId(club.programId); setClubId(club.id); }} className="rounded-lg border border-emerald-300 px-3 py-2 text-sm font-semibold text-emerald-950">Abrir este percurso</button>
+                </div>
               </div>
             ))}
             <button type="button" onClick={() => { setAnswer("yes"); setMemberships([]); setMessage(""); }} className="text-sm font-semibold text-[var(--zion-primary)] underline">Associar outro clube</button>
