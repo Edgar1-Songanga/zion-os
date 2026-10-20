@@ -17,7 +17,7 @@ export default function YouthPersonalJourney() {
   const [programId, setProgramId] = useState("");
   const [clubs, setClubs] = useState<Club[]>([]);
   const [clubId, setClubId] = useState("");
-  const [membership, setMembership] = useState<{ club: Club; status: string } | null>(null);
+  const [memberships, setMemberships] = useState<Club[]>([]);
   const [loadingOrganizations, setLoadingOrganizations] = useState(true);
   const [loadingClubs, setLoadingClubs] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -61,12 +61,12 @@ export default function YouthPersonalJourney() {
           }
         }));
         if (!active) return;
-        const existing = clubResults.find((club): club is Club => Boolean(club && club.status === "ACTIVE"));
-        if (existing) {
-          setMembership({ club: existing, status: "ACTIVE" });
-          setOrganizationId(existing.organizationId);
-          setProgramId(existing.programId);
-          setClubId(existing.id);
+        const existing = clubResults.filter((club): club is Club => Boolean(club && club.status === "ACTIVE"));
+        if (existing.length) {
+          setMemberships(existing);
+          setOrganizationId(existing[0].organizationId);
+          setProgramId(existing[0].programId);
+          setClubId(existing[0].id);
         }
       } catch (reason) {
         if (active) setError(reason instanceof Error ? reason.message : "Não foi possível recuperar a associação ao clube.");
@@ -109,7 +109,7 @@ export default function YouthPersonalJourney() {
       });
       const selected = clubs.find((club) => club.id === clubId);
       if (!selected) throw new Error("O clube selecionado já não está disponível. Atualize a lista.");
-      setMembership({ club: selected, status: "ACTIVE" });
+      setMemberships((current) => current.some((club) => club.id === selected.id) ? current : [selected, ...current]);
       setMessage("A sua conta foi associada ao clube. A progressão será apresentada quando existirem registos reais de formação.");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível associar a conta ao clube.");
@@ -125,14 +125,19 @@ export default function YouthPersonalJourney() {
       </div>
 
       <div className="space-y-5 p-6 sm:p-8">
-        {membership ? (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-800">Clube associado</p>
-            <h3 className="mt-2 text-lg font-semibold text-emerald-950">{membership.club.name}</h3>
-            <p className="mt-1 text-sm text-emerald-800">{YOUTH_PROGRAMS.find((program) => program.id === membership.club.programId)?.name ?? membership.club.programId} · Associação ativa</p>
+        {memberships.length > 0 ? (
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-800">Os meus clubes ativos</p>
+            {memberships.map((club) => (
+              <div key={club.id} className="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+                <h3 className="text-lg font-semibold text-emerald-950">{club.name}</h3>
+                <p className="mt-1 text-sm text-emerald-800">{YOUTH_PROGRAMS.find((program) => program.id === club.programId)?.name ?? club.programId} · Associação ativa</p>
+                <button type="button" onClick={() => { setOrganizationId(club.organizationId); setProgramId(club.programId); setClubId(club.id); }} className="mt-3 rounded-lg border border-emerald-300 px-3 py-2 text-sm font-semibold text-emerald-950">Abrir este percurso</button>
+              </div>
+            ))}
+            <button type="button" onClick={() => { setAnswer("yes"); setMemberships([]); setMessage(""); }} className="text-sm font-semibold text-[var(--zion-primary)] underline">Associar outro clube</button>
           </div>
         ) : (
-          <>
             <fieldset className="space-y-3">
               <legend className="text-sm font-semibold text-[var(--zion-dark)]">Já pertence a um clube deste ministério?</legend>
               <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--zion-border)] p-4">
