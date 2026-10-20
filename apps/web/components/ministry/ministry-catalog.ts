@@ -32,11 +32,11 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
     name: "Ministério Jovem Adventista",
     category: "Juventude",
     summary: "Forma uma geração ligada a Cristo, comprometida com o discipulado, a liderança e a missão.",
-    mission: "Ajudar os jovens a desenvolver uma relação salvadora com Jesus e a viver o seu chamado ao discipulado e ao serviço.",
-    focusAreas: ["Discipulado e vida espiritual", "Liderança jovem", "Evangelismo e missão", "Serviço comunitário", "Programas e clubes"],
+    mission: "Conduzir os jovens a uma relação salvadora com Jesus e ao discipulado, integrando Missão, Relacionamento, Nutrição espiritual e Templo (MRNT); em 2026, reforçar a missão prática em cada comunidade.",
+    focusAreas: ["Missão — serviço e evangelismo", "Relacionamento — comunhão e pequenos grupos", "Nutrição — Bíblia e Escola Sabatina", "Templo — vida espiritual e cuidado integral", "Liderança e formação por programa"],
     ageRange: "Programas por faixa etária",
     coverImage: "https://files.adventistas.org/downloads_v2/pt/2013/09/15150109/capa-ja-480x270.jpg",
-    officialUrl: "https://www.gcyouthministries.org/",
+    officialUrl: "https://noticias.adventistas.org/pt/convencao-jovem-2026-meu-lugar-no-mundo/",
     sourceLabel: "Adventist Youth Ministries — Associação Geral",
     featured: true
   },
@@ -49,7 +49,7 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
     focusAreas: ["Discipulado infantil", "Recursos bíblicos por idade", "Formação de professores", "Parceria com famílias"],
     ageRange: "Infância",
     coverImage: "https://files.adventistas.org/downloads_v2/pt/2020/01/16081930/capa-aventureiros-480x270.jpg",
-    officialUrl: "https://gc.adventist.org/about-us/departments-services/",
+    officialUrl: "https://downloads.adventistas.org/pt/ministerio-da-familia/livros/livro-de-recursos-da-familia-2026/",
     sourceLabel: "Associação Geral — Departamentos e Serviços"
   },
   {
@@ -210,7 +210,7 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
     mission: "Cultivar uma vida de fidelidade, gratidão, generosidade e responsabilidade cristã.",
     focusAreas: ["Dons espirituais", "Gestão de recursos", "Generosidade", "Tempo e talentos", "Educação financeira cristã"],
     coverImage: "https://files.adventistas.org/downloads_v2/pt/2013/04/15131239/capa-mordomia-480x270.jpg",
-    officialUrl: "https://stewardship.adventist.org/",
+    officialUrl: "https://downloads.adventistas.org/pt/mordomia-crista/manuais-e-guias/semana-de-mordomia-crista-2026/",
     sourceLabel: "Adventist Stewardship Ministries"
   },
   {
