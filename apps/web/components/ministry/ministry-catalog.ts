@@ -37,7 +37,7 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
     ageRange: "Programas por faixa etária",
     coverImage: "https://files.adventistas.org/downloads_v2/pt/2013/09/15150109/capa-ja-480x270.jpg",
     officialUrl: "https://noticias.adventistas.org/pt/convencao-jovem-2026-meu-lugar-no-mundo/",
-    sourceLabel: "Adventist Youth Ministries — Associação Geral",
+    sourceLabel: "Divisão Sul-Americana — Ministério Jovem 2026 (MRNT)",
     featured: true
   },
   {
@@ -49,7 +49,7 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
     focusAreas: ["Discipulado infantil", "Recursos bíblicos por idade", "Formação de professores", "Parceria com famílias"],
     ageRange: "Infância",
     coverImage: "https://files.adventistas.org/downloads_v2/pt/2020/01/16081930/capa-aventureiros-480x270.jpg",
-    officialUrl: "https://downloads.adventistas.org/pt/ministerio-da-familia/livros/livro-de-recursos-da-familia-2026/",
+    officialUrl: "https://gc.adventist.org/about-us/departments-services/",
     sourceLabel: "Associação Geral — Departamentos e Serviços"
   },
   {
@@ -60,8 +60,8 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
     mission: "Equipar famílias e indivíduos para construírem relações centradas em Cristo e comunidades de cuidado.",
     focusAreas: ["Preparação para o casamento", "Enriquecimento conjugal", "Educação parental", "Relações intergeracionais"],
     coverImage: "https://files.adventistas.org/downloads_v2/pt/2013/05/15124329/capa-familia-480x270.jpg",
-    officialUrl: "https://gc.adventist.org/about-us/departments-services/",
-    sourceLabel: "Associação Geral — Departamentos e Serviços"
+    officialUrl: "https://downloads.adventistas.org/pt/ministerio-da-familia/livros/livro-de-recursos-da-familia-2026/",
+    sourceLabel: "Divisão Sul-Americana — Livro de Recursos da Família 2026"
   },
   {
     id: "adventurer-club",
