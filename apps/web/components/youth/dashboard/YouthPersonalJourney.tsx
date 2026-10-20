@@ -5,10 +5,19 @@ import Link from "next/link";
 import { resaRequest } from "@/lib/resa/api";
 import { createClient } from "@/lib/supabase/client";
 import { YOUTH_PROGRAMS } from "@/components/youth/core/YouthProgram";
+import { getMinistryCatalogEntry } from "@/components/ministry/ministry-catalog";
 
 type Organization = { id: string; name: string; organization_type: string; parent_id: string | null };
 type Club = { id: string; organizationId: string; name: string; programId: string; status: "ACTIVE" | "INACTIVE"; logoUrl?: string | null; coverImageUrl?: string | null };
 type ClubMember = { clubId: string; userId: string; status: "ACTIVE" | "INACTIVE"; joinedAt: string };
+
+const CATALOG_ID_BY_PROGRAM: Record<string, string> = {
+  adventurers: "adventurer-club",
+  pathfinders: "pathfinder-club",
+  ambassadors: "ambassadors",
+  "young-adults": "young-adults",
+  "public-campus-ministries": "public-campus-ministries",
+};
 
 export default function YouthPersonalJourney() {
   const [answer, setAnswer] = useState<"yes" | "no" | "">("");
@@ -18,6 +27,7 @@ export default function YouthPersonalJourney() {
   const [clubs, setClubs] = useState<Club[]>([]);
   const [clubId, setClubId] = useState("");
   const [memberships, setMemberships] = useState<Club[]>([]);
+  const [addingAnotherClub, setAddingAnotherClub] = useState(false);
   const [loadingOrganizations, setLoadingOrganizations] = useState(true);
   const [loadingClubs, setLoadingClubs] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -110,6 +120,7 @@ export default function YouthPersonalJourney() {
       const selected = clubs.find((club) => club.id === clubId);
       if (!selected) throw new Error("O clube selecionado já não está disponível. Atualize a lista.");
       setMemberships((current) => current.some((club) => club.id === selected.id) ? current : [selected, ...current]);
+      setAddingAnotherClub(false);
       setMessage("A sua conta foi associada ao clube. A progressão será apresentada quando existirem registos reais de formação.");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível associar a conta ao clube.");
@@ -125,14 +136,14 @@ export default function YouthPersonalJourney() {
       </div>
 
       <div className="space-y-5 p-6 sm:p-8">
-        {memberships.length > 0 ? (
+        {memberships.length > 0 && !addingAnotherClub ? (
           <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-emerald-800">Os meus clubes ativos</p>
             {memberships.map((club) => (
               <div key={club.id} className="overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-sm">
                 <div className="relative flex items-center gap-4 bg-gradient-to-r from-[#0C1A3D] to-[#1B3768] p-5 text-white">
                   <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-[#D9BC70] bg-white/10 text-lg font-bold shadow-lg ring-4 ring-[#D9BC70]/15">
-                    {club.logoUrl ? <img src={club.logoUrl} alt={`Fotografia de perfil do clube ${club.name}`} className="h-full w-full object-cover" loading="lazy" /> : <span>{club.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "Z"}</span>}
+                    {club.logoUrl ? <img src={club.logoUrl} alt={`Fotografia de perfil do clube ${club.name}`} className="h-full w-full object-cover" loading="lazy" /> : getMinistryCatalogEntry(CATALOG_ID_BY_PROGRAM[club.programId])?.coverImage ? <img src={getMinistryCatalogEntry(CATALOG_ID_BY_PROGRAM[club.programId])!.coverImage} alt={`Imagem oficial de referência — ${YOUTH_PROGRAMS.find((program) => program.id === club.programId)?.name ?? club.programId}`} className="h-full w-full bg-white object-contain p-1" loading="lazy" /> : <span>{club.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "Z"}</span>}
                   </div>
                   <div className="min-w-0"><h3 className="text-lg font-semibold">{club.name}</h3>
                     <p className="mt-1 text-sm text-white/75">{YOUTH_PROGRAMS.find((program) => program.id === club.programId)?.name ?? club.programId} · Associação ativa</p></div>
@@ -142,10 +153,11 @@ export default function YouthPersonalJourney() {
                 </div>
               </div>
             ))}
-            <button type="button" onClick={() => { setAnswer("yes"); setMemberships([]); setMessage(""); }} className="text-sm font-semibold text-[var(--zion-primary)] underline">Associar outro clube</button>
+            <button type="button" onClick={() => { setAnswer("yes"); setAddingAnotherClub(true); setMessage(""); }} className="text-sm font-semibold text-[var(--zion-primary)] underline">Associar outro clube</button>
           </div>
         ) : (
           <>
+            {memberships.length > 0 && <button type="button" onClick={() => setAddingAnotherClub(false)} className="text-sm font-semibold text-[var(--zion-primary)] underline">Voltar aos meus clubes</button>}
             <fieldset className="space-y-3">
               <legend className="text-sm font-semibold text-[var(--zion-dark)]">Já pertence a um clube deste ministério?</legend>
               <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--zion-border)] p-4">
