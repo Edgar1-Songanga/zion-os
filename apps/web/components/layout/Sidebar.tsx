@@ -7,6 +7,18 @@ import { useTranslation } from "@/components/i18n";
 import { createClient } from "@/lib/supabase/client";
 import { resaRequest } from "@/lib/resa/api";
 
+const nestedActiveRoutes = new Set([
+  "/admin",
+  "/church-administration",
+  "/secretariat",
+  "/finance",
+  "/hr",
+  "/payroll",
+  "/reports",
+  "/ministry",
+  "/youth",
+]);
+
 function NavIcon({ index }: { index: number }) {
   const paths = [
     "M3 10.5 12 3l9 7.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5v-8Z",
@@ -100,9 +112,8 @@ export default function Sidebar() {
             <p className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-400">{section.title}</p>
             <div className="space-y-1">
               {section.items.map((item, itemIndex) => {
-                const active = item.path === "/admin"
-                  ? pathname === "/admin" || pathname.startsWith("/admin/")
-                  : pathname === item.path || pathname.startsWith(item.path + "/");
+                const active = pathname === item.path
+                  || (nestedActiveRoutes.has(item.path) && pathname.startsWith(item.path + "/"));
                 return (
                   <Link key={item.path} href={item.path} aria-current={active ? "page" : undefined}
                     className={["group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] transition-all duration-200", active ? "bg-white text-[#0B2D4D] shadow-[0_6px_18px_rgba(0,0,0,0.12)]" : "text-slate-200 hover:bg-white/[0.08] hover:text-white"].join(" ")}>
