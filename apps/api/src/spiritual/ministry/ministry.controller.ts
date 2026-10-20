@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Headers, Param, Patch, Post, UnauthorizedException } from '@nestjs/common';
 import { SpiritualMinistryService } from './ministry.service';
+import { IdentityService } from '../../identity/application/identity.service';
 
 type MinistryBody = {
   organization_id: string;
@@ -24,7 +25,10 @@ type MinistryProgramBody = {
 
 @Controller('v1/ministries')
 export class MinistryController {
-  constructor(private readonly ministries: SpiritualMinistryService) {}
+  constructor(
+    private readonly ministries: SpiritualMinistryService,
+    private readonly identity: IdentityService,
+  ) {}
 
   private token(authorization?: string) {
     const token = authorization?.replace(/^Bearer\s+/i, '').trim();
@@ -37,7 +41,10 @@ export class MinistryController {
     @Headers('authorization') authorization: string | undefined,
     @Body() body: MinistryBody,
   ) {
-    return this.ministries.create(this.token(authorization), body);
+    const token = this.token(authorization);
+    return this.identity.getCurrentUser(token).then((user) =>
+      this.ministries.create(token, { ...body, created_by: user.id }),
+    );
   }
 
   @Patch(':id')
