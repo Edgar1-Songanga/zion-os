@@ -38,6 +38,45 @@ export default function YouthPersonalJourney() {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    async function restoreMembership() {
+      try {
+        const supabase = createClient();
+        const { data: userResult, error: userError } = await supabase.auth.getUser();
+        if (userError || !userResult.user) return;
+        // RLS limits this query to the authenticated member's own club memberships.
+        const { data: rows, error: membershipError } = await supabase
+          .from("youth_club_members")
+          .select("club_id,status,joined_at")
+          .eq("user_id", userResult.user.id)
+          .eq("status", "ACTIVE")
+          .order("joined_at", { ascending: false });
+        if (membershipError) throw membershipError;
+        if (!active || !rows?.length) return;
+        const clubResults = await Promise.all(rows.map(async (row) => {
+          try {
+            return await resaRequest<Club>(`/v1/youth/clubs/${encodeURIComponent(row.club_id)}`);
+          } catch {
+            return null;
+          }
+        }));
+        if (!active) return;
+        const existing = clubResults.find((club): club is Club => Boolean(club && club.status === "ACTIVE"));
+        if (existing) {
+          setMembership({ club: existing, status: "ACTIVE" });
+          setOrganizationId(existing.organizationId);
+          setProgramId(existing.programId);
+          setClubId(existing.id);
+        }
+      } catch (reason) {
+        if (active) setError(reason instanceof Error ? reason.message : "Não foi possível recuperar a associação ao clube.");
+      }
+    }
+    void restoreMembership();
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
     if (!organizationId) { setClubs([]); return; }
     let active = true;
     setLoadingClubs(true);
