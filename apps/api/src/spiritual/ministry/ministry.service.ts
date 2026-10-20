@@ -12,6 +12,7 @@ export const MINISTRY_DIRECTORY = Symbol('MINISTRY_DIRECTORY');
 
 type MinistryRequestInput = {
   organization_id?: string;
+  created_by?: string;
   name?: string;
   department?: string;
   philosophy?: string;
@@ -42,8 +43,8 @@ export class SpiritualMinistryService {
   async create(token: string, input: MinistryRequestInput): Promise<MinistryRecord | null> {
     const organizationId = input.organization_id?.trim();
     const name = this.requiredText(input.name, 'name', 2, 160);
-    if (!organizationId) {
-      throw new BadRequestException('organization_id and name are required');
+    if (!organizationId || !input.created_by || !this.isUuid(input.created_by)) {
+      throw new BadRequestException('organization_id and authenticated creator are required');
     }
 
     const profile = this.normalizeProfile(input, true);
@@ -52,6 +53,7 @@ export class SpiritualMinistryService {
         organizationId,
         {
           name,
+          createdBy: input.created_by,
           department: profile.department ?? 'MINISTRY',
           philosophy: profile.philosophy ?? '',
           description: profile.description ?? '',
