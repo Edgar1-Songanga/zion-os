@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import { createClient } from "@/lib/supabase/client";
 import ResaSocialNetwork from "@/components/resa/social/ResaSocialNetwork";
+import YouthPersonalJourney from "@/components/youth/dashboard/YouthPersonalJourney";
 
 type Profile = {
   id: string;
@@ -150,6 +151,8 @@ export default function ProfilePage() {
             </div>
           </div>
         </header>
+
+        <YouthPersonalJourney />
 
         <form onSubmit={save} className="rounded-2xl border border-[var(--zion-border)] bg-white p-6 shadow-[var(--zion-shadow-sm)] sm:p-8">
           <div className="border-b border-[var(--zion-border)] pb-5">
