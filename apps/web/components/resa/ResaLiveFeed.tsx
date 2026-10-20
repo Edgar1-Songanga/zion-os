@@ -5,6 +5,7 @@ import CreatePost from "./CreatePost";
 import FeedCard from "./FeedCard";
 import ResaIcon from "./core/ResaIcon";
 import { resaRequest } from "@/lib/resa/api";
+import { createClient } from "@/lib/supabase/client";
 import { useTranslation } from "@/components/i18n";
 
 type ResaContent = {
@@ -76,6 +77,26 @@ export default function ResaLiveFeed() {
       document.removeEventListener("visibilitychange", refreshWhenVisible);
       window.removeEventListener("focus", refreshWhenVisible);
       window.removeEventListener("pageshow", refreshWhenVisible);
+    };
+  }, [load]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel("resa-public-mural")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "resa_contents", filter: "visibility=eq.public" },
+        () => {
+          // Re-fetch through the authenticated API so profile details, visibility
+          // rules and ranking metadata remain consistent with the normal feed path.
+          if (document.visibilityState === "visible") void load(true);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
     };
   }, [load]);
 
