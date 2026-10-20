@@ -29,6 +29,7 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
   {
     id: "youth-ministry",
     profileImage: "https://files.adventistas.org/institucional/pt/sites/20/2013/03/18151050/IMG_9030.jpg",
+    coverImage: "https://files.adventistas.org/institucional/pt/sites/20/2013/03/18151050/IMG_9030.jpg",
     name: "Ministério Jovem Adventista",
     category: "Juventude",
     summary: "Forma uma geração ligada a Cristo, comprometida com o discipulado, a liderança e a missão.",
@@ -66,6 +67,7 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
   {
     id: "adventurer-club",
     profileImage: "https://files.adventistas.org/noticias/pt/2017/09/12113739/IMG_3240-Copy-290x220.jpg",
+    coverImage: "https://files.adventistas.org/noticias/pt/2017/09/12113739/IMG_3240-Copy-290x220.jpg",
     name: "Clube de Aventureiros",
     category: "Juventude",
     summary: "Programa para crianças e famílias que promove descoberta, fé, aprendizagem e serviço.",
@@ -79,6 +81,7 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
   {
     id: "pathfinder-club",
     profileImage: "https://files.adventistas.org/institucional/pt/sites/20/2013/03/18151025/IMG_2593.jpg",
+    coverImage: "https://files.adventistas.org/institucional/pt/sites/20/2013/03/18151025/IMG_2593.jpg",
     name: "Clube de Desbravadores",
     category: "Juventude",
     summary: "Desenvolve caráter, competências práticas, liderança, amizade e compromisso com o serviço.",
