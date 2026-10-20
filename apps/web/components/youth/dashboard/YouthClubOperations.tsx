@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { resaRequest } from "@/lib/resa/api";
 import { OrganizationSelector, type ZionOrganization } from "@/components/organization/OrganizationSelector";
 import { YOUTH_PROGRAMS } from "@/components/youth/core/YouthProgram";
@@ -27,6 +28,7 @@ type ClubForm = {
   motto: string;
   description: string;
   coverImageUrl: string;
+  logoUrl: string;
 };
 
 type OrganizationMember = { id: string; user_id: string; status: string; joined_at?: string; roles?: { key?: string; name?: string } | null };
@@ -53,6 +55,7 @@ const EMPTY_FORM: ClubForm = {
   motto: "",
   description: "",
   coverImageUrl: "",
+  logoUrl: "",
 };
 
 export default function YouthClubOperations() {
@@ -76,6 +79,9 @@ export default function YouthClubOperations() {
   const [leaderRole, setLeaderRole] = useState("Dirigente do clube");
   const [peopleLoading, setPeopleLoading] = useState(false);
   const [peopleSaving, setPeopleSaving] = useState(false);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState("");
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   async function loadClubs(id: string) {
     setOrganizationId(id);
@@ -111,7 +117,10 @@ export default function YouthClubOperations() {
       motto: club.motto,
       description: club.description,
       coverImageUrl: club.coverImageUrl ?? "",
+      logoUrl: club.logoUrl ?? "",
     });
+    setLogoFile(null);
+    setLogoPreview(club.logoUrl ?? "");
     setError(null);
     setMessage(null);
   }
@@ -119,8 +128,32 @@ export default function YouthClubOperations() {
   function cancelEdit() {
     setEditingId(null);
     setForm(EMPTY_FORM);
+    setLogoFile(null);
+    setLogoPreview("");
     setError(null);
     setMessage(null);
+  }
+
+  useEffect(() => {
+    if (!logoFile) return;
+    const url = URL.createObjectURL(logoFile);
+    setLogoPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [logoFile]);
+
+  function selectClubLogo(file?: File) {
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setError("Escolha uma fotografia JPG, PNG ou WebP.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError("A fotografia do clube não pode ultrapassar 5 MB.");
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    setLogoFile(file);
   }
 
   async function loadPeople(club: YouthClubRecord) {
@@ -246,14 +279,26 @@ export default function YouthClubOperations() {
     setSaving(true);
     setError(null);
     setMessage(null);
-    const payload = {
+    try {
+      let logoUrl = form.logoUrl.trim() || null;
+      if (logoFile) {
+        const supabase = createClient();
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+        if (userError || !userData.user) throw new Error("A sessão expirou. Entre novamente para carregar a fotografia.");
+        const extension = logoFile.name.split(".").pop()?.toLowerCase() || "jpg";
+        const path = `${userData.user.id}/youth-clubs/${editingId ?? crypto.randomUUID()}/profile-${crypto.randomUUID()}.${extension}`;
+        const upload = await supabase.storage.from("resa-media").upload(path, logoFile, { contentType: logoFile.type, upsert: false });
+        if (upload.error) throw new Error(upload.error.message);
+        logoUrl = supabase.storage.from("resa-media").getPublicUrl(path).data.publicUrl;
+      }
+      const payload = {
       name: form.name.trim(),
       program_id: form.programId,
       motto: form.motto.trim(),
       description: form.description.trim(),
       cover_image_url: form.coverImageUrl.trim() || null,
+      logo_url: logoUrl,
     };
-    try {
       const saved = await resaRequest<YouthClubRecord>(
         editingId ? `/v1/youth/clubs/${encodeURIComponent(editingId)}` : "/v1/youth/clubs",
         {
@@ -269,6 +314,8 @@ export default function YouthClubOperations() {
       });
       setEditingId(null);
       setForm(EMPTY_FORM);
+      setLogoFile(null);
+      setLogoPreview("");
       setMessage(editingId ? "Perfil do clube atualizado." : "Clube registado com sucesso.");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível guardar o clube.");
@@ -321,7 +368,12 @@ export default function YouthClubOperations() {
                         {cover && <img src={cover} alt={`Fotografia ilustrativa — ${club.name}`} className="h-full w-full object-cover" loading="lazy" />}
                         <div className="absolute inset-0 bg-gradient-to-t from-[#071126]/85 to-transparent" />
                         <span className="absolute left-3 top-3 rounded-full border border-white/20 bg-black/25 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white backdrop-blur">{programName}</span>
-                        <h4 className="absolute bottom-3 left-4 right-4 text-lg font-semibold text-white">{club.name}</h4>
+                        <div className="absolute bottom-3 left-4 right-4 flex items-center gap-3">
+                          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-white/80 bg-[#0C1A3D] text-lg font-bold text-white shadow-xl ring-1 ring-[#C8A24A]/70">
+                            {club.logoUrl ? <img src={club.logoUrl} alt={`Fotografia de perfil do clube ${club.name}`} className="h-full w-full object-cover" loading="lazy" /> : <span>{club.name.trim().split(/\\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "Z"}</span>}
+                          </div>
+                          <h4 className="min-w-0 text-lg font-semibold text-white drop-shadow">{club.name}</h4>
+                        </div>
                       </div>
                       <div className="p-4">
                         <p className="text-sm leading-6 text-slate-600">{club.description || "Sem descrição adicional."}</p>
@@ -356,6 +408,20 @@ export default function YouthClubOperations() {
               <label className="block text-sm font-medium text-slate-700">Descrição
                 <textarea rows={3} maxLength={2000} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 outline-none focus:border-[#C8A24A]" placeholder="Missão e identidade local" />
               </label>
+              <div className="rounded-2xl border border-[#E5D8B2] bg-white p-4 shadow-sm">
+                <p className="text-sm font-semibold text-[#0C1A3D]">Fotografia de perfil do clube</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">Imagem quadrada, nítida e institucional. JPG, PNG ou WebP até 5 MB.</p>
+                <div className="mt-4 flex items-center gap-4">
+                  <button type="button" onClick={() => logoInputRef.current?.click()} className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-[#C8A24A] bg-gradient-to-br from-[#0C1A3D] to-[#233D70] text-xl font-bold text-white shadow-lg ring-4 ring-[#C8A24A]/15" aria-label="Escolher fotografia de perfil do clube">
+                    {logoPreview || form.logoUrl ? <img src={logoPreview || form.logoUrl} alt="Pré-visualização da fotografia do clube" className="h-full w-full object-cover" /> : <span>{form.name.trim().split(/\\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "Z"}</span>}
+                  </button>
+                  <div className="min-w-0">
+                    <button type="button" onClick={() => logoInputRef.current?.click()} className="rounded-lg bg-[#0C1A3D] px-3 py-2 text-xs font-semibold text-white">Carregar fotografia</button>
+                    <p className="mt-2 text-xs text-slate-500">A imagem será guardada na biblioteca multimédia do ZION.</p>
+                    <input ref={logoInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(event) => selectClubLogo(event.target.files?.[0])} />
+                  </div>
+                </div>
+              </div>
               <label className="block text-sm font-medium text-slate-700">URL HTTPS da fotografia de capa
                 <input type="url" value={form.coverImageUrl} onChange={(event) => setForm({ ...form, coverImageUrl: event.target.value })} className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 outline-none focus:border-[#C8A24A]" placeholder="https://…" />
               </label>
