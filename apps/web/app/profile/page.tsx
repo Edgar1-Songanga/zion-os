@@ -26,6 +26,7 @@ const emptyProfile: Profile = {
 export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile>(emptyProfile);
   const [email, setEmail] = useState("");
+  const [verified, setVerified] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -43,6 +44,8 @@ export default function ProfilePage() {
         if (userResult.error) throw userResult.error;
         setProfile({ ...emptyProfile, ...currentProfile });
         setEmail(userResult.data.user?.email ?? "");
+        // Verification is read only from Supabase server-managed app_metadata, never profile form data.
+        setVerified(userResult.data.user?.app_metadata?.zion_verified === true);
       })
       .catch((reason) => {
         if (active) setError(reason instanceof Error ? reason.message : "Não foi possível carregar o perfil.");
@@ -146,8 +149,8 @@ export default function ProfilePage() {
             </button>
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">Perfil ZION</p>
-              <h1 className="mt-2 truncate text-3xl font-semibold tracking-tight">{displayName}</h1>
-              <p className="mt-2 break-all text-sm text-white/65">{email || "Email não disponível"}</p>
+              <div className="mt-2 flex flex-wrap items-center gap-3"><h1 className="truncate text-3xl font-semibold tracking-tight">{displayName}</h1>{verified && <span className="inline-flex items-center gap-2 rounded-full border border-sky-200/30 bg-sky-400/15 px-3 py-1.5 text-sm font-bold text-sky-100 shadow-[0_0_24px_rgba(56,189,248,0.22)]" aria-label="Conta ZION verificada"><svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 text-sky-300" fill="currentColor"><path fillRule="evenodd" d="M12 1.75a2.7 2.7 0 0 1 2.17 1.09l.48.65.8.1a2.7 2.7 0 0 1 2.27 1.62l.29.74.74.29a2.7 2.7 0 0 1 1.62 2.27l.1.8.65.48a2.7 2.7 0 0 1 0 4.34l-.65.48-.1.8a2.7 2.7 0 0 1-1.62 2.27l-.74.29-.29.74a2.7 2.7 0 0 1-2.27 1.62l-.8.1-.48.65a2.7 2.7 0 0 1-4.34 0l-.48-.65-.8-.1a2.7 2.7 0 0 1-2.27-1.62l-.29-.74-.74-.29a2.7 2.7 0 0 1-1.62-2.27l-.1-.8-.65-.48a2.7 2.7 0 0 1 0-4.34l.65-.48.1-.8a2.7 2.7 0 0 1 1.62-2.27l.74-.29.29-.74a2.7 2.7 0 0 1 2.27-1.62l.8-.1.48-.65A2.7 2.7 0 0 1 12 1.75Zm3.28 6.9a.9.9 0 0 0-1.27 0l-3.1 3.1-1.3-1.3a.9.9 0 0 0-1.27 1.27l1.94 1.94a.9.9 0 0 0 1.27 0l3.73-3.73a.9.9 0 0 0 0-1.27Z" clipRule="evenodd"/></svg>Conta verificada</span>}</div>
+              <p className="mt-2 break-all text-sm text-white/65">{email || "Email não disponível"}</p>{verified && <p className="mt-2 max-w-xl text-sm text-sky-100/90">Identidade reconhecida pela ZION. O selo é atribuído por metadados protegidos no servidor e não pode ser ativado ao editar o perfil.</p>}
             </div>
           </div>
         </header>
