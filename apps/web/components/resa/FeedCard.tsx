@@ -48,7 +48,9 @@ function renderLinkedText(value: string) {
 export default function FeedCard({ content }: { content: ResaContent }) {
   const { t, locale } = useTranslation();
   const [reaction, setReaction] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [reposting, setReposting] = useState(false);
   const [comments, setComments] = useState<CommentItem[]>([]);
   const [comment, setComment] = useState("");
@@ -120,30 +122,42 @@ export default function FeedCard({ content }: { content: ResaContent }) {
   }, [content.id, showComments]);
 
   async function toggleReaction() {
+    setActionFeedback(null);
     try {
       if (reaction) {
         await resaRequest(`/v1/resa/content/${content.id}/reactions`, { method: "DELETE" });
         setReaction(false);
+        setActionFeedback("Gosto removido.");
       } else {
         await resaRequest(`/v1/resa/content/${content.id}/reactions`, {
           method: "POST",
           body: JSON.stringify({ reaction_type: "like" }),
         });
         setReaction(true);
+        setActionFeedback("Gostaste desta publicação.");
       }
-    } catch {}
+    } catch (error) {
+      setActionFeedback(error instanceof Error ? error.message : "Não foi possível registar a reação.");
+    }
   }
 
   async function save() {
     setSaving(true);
+    setActionFeedback(null);
     try {
-      await resaRequest(`/v1/resa/content/${content.id}/save`, { method: "POST" });
-    } catch {}
-    setSaving(false);
+      await resaRequest(`/v1/resa/content/${content.id}/save`, { method: saved ? "DELETE" : "POST" });
+      setSaved(!saved);
+      setActionFeedback(saved ? "Publicação removida dos guardados." : "Publicação guardada.");
+    } catch (error) {
+      setActionFeedback(error instanceof Error ? error.message : "Não foi possível guardar a publicação.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function submitComment() {
     if (!comment.trim()) return;
+    setActionFeedback(null);
     try {
       const created = await resaRequest<CommentItem>(`/v1/resa/content/${content.id}/comments`, {
         method: "POST",
@@ -152,18 +166,26 @@ export default function FeedCard({ content }: { content: ResaContent }) {
       setComments((v) => [created, ...v]);
       setComment("");
       setShowComments(true);
-    } catch {}
+      setActionFeedback("Comentário publicado.");
+    } catch (error) {
+      setActionFeedback(error instanceof Error ? error.message : "Não foi possível publicar o comentário.");
+    }
   }
 
   async function repost() {
     setReposting(true);
+    setActionFeedback(null);
     try {
       await resaRequest(`/v1/resa/content/${content.id}/repost`, {
         method: "POST",
         body: JSON.stringify({ quote: false }),
       });
-    } catch {}
-    setReposting(false);
+      setActionFeedback("Publicação partilhada no mural.");
+    } catch (error) {
+      setActionFeedback(error instanceof Error ? error.message : "Não foi possível partilhar a publicação.");
+    } finally {
+      setReposting(false);
+    }
   }
 
   return (
@@ -218,7 +240,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
         </button>
         <button type="button" onClick={() => void save()} disabled={saving} className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-white hover:text-[#0C1A3D]">
           <ResaIcon name="bookmark" size={16} />
-          {saving ? t("saving") : t("save")}
+          {saving ? t("saving") : saved ? "Guardado" : t("save")}
         </button>
         <button type="button" onClick={() => setShowComments((v) => !v)} className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-white hover:text-[#0C1A3D]">
           <ResaIcon name="comment" size={16} />
@@ -254,6 +276,8 @@ export default function FeedCard({ content }: { content: ResaContent }) {
           </div>
         )}
       </div>
+
+      {actionFeedback && <p role="status" aria-live="polite" className="border-t border-slate-100 bg-blue-50 px-6 py-2.5 text-xs text-[#0C1A3D] sm:px-7">{actionFeedback}</p>}
 
       {showComments && (
         <div className="border-t border-slate-100 bg-white px-6 py-5 sm:px-7">
