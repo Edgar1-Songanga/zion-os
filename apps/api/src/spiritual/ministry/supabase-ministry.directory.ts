@@ -17,6 +17,7 @@ export class SupabaseMinistryDirectory implements MinistryDirectoryPort {
     organizationId: string,
     input: {
       name: string;
+      createdBy: string;
       department: string;
       philosophy: string;
       description: string;
@@ -32,6 +33,7 @@ export class SupabaseMinistryDirectory implements MinistryDirectoryPort {
     const rows = await this.db.post<any[]>('ministries', token, {
       organization_id: organizationId,
       name: input.name,
+      created_by: input.createdBy,
       department: input.department,
       philosophy: input.philosophy,
       description: input.description,
