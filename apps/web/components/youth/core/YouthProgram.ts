@@ -43,7 +43,7 @@ export const YOUTH_PROGRAMS: YouthProgram[] = [
     ageRange: "22–30+ anos",
     philosophy: "Integrar fé, vocação, comunidade e serviço ao longo da vida adulta.",
     features: ["Discipulado", "Liderança", "Mentoria", "Missão", "Comunidade"],
-    officialUrl: "https://www.gcyouthministries.org/",
+    officialUrl: "https://www.gcyouthministries.org/ministries/young-adults/",
   },
   {
     id: "public-campus-ministries",
@@ -52,6 +52,6 @@ export const YOUTH_PROGRAMS: YouthProgram[] = [
     ageRange: "Estudantes universitários e comunidade académica",
     philosophy: "Ajudar jovens a permanecerem enraizados em Jesus e a envolverem colegas num relacionamento com Ele.",
     features: ["Grupos de campus", "Discipulado", "Liderança estudantil", "Apoio a professores", "Missão académica"],
-    officialUrl: "https://ted.adventist.org/youth/public-campus-ministries/",
+    officialUrl: "https://www.gcyouthministries.org/events-and-projects/public-campus-ministries/",
   },
 ];
