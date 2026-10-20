@@ -370,7 +370,7 @@ export default function YouthClubOperations() {
                         <span className="absolute left-3 top-3 rounded-full border border-white/20 bg-black/25 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white backdrop-blur">{programName}</span>
                         <div className="absolute bottom-3 left-4 right-4 flex items-center gap-3">
                           <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-white/80 bg-[#0C1A3D] text-lg font-bold text-white shadow-xl ring-1 ring-[#C8A24A]/70">
-                            {club.logoUrl ? <img src={club.logoUrl} alt={`Fotografia de perfil do clube ${club.name}`} className="h-full w-full object-cover" loading="lazy" /> : <span>{club.name.trim().split(/\\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "Z"}</span>}
+                            {club.logoUrl ? <img src={club.logoUrl} alt={`Fotografia de perfil do clube ${club.name}`} className="h-full w-full object-cover" loading="lazy" /> : <span>{club.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "Z"}</span>}
                           </div>
                           <h4 className="min-w-0 text-lg font-semibold text-white drop-shadow">{club.name}</h4>
                         </div>
@@ -413,7 +413,7 @@ export default function YouthClubOperations() {
                 <p className="mt-1 text-xs leading-5 text-slate-500">Imagem quadrada, nítida e institucional. JPG, PNG ou WebP até 5 MB.</p>
                 <div className="mt-4 flex items-center gap-4">
                   <button type="button" onClick={() => logoInputRef.current?.click()} className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-[#C8A24A] bg-gradient-to-br from-[#0C1A3D] to-[#233D70] text-xl font-bold text-white shadow-lg ring-4 ring-[#C8A24A]/15" aria-label="Escolher fotografia de perfil do clube">
-                    {logoPreview || form.logoUrl ? <img src={logoPreview || form.logoUrl} alt="Pré-visualização da fotografia do clube" className="h-full w-full object-cover" /> : <span>{form.name.trim().split(/\\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "Z"}</span>}
+                    {logoPreview || form.logoUrl ? <img src={logoPreview || form.logoUrl} alt="Pré-visualização da fotografia do clube" className="h-full w-full object-cover" /> : <span>{form.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "Z"}</span>}
                   </button>
                   <div className="min-w-0">
                     <button type="button" onClick={() => logoInputRef.current?.click()} className="rounded-lg bg-[#0C1A3D] px-3 py-2 text-xs font-semibold text-white">Carregar fotografia</button>
