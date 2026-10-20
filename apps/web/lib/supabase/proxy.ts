@@ -3,6 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const protectedPrefixes = [
   "/dashboard",
+  "/ministry",
+  "/youth",
   "/resa",
   "/bible-engine",
   "/communities",
@@ -48,10 +50,19 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
   if (isAuthenticated && (pathname === "/auth/sign-in" || pathname === "/auth/sign-up")) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
-    url.search = "";
-    return NextResponse.redirect(url);
+    const requestedNext = request.nextUrl.searchParams.get("next");
+    let destination = new URL("/dashboard", request.nextUrl.origin);
+    if (requestedNext) {
+      try {
+        const candidate = new URL(requestedNext, request.nextUrl.origin);
+        if (candidate.origin === request.nextUrl.origin && candidate.pathname.startsWith("/") && !candidate.pathname.startsWith("//")) {
+          destination = candidate;
+        }
+      } catch {
+        // Ignore malformed or external redirect targets and use the dashboard.
+      }
+    }
+    return NextResponse.redirect(destination);
   }
   response.headers.set("Cache-Control", "private, no-store");
   return response;
