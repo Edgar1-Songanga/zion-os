@@ -122,6 +122,7 @@ export default function SignInPage() {
         <p className="text-sm font-semibold tracking-[0.22em] text-[var(--zion-muted)]">ZION OS</p>
         <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[var(--zion-dark)]">Entrar</h1>
         <p className="mt-2 text-sm leading-6 text-[var(--zion-muted)]">Aceda ao sistema operativo ZION OS.</p>
+        <p className="mt-3 text-sm text-[var(--zion-muted)]">Não sabe qual área deve abrir?{" "}<Link href="/auth/access" className="font-semibold text-[var(--zion-primary)] underline underline-offset-4">Escolher perfil de entrada</Link></p>
         <Suspense fallback={<div className="mt-8 h-48 animate-pulse rounded-xl bg-[var(--zion-light)]" />}><SignInForm /></Suspense>
         <p className="mt-6 text-sm text-[var(--zion-muted)]">Ainda não tem conta?{" "}<Link href="/auth/sign-up" className="font-semibold text-[var(--zion-primary)] underline underline-offset-4">Criar conta</Link></p>
       </section>
