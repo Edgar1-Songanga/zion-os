@@ -20,6 +20,14 @@ type ResaContent = {
   media_url?: string | null;
 };
 
+function newestFirst(items: ResaContent[]): ResaContent[] {
+  return [...items].sort((a, b) => {
+    const aTime = Date.parse(a.created_at);
+    const bTime = Date.parse(b.created_at);
+    return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
+  });
+}
+
 export default function ResaLiveFeed() {
   const { t } = useTranslation();
   const [items, setItems] = useState<ResaContent[]>([]);
@@ -39,7 +47,8 @@ export default function ResaLiveFeed() {
     setError(null);
 
     try {
-      setItems(await resaRequest<ResaContent[]>("/v1/resa/feed?limit=30"));
+      const latest = await resaRequest<ResaContent[]>("/v1/resa/feed?limit=30");
+      setItems(newestFirst(latest));
     } catch (e) {
       setError(e instanceof Error ? e.message : t("feedLoadError"));
     } finally {
@@ -57,12 +66,16 @@ export default function ResaLiveFeed() {
     const refreshWhenVisible = () => {
       if (document.visibilityState === "visible") void load(true);
     };
-    const interval = window.setInterval(refreshWhenVisible, 45_000);
+    const interval = window.setInterval(refreshWhenVisible, 15_000);
     document.addEventListener("visibilitychange", refreshWhenVisible);
+    window.addEventListener("focus", refreshWhenVisible);
+    window.addEventListener("pageshow", refreshWhenVisible);
 
     return () => {
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
+      window.removeEventListener("focus", refreshWhenVisible);
+      window.removeEventListener("pageshow", refreshWhenVisible);
     };
   }, [load]);
 
@@ -87,7 +100,7 @@ export default function ResaLiveFeed() {
     deepLinkHandledRef.current = postId;
     void resaRequest<ResaContent>("/v1/resa/content/" + encodeURIComponent(postId))
       .then((publication) => {
-        setItems((current) => [publication, ...current.filter((item) => item.id !== publication.id)]);
+        setItems((current) => newestFirst([publication, ...current.filter((item) => item.id !== publication.id)]));
         scrollToPublication();
       })
       .catch(() => {
