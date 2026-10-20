@@ -4,6 +4,7 @@ import type { MinistryDirectoryPort, MinistryRecord } from './ministry.types';
 
 describe('SpiritualMinistryService ministry profile management', () => {
   const ministryId = '00000000-0000-4000-8000-000000000001';
+  const creatorId = '00000000-0000-4000-8000-000000000002';
   let directory: jest.Mocked<MinistryDirectoryPort>;
   let service: SpiritualMinistryService;
 
@@ -51,6 +52,7 @@ describe('SpiritualMinistryService ministry profile management', () => {
   it('preserves the original create contract when optional profile metadata is omitted', async () => {
     await service.create('access-token', {
       organization_id: ministryId,
+      created_by: creatorId,
       name: 'Ministério Jovem',
     });
 
@@ -58,6 +60,7 @@ describe('SpiritualMinistryService ministry profile management', () => {
       ministryId,
       {
         name: 'Ministério Jovem',
+        createdBy: creatorId,
         department: 'MINISTRY',
         philosophy: '',
         description: '',
