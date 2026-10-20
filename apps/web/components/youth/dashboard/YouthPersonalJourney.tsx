@@ -138,6 +138,7 @@ export default function YouthPersonalJourney() {
             <button type="button" onClick={() => { setAnswer("yes"); setMemberships([]); setMessage(""); }} className="text-sm font-semibold text-[var(--zion-primary)] underline">Associar outro clube</button>
           </div>
         ) : (
+          <>
             <fieldset className="space-y-3">
               <legend className="text-sm font-semibold text-[var(--zion-dark)]">Já pertence a um clube deste ministério?</legend>
               <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--zion-border)] p-4">
