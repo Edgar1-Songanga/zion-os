@@ -230,15 +230,15 @@ export class ResaOperationalService {
   async listLiveSessions(token: string, limit = 30) {
     const actor = await this.actor(token);
     const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
-    const sessions = await this.db.get<any[]>('resa_live_sessions', token, `?select=*&or=(visibility.eq.public,host_id.eq.${actor.id})&status=neq.ended&order=scheduled_at.asc.nullslast,created_at.desc&limit=${size}`);
+    const sessions = await this.db.get<any[]>('resa_live_sessions', token, `?select=*&status=neq.ended&order=scheduled_at.asc.nullslast,created_at.desc&limit=${size}`);
     return sessions.map((session) => ({ ...session, is_host: session.host_id === actor.id }));
   }
 
   private async assertLiveChatAccess(token: string, liveId: string, actorId: string) {
     const id = this.id(liveId, 'live_id');
-    const rows = await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status,visibility&id=eq.${id}&limit=1`);
+    const rows = await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status,visibility,organization_id&id=eq.${id}&limit=1`);
     const live = rows[0];
-    if (!live || (live.host_id !== actorId && live.visibility !== 'public')) throw new NotFoundException('Live session not found');
+    if (!live || (live.host_id !== actorId && !['public', 'organization'].includes(live.visibility))) throw new NotFoundException('Live session not found');
     if (live.status !== 'live') throw new BadRequestException('O chat só está disponível enquanto a Live está ativa.');
     return live;
   }
@@ -285,16 +285,22 @@ export class ResaOperationalService {
     };
   }
 
-  async createLiveSession(token: string, input: { title: unknown; description?: unknown; visibility?: unknown; scheduled_at?: unknown }) {
+  async createLiveSession(token: string, input: { title: unknown; description?: unknown; visibility?: unknown; scheduled_at?: unknown; organization_id?: unknown; organization_unit_id?: unknown; ministry_id?: unknown }) {
     const actor = await this.actor(token);
     const visibility = input.visibility ?? 'public';
     if (!['public', 'followers', 'community', 'organization', 'private'].includes(visibility as string)) throw new BadRequestException('Invalid live visibility');
+    const organizationId = input.organization_id ? this.id(input.organization_id, 'organization_id') : null;
+    const organizationUnitId = input.organization_unit_id ? this.id(input.organization_unit_id, 'organization_unit_id') : null;
+    const ministryId = input.ministry_id ? this.id(input.ministry_id, 'ministry_id') : null;
+    if (visibility === 'organization' && !organizationId) throw new BadRequestException('Organization visibility requires organization_id');
+    if ((organizationUnitId || ministryId) && !organizationId) throw new BadRequestException('Department or ministry context requires organization_id');
     const scheduledAt = input.scheduled_at ? this.text(input.scheduled_at, 'scheduled_at', 1, 80) : null;
     if (scheduledAt && Number.isNaN(Date.parse(scheduledAt))) throw new BadRequestException('scheduled_at is invalid');
     const rows = await this.db.post<any[]>('resa_live_sessions', token, {
       host_id: actor.id, title: this.text(input.title, 'title', 2, 160),
       description: typeof input.description === 'string' ? input.description.trim() || null : null,
       visibility, scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null, status: 'scheduled',
+      organization_id: organizationId, organization_unit_id: organizationUnitId, ministry_id: ministryId,
     });
     const session = rows[0];
     if (!session?.id) throw new BadGatewayException('Live session could not be created');
@@ -336,7 +342,7 @@ export class ResaOperationalService {
     const rows = await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status,visibility&id=eq.${id}&limit=1`);
     const live = rows[0];
     if (!live) throw new NotFoundException('Live session not found');
-    if (live.host_id !== actor.id && live.visibility !== 'public') throw new NotFoundException('Live session not found');
+    if (live.host_id !== actor.id && !['public', 'organization'].includes(live.visibility)) throw new NotFoundException('Live session not found');
     if (live.status !== 'live' && live.host_id !== actor.id) throw new BadRequestException('Live session has not started');
     if (live.status === 'ended') throw new BadRequestException('Live session has ended');
     if (!this.media.createJoinConfig) throw new BadRequestException('Media provider does not expose a join configuration');
