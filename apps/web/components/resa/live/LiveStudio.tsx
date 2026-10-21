@@ -95,18 +95,30 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
     const attachRemote = (track: any, _publication: any, participant: any) => {
       if (!remoteRef.current || !participant?.identity) return;
       const element = track.attach() as HTMLMediaElement;
+      const participantName = participant.name || participant.identity;
       element.autoplay = true;
       element.dataset.participant = participant.identity;
+      element.title = participantName;
       if (track.kind === Track.Kind.Video) {
         const video = element as HTMLVideoElement;
         video.playsInline = true;
-        video.className = "h-full max-h-[70vh] w-full rounded-2xl bg-black object-contain";
+        video.className = "h-full max-h-[70vh] min-h-[180px] w-full rounded-2xl bg-black object-contain";
+        video.setAttribute("aria-label", "Vídeo de " + participantName);
+        const tile = document.createElement("div");
+        tile.className = "relative min-h-[180px] overflow-hidden rounded-2xl border border-white/10 bg-slate-950";
+        tile.dataset.participant = participant.identity;
+        tile.appendChild(video);
+        const label = document.createElement("span");
+        label.className = "absolute bottom-2 left-2 rounded-lg border border-white/10 bg-black/70 px-2.5 py-1.5 text-xs font-semibold text-white backdrop-blur";
+        label.textContent = participantName;
+        tile.appendChild(label);
+        remoteRef.current.appendChild(tile);
       } else if (track.kind === Track.Kind.Audio) {
         const audio = element as HTMLAudioElement;
         audio.className = "sr-only";
-        audio.setAttribute("aria-label", "Áudio da transmissão");
+        audio.setAttribute("aria-label", "Áudio de " + participantName);
+        remoteRef.current.appendChild(audio);
       }
-      remoteRef.current.appendChild(element);
       const recordingTrack = (track as any).mediaStreamTrack as MediaStreamTrack | undefined;
       if (recordingTrack && recordingStreamRef.current && !recordingStreamRef.current.getTracks().some((item) => item.id === recordingTrack.id)) recordingStreamRef.current.addTrack(recordingTrack);
       void element.play().catch(() => {
@@ -238,6 +250,18 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages]);
+
+  useEffect(() => {
+    const video = localVideoRef.current;
+    const track = roomRef.current?.localParticipant.getTrackPublication(Track.Source.Camera)?.track;
+    if (!video) return;
+    if (camera && connected && track) {
+      video.srcObject = new MediaStream([track.mediaStreamTrack]);
+      void video.play().catch(() => {});
+    } else if (!camera) {
+      video.srcObject = null;
+    }
+  }, [camera, connected]);
 
   useEffect(() => {
     if (!connected) return;
