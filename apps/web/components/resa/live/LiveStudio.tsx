@@ -46,6 +46,10 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
   const [joinPassword, setJoinPassword] = useState("");
   const [camera, setCamera] = useState(false);
   const [microphone, setMicrophone] = useState(false);
+  const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([]);
+  const [microphoneDevices, setMicrophoneDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedCameraId, setSelectedCameraId] = useState("");
+  const [selectedMicrophoneId, setSelectedMicrophoneId] = useState("");
   const [screenShare, setScreenShare] = useState(false);
   const [isHost, setIsHost] = useState(false);
   const [isModerator, setIsModerator] = useState(false);
@@ -76,6 +80,28 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
   const [mediaFileName, setMediaFileName] = useState("");
   const [mediaBroadcasting, setMediaBroadcasting] = useState(false);
   const [mediaBusy, setMediaBusy] = useState(false);
+
+  const refreshMediaDevices = useCallback(async () => {
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.enumerateDevices) return;
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const cameras = devices.filter((device) => device.kind === "videoinput" && device.deviceId);
+      const microphones = devices.filter((device) => device.kind === "audioinput" && device.deviceId);
+      setCameraDevices(cameras);
+      setMicrophoneDevices(microphones);
+      setSelectedCameraId((current) => cameras.some((device) => device.deviceId === current) ? current : (cameras[0]?.deviceId || ""));
+      setSelectedMicrophoneId((current) => microphones.some((device) => device.deviceId === current) ? current : (microphones[0]?.deviceId || ""));
+    } catch {
+      // Device enumeration is optional; browser permissions can temporarily hide labels or devices.
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshMediaDevices();
+    const devices = typeof navigator !== "undefined" ? navigator.mediaDevices : undefined;
+    devices?.addEventListener?.("devicechange", refreshMediaDevices);
+    return () => devices?.removeEventListener?.("devicechange", refreshMediaDevices);
+  }, [refreshMediaDevices]);
 
   const sendPacket = useCallback(async (packet: LivePacket, destinationIdentity?: string) => {
     const room = roomRef.current;
@@ -328,8 +354,9 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
     if (!room || (!isHost && !canSpeak)) return;
     try {
       const next = !camera;
-      await room.localParticipant.setCameraEnabled(next);
+      await room.localParticipant.setCameraEnabled(next, next && selectedCameraId ? { deviceId: selectedCameraId } : undefined);
       setCamera(next);
+      if (next) void refreshMediaDevices();
       const localCamera = room.localParticipant.getTrackPublication(Track.Source.Camera)?.track;
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = next && localCamera ? new MediaStream([localCamera.mediaStreamTrack]) : null;
@@ -340,15 +367,57 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
     }
   }
 
+  async function changeCameraDevice(deviceId: string) {
+    setSelectedCameraId(deviceId);
+    const room = roomRef.current;
+    if (!camera || !room || !deviceId) return;
+    try {
+      const track = room.localParticipant.getTrackPublication(Track.Source.Camera)?.track as { setDeviceId?: (id: string) => Promise<unknown> } | undefined;
+      if (track?.setDeviceId) await track.setDeviceId(deviceId);
+      else {
+        await room.localParticipant.setCameraEnabled(false);
+        await room.localParticipant.setCameraEnabled(true, { deviceId });
+      }
+      await refreshMediaDevices();
+      setNotice("Câmara alterada neste dispositivo.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível trocar de câmara. Verifica as permissões do navegador.");
+    }
+  }
+
   async function toggleMicrophone() {
     const room = roomRef.current;
     if (!room || (!isHost && !canSpeak)) return;
     try {
       const next = !microphone;
-      await room.localParticipant.setMicrophoneEnabled(next, { echoCancellation: true, noiseSuppression: true, autoGainControl: true });
+      await room.localParticipant.setMicrophoneEnabled(next, {
+        ...(next && selectedMicrophoneId ? { deviceId: selectedMicrophoneId } : {}),
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      });
       setMicrophone(next);
+      if (next) void refreshMediaDevices();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível alterar o microfone.");
+    }
+  }
+
+  async function changeMicrophoneDevice(deviceId: string) {
+    setSelectedMicrophoneId(deviceId);
+    const room = roomRef.current;
+    if (!microphone || !room || !deviceId) return;
+    try {
+      const track = room.localParticipant.getTrackPublication(Track.Source.Microphone)?.track as { setDeviceId?: (id: string) => Promise<unknown> } | undefined;
+      if (track?.setDeviceId) await track.setDeviceId(deviceId);
+      else {
+        await room.localParticipant.setMicrophoneEnabled(false);
+        await room.localParticipant.setMicrophoneEnabled(true, { deviceId, echoCancellation: true, noiseSuppression: true, autoGainControl: true });
+      }
+      await refreshMediaDevices();
+      setNotice("Microfone alterado neste dispositivo.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível trocar de microfone. Verifica as permissões do navegador.");
     }
   }
 
@@ -743,6 +812,19 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
               <button onClick={() => void toggleMicrophone()} disabled={!connected} aria-pressed={microphone} className={"rounded-xl border px-3 py-2.5 text-xs font-semibold transition disabled:opacity-40 " + (microphone ? "border-sky-200/30 bg-sky-300/15 text-sky-100" : "border-white/10 bg-white/5 text-slate-300")}>{microphone ? "🎙 Microfone ligado" : "🔇 Microfone desligado"}</button>
               <button onClick={() => void toggleCamera()} disabled={!connected} aria-pressed={camera} className={"rounded-xl border px-3 py-2.5 text-xs font-semibold transition disabled:opacity-40 " + (camera ? "border-sky-200/30 bg-sky-300/15 text-sky-100" : "border-white/10 bg-white/5 text-slate-300")}>{camera ? "▣ Câmara ligada" : "▧ Câmara desligada"}</button>
               <button onClick={() => void toggleScreenShare()} disabled={!connected} aria-pressed={screenShare} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-xs font-semibold text-slate-300 transition hover:bg-white/10 disabled:opacity-40">{screenShare ? "Parar partilha" : "Partilhar ecrã + áudio"}</button>
+              {connected && (cameraDevices.length > 0 || microphoneDevices.length > 0) && <div className="flex w-full flex-wrap gap-2 rounded-xl border border-white/10 bg-black/15 p-3">
+                {cameraDevices.length > 0 && <label className="min-w-[180px] flex-1 text-[11px] font-semibold text-slate-400">Câmara deste dispositivo
+                  <select value={selectedCameraId} onChange={(event) => void changeCameraDevice(event.target.value)} className="mt-1 block w-full rounded-lg border border-white/10 bg-[#08152f] px-2 py-2 text-xs text-white">
+                    {cameraDevices.map((device, index) => <option key={device.deviceId} value={device.deviceId}>{device.label || "Câmara " + (index + 1)}</option>)}
+                  </select>
+                </label>}
+                {microphoneDevices.length > 0 && <label className="min-w-[180px] flex-1 text-[11px] font-semibold text-slate-400">Microfone deste dispositivo
+                  <select value={selectedMicrophoneId} onChange={(event) => void changeMicrophoneDevice(event.target.value)} className="mt-1 block w-full rounded-lg border border-white/10 bg-[#08152f] px-2 py-2 text-xs text-white">
+                    {microphoneDevices.map((device, index) => <option key={device.deviceId} value={device.deviceId}>{device.label || "Microfone " + (index + 1)}</option>)}
+                  </select>
+                </label>}
+                <button type="button" onClick={() => void refreshMediaDevices()} className="self-end rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-white/10">Atualizar dispositivos</button>
+              </div>}
               {!isHost && <button onClick={() => void raiseHand()} disabled={!connected || handRaised} className="rounded-xl bg-white/10 px-3 py-2.5 text-xs font-semibold text-white disabled:opacity-40">{handRaised ? "✋ Mão levantada" : "✋ Pedir a palavra"}</button>}
               {isHost && <button onClick={() => void endLive()} disabled={ending} className="rounded-xl border border-rose-300/20 bg-rose-500/[0.07] px-3 py-2.5 text-xs font-semibold text-rose-200/90 transition hover:bg-rose-500/15 disabled:opacity-50">{ending ? "A encerrar…" : "Encerrar live"}</button>}
             </div>
