@@ -222,7 +222,7 @@ export default function LivePage() {
           </section>
         </div>
       </div>
-      {studioLive && <LiveStudio liveId={studioLive.id} title={studioLive.title} isPrivate={studioLive.visibility === "private"} isHost={Boolean(studioLive.is_host)} onClose={() => setStudioLive(null)} />}
+      {studioLive && <LiveStudio liveId={studioLive.id} title={studioLive.title} isPrivate={studioLive.visibility === "private"} isHostSession={Boolean(studioLive.is_host)} onClose={() => setStudioLive(null)} />}
     </main>
   );
 }
