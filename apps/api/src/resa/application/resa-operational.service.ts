@@ -239,6 +239,10 @@ export class ResaOperationalService {
     const rows = await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status,visibility,organization_id&id=eq.${id}&limit=1`);
     const live = rows[0];
     if (!live || (live.host_id !== actorId && !['public', 'organization', 'private'].includes(live.visibility))) throw new NotFoundException('Live session not found');
+    if (live.visibility === 'private' && live.host_id !== actorId) {
+      const hasAccess = await this.db.rpc<boolean>('resa_has_live_access', token, { p_live_id: id });
+      if (hasAccess !== true) throw new NotFoundException('Live session not found');
+    }
     if (live.status !== 'live') throw new BadRequestException('O chat só está disponível enquanto a Live está ativa.');
     return live;
   }
