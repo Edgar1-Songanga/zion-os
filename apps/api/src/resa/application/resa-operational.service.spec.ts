@@ -103,6 +103,21 @@ describe('ResaOperationalService live permissions', () => {
     expect(media.createJoinConfig).not.toHaveBeenCalled();
   });
 
+  it('does not expose chat messages for a private live to a non-host', async () => {
+    actorId = 'uninvited-viewer';
+    getSpy.mockResolvedValueOnce([{
+      id: LIVE_ID,
+      host_id: 'host-user',
+      status: 'live',
+      visibility: 'private',
+    }] as never);
+
+    await expect(service.listLiveChatMessages('session-token', LIVE_ID)).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(getSpy).toHaveBeenCalledTimes(1);
+    expect(getSpy).not.toHaveBeenCalledWith('resa_live_chat_messages', expect.anything(), expect.anything());
+  });
+
   it('requires an organization id when creating an organization-only live', async () => {
     await expect(service.createLiveSession('session-token', {
       title: 'Culto de oração',
