@@ -68,8 +68,8 @@ export class ResaOperationalController {
     return this.operational.createLiveSession(this.token(authorization), body);
   }
 
-  @Post('live/:liveId/join') liveJoinConfig(@Headers('authorization') authorization: string | undefined, @Param('liveId') liveId: string) {
-    return this.operational.liveJoinConfig(this.token(authorization), liveId);
+  @Post('live/:liveId/join') liveJoinConfig(@Headers('authorization') authorization: string | undefined, @Param('liveId') liveId: string, @Body() body: { password?: string }) {
+    return this.operational.liveJoinConfig(this.token(authorization), liveId, body?.password);
   }
   @Get('live/:liveId/messages')
   listLiveChatMessages(@Headers('authorization') authorization: string | undefined, @Param('liveId') liveId: string, @Query('limit') limit?: string) {
