@@ -294,8 +294,8 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
 
   async function copyLiveLink() {
     try {
-      await navigator.clipboard.writeText(window.location.origin + "/resa/live");
-      setNotice("Link da área Live copiado. Partilha-o com a comunidade; a entrada continua sujeita às permissões da sessão.");
+      await navigator.clipboard.writeText(window.location.origin + "/resa/live?live=" + encodeURIComponent(liveId));
+      setNotice("Link desta Live copiado. Para transmissões privadas, o convidado precisará da palavra-passe.");
     } catch {
       setNotice("Copia o endereço da área Live a partir da barra do navegador para o partilhares.");
     }
