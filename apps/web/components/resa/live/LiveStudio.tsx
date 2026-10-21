@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Room, RoomEvent, Track } from "livekit-client";
 import { resaRequest } from "@/lib/resa/api";
 
-type JoinConfig = { joinUrl: string; token: string; roomId: string; isHost?: boolean; role?: "host" | "viewer" };
+type JoinConfig = { joinUrl: string; token: string; roomId: string; displayName?: string; isHost?: boolean; role?: "host" | "viewer" };
 type LiveMessage = { id: string; identity: string; name: string; text: string; sentAt: number };
 type PersistedLiveMessage = { id: string; sender_id: string; name: string; text: string; sent_at: string };
 type Participant = { identity: string; name: string };
@@ -38,6 +38,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
   const recordingChunksRef = useRef<Blob[]>([]);
   const liveStartedAtRef = useRef<number | null>(null);
   const [connected, setConnected] = useState(false);
+  const [joinMode, setJoinMode] = useState<"video" | "audio" | "listen" | null>(null);
   const [camera, setCamera] = useState(false);
   const [microphone, setMicrophone] = useState(false);
   const [screenShare, setScreenShare] = useState(false);
@@ -85,6 +86,8 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
   }, []);
 
   useEffect(() => {
+    if (!joinMode) { setStarting(false); return; }
+    setStarting(true);
     let mounted = true;
     const room = new Room({ adaptiveStream: true, dynacast: true });
     roomRef.current = room;
@@ -199,21 +202,24 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
         if (!config.joinUrl || !config.token) throw new Error("O serviço de vídeo não devolveu credenciais válidas.");
         if (mounted) setIsHost(Boolean(config.isHost || config.role === "host"));
         await room.connect(config.joinUrl, config.token, { autoSubscribe: true });
-        if (config.isHost || config.role === "host") {
-          await room.localParticipant.enableCameraAndMicrophone();
+        const displayName = config.displayName || room.localParticipant.name || "Membro RESA";
+        if (mounted) setSelfIdentity(room.localParticipant.identity);
+        if (joinMode === "video") {
+          await room.localParticipant.setCameraEnabled(true);
+          await room.localParticipant.setMicrophoneEnabled(true, { echoCancellation: true, noiseSuppression: true, autoGainControl: true });
+        } else if (joinMode === "audio") {
+          await room.localParticipant.setCameraEnabled(false);
+          await room.localParticipant.setMicrophoneEnabled(true, { echoCancellation: true, noiseSuppression: true, autoGainControl: true });
+        } else {
+          await room.localParticipant.setCameraEnabled(false);
           await room.localParticipant.setMicrophoneEnabled(false);
-          await room.localParticipant.setMicrophoneEnabled(true, {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          });
-          const localCamera = room.localParticipant.getTrackPublication(Track.Source.Camera)?.track;
-          if (localCamera && localVideoRef.current) {
-            localVideoRef.current.srcObject = new MediaStream([localCamera.mediaStreamTrack]);
-            void localVideoRef.current.play().catch(() => {});
-          }
-          if (mounted) { setCamera(true); setMicrophone(true); }
         }
+        const localCamera = room.localParticipant.getTrackPublication(Track.Source.Camera)?.track;
+        if (localCamera && localVideoRef.current && joinMode === "video") {
+          localVideoRef.current.srcObject = new MediaStream([localCamera.mediaStreamTrack]);
+          void localVideoRef.current.play().catch(() => {});
+        }
+        if (mounted) { setCamera(joinMode === "video"); setMicrophone(joinMode !== "listen"); setNotice("Entraste como " + displayName + ". Podes alterar o áudio e o vídeo nos controlos da Live."); }
         syncParticipants(room);
       } catch (e) {
         if (mounted) setError(e instanceof Error ? e.message : "Não foi possível entrar na live.");
@@ -227,7 +233,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
       void room.disconnect(true);
       roomRef.current = null;
     };
-  }, [liveId, syncParticipants]);
+  }, [liveId, syncParticipants, joinMode]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -266,11 +272,16 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
 
   async function toggleCamera() {
     const room = roomRef.current;
-    if (!room || (!isHost && !canSpeak)) return;
+    if (!room) return;
     try {
       const next = !camera;
       await room.localParticipant.setCameraEnabled(next);
       setCamera(next);
+      const localCamera = room.localParticipant.getTrackPublication(Track.Source.Camera)?.track;
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = next && localCamera ? new MediaStream([localCamera.mediaStreamTrack]) : null;
+        if (next) void localVideoRef.current.play().catch(() => {});
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível alterar a câmara.");
     }
@@ -470,10 +481,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
   }
 
   const hostControls = (
-    <div className="grid grid-cols-3 gap-2">
-      <button onClick={() => void toggleMicrophone()} disabled={!connected} className={"min-h-[72px] rounded-2xl border px-2 py-3 text-center text-xs font-semibold transition disabled:opacity-50 " + (microphone ? "border-sky-200/30 bg-sky-300/15 text-sky-100" : "border-white/10 bg-white/[0.045] text-slate-300 hover:bg-white/10")}>{microphone ? "Microfone ligado" : "Microfone desligado"}</button>
-      <button onClick={() => void toggleCamera()} disabled={!connected} className={"min-h-[72px] rounded-2xl border px-2 py-3 text-center text-xs font-semibold transition disabled:opacity-50 " + (camera ? "border-sky-200/30 bg-sky-300/15 text-sky-100" : "border-white/10 bg-white/[0.045] text-slate-300 hover:bg-white/10")}>{camera ? "Câmara ligada" : "Câmara desligada"}</button>
-      <button onClick={() => void toggleScreenShare()} disabled={!connected} className="col-span-1 min-h-[72px] rounded-2xl border border-white/10 bg-white/[0.045] px-2 py-3 text-center text-xs font-semibold text-slate-300 transition hover:bg-white/10 disabled:opacity-50">{screenShare ? "Parar ecrã" : "Partilhar ecrã"}</button>
+    <div className="grid grid-cols-2 gap-2">
       <button onClick={() => recording ? stopRecording() : startRecording()} disabled={!connected || !isHost} className={"col-span-2 rounded-xl px-3 py-3 text-left text-sm font-semibold disabled:opacity-40 " + (recording ? "bg-red-500/20 text-red-100" : "bg-white/10 text-white")}>{recording ? "Parar gravação e guardar ficheiro" : "Gravar nesta máquina (sem armazenamento na nuvem)"}</button>
       <div className="col-span-2 space-y-2 rounded-xl border border-white/10 bg-black/15 p-3">
         <p className="text-xs font-bold uppercase tracking-wide text-slate-300">Transmitir noutras plataformas</p>
@@ -487,9 +495,28 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
     </div>
   );
 
+  if (!joinMode) {
+    return (
+      <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#020817]/95 p-3 backdrop-blur-md sm:p-5">
+        <section className="w-full max-w-xl rounded-[28px] border border-white/10 bg-[#08152f] p-6 text-white shadow-2xl sm:p-8">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-sky-200">ZION · RESA Live</p>
+          <h2 className="mt-3 text-2xl font-semibold">{title}</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-400">Escolhe como queres entrar. Podes ligar ou desligar a câmara e o microfone durante a sessão.</p>
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            <button onClick={() => { setStarting(true); setJoinMode("video"); }} className="rounded-2xl border border-sky-200/30 bg-sky-300/10 p-4 text-left transition hover:bg-sky-300/20"><span className="text-2xl">◉</span><span className="mt-3 block text-sm font-semibold">Vídeo e áudio</span><span className="mt-1 block text-xs leading-5 text-slate-400">Entrar com câmara e microfone ligados</span></button>
+            <button onClick={() => { setStarting(true); setJoinMode("audio"); }} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left transition hover:bg-white/10"><span className="text-2xl">♫</span><span className="mt-3 block text-sm font-semibold">Só áudio</span><span className="mt-1 block text-xs leading-5 text-slate-400">Participar sem transmitir vídeo</span></button>
+            <button onClick={() => { setStarting(true); setJoinMode("listen"); }} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left transition hover:bg-white/10"><span className="text-2xl">◌</span><span className="mt-3 block text-sm font-semibold">Só assistir</span><span className="mt-1 block text-xs leading-5 text-slate-400">Entrar com câmara e microfone desligados</span></button>
+          </div>
+          <div className="mt-5 flex items-center justify-between gap-3"><p className="text-xs leading-5 text-slate-500">O navegador poderá pedir autorização para usar a câmara e o microfone.</p><button onClick={onClose} className="shrink-0 rounded-xl border border-white/10 px-4 py-2 text-sm">Cancelar</button></div>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#020817]/95 p-2 backdrop-blur-md sm:p-5">
       <div className="flex h-[min(940px,98vh)] w-full max-w-7xl flex-col overflow-hidden rounded-[26px] border border-white/10 bg-[#08152f] shadow-2xl">
+        <style jsx>{`@keyframes zion-reaction-rise { 0% { transform: translateY(18px) scale(.65); opacity: 0; } 18% { opacity: 1; } 75% { opacity: .95; } 100% { transform: translateY(-90px) scale(1.18); opacity: 0; } } .zion-live-reaction { animation: zion-reaction-rise 3.8s ease-out forwards; }`}</style>
         <header className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-4 text-white sm:px-6">
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">ZION · RESA Live</p>
@@ -514,17 +541,21 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
                 <button type="button" onClick={() => setStageLayout("stage")} aria-pressed={stageLayout === "stage"} className={"rounded-lg px-2.5 py-1.5 text-xs font-semibold " + (stageLayout === "stage" ? "bg-sky-300 text-[#07142c]" : "text-white hover:bg-white/10")}>Palco</button>
                 <button type="button" onClick={() => void copyLiveLink()} className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-white/10">Partilhar</button>
               </div>
-              {liveReactions.length > 0 && <div aria-live="polite" className="pointer-events-none absolute bottom-4 left-4 z-10 flex max-w-[80%] flex-wrap gap-2">{liveReactions.slice(-5).map((reaction) => <span key={reaction.id} className="animate-pulse rounded-full border border-white/15 bg-black/60 px-3 py-2 text-sm text-white shadow-lg backdrop-blur">{reaction.emoji} <span className="text-xs">{reaction.name}</span></span>)}</div>}
-              {isHost && <video ref={localVideoRef} autoPlay muted playsInline className="absolute bottom-3 right-3 h-24 w-36 rounded-xl border border-white/20 bg-slate-900 object-cover shadow-2xl sm:h-32 sm:w-48" />}
+              {liveReactions.length > 0 && <div aria-live="polite" className="pointer-events-none absolute inset-x-0 bottom-5 z-10 flex items-end justify-center gap-4">{liveReactions.slice(-5).map((reaction, index) => <span key={reaction.id} title={reaction.name} className="zion-live-reaction flex h-14 w-14 items-center justify-center rounded-full border border-white/20 bg-gradient-to-br from-white/20 to-sky-300/10 text-3xl shadow-[0_0_32px_rgba(125,211,252,0.28)] backdrop-blur" style={{ animationDelay: (index * 90) + "ms" }}>{reaction.emoji}</span>)}</div>}
+              {camera && connected && <div className="absolute bottom-3 right-3 z-20 h-24 w-36 overflow-hidden rounded-xl border border-white/20 bg-slate-900 shadow-2xl sm:h-32 sm:w-48"><video ref={localVideoRef} autoPlay muted playsInline className="h-full w-full object-cover" /><span className="absolute bottom-1 left-1 rounded-md bg-black/65 px-2 py-1 text-[10px] font-semibold text-white">{roomRef.current?.localParticipant.name || "Tu"} · Tu</span></div>}
               {!connected && <div className="absolute inset-0 flex items-center justify-center bg-black/60 p-6 text-center text-sm text-slate-300">{error || (starting ? "A preparar áudio e vídeo…" : "A ligação foi interrompida.")}</div>}
             </div>
             {connected && <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2"><span className="text-xs font-semibold text-slate-400">Reações ao vivo</span><div className="flex flex-wrap gap-1.5">{["👏", "❤️", "🙏", "🔥", "✨", "🙌"].map((emoji) => <button key={emoji} type="button" onClick={() => void sendReaction(emoji)} aria-label={"Enviar reação " + emoji} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-lg transition hover:-translate-y-0.5 hover:border-sky-300/40 hover:bg-sky-300/10">{emoji}</button>)}</div></div>}
             {notice && <div role="status" className="rounded-xl border border-sky-300/20 bg-sky-400/10 px-4 py-3 text-sm text-sky-100">{notice}<button onClick={() => setNotice(null)} className="ml-3 underline">Fechar</button></div>}
             {error && connected && <div role="alert" className="rounded-xl border border-red-300/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div>}
-            <div className="flex flex-wrap items-center gap-2">
-              {isHost || canSpeak ? hostControls : <button onClick={() => void raiseHand()} disabled={!connected || handRaised} className="rounded-xl bg-white/10 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{handRaised ? "✋ Mão levantada · aguarda o anfitrião" : "✋ Levantar a mão para falar"}</button>}
-              {isHost && <button onClick={() => void endLive()} disabled={ending} className="self-start rounded-xl border border-rose-300/20 bg-rose-500/[0.07] px-3 py-2 text-xs font-semibold text-rose-200/90 transition hover:border-rose-300/35 hover:bg-rose-500/15 disabled:opacity-50">{ending ? "A encerrar…" : "Encerrar live para todos"}</button>}
+            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.035] p-2">
+              <button onClick={() => void toggleMicrophone()} disabled={!connected} aria-pressed={microphone} className={"rounded-xl border px-3 py-2.5 text-xs font-semibold transition disabled:opacity-40 " + (microphone ? "border-sky-200/30 bg-sky-300/15 text-sky-100" : "border-white/10 bg-white/5 text-slate-300")}>{microphone ? "🎙 Microfone ligado" : "🔇 Microfone desligado"}</button>
+              <button onClick={() => void toggleCamera()} disabled={!connected} aria-pressed={camera} className={"rounded-xl border px-3 py-2.5 text-xs font-semibold transition disabled:opacity-40 " + (camera ? "border-sky-200/30 bg-sky-300/15 text-sky-100" : "border-white/10 bg-white/5 text-slate-300")}>{camera ? "▣ Câmara ligada" : "▧ Câmara desligada"}</button>
+              <button onClick={() => void toggleScreenShare()} disabled={!connected} aria-pressed={screenShare} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-xs font-semibold text-slate-300 transition hover:bg-white/10 disabled:opacity-40">{screenShare ? "Parar partilha" : "Partilhar ecrã"}</button>
+              {!isHost && <button onClick={() => void raiseHand()} disabled={!connected || handRaised} className="rounded-xl bg-white/10 px-3 py-2.5 text-xs font-semibold text-white disabled:opacity-40">{handRaised ? "✋ Mão levantada" : "✋ Pedir a palavra"}</button>}
+              {isHost && <button onClick={() => void endLive()} disabled={ending} className="rounded-xl border border-rose-300/20 bg-rose-500/[0.07] px-3 py-2.5 text-xs font-semibold text-rose-200/90 transition hover:bg-rose-500/15 disabled:opacity-50">{ending ? "A encerrar…" : "Encerrar live"}</button>}
             </div>
+            {isHost && <div className="rounded-2xl border border-white/10 bg-black/10 p-3"><p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Ferramentas do anfitrião</p>{hostControls}</div>}
           </section>
 
           <aside className="flex min-h-0 flex-col border-t border-white/10 bg-white/[0.035] lg:border-l lg:border-t-0">
