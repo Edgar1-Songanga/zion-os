@@ -28,7 +28,7 @@ function renderLinkedText(value: string) {
 
 
 
-export default function LiveStudio({ liveId, title, onClose }: { liveId: string; title: string; onClose: () => void }) {
+export default function LiveStudio({ liveId, title, isPrivate = false, isHostSession = false, onClose }: { liveId: string; title: string; isPrivate?: boolean; isHostSession?: boolean; onClose: () => void }) {
   const roomRef = useRef<Room | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteRef = useRef<HTMLDivElement | null>(null);
@@ -39,6 +39,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
   const liveStartedAtRef = useRef<number | null>(null);
   const [connected, setConnected] = useState(false);
   const [joinMode, setJoinMode] = useState<"video" | "audio" | "listen" | null>(null);
+  const [joinPassword, setJoinPassword] = useState("");
   const [camera, setCamera] = useState(false);
   const [microphone, setMicrophone] = useState(false);
   const [screenShare, setScreenShare] = useState(false);
@@ -212,7 +213,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
 
     void (async () => {
       try {
-        const config = await resaRequest<JoinConfig>("/v1/resa/live/" + liveId + "/join", { method: "POST" });
+        const config = await resaRequest<JoinConfig>("/v1/resa/live/" + liveId + "/join", { method: "POST", body: JSON.stringify(joinPassword ? { password: joinPassword } : {}) });
         if (!config.joinUrl || !config.token) throw new Error("O serviço de vídeo não devolveu credenciais válidas.");
         const hostRole = Boolean(config.isHost || config.role === "host");
         if (mounted) { setIsHost(hostRole); setIsModerator(Boolean(config.isModerator || config.role === "moderator")); }
@@ -253,7 +254,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
       void room.disconnect(true);
       roomRef.current = null;
     };
-  }, [liveId, syncParticipants, joinMode]);
+  }, [liveId, syncParticipants, joinMode, joinPassword]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -301,6 +302,17 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
   }
 
   const elapsedLabel = [Math.floor(liveElapsed / 3600), Math.floor((liveElapsed % 3600) / 60), liveElapsed % 60].map((part) => String(part).padStart(2, "0")).join(":");
+
+  function chooseJoinMode(mode: "video" | "audio" | "listen") {
+    if (isPrivate && !isHostSession) {
+      const password = window.prompt("Esta Live é privada. Introduz a palavra-passe fornecida pelo anfitrião:");
+      if (password === null) return;
+      if (!password.trim()) { setError("A palavra-passe é obrigatória para entrar numa Live privada."); return; }
+      setJoinPassword(password);
+    }
+    setStarting(true);
+    setJoinMode(mode);
+  }
 
   async function toggleCamera() {
     const room = roomRef.current;
@@ -584,9 +596,9 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
           <h2 className="mt-3 text-2xl font-semibold">{title}</h2>
           <p className="mt-2 text-sm leading-6 text-slate-400">Escolhe como queres entrar. Podes ligar ou desligar a câmara e o microfone durante a sessão.</p>
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            <button onClick={() => { setStarting(true); setJoinMode("video"); }} className="rounded-2xl border border-sky-200/30 bg-sky-300/10 p-4 text-left transition hover:bg-sky-300/20"><span className="text-2xl">◉</span><span className="mt-3 block text-sm font-semibold">Vídeo e áudio</span><span className="mt-1 block text-xs leading-5 text-slate-400">Entrar com câmara e microfone ligados</span></button>
-            <button onClick={() => { setStarting(true); setJoinMode("audio"); }} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left transition hover:bg-white/10"><span className="text-2xl">♫</span><span className="mt-3 block text-sm font-semibold">Só áudio</span><span className="mt-1 block text-xs leading-5 text-slate-400">Participar sem transmitir vídeo</span></button>
-            <button onClick={() => { setStarting(true); setJoinMode("listen"); }} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left transition hover:bg-white/10"><span className="text-2xl">◌</span><span className="mt-3 block text-sm font-semibold">Só assistir</span><span className="mt-1 block text-xs leading-5 text-slate-400">Entrar com câmara e microfone desligados</span></button>
+            <button onClick={() => chooseJoinMode("video")} className="rounded-2xl border border-sky-200/30 bg-sky-300/10 p-4 text-left transition hover:bg-sky-300/20"><span className="text-2xl">◉</span><span className="mt-3 block text-sm font-semibold">Vídeo e áudio</span><span className="mt-1 block text-xs leading-5 text-slate-400">Entrar com câmara e microfone ligados</span></button>
+            <button onClick={() => chooseJoinMode("audio")} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left transition hover:bg-white/10"><span className="text-2xl">♫</span><span className="mt-3 block text-sm font-semibold">Só áudio</span><span className="mt-1 block text-xs leading-5 text-slate-400">Participar sem transmitir vídeo</span></button>
+            <button onClick={() => chooseJoinMode("listen")} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left transition hover:bg-white/10"><span className="text-2xl">◌</span><span className="mt-3 block text-sm font-semibold">Só assistir</span><span className="mt-1 block text-xs leading-5 text-slate-400">Entrar com câmara e microfone desligados</span></button>
           </div>
           <div className="mt-5 flex items-center justify-between gap-3"><p className="text-xs leading-5 text-slate-500">O navegador poderá pedir autorização para usar a câmara e o microfone.</p><button onClick={onClose} className="shrink-0 rounded-xl border border-white/10 px-4 py-2 text-sm">Cancelar</button></div>
         </section>
