@@ -71,6 +71,15 @@ export class ResaOperationalController {
   @Post('live/:liveId/join') liveJoinConfig(@Headers('authorization') authorization: string | undefined, @Param('liveId') liveId: string, @Body() body: { password?: string }) {
     return this.operational.liveJoinConfig(this.token(authorization), liveId, body?.password);
   }
+
+  @Patch('live/:liveId/media-policy')
+  updateLiveMediaPolicy(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('liveId') liveId: string,
+    @Body() body: { attendee_publish_allowed?: boolean; attendee_camera_on_join?: boolean; attendee_microphone_on_join?: boolean },
+  ) {
+    return this.operational.updateLiveMediaPolicy(this.token(authorization), liveId, body);
+  }
   @Get('live/:liveId/messages')
   listLiveChatMessages(@Headers('authorization') authorization: string | undefined, @Param('liveId') liveId: string, @Query('limit') limit?: string) {
     return this.operational.listLiveChatMessages(this.token(authorization), liveId, Number(limit) || 100);
