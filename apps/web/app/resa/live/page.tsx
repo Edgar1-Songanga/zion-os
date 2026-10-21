@@ -18,6 +18,9 @@ type LiveSession = {
   scheduled_at?: string | null;
   started_at?: string | null;
   host_id?: string;
+  organization_id?: string | null;
+  organization_unit_id?: string | null;
+  ministry_id?: string | null;
   is_host?: boolean;
 };
 
@@ -182,6 +185,13 @@ export default function LivePage() {
                           <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{item.status}</span>
                         </div>
                         <h3 className="mt-2 text-xl font-semibold text-[#0C1A3D]">{item.title}</h3>
+                        {(item.visibility === "organization" || item.organization_id || item.organization_unit_id || item.ministry_id) && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {item.visibility === "organization" && <span className="rounded-full border border-indigo-100 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">Restrita à organização</span>}
+                            {item.organization_unit_id && <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">Departamento associado</span>}
+                            {item.ministry_id && <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">Ministério associado</span>}
+                          </div>
+                        )}
                         {item.description && <p className="mt-2 text-sm leading-6 text-slate-600">{item.description}</p>}
                         {item.scheduled_at && <p className="mt-3 text-sm text-slate-500">Agendada para {new Date(item.scheduled_at).toLocaleString("pt-PT")}</p>}
                       </div>
