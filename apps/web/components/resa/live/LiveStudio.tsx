@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Room, RoomEvent, Track } from "livekit-client";
 import { resaRequest } from "@/lib/resa/api";
 
-type JoinConfig = { joinUrl: string; token: string; roomId: string; displayName?: string; isHost?: boolean; role?: "host" | "viewer" };
+type JoinConfig = { joinUrl: string; token: string; roomId: string; displayName?: string; isHost?: boolean; isModerator?: boolean; role?: "host" | "moderator" | "viewer" };
 type LiveMessage = { id: string; identity: string; name: string; text: string; sentAt: number };
 type PersistedLiveMessage = { id: string; sender_id: string; name: string; text: string; sent_at: string };
 type Participant = { identity: string; name: string };
@@ -43,6 +43,8 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
   const [microphone, setMicrophone] = useState(false);
   const [screenShare, setScreenShare] = useState(false);
   const [isHost, setIsHost] = useState(false);
+  const [isModerator, setIsModerator] = useState(false);
+  const [moderatorIds, setModeratorIds] = useState<string[]>([]);
   const [canSpeak, setCanSpeak] = useState(false);
   const [selfIdentity, setSelfIdentity] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -212,7 +214,13 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
       try {
         const config = await resaRequest<JoinConfig>("/v1/resa/live/" + liveId + "/join", { method: "POST" });
         if (!config.joinUrl || !config.token) throw new Error("O serviço de vídeo não devolveu credenciais válidas.");
-        if (mounted) setIsHost(Boolean(config.isHost || config.role === "host"));
+        const hostRole = Boolean(config.isHost || config.role === "host");
+        if (mounted) { setIsHost(hostRole); setIsModerator(Boolean(config.isModerator || config.role === "moderator")); }
+        if (hostRole) {
+          void resaRequest<Array<{ moderator_user_id: string }>>("/v1/resa/live/" + liveId + "/moderators")
+            .then((items) => { if (mounted) setModeratorIds(items.map((item) => item.moderator_user_id)); })
+            .catch(() => { if (mounted) setNotice("A Live está ligada, mas a lista de moderadores não pôde ser carregada."); });
+        }
         await room.connect(config.joinUrl, config.token, { autoSubscribe: true });
         const displayName = config.displayName || room.localParticipant.name || "Membro RESA";
         if (mounted) setSelfIdentity(room.localParticipant.identity);
@@ -476,6 +484,21 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
     else setNotice(action === "allow_speak" ? "Publicação autorizada para todos os participantes presentes." : "Microfones, câmaras e partilhas foram bloqueados para os participantes presentes.");
   }
 
+  async function toggleModerator(identity: string) {
+    if (!isHost) return;
+    const enabled = !moderatorIds.includes(identity);
+    try {
+      await resaRequest("/v1/resa/live/" + liveId + "/moderators", {
+        method: "POST",
+        body: JSON.stringify({ identity, enabled }),
+      });
+      setModeratorIds((current) => enabled ? [...new Set([...current, identity])] : current.filter((id) => id !== identity));
+      setNotice(enabled ? "Moderador nomeado para esta Live." : "Permissão de moderador retirada.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível alterar a função de moderador.");
+    }
+  }
+
   async function moderate(identity: string, action: "allow_speak" | "revoke_speak" | "remove") {
     try {
       await resaRequest("/v1/resa/live/" + liveId + "/participants/" + encodeURIComponent(identity), {
@@ -652,10 +675,11 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
                 {participants.map((person) => (
                   <div key={person.identity} className="flex items-center justify-between gap-2 rounded-xl bg-white/5 p-3 text-sm text-white">
                     <div className="min-w-0"><p className="truncate font-medium">{person.name}</p><p className="text-xs text-slate-500">{person.identity === selfIdentity ? "Este dispositivo" : isHost ? "Participante" : "Na live"}</p></div>
-                    {isHost && person.identity !== selfIdentity && <div className="flex shrink-0 gap-1">
+                    {(isHost || isModerator) && person.identity !== selfIdentity && person.identity !== (roomRef.current?.localParticipant.identity || "") && <div className="flex shrink-0 flex-wrap justify-end gap-1">
                       <button title="Autorizar a falar" onClick={() => void moderate(person.identity, "allow_speak")} className="rounded-lg bg-white/10 px-2 py-1 text-xs">Falar</button>
                       <button title="Retirar permissão de falar" onClick={() => void moderate(person.identity, "revoke_speak")} className="rounded-lg bg-white/10 px-2 py-1 text-xs">Silenciar</button>
                       <button title="Remover da live" onClick={() => void moderate(person.identity, "remove")} className="rounded-lg bg-red-500/20 px-2 py-1 text-xs text-red-200">Remover</button>
+                      {isHost && <button title="Delegar ou retirar moderação" onClick={() => void toggleModerator(person.identity)} className={"rounded-lg px-2 py-1 text-xs " + (moderatorIds.includes(person.identity) ? "bg-amber-300/20 text-amber-100" : "bg-white/10 text-slate-200")}>{moderatorIds.includes(person.identity) ? "Retirar moderador" : "Tornar moderador"}</button>}
                     </div>}
                   </div>
                 ))}
