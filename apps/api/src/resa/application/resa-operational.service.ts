@@ -347,16 +347,21 @@ export class ResaOperationalService {
     if (live.status === 'ended') throw new BadRequestException('Live session has ended');
     if (!this.media.createJoinConfig) throw new BadRequestException('Media provider does not expose a join configuration');
     const isHost = live.host_id === actor.id;
+    const profile = (await this.profilesById(token, [actor.id], actor.id)).get(actor.id);
+    const displayName = this.profileDisplayName(profile, actor.email ?? 'Membro RESA');
     const config = await this.media.createJoinConfig({
       meetingId: id,
       providerRoomId: 'zion-live-' + id,
       userId: actor.id,
-      canPublish: isHost,
+      name: displayName,
+      // A public/organization Live is an interactive room: every admitted attendee
+      // may opt into publishing; the host can revoke publishing server-side.
+      canPublish: true,
     });
     if (config.mode !== 'SFU' || !config.joinUrl || !config.token) {
       throw new BadGatewayException('LiveKit is not configured for RESA live sessions');
     }
-    return { ...config, role: isHost ? 'host' : 'viewer', isHost };
+    return { ...config, displayName, role: isHost ? 'host' : 'viewer', isHost };
   }
 
   async moderateLiveParticipant(token: string, liveId: string, identity: string, action: 'allow_speak' | 'revoke_speak' | 'remove') {
