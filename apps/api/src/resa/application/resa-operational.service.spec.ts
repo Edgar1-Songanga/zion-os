@@ -90,6 +90,59 @@ describe('ResaOperationalService live permissions', () => {
     }));
   });
 
+  it.each([
+    { publish: true, camera: true, microphone: true },
+    { publish: true, camera: false, microphone: true },
+    { publish: true, camera: true, microphone: false },
+    { publish: true, camera: false, microphone: false },
+    { publish: false, camera: true, microphone: true },
+    { publish: false, camera: false, microphone: true },
+    { publish: false, camera: true, microphone: false },
+    { publish: false, camera: false, microphone: false },
+  ])('returns the persisted attendee media policy combination %#', async ({ publish, camera, microphone }) => {
+    actorId = 'viewer-user';
+    getSpy.mockResolvedValueOnce([{
+      id: LIVE_ID,
+      host_id: 'host-user',
+      status: 'live',
+      visibility: 'public',
+      attendee_publish_allowed: publish,
+      attendee_camera_on_join: camera,
+      attendee_microphone_on_join: microphone,
+    }] as never);
+
+    const config = await service.liveJoinConfig('session-token', LIVE_ID);
+
+    expect(config.attendee_publish_allowed).toBe(publish);
+    expect(config.attendee_camera_on_join).toBe(camera);
+    expect(config.attendee_microphone_on_join).toBe(microphone);
+    expect(media.createJoinConfig).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'viewer-user',
+      canPublish: publish,
+    }));
+  });
+
+  it('keeps the host able to publish when attendee publishing is globally locked', async () => {
+    getSpy.mockResolvedValueOnce([{
+      id: LIVE_ID,
+      host_id: actorId,
+      status: 'live',
+      visibility: 'public',
+      attendee_publish_allowed: false,
+      attendee_camera_on_join: false,
+      attendee_microphone_on_join: false,
+    }] as never);
+
+    const config = await service.liveJoinConfig('session-token', LIVE_ID);
+
+    expect(config.isHost).toBe(true);
+    expect(config.attendee_publish_allowed).toBe(false);
+    expect(media.createJoinConfig).toHaveBeenCalledWith(expect.objectContaining({
+      userId: actorId,
+      canPublish: true,
+    }));
+  });
+
   it('persists the host global publishing lock and applies it to connected attendees', async () => {
     getSpy.mockResolvedValueOnce([{
       id: LIVE_ID,
