@@ -12,7 +12,8 @@ type LivePacket =
   | { type: "hand_raise"; name?: string }
   | { type: "speak_granted"; name?: string }
   | { type: "speak_revoked"; name?: string }
-  | { type: "announcement"; text: string; name?: string };
+  | { type: "announcement"; text: string; name?: string }
+  | { type: "reaction"; emoji: string; name?: string };
 
 const DATA_TOPIC = "zion-live";
 
@@ -34,6 +35,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
   const recordingStreamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordingChunksRef = useRef<Blob[]>([]);
+  const liveStartedAtRef = useRef<number | null>(null);
   const [connected, setConnected] = useState(false);
   const [camera, setCamera] = useState(false);
   const [microphone, setMicrophone] = useState(false);
@@ -57,6 +59,9 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
   const [streamingExternal, setStreamingExternal] = useState(false);
   const [streamBusy, setStreamBusy] = useState(false);
   const [audioNeedsGesture, setAudioNeedsGesture] = useState(false);
+  const [liveElapsed, setLiveElapsed] = useState(0);
+  const [stageLayout, setStageLayout] = useState<"grid" | "stage">("grid");
+  const [liveReactions, setLiveReactions] = useState<Array<{ id: string; emoji: string; name: string }>>([]);
 
   const sendPacket = useCallback(async (packet: LivePacket, destinationIdentity?: string) => {
     const room = roomRef.current;
@@ -147,6 +152,10 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
           setNotice("O anfitrião retirou a tua permissão de falar. O microfone, a câmara e a partilha foram desligados.");
         } else if (packet.type === "announcement") {
           setNotice(packet.text);
+        } else if (packet.type === "reaction" && ["👏", "❤️", "🙏", "🔥", "✨", "🙌"].includes(packet.emoji)) {
+          const reaction = { id: identity + "-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6), emoji: packet.emoji, name };
+          setLiveReactions((current) => [...current.slice(-11), reaction]);
+          window.setTimeout(() => setLiveReactions((current) => current.filter((item) => item.id !== reaction.id)), 5000);
         }
       } catch {
         // Ignore malformed packets instead of breaking the live session.
@@ -171,6 +180,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
       .on(RoomEvent.Connected, () => {
         if (mounted) {
           setConnected(true);
+          liveStartedAtRef.current = Date.now();
           setSelfIdentity(room.localParticipant.identity);
           syncParticipants(room);
         }
@@ -218,6 +228,37 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages]);
+
+  useEffect(() => {
+    if (!connected) return;
+    const updateElapsed = () => setLiveElapsed(Math.max(0, Math.floor((Date.now() - (liveStartedAtRef.current ?? Date.now())) / 1000)));
+    updateElapsed();
+    const timer = window.setInterval(updateElapsed, 1000);
+    return () => window.clearInterval(timer);
+  }, [connected]);
+
+  async function sendReaction(emoji: string) {
+    if (!connected) return;
+    try {
+      await sendPacket({ type: "reaction", emoji, name: roomRef.current?.localParticipant.name || "Participante" });
+      const own = { id: selfIdentity + "-reaction-" + Date.now(), emoji, name: "Tu" };
+      setLiveReactions((current) => [...current.slice(-11), own]);
+      window.setTimeout(() => setLiveReactions((current) => current.filter((item) => item.id !== own.id)), 5000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível enviar a reação.");
+    }
+  }
+
+  async function copyLiveLink() {
+    try {
+      await navigator.clipboard.writeText(window.location.origin + "/resa/live");
+      setNotice("Link da área Live copiado. Partilha-o com a comunidade; a entrada continua sujeita às permissões da sessão.");
+    } catch {
+      setNotice("Copia o endereço da área Live a partir da barra do navegador para o partilhares.");
+    }
+  }
+
+  const elapsedLabel = [Math.floor(liveElapsed / 3600), Math.floor((liveElapsed % 3600) / 60), liveElapsed % 60].map((part) => String(part).padStart(2, "0")).join(":");
 
   async function toggleCamera() {
     const room = roomRef.current;
@@ -441,7 +482,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">ZION · RESA Live</p>
             <h2 className="truncate font-semibold">{title}</h2>
-            <p className="mt-1 text-xs text-slate-400">{starting ? "A estabelecer ligação…" : connected ? (isHost ? "Estás a transmitir como anfitrião" : "Ligado como espectador") : "Sem ligação"}{recording ? " · GRAVAÇÃO ATIVA" : ""}{streamingExternal ? " · SAÍDA EXTERNA ATIVA" : ""}</p>
+            <p className="mt-1 text-xs text-slate-400">{starting ? "A estabelecer ligação…" : connected ? (isHost ? "Estás a transmitir como anfitrião" : "Ligado como espectador") : "Sem ligação"}{connected ? " · " + elapsedLabel : ""}{recording ? " · GRAVAÇÃO ATIVA" : ""}{streamingExternal ? " · SAÍDA EXTERNA ATIVA" : ""}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {audioNeedsGesture && <button onClick={() => void startAudio()} disabled={!connected} className="rounded-xl border border-sky-200/30 bg-sky-300/10 px-3 py-2 text-xs font-semibold text-sky-100 hover:bg-sky-300/20">Ativar áudio</button>}
@@ -452,10 +493,20 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
         <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_350px]">
           <section className="flex min-h-0 flex-col gap-3 overflow-y-auto p-3 sm:p-5">
             <div className="relative flex min-h-[260px] flex-1 items-center justify-center overflow-hidden rounded-2xl bg-black p-2">
-              <div ref={remoteRef} className="grid h-full w-full grid-cols-1 content-center gap-3 sm:grid-cols-2" />
+              <div ref={remoteRef} className={"grid h-full w-full content-center gap-3 " + (stageLayout === "grid" ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1")} />
+              <div className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-full border border-white/15 bg-black/60 px-3 py-2 text-[11px] font-semibold text-white backdrop-blur">
+                <span className="h-2 w-2 rounded-full bg-red-500" /> LIVE <span className="text-white/60">{participants.length} participante{participants.length === 1 ? "" : "s"}</span>
+              </div>
+              <div className="absolute right-4 top-4 z-10 flex gap-1 rounded-xl border border-white/10 bg-black/60 p-1 backdrop-blur">
+                <button type="button" onClick={() => setStageLayout("grid")} aria-pressed={stageLayout === "grid"} className={"rounded-lg px-2.5 py-1.5 text-xs font-semibold " + (stageLayout === "grid" ? "bg-sky-300 text-[#07142c]" : "text-white hover:bg-white/10")}>Grelha</button>
+                <button type="button" onClick={() => setStageLayout("stage")} aria-pressed={stageLayout === "stage"} className={"rounded-lg px-2.5 py-1.5 text-xs font-semibold " + (stageLayout === "stage" ? "bg-sky-300 text-[#07142c]" : "text-white hover:bg-white/10")}>Palco</button>
+                <button type="button" onClick={() => void copyLiveLink()} className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-white/10">Partilhar</button>
+              </div>
+              {liveReactions.length > 0 && <div aria-live="polite" className="pointer-events-none absolute bottom-4 left-4 z-10 flex max-w-[80%] flex-wrap gap-2">{liveReactions.slice(-5).map((reaction) => <span key={reaction.id} className="animate-pulse rounded-full border border-white/15 bg-black/60 px-3 py-2 text-sm text-white shadow-lg backdrop-blur">{reaction.emoji} <span className="text-xs">{reaction.name}</span></span>)}</div>}
               {isHost && <video ref={localVideoRef} autoPlay muted playsInline className="absolute bottom-3 right-3 h-24 w-36 rounded-xl border border-white/20 bg-slate-900 object-cover shadow-2xl sm:h-32 sm:w-48" />}
               {!connected && <div className="absolute inset-0 flex items-center justify-center bg-black/60 p-6 text-center text-sm text-slate-300">{error || (starting ? "A preparar áudio e vídeo…" : "A ligação foi interrompida.")}</div>}
             </div>
+            {connected && <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2"><span className="text-xs font-semibold text-slate-400">Reações ao vivo</span><div className="flex flex-wrap gap-1.5">{["👏", "❤️", "🙏", "🔥", "✨", "🙌"].map((emoji) => <button key={emoji} type="button" onClick={() => void sendReaction(emoji)} aria-label={"Enviar reação " + emoji} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-lg transition hover:-translate-y-0.5 hover:border-sky-300/40 hover:bg-sky-300/10">{emoji}</button>)}</div></div>}
             {notice && <div role="status" className="rounded-xl border border-sky-300/20 bg-sky-400/10 px-4 py-3 text-sm text-sky-100">{notice}<button onClick={() => setNotice(null)} className="ml-3 underline">Fechar</button></div>}
             {error && connected && <div role="alert" className="rounded-xl border border-red-300/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div>}
             <div className="flex flex-wrap items-center gap-2">
