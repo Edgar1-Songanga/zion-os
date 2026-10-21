@@ -234,6 +234,57 @@ export class ResaOperationalService {
     return sessions.map((session) => ({ ...session, is_host: session.host_id === actor.id }));
   }
 
+  private async assertLiveChatAccess(token: string, liveId: string, actorId: string) {
+    const id = this.id(liveId, 'live_id');
+    const rows = await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status,visibility&id=eq.${id}&limit=1`);
+    const live = rows[0];
+    if (!live || (live.host_id !== actorId && live.visibility !== 'public')) throw new NotFoundException('Live session not found');
+    if (live.status !== 'live') throw new BadRequestException('O chat só está disponível enquanto a Live está ativa.');
+    return live;
+  }
+
+  async listLiveChatMessages(token: string, liveId: string, limit = 100) {
+    const actor = await this.actor(token);
+    const live = await this.assertLiveChatAccess(token, liveId, actor.id);
+    const size = Math.min(Math.max(Number(limit) || 100, 1), 100);
+    const rows = await this.db.get<any[]>(
+      'resa_live_chat_messages',
+      token,
+      `?select=id,live_id,sender_id,body,created_at&live_id=eq.${live.id}&order=created_at.asc&limit=${size}`,
+    );
+    const profiles = await this.profilesById(token, rows.map((row) => row.sender_id), actor.id);
+    return rows.map((row) => ({
+      id: row.id,
+      live_id: row.live_id,
+      sender_id: row.sender_id,
+      name: this.profileDisplayName(profiles.get(row.sender_id), row.sender_id === actor.id ? 'Tu' : 'Membro RESA'),
+      text: row.body,
+      sent_at: row.created_at,
+    }));
+  }
+
+  async sendLiveChatMessage(token: string, liveId: string, rawBody: unknown) {
+    const actor = await this.actor(token);
+    const live = await this.assertLiveChatAccess(token, liveId, actor.id);
+    const body = this.text(rawBody, 'body', 1, 1000);
+    const rows = await this.db.post<any[]>('resa_live_chat_messages', token, {
+      live_id: live.id,
+      sender_id: actor.id,
+      body,
+    });
+    const row = rows[0];
+    if (!row?.id) throw new BadGatewayException('A mensagem não foi guardada no chat da Live.');
+    const profiles = await this.profilesById(token, [actor.id], actor.id);
+    return {
+      id: row.id,
+      live_id: row.live_id,
+      sender_id: row.sender_id,
+      name: this.profileDisplayName(profiles.get(actor.id), 'Tu'),
+      text: row.body,
+      sent_at: row.created_at,
+    };
+  }
+
   async createLiveSession(token: string, input: { title: unknown; description?: unknown; visibility?: unknown; scheduled_at?: unknown }) {
     const actor = await this.actor(token);
     const visibility = input.visibility ?? 'public';
