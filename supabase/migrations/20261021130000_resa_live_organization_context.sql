@@ -41,7 +41,7 @@ begin
   if new.ministry_id is not null then
     select m.organization_id into ministry_org
     from public.ministries m
-    where m.id = new.ministry_id and m.status = 'active';
+    where m.id = new.ministry_id and m.status = 'ACTIVE';
     if ministry_org is null or ministry_org is distinct from new.organization_id then
       raise exception 'Ministry must belong to the selected organization' using errcode = '23514';
     end if;
