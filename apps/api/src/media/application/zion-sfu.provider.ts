@@ -84,6 +84,20 @@ export class ZionSfuProvider implements MediaProvider {
     }
   }
 
+  async setRoomPublishingForAttendees(input: { roomId: string; hostIdentity: string; canPublish: boolean }): Promise<void> {
+    try {
+      const client = this.client();
+      const participants = await client.listParticipants(input.roomId);
+      await Promise.all(participants
+        .filter((participant) => participant.identity !== input.hostIdentity)
+        .map((participant) => client.updateParticipant(input.roomId, participant.identity, {
+          permission: { canPublish: input.canPublish, canSubscribe: true, canPublishData: true },
+        })));
+    } catch (error) {
+      throw new BadGatewayException(error instanceof Error ? error.message : 'Room publishing policy could not be applied');
+    }
+  }
+
   async removeParticipant(input: { roomId: string; identity: string }): Promise<void> {
     try {
       await this.client().removeParticipant(input.roomId, input.identity);
