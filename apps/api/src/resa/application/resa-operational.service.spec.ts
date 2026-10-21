@@ -65,6 +65,36 @@ describe('ResaOperationalService live permissions', () => {
     }));
   });
 
+  it('allows a non-host organization member to join an organization-scoped live returned by RLS', async () => {
+    actorId = 'organization-member';
+    getSpy.mockResolvedValueOnce([{
+      id: LIVE_ID,
+      host_id: 'host-user',
+      status: 'live',
+      visibility: 'organization',
+      organization_id: '55555555-5555-4555-8555-555555555555',
+    }] as never);
+
+    const config = await service.liveJoinConfig('session-token', LIVE_ID);
+
+    expect(config.isHost).toBe(false);
+    expect(config.role).toBe('viewer');
+    expect(media.createJoinConfig).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'organization-member',
+      canPublish: false,
+    }));
+  });
+
+  it('requires an organization id when creating an organization-only live', async () => {
+    await expect(service.createLiveSession('session-token', {
+      title: 'Culto de oração',
+      visibility: 'organization',
+    })).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(getSpy).not.toHaveBeenCalled();
+    expect(media.createRoom).not.toHaveBeenCalled();
+  });
+
   it('refuses a non-host attempt to end a live before touching the media room', async () => {
     actorId = 'viewer-user';
     getSpy.mockResolvedValueOnce([] as never);
