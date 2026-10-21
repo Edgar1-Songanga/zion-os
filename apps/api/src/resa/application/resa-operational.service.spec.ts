@@ -23,6 +23,7 @@ describe('ResaOperationalService live permissions', () => {
   beforeEach(() => {
     actorId = 'host-user';
     getSpy = jest.spyOn(SupabaseRestClient.prototype, 'get').mockResolvedValue([] as never);
+    jest.spyOn(SupabaseRestClient.prototype, 'rpc').mockResolvedValue([] as never);
     patchSpy = jest.spyOn(SupabaseRestClient.prototype, 'patch').mockResolvedValue([] as never);
     media = {
       createRoom: jest.fn(),
