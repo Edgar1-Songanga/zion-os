@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Room, RoomEvent, Track } from "livekit-client";
 import { resaRequest } from "@/lib/resa/api";
 
-type JoinConfig = { joinUrl: string; token: string; roomId: string; displayName?: string; isHost?: boolean; isModerator?: boolean; role?: "host" | "moderator" | "viewer" };
+type JoinConfig = { joinUrl: string; token: string; roomId: string; displayName?: string; isHost?: boolean; isModerator?: boolean; role?: "host" | "moderator" | "viewer"; attendee_publish_allowed?: boolean; attendee_camera_on_join?: boolean; attendee_microphone_on_join?: boolean };
 type LiveMessage = { id: string; identity: string; name: string; text: string; sentAt: number };
 type PersistedLiveMessage = { id: string; sender_id: string; name: string; text: string; sent_at: string };
 type Participant = { identity: string; name: string };
@@ -80,6 +80,10 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
   const [mediaFileName, setMediaFileName] = useState("");
   const [mediaBroadcasting, setMediaBroadcasting] = useState(false);
   const [mediaBusy, setMediaBusy] = useState(false);
+  const [attendeePublishAllowed, setAttendeePublishAllowed] = useState(true);
+  const [attendeeCameraOnJoin, setAttendeeCameraOnJoin] = useState(false);
+  const [attendeeMicrophoneOnJoin, setAttendeeMicrophoneOnJoin] = useState(false);
+  const [policyBusy, setPolicyBusy] = useState(false);
 
   const refreshMediaDevices = useCallback(async () => {
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.enumerateDevices) return;
@@ -251,7 +255,13 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
         const config = await resaRequest<JoinConfig>("/v1/resa/live/" + liveId + "/join", { method: "POST", body: JSON.stringify(joinPassword ? { password: joinPassword } : {}) });
         if (!config.joinUrl || !config.token) throw new Error("O serviço de vídeo não devolveu credenciais válidas.");
         const hostRole = Boolean(config.isHost || config.role === "host");
-        if (mounted) { setIsHost(hostRole); setIsModerator(Boolean(config.isModerator || config.role === "moderator")); }
+        if (mounted) {
+          setIsHost(hostRole);
+          setIsModerator(Boolean(config.isModerator || config.role === "moderator"));
+          setAttendeePublishAllowed(config.attendee_publish_allowed !== false);
+          setAttendeeCameraOnJoin(config.attendee_camera_on_join === true);
+          setAttendeeMicrophoneOnJoin(config.attendee_microphone_on_join === true);
+        }
         if (hostRole) {
           void resaRequest<Array<{ moderator_user_id: string }>>("/v1/resa/live/" + liveId + "/moderators")
             .then((items) => { if (mounted) setModeratorIds(items.map((item) => item.moderator_user_id)); })
@@ -260,22 +270,21 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
         await room.connect(config.joinUrl, config.token, { autoSubscribe: true });
         const displayName = config.displayName || room.localParticipant.name || "Membro RESA";
         if (mounted) setSelfIdentity(room.localParticipant.identity);
-        if (joinMode === "video") {
-          await room.localParticipant.setCameraEnabled(true);
-          await room.localParticipant.setMicrophoneEnabled(true, { echoCancellation: true, noiseSuppression: true, autoGainControl: true });
-        } else if (joinMode === "audio") {
-          await room.localParticipant.setCameraEnabled(false);
-          await room.localParticipant.setMicrophoneEnabled(true, { echoCancellation: true, noiseSuppression: true, autoGainControl: true });
-        } else {
-          await room.localParticipant.setCameraEnabled(false);
-          await room.localParticipant.setMicrophoneEnabled(false);
-        }
+        const initialCamera = joinMode !== "listen" && (hostRole || config.attendee_camera_on_join === true) && (joinMode === "video" || !hostRole);
+        const initialMicrophone = joinMode !== "listen" && (hostRole || config.attendee_microphone_on_join === true) && (joinMode !== "listen");
+        await room.localParticipant.setCameraEnabled(initialCamera);
+        await room.localParticipant.setMicrophoneEnabled(initialMicrophone, { echoCancellation: true, noiseSuppression: true, autoGainControl: true });
         const localCamera = room.localParticipant.getTrackPublication(Track.Source.Camera)?.track;
-        if (localCamera && localVideoRef.current && joinMode === "video") {
+        if (localCamera && localVideoRef.current && initialCamera) {
           localVideoRef.current.srcObject = new MediaStream([localCamera.mediaStreamTrack]);
           void localVideoRef.current.play().catch(() => {});
         }
-        if (mounted) { setCamera(joinMode === "video"); setMicrophone(joinMode !== "listen"); setCanSpeak(true); setNotice("Entraste como " + displayName + ". Podes alterar o áudio e o vídeo nos controlos da Live."); }
+        if (mounted) {
+          setCamera(initialCamera);
+          setMicrophone(initialMicrophone);
+          setCanSpeak(hostRole || config.attendee_publish_allowed !== false);
+          setNotice("Entraste como " + displayName + ". Podes alterar o áudio e o vídeo nos controlos da Live.");
+        }
         syncParticipants(room);
       } catch (e) {
         if (mounted) { setError(e instanceof Error ? e.message : "Não foi possível entrar na live."); setJoinMode(null); }
@@ -719,15 +728,53 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
     }
   }
 
+  async function updateMediaPolicy(patch: { attendee_publish_allowed?: boolean; attendee_camera_on_join?: boolean; attendee_microphone_on_join?: boolean }) {
+    if (!isHost || policyBusy) return;
+    setPolicyBusy(true);
+    setError(null);
+    try {
+      const saved = await resaRequest<{
+        attendee_publish_allowed: boolean;
+        attendee_camera_on_join: boolean;
+        attendee_microphone_on_join: boolean;
+      }>("/v1/resa/live/" + liveId + "/media-policy", {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      });
+      setAttendeePublishAllowed(saved.attendee_publish_allowed);
+      setAttendeeCameraOnJoin(saved.attendee_camera_on_join);
+      setAttendeeMicrophoneOnJoin(saved.attendee_microphone_on_join);
+      if (patch.attendee_publish_allowed !== undefined) {
+        const targets = participants.filter((person) => person.identity !== selfIdentity);
+        await Promise.all(targets.map((person) => sendPacket(
+          { type: patch.attendee_publish_allowed ? "speak_granted" : "speak_revoked", name: roomRef.current?.localParticipant.name || "Anfitrião" },
+          person.identity,
+        )));
+      }
+      setNotice("Política de áudio/vídeo guardada e aplicada aos participantes ligados.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível guardar a política de mídia.");
+    } finally {
+      setPolicyBusy(false);
+    }
+  }
+
   const hostControls = (
     <div className="grid grid-cols-2 gap-2">
-      <div className="col-span-2 rounded-xl border border-white/10 bg-black/15 p-3">
-        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-300">Permissões de palco</p>
+      <div className="col-span-2 space-y-3 rounded-xl border border-white/10 bg-black/15 p-3">
+        <div>
+          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-300">Política de entrada e publicação</p>
+          <label className="flex items-center justify-between gap-3 py-1 text-xs text-slate-200"><span>Permitir áudio/vídeo dos participantes</span><input type="checkbox" checked={attendeePublishAllowed} disabled={!connected || policyBusy} onChange={(event) => void updateMediaPolicy({ attendee_publish_allowed: event.target.checked })} /></label>
+          <label className="flex items-center justify-between gap-3 py-1 text-xs text-slate-200"><span>Entrar com câmara ligada (quando suportado)</span><input type="checkbox" checked={attendeeCameraOnJoin} disabled={!connected || policyBusy} onChange={(event) => void updateMediaPolicy({ attendee_camera_on_join: event.target.checked })} /></label>
+          <label className="flex items-center justify-between gap-3 py-1 text-xs text-slate-200"><span>Entrar com microfone ligado (quando suportado)</span><input type="checkbox" checked={attendeeMicrophoneOnJoin} disabled={!connected || policyBusy} onChange={(event) => void updateMediaPolicy({ attendee_microphone_on_join: event.target.checked })} /></label>
+          <p className="mt-2 text-[11px] leading-4 text-slate-500">As definições ficam guardadas na sessão. O bloqueio de publicação é aplicado pelo servidor de mídia; o navegador ainda pode exigir permissão do utilizador.</p>
+        </div>
+        <p className="text-xs font-bold uppercase tracking-wide text-slate-300">Permissões imediatas do palco</p>
         <div className="grid grid-cols-2 gap-2">
           <button type="button" onClick={() => void moderateAll("allow_speak")} disabled={!connected || participants.length < 2} className="rounded-lg bg-sky-300/15 px-3 py-2 text-xs font-semibold text-sky-100 disabled:opacity-40">Abrir áudio/vídeo para todos</button>
           <button type="button" onClick={() => void moderateAll("revoke_speak")} disabled={!connected || participants.length < 2} className="rounded-lg bg-rose-500/15 px-3 py-2 text-xs font-semibold text-rose-100 disabled:opacity-40">Silenciar e fechar para todos</button>
         </div>
-        <p className="mt-2 text-[11px] leading-4 text-slate-500">Aplica-se aos participantes já presentes; novos acessos ainda seguem a política padrão da sessão.</p>
+        <p className="mt-2 text-[11px] leading-4 text-slate-500">A alteração é aplicada aos participantes ligados e à política guardada para novas entradas.</p>
       </div>
       <div className="col-span-2 space-y-3 rounded-xl border border-sky-200/15 bg-sky-300/[0.04] p-3">
         <div>
