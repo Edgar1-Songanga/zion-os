@@ -361,7 +361,34 @@ export class ResaOperationalService {
     if (config.mode !== 'SFU' || !config.joinUrl || !config.token) {
       throw new BadGatewayException('LiveKit is not configured for RESA live sessions');
     }
-    return { ...config, displayName, role: isHost ? 'host' : 'viewer', isHost };
+    const moderatorRows = isHost ? [] : await this.db.get<any[]>('resa_live_moderators', token, `?select=moderator_user_id&live_id=eq.${id}&moderator_user_id=eq.${actor.id}&limit=1`);
+    const isModerator = isHost || moderatorRows.length > 0;
+    return { ...config, displayName, role: isHost ? 'host' : isModerator ? 'moderator' : 'viewer', isHost, isModerator };
+  }
+
+  async listLiveModerators(token: string, liveId: string) {
+    const actor = await this.actor(token);
+    const id = this.id(liveId, 'live_id');
+    const live = (await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id&id=eq.${id}&limit=1`))[0];
+    if (!live || live.host_id !== actor.id) throw new NotFoundException('Live session not found or you are not its host');
+    return this.db.get<any[]>('resa_live_moderators', token, `?select=live_id,moderator_user_id,granted_by,created_at&live_id=eq.${id}&order=created_at.asc`);
+  }
+
+  async setLiveModerator(token: string, liveId: string, identity: string, enabled: boolean) {
+    const actor = await this.actor(token);
+    const id = this.id(liveId, 'live_id');
+    const moderatorId = this.id(identity, 'moderator_user_id');
+    if (moderatorId === actor.id) throw new BadRequestException('The host cannot assign moderator privileges to themselves');
+    const live = (await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status&id=eq.${id}&limit=1`))[0];
+    if (!live || live.host_id !== actor.id) throw new NotFoundException('Live session not found or you are not its host');
+    if (live.status !== 'live') throw new BadRequestException('Only a live session can be moderated');
+    if (enabled) {
+      const rows = await this.db.upsert<any[]>('resa_live_moderators', token, { live_id: id, moderator_user_id: moderatorId, granted_by: actor.id }, '?on_conflict=live_id,moderator_user_id');
+      if (!rows?.length) throw new BadGatewayException('Moderator assignment could not be saved');
+      return { liveId: id, moderatorUserId: moderatorId, enabled: true };
+    }
+    await this.db.delete('resa_live_moderators', token, `?live_id=eq.${id}&moderator_user_id=eq.${moderatorId}`);
+    return { liveId: id, moderatorUserId: moderatorId, enabled: false };
   }
 
   async moderateLiveParticipant(token: string, liveId: string, identity: string, action: 'allow_speak' | 'revoke_speak' | 'remove') {
@@ -371,7 +398,12 @@ export class ResaOperationalService {
     if (participantIdentity === actor.id) throw new BadRequestException('The host cannot moderate their own connection');
     if (!['allow_speak', 'revoke_speak', 'remove'].includes(action)) throw new BadRequestException('Invalid participant moderation action');
     const live = (await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status&id=eq.${id}&limit=1`))[0];
-    if (!live || live.host_id !== actor.id) throw new NotFoundException('Live session not found or you are not its host');
+    if (!live) throw new NotFoundException('Live session not found');
+    if (participantIdentity === live.host_id) throw new BadRequestException('The host cannot be moderated by another participant');
+    if (live.host_id !== actor.id) {
+      const moderator = (await this.db.get<any[]>('resa_live_moderators', token, `?select=moderator_user_id&live_id=eq.${id}&moderator_user_id=eq.${actor.id}&limit=1`))[0];
+      if (!moderator) throw new NotFoundException('Live session not found or you are not authorized to moderate it');
+    }
     if (live.status !== 'live') throw new BadRequestException('Only a live session can be moderated');
     if (action === 'remove') {
       if (!this.media.removeParticipant) throw new BadGatewayException('Media provider does not support participant removal');
