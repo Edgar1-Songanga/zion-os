@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { ResaOperationalService } from './resa-operational.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 
@@ -124,6 +124,45 @@ describe('ResaOperationalService live permissions', () => {
     );
     expect(result.attendee_publish_allowed).toBe(false);
     expect(result.attendee_camera_on_join).toBe(true);
+  });
+
+  it('rolls back the persisted policy when the SFU rejects the global lock', async () => {
+    getSpy.mockResolvedValueOnce([{
+      id: LIVE_ID,
+      host_id: actorId,
+      status: 'live',
+      attendee_publish_allowed: true,
+      attendee_camera_on_join: false,
+      attendee_microphone_on_join: false,
+    }] as never);
+    patchSpy
+      .mockResolvedValueOnce([{
+        id: LIVE_ID,
+        attendee_publish_allowed: false,
+        attendee_camera_on_join: false,
+        attendee_microphone_on_join: false,
+      }] as never)
+      .mockResolvedValueOnce([{ id: LIVE_ID, attendee_publish_allowed: true }] as never);
+    media.setRoomPublishingForAttendees
+      .mockRejectedValueOnce(new Error('SFU unavailable'))
+      .mockResolvedValueOnce(undefined);
+
+    await expect(service.updateLiveMediaPolicy('session-token', LIVE_ID, {
+      attendee_publish_allowed: false,
+    })).rejects.toBeInstanceOf(BadGatewayException);
+
+    expect(patchSpy).toHaveBeenNthCalledWith(
+      2,
+      'resa_live_sessions',
+      'session-token',
+      { attendee_publish_allowed: true },
+      expect.stringContaining('host_id=eq.host-user'),
+    );
+    expect(media.setRoomPublishingForAttendees).toHaveBeenNthCalledWith(2, {
+      roomId: 'zion-live-' + LIVE_ID,
+      hostIdentity: actorId,
+      canPublish: true,
+    });
   });
 
   it('does not let a host reopen one participant while the global publishing lock is active', async () => {
