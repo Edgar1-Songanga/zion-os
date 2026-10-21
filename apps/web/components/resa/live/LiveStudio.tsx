@@ -6,6 +6,7 @@ import { resaRequest } from "@/lib/resa/api";
 
 type JoinConfig = { joinUrl: string; token: string; roomId: string; isHost?: boolean; role?: "host" | "viewer" };
 type LiveMessage = { id: string; identity: string; name: string; text: string; sentAt: number };
+type PersistedLiveMessage = { id: string; sender_id: string; name: string; text: string; sent_at: string };
 type Participant = { identity: string; name: string };
 type LivePacket =
   | { type: "chat"; text: string; name?: string }
@@ -183,6 +184,9 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
           liveStartedAtRef.current = Date.now();
           setSelfIdentity(room.localParticipant.identity);
           syncParticipants(room);
+          void resaRequest<PersistedLiveMessage[]>("/v1/resa/live/" + liveId + "/messages?limit=100")
+            .then((history) => { if (mounted) setMessages(history.map((item) => ({ id: item.id, identity: item.sender_id, name: item.name, text: item.text, sentAt: Date.parse(item.sent_at) || Date.now() }))); })
+            .catch(() => { if (mounted) setNotice("O chat está ligado, mas o histórico não pôde ser carregado. As novas mensagens continuam disponíveis."); });
         }
       })
       .on(RoomEvent.Disconnected, () => {
@@ -383,19 +387,27 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
   async function sendMessage(event: React.FormEvent) {
     event.preventDefault();
     const text = draft.trim();
-    if (!text) return;
+    if (!text || !connected) return;
     try {
-      await sendPacket({ type: "chat", text, name: roomRef.current?.localParticipant.name || "Participante" });
+      const saved = await resaRequest<PersistedLiveMessage>("/v1/resa/live/" + liveId + "/messages", {
+        method: "POST",
+        body: JSON.stringify({ body: text }),
+      });
       setMessages((current) => [...current, {
-        id: selfIdentity + "-" + Date.now(),
-        identity: selfIdentity,
-        name: "Tu",
-        text,
-        sentAt: Date.now(),
+        id: saved.id,
+        identity: saved.sender_id,
+        name: saved.name || "Tu",
+        text: saved.text,
+        sentAt: Date.parse(saved.sent_at) || Date.now(),
       }].slice(-200));
       setDraft("");
+      try {
+        await sendPacket({ type: "chat", text: saved.text, name: saved.name || "Participante" });
+      } catch {
+        setNotice("Mensagem guardada no histórico. A entrega em tempo real pode estar atrasada.");
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "A mensagem não foi enviada.");
+      setError(e instanceof Error ? e.message : "A mensagem não foi guardada. Tenta novamente.");
     }
   }
 
