@@ -16,6 +16,7 @@ describe('ResaOperationalService live permissions', () => {
     closeRoom: jest.Mock;
     createJoinConfig: jest.Mock;
     setParticipantPublishing: jest.Mock;
+    setRoomPublishingForAttendees: jest.Mock;
     removeParticipant: jest.Mock;
   };
   let actorId = 'host-user';
@@ -30,6 +31,7 @@ describe('ResaOperationalService live permissions', () => {
       closeRoom: jest.fn().mockResolvedValue(undefined),
       createJoinConfig: jest.fn().mockResolvedValue({ mode: 'SFU', provider: 'ZION_SFU', roomId: 'zion-live-' + LIVE_ID, joinUrl: 'wss://media.example', token: 'token' }),
       setParticipantPublishing: jest.fn().mockResolvedValue(undefined),
+      setRoomPublishingForAttendees: jest.fn().mockResolvedValue(undefined),
       removeParticipant: jest.fn().mockResolvedValue(undefined),
     };
     const identity = { getCurrentUser: jest.fn().mockImplementation(async () => ({ id: actorId })) };
@@ -86,6 +88,56 @@ describe('ResaOperationalService live permissions', () => {
       name: expect.any(String),
       canPublish: true,
     }));
+  });
+
+  it('persists the host global publishing lock and applies it to connected attendees', async () => {
+    getSpy.mockResolvedValueOnce([{
+      id: LIVE_ID,
+      host_id: actorId,
+      status: 'live',
+      attendee_publish_allowed: true,
+      attendee_camera_on_join: false,
+      attendee_microphone_on_join: false,
+    }] as never);
+    patchSpy.mockResolvedValueOnce([{
+      id: LIVE_ID,
+      attendee_publish_allowed: false,
+      attendee_camera_on_join: true,
+      attendee_microphone_on_join: false,
+    }] as never);
+
+    const result = await service.updateLiveMediaPolicy('session-token', LIVE_ID, {
+      attendee_publish_allowed: false,
+      attendee_camera_on_join: true,
+    });
+
+    expect(media.setRoomPublishingForAttendees).toHaveBeenCalledWith({
+      roomId: 'zion-live-' + LIVE_ID,
+      hostIdentity: actorId,
+      canPublish: false,
+    });
+    expect(patchSpy).toHaveBeenCalledWith(
+      'resa_live_sessions',
+      'session-token',
+      { attendee_publish_allowed: false, attendee_camera_on_join: true },
+      expect.stringContaining('host_id=eq.host-user'),
+    );
+    expect(result.attendee_publish_allowed).toBe(false);
+    expect(result.attendee_camera_on_join).toBe(true);
+  });
+
+  it('does not let a host reopen one participant while the global publishing lock is active', async () => {
+    getSpy.mockResolvedValueOnce([{
+      id: LIVE_ID,
+      host_id: 'host-user',
+      status: 'live',
+      attendee_publish_allowed: false,
+    }] as never);
+
+    await expect(service.moderateLiveParticipant('session-token', LIVE_ID, TARGET_ID, 'allow_speak'))
+      .rejects.toBeInstanceOf(BadRequestException);
+
+    expect(media.setParticipantPublishing).not.toHaveBeenCalled();
   });
 
   it('does not issue join credentials for a private live to a non-host', async () => {
