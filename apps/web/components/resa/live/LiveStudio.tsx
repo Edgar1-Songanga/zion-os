@@ -243,7 +243,7 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
         if (mounted) { setCamera(joinMode === "video"); setMicrophone(joinMode !== "listen"); setCanSpeak(true); setNotice("Entraste como " + displayName + ". Podes alterar o áudio e o vídeo nos controlos da Live."); }
         syncParticipants(room);
       } catch (e) {
-        if (mounted) setError(e instanceof Error ? e.message : "Não foi possível entrar na live.");
+        if (mounted) { setError(e instanceof Error ? e.message : "Não foi possível entrar na live."); setJoinMode(null); }
       } finally {
         if (mounted) setStarting(false);
       }
@@ -595,6 +595,7 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
           <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-sky-200">ZION · RESA Live</p>
           <h2 className="mt-3 text-2xl font-semibold">{title}</h2>
           <p className="mt-2 text-sm leading-6 text-slate-400">Escolhe como queres entrar. Podes ligar ou desligar a câmara e o microfone durante a sessão.</p>
+          {error && <p role="alert" className="mt-4 rounded-xl border border-rose-300/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</p>}
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
             <button onClick={() => chooseJoinMode("video")} className="rounded-2xl border border-sky-200/30 bg-sky-300/10 p-4 text-left transition hover:bg-sky-300/20"><span className="text-2xl">◉</span><span className="mt-3 block text-sm font-semibold">Vídeo e áudio</span><span className="mt-1 block text-xs leading-5 text-slate-400">Entrar com câmara e microfone ligados</span></button>
             <button onClick={() => chooseJoinMode("audio")} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left transition hover:bg-white/10"><span className="text-2xl">♫</span><span className="mt-3 block text-sm font-semibold">Só áudio</span><span className="mt-1 block text-xs leading-5 text-slate-400">Participar sem transmitir vídeo</span></button>
