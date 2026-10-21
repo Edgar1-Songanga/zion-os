@@ -383,8 +383,11 @@ export class ResaOperationalService {
     if (!live || live.host_id !== actor.id) throw new NotFoundException('Live session not found or you are not its host');
     if (live.status !== 'live') throw new BadRequestException('Only a live session can be moderated');
     if (enabled) {
-      const rows = await this.db.upsert<any[]>('resa_live_moderators', token, { live_id: id, moderator_user_id: moderatorId, granted_by: actor.id }, '?on_conflict=live_id,moderator_user_id');
-      if (!rows?.length) throw new BadGatewayException('Moderator assignment could not be saved');
+      const existing = await this.db.get<any[]>('resa_live_moderators', token, `?select=moderator_user_id&live_id=eq.${id}&moderator_user_id=eq.${moderatorId}&limit=1`);
+      if (!existing.length) {
+        const rows = await this.db.post<any[]>('resa_live_moderators', token, { live_id: id, moderator_user_id: moderatorId, granted_by: actor.id });
+        if (!rows?.length) throw new BadGatewayException('Moderator assignment could not be saved');
+      }
       return { liveId: id, moderatorUserId: moderatorId, enabled: true };
     }
     await this.db.delete('resa_live_moderators', token, `?live_id=eq.${id}&moderator_user_id=eq.${moderatorId}`);
