@@ -34,4 +34,5 @@ export interface MediaProvider {
     canPublish: boolean;
   }): Promise<void>;
   removeParticipant?(input: { roomId: string; identity: string }): Promise<void>;
+  setRoomPublishingForAttendees?(input: { roomId: string; hostIdentity: string; canPublish: boolean }): Promise<void>;
 }
