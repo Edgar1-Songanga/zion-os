@@ -348,6 +348,50 @@ export class ResaOperationalService {
     return rows[0];
   }
 
+  async updateLiveMediaPolicy(token: string, liveId: string, input: {
+    attendee_publish_allowed?: unknown;
+    attendee_camera_on_join?: unknown;
+    attendee_microphone_on_join?: unknown;
+  }) {
+    const actor = await this.actor(token);
+    const id = this.id(liveId, 'live_id');
+    const live = (await this.db.get<any[]>(
+      'resa_live_sessions', token,
+      `?select=id,host_id,status,attendee_publish_allowed,attendee_camera_on_join,attendee_microphone_on_join&id=eq.${id}&limit=1`,
+    ))[0];
+    if (!live || live.host_id !== actor.id) throw new NotFoundException('Live session not found or you are not its host');
+    if (live.status !== 'live') throw new BadRequestException('Media policy can only be changed while the Live is active');
+
+    const patch: Record<string, boolean> = {};
+    for (const field of ['attendee_publish_allowed', 'attendee_camera_on_join', 'attendee_microphone_on_join'] as const) {
+      if (input[field] !== undefined) {
+        if (typeof input[field] !== 'boolean') throw new BadRequestException(field + ' must be a boolean');
+        patch[field] = input[field];
+      }
+    }
+    if (!Object.keys(patch).length) throw new BadRequestException('At least one media policy setting is required');
+
+    if (patch.attendee_publish_allowed !== undefined) {
+      if (!this.media.setRoomPublishingForAttendees) throw new BadGatewayException('Media provider cannot enforce room-wide publishing policy');
+      await this.media.setRoomPublishingForAttendees({
+        roomId: 'zion-live-' + id,
+        hostIdentity: actor.id,
+        canPublish: patch.attendee_publish_allowed,
+      });
+    }
+    const rows = await this.db.patch<any[]>(
+      'resa_live_sessions', token, patch,
+      `?id=eq.${id}&host_id=eq.${actor.id}&status=eq.live`,
+    );
+    if (!rows[0]) throw new BadGatewayException('Live media policy could not be saved');
+    return {
+      liveId: id,
+      attendee_publish_allowed: rows[0].attendee_publish_allowed,
+      attendee_camera_on_join: rows[0].attendee_camera_on_join,
+      attendee_microphone_on_join: rows[0].attendee_microphone_on_join,
+    };
+  }
+
   async liveJoinConfig(token: string, liveId: string, password?: unknown) {
     const actor = await this.actor(token);
     const id = this.id(liveId, 'live_id');
@@ -356,7 +400,7 @@ export class ResaOperationalService {
       const unlocked = await this.db.rpc<boolean>('resa_unlock_private_live', token, { p_live_id: id, p_password: passwordText });
       if (unlocked !== true) throw new NotFoundException('Live privada não encontrada ou palavra-passe incorreta.');
     }
-    const rows = await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status,visibility&id=eq.${id}&limit=1`);
+    const rows = await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status,visibility,attendee_publish_allowed,attendee_camera_on_join,attendee_microphone_on_join&id=eq.${id}&limit=1`);
     const live = rows[0];
     if (!live) throw new NotFoundException('Live session not found');
     if (live.host_id !== actor.id && !['public', 'organization', 'private'].includes(live.visibility)) throw new NotFoundException('Live session not found');
@@ -372,16 +416,24 @@ export class ResaOperationalService {
       providerRoomId: 'zion-live-' + id,
       userId: actor.id,
       name: displayName,
-      // A public/organization Live is an interactive room: every admitted attendee
-      // may opt into publishing; the host can revoke publishing server-side.
-      canPublish: true,
+      // Publishing permissions are enforced in the SFU, not just in the client UI.
+      canPublish: isHost || live.attendee_publish_allowed !== false,
     });
     if (config.mode !== 'SFU' || !config.joinUrl || !config.token) {
       throw new BadGatewayException('LiveKit is not configured for RESA live sessions');
     }
     const moderatorRows = isHost ? [] : await this.db.get<any[]>('resa_live_moderators', token, `?select=moderator_user_id&live_id=eq.${id}&moderator_user_id=eq.${actor.id}&limit=1`);
     const isModerator = isHost || moderatorRows.length > 0;
-    return { ...config, displayName, role: isHost ? 'host' : isModerator ? 'moderator' : 'viewer', isHost, isModerator };
+    return {
+      ...config,
+      displayName,
+      role: isHost ? 'host' : isModerator ? 'moderator' : 'viewer',
+      isHost,
+      isModerator,
+      attendee_publish_allowed: live.attendee_publish_allowed !== false,
+      attendee_camera_on_join: live.attendee_camera_on_join === true,
+      attendee_microphone_on_join: live.attendee_microphone_on_join === true,
+    };
   }
 
   async listLiveModerators(token: string, liveId: string) {
