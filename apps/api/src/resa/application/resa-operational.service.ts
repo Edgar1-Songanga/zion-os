@@ -230,7 +230,7 @@ export class ResaOperationalService {
   async listLiveSessions(token: string, limit = 30) {
     const actor = await this.actor(token);
     const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
-    const sessions = await this.db.get<any[]>('resa_live_sessions', token, `?select=*&status=neq.ended&order=scheduled_at.asc.nullslast,created_at.desc&limit=${size}`);
+    const sessions = await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,title,description,status,visibility,scheduled_at,started_at,ended_at,created_at,organization_id,organization_unit_id,ministry_id&status=neq.ended&order=scheduled_at.asc.nullslast,created_at.desc&limit=${size}`);
     return sessions.map((session) => ({ ...session, is_host: session.host_id === actor.id }));
   }
 
@@ -238,7 +238,7 @@ export class ResaOperationalService {
     const id = this.id(liveId, 'live_id');
     const rows = await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status,visibility,organization_id&id=eq.${id}&limit=1`);
     const live = rows[0];
-    if (!live || (live.host_id !== actorId && !['public', 'organization'].includes(live.visibility))) throw new NotFoundException('Live session not found');
+    if (!live || (live.host_id !== actorId && !['public', 'organization', 'private'].includes(live.visibility))) throw new NotFoundException('Live session not found');
     if (live.status !== 'live') throw new BadRequestException('O chat só está disponível enquanto a Live está ativa.');
     return live;
   }
@@ -285,7 +285,7 @@ export class ResaOperationalService {
     };
   }
 
-  async createLiveSession(token: string, input: { title: unknown; description?: unknown; visibility?: unknown; scheduled_at?: unknown; organization_id?: unknown; organization_unit_id?: unknown; ministry_id?: unknown }) {
+  async createLiveSession(token: string, input: { title: unknown; description?: unknown; visibility?: unknown; scheduled_at?: unknown; organization_id?: unknown; organization_unit_id?: unknown; ministry_id?: unknown; password?: unknown }) {
     const actor = await this.actor(token);
     const visibility = input.visibility ?? 'public';
     if (!['public', 'followers', 'community', 'organization', 'private'].includes(visibility as string)) throw new BadRequestException('Invalid live visibility');
@@ -293,6 +293,7 @@ export class ResaOperationalService {
     const organizationUnitId = input.organization_unit_id ? this.id(input.organization_unit_id, 'organization_unit_id') : null;
     const ministryId = input.ministry_id ? this.id(input.ministry_id, 'ministry_id') : null;
     if (visibility === 'organization' && !organizationId) throw new BadRequestException('Organization visibility requires organization_id');
+    const livePassword = visibility === 'private' ? this.text(input.password, 'password', 8, 128) : null;
     if ((organizationUnitId || ministryId) && !organizationId) throw new BadRequestException('Department or ministry context requires organization_id');
     const scheduledAt = input.scheduled_at ? this.text(input.scheduled_at, 'scheduled_at', 1, 80) : null;
     if (scheduledAt && Number.isNaN(Date.parse(scheduledAt))) throw new BadRequestException('scheduled_at is invalid');
@@ -304,6 +305,13 @@ export class ResaOperationalService {
     });
     const session = rows[0];
     if (!session?.id) throw new BadGatewayException('Live session could not be created');
+    if (livePassword) {
+      const passwordSaved = await this.db.rpc<boolean>('resa_set_live_password', token, { p_live_id: session.id, p_password: livePassword });
+      if (passwordSaved !== true) {
+        await this.db.patch('resa_live_sessions', token, { status: 'ended', ended_at: new Date().toISOString() }, `?id=eq.${session.id}&host_id=eq.${actor.id}`);
+        throw new BadGatewayException('Não foi possível proteger a Live privada.');
+      }
+    }
     try {
       const mediaRoom = await this.media.createRoom({ meetingId: 'live-' + session.id, channelName: 'zion:live:' + session.id });
       if (mediaRoom.provider !== 'ZION_SFU' || mediaRoom.providerRoomId !== 'zion-live-' + session.id) {
@@ -336,13 +344,19 @@ export class ResaOperationalService {
     return rows[0];
   }
 
-  async liveJoinConfig(token: string, liveId: string) {
+  async liveJoinConfig(token: string, liveId: string, password?: unknown) {
     const actor = await this.actor(token);
     const id = this.id(liveId, 'live_id');
+    const passwordText = typeof password === 'string' ? password : '';
+    if (passwordText) {
+      const unlocked = await this.db.rpc<boolean>('resa_unlock_private_live', token, { p_live_id: id, p_password: passwordText });
+      if (unlocked !== true) throw new NotFoundException('Live privada não encontrada ou palavra-passe incorreta.');
+    }
     const rows = await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status,visibility&id=eq.${id}&limit=1`);
     const live = rows[0];
     if (!live) throw new NotFoundException('Live session not found');
-    if (live.host_id !== actor.id && !['public', 'organization'].includes(live.visibility)) throw new NotFoundException('Live session not found');
+    if (live.host_id !== actor.id && !['public', 'organization', 'private'].includes(live.visibility)) throw new NotFoundException('Live session not found');
+    if (live.visibility === 'private' && live.host_id !== actor.id && !passwordText) throw new NotFoundException('Esta Live privada exige palavra-passe.');
     if (live.status !== 'live' && live.host_id !== actor.id) throw new BadRequestException('Live session has not started');
     if (live.status === 'ended') throw new BadRequestException('Live session has ended');
     if (!this.media.createJoinConfig) throw new BadRequestException('Media provider does not expose a join configuration');
