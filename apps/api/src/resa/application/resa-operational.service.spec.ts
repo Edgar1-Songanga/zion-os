@@ -95,6 +95,26 @@ describe('ResaOperationalService live permissions', () => {
     expect(media.createRoom).not.toHaveBeenCalled();
   });
 
+  it('requires organization context when a department is selected for a live', async () => {
+    await expect(service.createLiveSession('session-token', {
+      title: 'Reunião departamental',
+      visibility: 'public',
+      organization_unit_id: '55555555-5555-4555-8555-555555555555',
+    })).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(media.createRoom).not.toHaveBeenCalled();
+  });
+
+  it('requires organization context when a ministry is selected for a live', async () => {
+    await expect(service.createLiveSession('session-token', {
+      title: 'Ministério Jovem',
+      visibility: 'public',
+      ministry_id: '66666666-6666-4666-8666-666666666666',
+    })).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(media.createRoom).not.toHaveBeenCalled();
+  });
+
   it('refuses a non-host attempt to end a live before touching the media room', async () => {
     actorId = 'viewer-user';
     getSpy.mockResolvedValueOnce([] as never);
