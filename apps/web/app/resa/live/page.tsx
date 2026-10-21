@@ -29,7 +29,8 @@ export default function LivePage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
-  const [visibility, setVisibility] = useState<"public" | "organization">("public");
+  const [visibility, setVisibility] = useState<"public" | "organization" | "private">("public");
+  const [livePassword, setLivePassword] = useState("");
   const [organizations, setOrganizations] = useState<OrganizationOption[]>([]);
   const [organizationId, setOrganizationId] = useState("");
   const [units, setUnits] = useState<UnitOption[]>([]);
@@ -87,6 +88,7 @@ export default function LivePage() {
           description: description.trim() || null,
           scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
           visibility,
+          password: visibility === "private" ? livePassword : undefined,
           organization_id: organizationId || null,
           organization_unit_id: unitId || null,
           ministry_id: ministryId || null,
@@ -96,6 +98,7 @@ export default function LivePage() {
       setDescription("");
       setScheduledAt("");
       setVisibility("public");
+      setLivePassword("");
       setOrganizationId("");
       setUnitId("");
       setMinistryId("");
@@ -151,7 +154,8 @@ export default function LivePage() {
             <p className="mt-1 text-sm text-slate-500">Transmissões públicas ou restritas à organização, com ligação opcional a um departamento.</p>
             <input value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={160} placeholder="Título da transmissão" className="mt-5 w-full rounded-xl border border-slate-200 p-3 outline-none focus:border-[#0C1A3D]" />
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={2000} placeholder="Descrição (opcional)" className="mt-3 min-h-28 w-full rounded-xl border border-slate-200 p-3 outline-none focus:border-[#0C1A3D]" />
-            <label className="mt-3 block text-sm font-medium text-slate-600">Visibilidade<select value={visibility} onChange={(e) => setVisibility(e.target.value as "public" | "organization")} className="mt-1 w-full rounded-xl border border-slate-200 p-3"><option value="public">Pública</option><option value="organization" disabled={!organizationId}>Membros da organização</option></select></label>
+            <label className="mt-3 block text-sm font-medium text-slate-600">Visibilidade<select value={visibility} onChange={(e) => setVisibility(e.target.value as "public" | "organization")} className="mt-1 w-full rounded-xl border border-slate-200 p-3"><option value="public">Pública</option><option value="organization" disabled={!organizationId}>Membros da organização</option><option value="private">Privada (com palavra-passe)</option></select></label>
+            {visibility === "private" && <label className="mt-3 block text-sm font-medium text-slate-600">Palavra-passe da Live privada<input type="password" value={livePassword} onChange={(e) => setLivePassword(e.target.value)} minLength={8} maxLength={128} autoComplete="new-password" required placeholder="Mínimo de 8 caracteres" className="mt-1 w-full rounded-xl border border-slate-200 p-3" /><span className="mt-1 block text-xs font-normal text-slate-500">A palavra-passe é guardada como hash e será pedida aos convidados antes de entrarem.</span></label>}
             <label className="mt-3 block text-sm font-medium text-slate-600">Organização<select value={organizationId} onChange={(e) => { setOrganizationId(e.target.value); if (!e.target.value) setVisibility("public"); }} className="mt-1 w-full rounded-xl border border-slate-200 p-3"><option value="">Sem organização</option>{organizations.map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}</select></label>
             <label className="mt-3 block text-sm font-medium text-slate-600">Departamento<select value={unitId} onChange={(e) => setUnitId(e.target.value)} disabled={!organizationId || !units.length} className="mt-1 w-full rounded-xl border border-slate-200 p-3"><option value="">Toda a organização</option>{units.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}</select></label>
             <label className="mt-3 block text-sm font-medium text-slate-600">Ministério<select value={ministryId} onChange={(e) => setMinistryId(e.target.value)} disabled={!organizationId || !ministries.length} className="mt-1 w-full rounded-xl border border-slate-200 p-3"><option value="">Sem ministério específico</option>{ministries.map((ministry) => <option key={ministry.id} value={ministry.id}>{ministry.name}</option>)}</select></label>
@@ -214,7 +218,7 @@ export default function LivePage() {
           </section>
         </div>
       </div>
-      {studioLive && <LiveStudio liveId={studioLive.id} title={studioLive.title} onClose={() => setStudioLive(null)} />}
+      {studioLive && <LiveStudio liveId={studioLive.id} title={studioLive.title} isPrivate={studioLive.visibility === "private"} isHost={Boolean(studioLive.is_host)} onClose={() => setStudioLive(null)} />}
     </main>
   );
 }
