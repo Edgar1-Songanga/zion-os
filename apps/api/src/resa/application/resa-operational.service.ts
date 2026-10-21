@@ -470,9 +470,12 @@ export class ResaOperationalService {
     const participantIdentity = this.text(identity, 'participant_identity', 1, 128);
     if (participantIdentity === actor.id) throw new BadRequestException('The host cannot moderate their own connection');
     if (!['allow_speak', 'revoke_speak', 'remove'].includes(action)) throw new BadRequestException('Invalid participant moderation action');
-    const live = (await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status&id=eq.${id}&limit=1`))[0];
+    const live = (await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status,attendee_publish_allowed&id=eq.${id}&limit=1`))[0];
     if (!live) throw new NotFoundException('Live session not found');
     if (participantIdentity === live.host_id) throw new BadRequestException('The host cannot be moderated by another participant');
+    if (action === 'allow_speak' && live.attendee_publish_allowed === false) {
+      throw new BadRequestException('A política global da Live bloqueia a publicação. O anfitrião deve reativá-la primeiro.');
+    }
     if (live.host_id !== actor.id) {
       const moderator = (await this.db.get<any[]>('resa_live_moderators', token, `?select=moderator_user_id&live_id=eq.${id}&moderator_user_id=eq.${actor.id}&limit=1`))[0];
       if (!moderator) throw new NotFoundException('Live session not found or you are not authorized to moderate it');
