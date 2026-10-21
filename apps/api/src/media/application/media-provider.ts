@@ -25,6 +25,7 @@ export interface MediaProvider {
     meetingId: string;
     providerRoomId?: string | null;
     userId: string;
+    name?: string;
     canPublish?: boolean;
   }): Promise<MediaJoinConfig>;
   setParticipantPublishing?(input: {
