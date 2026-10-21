@@ -55,6 +55,10 @@ export default function LivePage() {
   };
 
   useEffect(() => {
+    const sharedLiveId = new URLSearchParams(window.location.search).get("live");
+    if (sharedLiveId && /^[0-9a-f-]{16,80}$/i.test(sharedLiveId)) {
+      setStudioLive({ id: sharedLiveId, title: "Live partilhada", status: "live", visibility: "private", is_host: false });
+    }
     void load();
     void resaRequest<OrganizationOption[]>("/v1/organizations")
       .then((rows) => setOrganizations(rows.filter((row) => row && row.id && row.name)))
