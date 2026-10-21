@@ -402,8 +402,14 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
     if (!room || (!isHost && !canSpeak)) return;
     try {
       const next = !screenShare;
-      await room.localParticipant.setScreenShareEnabled(next);
+      if (next && typeof navigator !== "undefined" && !navigator.mediaDevices?.getDisplayMedia) {
+        throw new Error("Este navegador/dispositivo não suporta partilha de ecrã. Experimenta um navegador atualizado num computador.");
+      }
+      // Request shared-tab/system audio where the browser and device permit it.
+      // The browser still asks the participant to select what will be shared.
+      await room.localParticipant.setScreenShareEnabled(next, next ? { audio: true } : undefined);
       setScreenShare(next);
+      if (next) setNotice("Partilha iniciada. Se o navegador apresentar a opção, ativa também «Partilhar áudio» para transmitir música e som do vídeo.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível partilhar o ecrã. Verifica as permissões do navegador.");
     }
@@ -626,7 +632,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
             <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.035] p-2">
               <button onClick={() => void toggleMicrophone()} disabled={!connected} aria-pressed={microphone} className={"rounded-xl border px-3 py-2.5 text-xs font-semibold transition disabled:opacity-40 " + (microphone ? "border-sky-200/30 bg-sky-300/15 text-sky-100" : "border-white/10 bg-white/5 text-slate-300")}>{microphone ? "🎙 Microfone ligado" : "🔇 Microfone desligado"}</button>
               <button onClick={() => void toggleCamera()} disabled={!connected} aria-pressed={camera} className={"rounded-xl border px-3 py-2.5 text-xs font-semibold transition disabled:opacity-40 " + (camera ? "border-sky-200/30 bg-sky-300/15 text-sky-100" : "border-white/10 bg-white/5 text-slate-300")}>{camera ? "▣ Câmara ligada" : "▧ Câmara desligada"}</button>
-              <button onClick={() => void toggleScreenShare()} disabled={!connected} aria-pressed={screenShare} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-xs font-semibold text-slate-300 transition hover:bg-white/10 disabled:opacity-40">{screenShare ? "Parar partilha" : "Partilhar ecrã"}</button>
+              <button onClick={() => void toggleScreenShare()} disabled={!connected} aria-pressed={screenShare} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-xs font-semibold text-slate-300 transition hover:bg-white/10 disabled:opacity-40">{screenShare ? "Parar partilha" : "Partilhar ecrã + áudio"}</button>
               {!isHost && <button onClick={() => void raiseHand()} disabled={!connected || handRaised} className="rounded-xl bg-white/10 px-3 py-2.5 text-xs font-semibold text-white disabled:opacity-40">{handRaised ? "✋ Mão levantada" : "✋ Pedir a palavra"}</button>}
               {isHost && <button onClick={() => void endLive()} disabled={ending} className="rounded-xl border border-rose-300/20 bg-rose-500/[0.07] px-3 py-2.5 text-xs font-semibold text-rose-200/90 transition hover:bg-rose-500/15 disabled:opacity-50">{ending ? "A encerrar…" : "Encerrar live"}</button>}
             </div>
