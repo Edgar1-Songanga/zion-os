@@ -155,7 +155,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
           setRaisedHands((current) => current.some((item) => item.identity === identity) ? current : [...current, { identity, name }]);
           if (room.localParticipant.identity !== identity) setNotice(name + " levantou a mão.");
         } else if (packet.type === "speak_granted" && identity !== room.localParticipant.identity) {
-          setNotice("O anfitrião autorizou a tua participação. Já podes ativar o microfone e a câmara.");
+          setNotice("A moderação autorizou a tua participação. Já podes ativar o microfone e a câmara.");
           setCanSpeak(true);
           setHandRaised(false);
         } else if (packet.type === "speak_revoked" && identity !== room.localParticipant.identity) {
@@ -167,7 +167,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
           setMicrophone(false);
           setCamera(false);
           setScreenShare(false);
-          setNotice("O anfitrião retirou a tua permissão de falar. O microfone, a câmara e a partilha foram desligados.");
+          setNotice("A moderação retirou a tua permissão de falar. O microfone, a câmara e a partilha foram desligados.");
         } else if (packet.type === "announcement") {
           setNotice(packet.text);
         } else if (packet.type === "reaction" && ["👏", "❤️", "🙏", "🔥", "✨", "🙌"].includes(packet.emoji)) {
@@ -668,7 +668,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
               </>
             ) : (
               <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
-                {isHost && raisedHands.length > 0 && <div className="mb-4 rounded-xl border border-sky-300/20 bg-sky-300/10 p-3">
+                {(isHost || isModerator) && raisedHands.length > 0 && <div className="mb-4 rounded-xl border border-sky-300/20 bg-sky-300/10 p-3">
                   <p className="mb-2 text-xs font-bold uppercase tracking-wide text-sky-200">Pedidos para falar</p>
                   {raisedHands.map((person) => <div key={person.identity} className="mb-2 flex items-center justify-between gap-2 rounded-xl border border-white/[0.06] bg-black/10 p-2 text-sm text-white">
                     <span className="flex min-w-0 items-center gap-2"><span aria-hidden="true" className="text-xl">✋</span><span className="truncate">{person.name}</span></span>
