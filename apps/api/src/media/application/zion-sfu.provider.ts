@@ -42,7 +42,7 @@ export class ZionSfuProvider implements MediaProvider {
     }
   }
 
-  async createJoinConfig(input: { meetingId: string; providerRoomId?: string | null; userId: string; canPublish?: boolean }): Promise<MediaJoinConfig> {
+  async createJoinConfig(input: { meetingId: string; providerRoomId?: string | null; userId: string; name?: string; canPublish?: boolean }): Promise<MediaJoinConfig> {
     if (!input.providerRoomId || !this.configured()) {
       throw new BadGatewayException('ZION media server is not configured');
     }
@@ -57,6 +57,7 @@ export class ZionSfuProvider implements MediaProvider {
       };
       const accessToken = new AccessToken(env.livekitApiKey, env.livekitApiSecret, {
         identity: input.userId,
+        ...(input.name ? { name: input.name } : {}),
         ttl: '1h',
       });
       accessToken.addGrant(grant);
