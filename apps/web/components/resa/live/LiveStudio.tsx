@@ -31,6 +31,10 @@ function renderLinkedText(value: string) {
 export default function LiveStudio({ liveId, title, isPrivate = false, isHostSession = false, onClose }: { liveId: string; title: string; isPrivate?: boolean; isHostSession?: boolean; onClose: () => void }) {
   const roomRef = useRef<Room | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const mediaVideoRef = useRef<HTMLVideoElement | null>(null);
+  const mediaAudioRef = useRef<HTMLAudioElement | null>(null);
+  const mediaObjectUrlRef = useRef<string | null>(null);
+  const mediaTracksRef = useRef<MediaStreamTrack[]>([]);
   const remoteRef = useRef<HTMLDivElement | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const recordingStreamRef = useRef<MediaStream | null>(null);
@@ -67,6 +71,11 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
   const [liveElapsed, setLiveElapsed] = useState(0);
   const [stageLayout, setStageLayout] = useState<"grid" | "stage">("grid");
   const [liveReactions, setLiveReactions] = useState<Array<{ id: string; emoji: string; name: string }>>([]);
+  const [mediaSource, setMediaSource] = useState<string | null>(null);
+  const [mediaFileType, setMediaFileType] = useState<"audio" | "video" | null>(null);
+  const [mediaFileName, setMediaFileName] = useState("");
+  const [mediaBroadcasting, setMediaBroadcasting] = useState(false);
+  const [mediaBusy, setMediaBusy] = useState(false);
 
   const sendPacket = useCallback(async (packet: LivePacket, destinationIdentity?: string) => {
     const room = roomRef.current;
@@ -538,9 +547,84 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
     }
   }
 
+  function handleMediaFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("audio/") && !file.type.startsWith("video/")) {
+      setError("Escolhe um ficheiro de áudio ou vídeo suportado pelo navegador.");
+      return;
+    }
+    if (file.size > 500 * 1024 * 1024) {
+      setError("O ficheiro excede o limite local de 500 MB.");
+      return;
+    }
+    if (mediaBroadcasting) {
+      setError("Para trocar o ficheiro, primeiro para a transmissão do leitor.");
+      return;
+    }
+    if (mediaObjectUrlRef.current) URL.revokeObjectURL(mediaObjectUrlRef.current);
+    const url = URL.createObjectURL(file);
+    mediaObjectUrlRef.current = url;
+    setMediaSource(url);
+    setMediaFileType(file.type.startsWith("video/") ? "video" : "audio");
+    setMediaFileName(file.name);
+    setError(null);
+    setNotice("Ficheiro carregado localmente. Carrega em reproduzir e, se o navegador suportar captura de mídia, transmite-o para os participantes.");
+  }
+
+  async function stopMediaBroadcast() {
+    const room = roomRef.current;
+    const tracks = mediaTracksRef.current;
+    mediaTracksRef.current = [];
+    for (const track of tracks) {
+      try { if (room) await room.localParticipant.unpublishTrack(track); } catch { /* Track may already have been unpublished during disconnect. */ }
+      try { track.stop(); } catch { /* Ignore tracks already stopped by the browser. */ }
+    }
+    setMediaBroadcasting(false);
+    setMediaBusy(false);
+  }
+
+  async function toggleMediaBroadcast() {
+    if (mediaBroadcasting) {
+      await stopMediaBroadcast();
+      setNotice("A transmissão do leitor foi parada.");
+      return;
+    }
+    const room = roomRef.current;
+    const element = mediaVideoRef.current ?? mediaAudioRef.current;
+    if (!isHost || !connected || !room || !element) return;
+    setMediaBusy(true);
+    setError(null);
+    try {
+      await element.play();
+      const capturable = element as HTMLMediaElement & { captureStream?: () => MediaStream; mozCaptureStream?: () => MediaStream };
+      const stream = capturable.captureStream?.() ?? capturable.mozCaptureStream?.();
+      if (!stream) throw new Error("Este navegador não permite transmitir diretamente o leitor. Usa «Partilhar ecrã + áudio» neste dispositivo.");
+      const tracks = stream.getTracks().filter((track) => track.readyState === "live");
+      if (!tracks.length) throw new Error("O leitor ainda não disponibilizou faixas de áudio/vídeo. Inicia a reprodução e tenta novamente.");
+      mediaTracksRef.current = tracks;
+      for (const track of tracks) {
+        await room.localParticipant.publishTrack(track, { name: "zion-live-media-" + track.kind });
+      }
+      setMediaBroadcasting(true);
+      setNotice("Leitor transmitido: áudio" + (tracks.some((track) => track.kind === "video") ? " e vídeo" : "") + " disponíveis para os participantes.");
+    } catch (e) {
+      await stopMediaBroadcast();
+      setError(e instanceof Error ? e.message : "Não foi possível transmitir a mídia para a Live.");
+    } finally {
+      setMediaBusy(false);
+    }
+  }
+
+  useEffect(() => () => {
+    if (mediaObjectUrlRef.current) URL.revokeObjectURL(mediaObjectUrlRef.current);
+  }, []);
+
   async function leaveLive() {
     if (recording) stopRecording();
     if (egressId) await stopExternalStream();
+    await stopMediaBroadcast();
     await roomRef.current?.disconnect(true);
     onClose();
   }
@@ -553,6 +637,7 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
     try {
       if (recording) stopRecording();
       if (egressId) await stopExternalStream();
+      await stopMediaBroadcast();
       await resaRequest("/v1/resa/live/" + liveId + "/status", {
         method: "PATCH",
         body: JSON.stringify({ status: "ended" }),
@@ -574,6 +659,18 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
           <button type="button" onClick={() => void moderateAll("revoke_speak")} disabled={!connected || participants.length < 2} className="rounded-lg bg-rose-500/15 px-3 py-2 text-xs font-semibold text-rose-100 disabled:opacity-40">Silenciar e fechar para todos</button>
         </div>
         <p className="mt-2 text-[11px] leading-4 text-slate-500">Aplica-se aos participantes já presentes; novos acessos ainda seguem a política padrão da sessão.</p>
+      </div>
+      <div className="col-span-2 space-y-3 rounded-xl border border-sky-200/15 bg-sky-300/[0.04] p-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-200">Leitor de áudio e vídeo</p>
+          <p className="mt-1 text-[11px] leading-4 text-slate-400">Escolhe um ficheiro local para reproduzir no Studio. Em navegadores compatíveis, podes publicar o áudio/vídeo como faixas reais da Live — sem depender apenas da partilha de ecrã.</p>
+        </div>
+        <input type="file" accept="audio/*,video/*" onChange={handleMediaFileChange} disabled={!isHost || mediaBroadcasting || mediaBusy} aria-label="Escolher ficheiro de áudio ou vídeo" className="block w-full text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white disabled:opacity-50" />
+        {mediaFileName && <p className="truncate text-xs text-sky-100" title={mediaFileName}>{mediaFileName}</p>}
+        {mediaSource && mediaFileType === "video" && <video ref={mediaVideoRef} src={mediaSource} controls playsInline onEnded={() => { if (mediaBroadcasting) void stopMediaBroadcast(); }} className="max-h-56 w-full rounded-lg bg-black" />}
+        {mediaSource && mediaFileType === "audio" && <audio ref={mediaAudioRef} src={mediaSource} controls onEnded={() => { if (mediaBroadcasting) void stopMediaBroadcast(); }} className="w-full" />}
+        <button type="button" onClick={() => void toggleMediaBroadcast()} disabled={!connected || !isHost || !mediaSource || mediaBusy} className={"w-full rounded-lg px-3 py-2.5 text-sm font-bold disabled:opacity-40 " + (mediaBroadcasting ? "bg-rose-500/20 text-rose-100" : "bg-sky-300 text-[#07142c]")}>{mediaBusy ? "A preparar faixas…" : mediaBroadcasting ? "Parar transmissão do leitor" : "Transmitir leitor para a Live"}</button>
+        <p className="text-[11px] leading-4 text-slate-500">A reprodução local funciona nos navegadores com suporte ao formato. A transmissão direta depende do suporte de captura de mídia do navegador; se indisponível, usa a partilha de ecrã com áudio. O ficheiro não é enviado nem guardado no servidor.</p>
       </div>
       <button onClick={() => recording ? stopRecording() : startRecording()} disabled={!connected || !isHost} className={"col-span-2 rounded-xl px-3 py-3 text-left text-sm font-semibold disabled:opacity-40 " + (recording ? "bg-red-500/20 text-red-100" : "bg-white/10 text-white")}>{recording ? "Parar gravação e guardar ficheiro" : "Gravar nesta máquina (sem armazenamento na nuvem)"}</button>
       <div className="col-span-2 space-y-2 rounded-xl border border-white/10 bg-black/15 p-3">
