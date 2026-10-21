@@ -98,6 +98,21 @@ export class ResaOperationalController {
     return this.liveEgress.stopExternalStream(this.token(authorization), liveId, body.egressId);
   }
 
+  @Get('live/:liveId/moderators')
+  listLiveModerators(@Headers('authorization') authorization: string | undefined, @Param('liveId') liveId: string) {
+    return this.operational.listLiveModerators(this.token(authorization), liveId);
+  }
+
+  @Post('live/:liveId/moderators')
+  setLiveModerator(@Headers('authorization') authorization: string | undefined, @Param('liveId') liveId: string, @Body() body: { identity: string; enabled?: boolean }) {
+    return this.operational.setLiveModerator(this.token(authorization), liveId, body.identity, body.enabled !== false);
+  }
+
+  @Delete('live/:liveId/moderators/:identity')
+  removeLiveModerator(@Headers('authorization') authorization: string | undefined, @Param('liveId') liveId: string, @Param('identity') identity: string) {
+    return this.operational.setLiveModerator(this.token(authorization), liveId, identity, false);
+  }
+
   @Patch('live/:liveId/participants/:identity')
   moderateLiveParticipant(
     @Headers('authorization') authorization: string | undefined,
