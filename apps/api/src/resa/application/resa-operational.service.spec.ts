@@ -85,6 +85,24 @@ describe('ResaOperationalService live permissions', () => {
     }));
   });
 
+  it('does not issue join credentials for a private live to a non-host', async () => {
+    actorId = 'uninvited-viewer';
+    getSpy.mockResolvedValueOnce([] as never);
+
+    await expect(service.liveJoinConfig('session-token', LIVE_ID)).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(media.createJoinConfig).not.toHaveBeenCalled();
+  });
+
+  it('does not issue join credentials for a followers-only live to a non-host', async () => {
+    actorId = 'non-follower';
+    getSpy.mockResolvedValueOnce([] as never);
+
+    await expect(service.liveJoinConfig('session-token', LIVE_ID)).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(media.createJoinConfig).not.toHaveBeenCalled();
+  });
+
   it('requires an organization id when creating an organization-only live', async () => {
     await expect(service.createLiveSession('session-token', {
       title: 'Culto de oração',
