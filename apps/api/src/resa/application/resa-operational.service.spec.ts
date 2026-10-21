@@ -61,7 +61,8 @@ describe('ResaOperationalService live permissions', () => {
     expect(config.role).toBe('viewer');
     expect(media.createJoinConfig).toHaveBeenCalledWith(expect.objectContaining({
       userId: 'viewer-user',
-      canPublish: false,
+      name: expect.any(String),
+      canPublish: true,
     }));
   });
 
@@ -81,7 +82,8 @@ describe('ResaOperationalService live permissions', () => {
     expect(config.role).toBe('viewer');
     expect(media.createJoinConfig).toHaveBeenCalledWith(expect.objectContaining({
       userId: 'organization-member',
-      canPublish: false,
+      name: expect.any(String),
+      canPublish: true,
     }));
   });
 
