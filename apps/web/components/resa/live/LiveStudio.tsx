@@ -456,6 +456,26 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
     }
   }
 
+  async function moderateAll(action: "allow_speak" | "revoke_speak") {
+    if (!isHost) return;
+    const targets = participants.filter((person) => person.identity !== selfIdentity);
+    if (!targets.length) { setNotice("Ainda não há outros participantes para gerir."); return; }
+    setError(null);
+    const results = await Promise.allSettled(targets.map(async (person) => {
+      await resaRequest("/v1/resa/live/" + liveId + "/participants/" + encodeURIComponent(person.identity), {
+        method: "PATCH",
+        body: JSON.stringify({ action }),
+      });
+      await sendPacket(
+        { type: action === "allow_speak" ? "speak_granted" : "speak_revoked", name: roomRef.current?.localParticipant.name || "Anfitrião" },
+        person.identity,
+      );
+    }));
+    const applied = results.filter((result) => result.status === "fulfilled").length;
+    if (applied !== targets.length) setError("A ação foi aplicada a " + applied + " de " + targets.length + " participantes. Verifica as permissões e tenta novamente.");
+    else setNotice(action === "allow_speak" ? "Publicação autorizada para todos os participantes presentes." : "Microfones, câmaras e partilhas foram bloqueados para os participantes presentes.");
+  }
+
   async function moderate(identity: string, action: "allow_speak" | "revoke_speak" | "remove") {
     try {
       await resaRequest("/v1/resa/live/" + liveId + "/participants/" + encodeURIComponent(identity), {
@@ -506,6 +526,14 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
 
   const hostControls = (
     <div className="grid grid-cols-2 gap-2">
+      <div className="col-span-2 rounded-xl border border-white/10 bg-black/15 p-3">
+        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-300">Permissões de palco</p>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={() => void moderateAll("allow_speak")} disabled={!connected || participants.length < 2} className="rounded-lg bg-sky-300/15 px-3 py-2 text-xs font-semibold text-sky-100 disabled:opacity-40">Abrir áudio/vídeo para todos</button>
+          <button type="button" onClick={() => void moderateAll("revoke_speak")} disabled={!connected || participants.length < 2} className="rounded-lg bg-rose-500/15 px-3 py-2 text-xs font-semibold text-rose-100 disabled:opacity-40">Silenciar e fechar para todos</button>
+        </div>
+        <p className="mt-2 text-[11px] leading-4 text-slate-500">Aplica-se aos participantes já presentes; novos acessos ainda seguem a política padrão da sessão.</p>
+      </div>
       <button onClick={() => recording ? stopRecording() : startRecording()} disabled={!connected || !isHost} className={"col-span-2 rounded-xl px-3 py-3 text-left text-sm font-semibold disabled:opacity-40 " + (recording ? "bg-red-500/20 text-red-100" : "bg-white/10 text-white")}>{recording ? "Parar gravação e guardar ficheiro" : "Gravar nesta máquina (sem armazenamento na nuvem)"}</button>
       <div className="col-span-2 space-y-2 rounded-xl border border-white/10 bg-black/15 p-3">
         <p className="text-xs font-bold uppercase tracking-wide text-slate-300">Transmitir noutras plataformas</p>
