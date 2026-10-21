@@ -270,8 +270,9 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
         await room.connect(config.joinUrl, config.token, { autoSubscribe: true });
         const displayName = config.displayName || room.localParticipant.name || "Membro RESA";
         if (mounted) setSelfIdentity(room.localParticipant.identity);
-        const initialCamera = joinMode !== "listen" && (hostRole || config.attendee_camera_on_join === true) && (joinMode === "video" || !hostRole);
-        const initialMicrophone = joinMode !== "listen" && (hostRole || config.attendee_microphone_on_join === true) && (joinMode !== "listen");
+        const attendeeCanPublish = hostRole || config.attendee_publish_allowed !== false;
+        const initialCamera = attendeeCanPublish && joinMode !== "listen" && (hostRole ? joinMode === "video" : config.attendee_camera_on_join === true);
+        const initialMicrophone = attendeeCanPublish && joinMode !== "listen" && (hostRole ? true : config.attendee_microphone_on_join === true);
         await room.localParticipant.setCameraEnabled(initialCamera);
         await room.localParticipant.setMicrophoneEnabled(initialMicrophone, { echoCancellation: true, noiseSuppression: true, autoGainControl: true });
         const localCamera = room.localParticipant.getTrackPublication(Track.Source.Camera)?.track;
