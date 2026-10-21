@@ -106,6 +106,44 @@ describe('ResaOperationalService live permissions', () => {
     expect(media.createJoinConfig).not.toHaveBeenCalled();
   });
 
+  it('rejects a private live when the password unlock RPC denies access', async () => {
+    actorId = 'uninvited-viewer';
+    const rpcSpy = jest.spyOn(SupabaseRestClient.prototype, 'rpc').mockResolvedValueOnce(false as never);
+
+    await expect(service.liveJoinConfig('session-token', LIVE_ID, 'wrong-password')).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(rpcSpy).toHaveBeenCalledWith('resa_unlock_private_live', 'session-token', {
+      p_live_id: LIVE_ID,
+      p_password: 'wrong-password',
+    });
+    expect(getSpy).not.toHaveBeenCalled();
+    expect(media.createJoinConfig).not.toHaveBeenCalled();
+  });
+
+  it('unlocks a private live before issuing join credentials to an admitted viewer', async () => {
+    actorId = 'invited-viewer';
+    const rpcSpy = jest.spyOn(SupabaseRestClient.prototype, 'rpc').mockResolvedValueOnce(true as never);
+    getSpy.mockResolvedValueOnce([{
+      id: LIVE_ID,
+      host_id: 'host-user',
+      status: 'live',
+      visibility: 'private',
+    }] as never);
+
+    const config = await service.liveJoinConfig('session-token', LIVE_ID, 'correct-password');
+
+    expect(rpcSpy).toHaveBeenCalledWith('resa_unlock_private_live', 'session-token', {
+      p_live_id: LIVE_ID,
+      p_password: 'correct-password',
+    });
+    expect(config.isHost).toBe(false);
+    expect(media.createJoinConfig).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'invited-viewer',
+      canPublish: true,
+      providerRoomId: 'zion-live-' + LIVE_ID,
+    }));
+  });
+
   it('does not expose chat messages for a private live to a non-host', async () => {
     actorId = 'uninvited-viewer';
     getSpy.mockResolvedValueOnce([{
