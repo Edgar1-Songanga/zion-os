@@ -239,7 +239,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
           localVideoRef.current.srcObject = new MediaStream([localCamera.mediaStreamTrack]);
           void localVideoRef.current.play().catch(() => {});
         }
-        if (mounted) { setCamera(joinMode === "video"); setMicrophone(joinMode !== "listen"); setNotice("Entraste como " + displayName + ". Podes alterar o áudio e o vídeo nos controlos da Live."); }
+        if (mounted) { setCamera(joinMode === "video"); setMicrophone(joinMode !== "listen"); setCanSpeak(true); setNotice("Entraste como " + displayName + ". Podes alterar o áudio e o vídeo nos controlos da Live."); }
         syncParticipants(room);
       } catch (e) {
         if (mounted) setError(e instanceof Error ? e.message : "Não foi possível entrar na live.");
@@ -304,7 +304,7 @@ export default function LiveStudio({ liveId, title, onClose }: { liveId: string;
 
   async function toggleCamera() {
     const room = roomRef.current;
-    if (!room) return;
+    if (!room || (!isHost && !canSpeak)) return;
     try {
       const next = !camera;
       await room.localParticipant.setCameraEnabled(next);
