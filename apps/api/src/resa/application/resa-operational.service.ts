@@ -371,19 +371,39 @@ export class ResaOperationalService {
     }
     if (!Object.keys(patch).length) throw new BadRequestException('At least one media policy setting is required');
 
-    if (patch.attendee_publish_allowed !== undefined) {
-      if (!this.media.setRoomPublishingForAttendees) throw new BadGatewayException('Media provider cannot enforce room-wide publishing policy');
-      await this.media.setRoomPublishingForAttendees({
-        roomId: 'zion-live-' + id,
-        hostIdentity: actor.id,
-        canPublish: patch.attendee_publish_allowed,
-      });
-    }
     const rows = await this.db.patch<any[]>(
       'resa_live_sessions', token, patch,
       `?id=eq.${id}&host_id=eq.${actor.id}&status=eq.live`,
     );
     if (!rows[0]) throw new BadGatewayException('Live media policy could not be saved');
+
+    if (patch.attendee_publish_allowed !== undefined) {
+      if (!this.media.setRoomPublishingForAttendees) {
+        await this.db.patch('resa_live_sessions', token, {
+          attendee_publish_allowed: live.attendee_publish_allowed !== false,
+        }, `?id=eq.${id}&host_id=eq.${actor.id}&status=eq.live`).catch(() => undefined);
+        throw new BadGatewayException('Media provider cannot enforce room-wide publishing policy');
+      }
+      try {
+        await this.media.setRoomPublishingForAttendees({
+          roomId: 'zion-live-' + id,
+          hostIdentity: actor.id,
+          canPublish: patch.attendee_publish_allowed,
+        });
+      } catch {
+        // Restore the previous persisted value and best-effort restore SFU permissions
+        // so the database and active room do not silently disagree.
+        await this.db.patch('resa_live_sessions', token, {
+          attendee_publish_allowed: live.attendee_publish_allowed !== false,
+        }, `?id=eq.${id}&host_id=eq.${actor.id}&status=eq.live`).catch(() => undefined);
+        await this.media.setRoomPublishingForAttendees({
+          roomId: 'zion-live-' + id,
+          hostIdentity: actor.id,
+          canPublish: live.attendee_publish_allowed !== false,
+        }).catch(() => undefined);
+        throw new BadGatewayException('Não foi possível aplicar a política no servidor de mídia. A configuração anterior foi restaurada quando possível.');
+      }
+    }
     return {
       liveId: id,
       attendee_publish_allowed: rows[0].attendee_publish_allowed,
