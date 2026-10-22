@@ -43,7 +43,7 @@ create table if not exists public.finance_giving_receipts (
 
 -- Seed a comprehensive, editable list of giving destinations for existing and new organizations.
 create or replace function public.seed_default_giving_funds()
-returns trigger language plpgsql security invoker set search_path=public as $$
+returns trigger language plpgsql security definer set search_path=public,pg_temp as $
 begin
   insert into public.finance_giving_funds(organization_id,name,description,fund_type,sort_order) values
     (new.id,'Dízimo','Dízimos e fidelidade cristã.','TITHE',10),
@@ -71,6 +71,7 @@ end $$;
 drop trigger if exists organizations_seed_giving_funds on public.organizations;
 create trigger organizations_seed_giving_funds after insert on public.organizations
 for each row execute function public.seed_default_giving_funds();
+revoke all on function public.seed_default_giving_funds() from public, anon, authenticated;
 
 insert into public.finance_giving_funds(organization_id,name,description,fund_type,sort_order)
 select o.id, f.name, f.description, f.fund_type, f.sort_order
