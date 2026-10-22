@@ -93,7 +93,7 @@ export class FinanceService {
     }));
   }
 
-  async createGivingContribution(token: string, organizationId: string, input: { fund_id: string; amount: number; payment_method?: string; method_id?: string; note?: string }) {
+  async createGivingContribution(token: string, organizationId: string, input: { fund_id: string; amount: number; payment_method?: string; method_id?: string; note?: string; idempotency_key?: string }) {
     const user = await this.identity.getCurrentUser(token);
     const amount = Number(input.amount);
     if (!input.fund_id || !Number.isFinite(amount) || amount <= 0 || Math.abs(amount * 100 - Math.round(amount * 100)) > 1e-8) {
@@ -120,7 +120,7 @@ export class FinanceService {
       p_method_id: methodId,
       p_amount: Math.round(amount * 100) / 100,
       p_note: input.note?.trim() || null,
-      p_idempotency_key: randomUUID(),
+      p_idempotency_key: input.idempotency_key && input.idempotency_key.length >= 8 && input.idempotency_key.length <= 120 ? input.idempotency_key : randomUUID(),
     });
     const paymentId = String(created?.id ?? '');
     if (!paymentId) throw new BadRequestException('O sistema não devolveu a referência da contribuição.');
