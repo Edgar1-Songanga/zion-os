@@ -30,16 +30,17 @@ export class NotificationService {
   async preferences(token: string) {
     const actor = await this.identity.getCurrentUser(token);
     const rows = await this.db.get<any[]>('notification_preferences', token, `?select=*&user_id=eq.${actor.id}&limit=1`);
-    return rows[0] ?? { user_id: actor.id, enabled: true, channels: ['in_app'], muted_types: [], quiet_start: null, quiet_end: null };
+    return rows[0] ?? { user_id: actor.id, enabled: true, channels: ['in_app'], muted_types: [], quiet_start: null, quiet_end: null, sound_enabled: true, vibration_enabled: true };
   }
 
-  async updatePreferences(token: string, input: { enabled?: unknown; channels?: unknown; muted_types?: unknown; quiet_start?: unknown; quiet_end?: unknown }) {
+  async updatePreferences(token: string, input: { enabled?: unknown; channels?: unknown; muted_types?: unknown; quiet_start?: unknown; quiet_end?: unknown; sound_enabled?: unknown; vibration_enabled?: unknown }) {
     const actor = await this.identity.getCurrentUser(token);
     const body: Record<string, unknown> = { user_id: actor.id };
     if (input.enabled !== undefined) { if (typeof input.enabled !== 'boolean') throw new BadRequestException('enabled must be boolean'); body.enabled = input.enabled; }
     if (input.channels !== undefined) { if (!Array.isArray(input.channels) || input.channels.some((channel) => !['in_app', 'push', 'email'].includes(String(channel)))) throw new BadRequestException('channels is invalid'); body.channels = input.channels; }
     if (input.muted_types !== undefined) { if (!Array.isArray(input.muted_types)) throw new BadRequestException('muted_types is invalid'); body.muted_types = input.muted_types.map((type) => String(type).trim()).filter(Boolean).slice(0, 100); }
     for (const key of ['quiet_start', 'quiet_end'] as const) if (input[key] !== undefined) body[key] = input[key] || null;
+    for (const key of ['sound_enabled', 'vibration_enabled'] as const) { if (input[key] !== undefined) { if (typeof input[key] !== 'boolean') throw new BadRequestException(`${key} must be boolean`); body[key] = input[key]; } }
     const rows = await this.db.upsert<any[]>('notification_preferences', token, body, '?on_conflict=user_id');
     return rows[0];
   }
