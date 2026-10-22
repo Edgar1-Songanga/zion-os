@@ -202,7 +202,8 @@ export default function NotificationBell() {
             </div>
             <div className="mt-3 rounded-xl border border-[var(--zion-border)] bg-slate-50 px-3 py-3"><p className="text-xs leading-5 text-[var(--zion-muted)]">Personaliza o som, a vibração e os alertas em segundo plano nas definições.</p></div>
           </div>
-          {loadError && <div role="status" className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">A ligação às notificações está instável. O sistema tentará atualizar novamente.</div>}\n          <div className="max-h-80 overflow-y-auto">
+          {loadError && <div role="status" className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">A ligação às notificações está instável. O sistema tentará atualizar novamente.</div>}
+          <div className="max-h-80 overflow-y-auto">
             {!items.length && <p className="px-5 py-10 text-center text-sm text-[var(--zion-muted)]">{loadError ? "Não foi possível atualizar as notificações." : "Não há notificações."}</p>}
             {items.map((item) => (
               <button
