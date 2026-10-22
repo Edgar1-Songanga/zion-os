@@ -29,6 +29,11 @@ export default function NotificationBell() {
   const mountedRef = useRef(true);
 
   useEffect(() => {
+    const updatePreferences = (event: Event) => {
+      const detail = (event as CustomEvent<NotificationAlertPreferences>).detail;
+      if (detail) preferencesRef.current = { ...preferencesRef.current, ...detail };
+    };
+    window.addEventListener("zion:notification-preferences-updated", updatePreferences);
     const unlockAudio = () => unlockNotificationAudio();
     window.addEventListener("pointerdown", unlockAudio, { once: true });
     window.addEventListener("keydown", unlockAudio, { once: true });
@@ -38,6 +43,7 @@ export default function NotificationBell() {
     return () => {
       window.removeEventListener("pointerdown", unlockAudio);
       window.removeEventListener("keydown", unlockAudio);
+      window.removeEventListener("zion:notification-preferences-updated", updatePreferences);
     };
   }, []);
 
