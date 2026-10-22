@@ -5,7 +5,7 @@ import { FinanceService } from './finance.service';
 export class FinanceController {
   constructor(private readonly finance: FinanceService) {}
   private token(a?: string) {
-    const token = a?.replace(/^Bearer\\s+/i, '').trim();
+    const token = a?.replace(/^Bearer\s+/i, '').trim();
     if (!token) throw new UnauthorizedException('Bearer token is required');
     return token;
   }
@@ -23,9 +23,13 @@ export class FinanceController {
   @Get('organizations/:organizationId/giving/contributions')
   myGivingContributions(@Headers('authorization') a:string|undefined,@Param('organizationId') id:string){return this.finance.myGivingContributions(this.token(a),id);}
   @Post('organizations/:organizationId/giving/contributions')
-  createGivingContribution(@Headers('authorization') a:string|undefined,@Param('organizationId') id:string,@Body() body:{fund_id:string;amount:number;payment_method:string}){return this.finance.createGivingContribution(this.token(a),id,body);}
+  createGivingContribution(@Headers('authorization') a:string|undefined,@Param('organizationId') id:string,@Body() body:{fund_id:string;amount:number;payment_method?:string;method_id?:string;note?:string;idempotency_key?:string}){return this.finance.createGivingContribution(this.token(a),id,body);}
   @Get('organizations/:organizationId/giving/treasury')
   treasuryGivingContributions(@Headers('authorization') a:string|undefined,@Param('organizationId') id:string){return this.finance.treasuryGivingContributions(this.token(a),id);}
   @Post('organizations/:organizationId/giving/contributions/:contributionId/confirm')
   confirmGivingContribution(@Headers('authorization') a:string|undefined,@Param('organizationId') id:string,@Param('contributionId') contributionId:string){return this.finance.confirmGivingContribution(this.token(a),id,contributionId);}
+  @Post('organizations/:organizationId/giving/bank-transfer')
+  configureGivingBankTransfer(@Headers('authorization') a:string|undefined,@Param('organizationId') id:string,@Body() body:{bank_name:string;account_holder:string;iban:string}) {
+    return this.finance.configureGivingBankTransfer(this.token(a),id,body);
+  }
 }

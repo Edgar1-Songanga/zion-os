@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { IdentityService } from '../identity/application/identity.service';
 import { SupabaseRestClient } from '../common/supabase/supabase-rest.client';
 
@@ -82,51 +83,113 @@ export class FinanceService {
 
   async givingFunds(token: string, organizationId: string) {
     await this.identity.getCurrentUser(token);
-    return this.db.get<Array<{id:string;name:string;description:string|null;fund_type:string;sort_order:number}>>('finance_giving_funds', token,
-      `?select=id,name,description,fund_type,sort_order&organization_id=eq.${encodeURIComponent(organizationId)}&is_active=eq.true&order=sort_order.asc,name.asc`);
+    const rows = await this.db.get<Array<{id:string;code:string;name:string;kind:string;is_active:boolean}>>(
+      'giving_funds', token,
+      `?select=id,code,name,kind,is_active&organization_id=eq.${encodeURIComponent(organizationId)}&is_active=eq.true&order=name.asc`,
+    );
+    return rows.map((fund) => ({
+      id: fund.id, code: fund.code, name: fund.name, fund_type: fund.kind,
+      description: ({TITHE:'Dízimos e fidelidade cristã.',OFFERING:'Ofertas regulares para as necessidades da igreja.',BUILDING:'Construção, reparação e manutenção.',MISSIONS:'Missões e evangelismo.',OTHER:'Destino aprovado pela igreja.'} as Record<string,string>)[fund.kind] ?? 'Contribuição para a igreja.',
+    }));
   }
 
-  async createGivingContribution(token: string, organizationId: string, input: { fund_id: string; amount: number; payment_method: string }) {
+  async createGivingContribution(token: string, organizationId: string, input: { fund_id: string; amount: number; payment_method?: string; method_id?: string; note?: string; idempotency_key?: string }) {
     const user = await this.identity.getCurrentUser(token);
     const amount = Number(input.amount);
-    if (!input.fund_id || !Number.isFinite(amount) || amount <= 0 || Math.abs(amount * 100 - Math.round(amount * 100)) > 1e-8) throw new BadRequestException('Escolha um destino e indique um valor positivo com até duas casas decimais.');
-    if (!['BANK_TRANSFER','MULTICAIXA_EXPRESS'].includes(input.payment_method)) throw new BadRequestException('Método de pagamento inválido.');
-    if (input.payment_method === 'MULTICAIXA_EXPRESS') throw new BadRequestException('O Multicaixa Express ainda não está ativado nesta organização. Escolha transferência bancária.');
-    const funds = await this.db.get<Array<{id:string}>>('finance_giving_funds', token, `?select=id&organization_id=eq.${encodeURIComponent(organizationId)}&id=eq.${encodeURIComponent(input.fund_id)}&is_active=eq.true&limit=1`);
+    if (!input.fund_id || !Number.isFinite(amount) || amount <= 0 || Math.abs(amount * 100 - Math.round(amount * 100)) > 1e-8) {
+      throw new BadRequestException('Escolha um destino e indique um valor positivo com até duas casas decimais.');
+    }
+    if (input.payment_method && input.payment_method !== 'BANK_TRANSFER') {
+      throw new BadRequestException('Este método de pagamento ainda não está integrado.');
+    }
+    const funds = await this.db.get<Array<{id:string}>>('giving_funds', token,
+      `?select=id&organization_id=eq.${encodeURIComponent(organizationId)}&id=eq.${encodeURIComponent(input.fund_id)}&is_active=eq.true&limit=1`);
     if (!funds[0]) throw new NotFoundException('Destino de contribuição não encontrado ou inativo.');
-    const rows = await this.db.post<Array<Record<string, unknown>>>('finance_giving_contributions', token, {
-      organization_id: organizationId, fund_id: input.fund_id, contributor_id: user.id, amount: Math.round(amount * 100) / 100,
-      currency_code: 'AOA', payment_method: input.payment_method, status: 'PENDING',
+    let methodId = input.method_id;
+    if (!methodId) {
+      const methods = await this.db.get<Array<{id:string;provider:string;public_details:Record<string,unknown>}>>(
+        'giving_payment_methods', token,
+        `?select=id,provider,public_details&organization_id=eq.${encodeURIComponent(organizationId)}&provider=eq.BANK_TRANSFER&is_enabled=eq.true&limit=1`,
+      );
+      if (!methods[0]) throw new BadRequestException('A tesouraria ainda não configurou os dados bancários desta igreja.');
+      methodId = methods[0].id;
+    }
+    const created = await this.db.rpc<Record<string, unknown>>('create_giving_payment', token, {
+      p_organization_id: organizationId,
+      p_fund_id: input.fund_id,
+      p_method_id: methodId,
+      p_amount: Math.round(amount * 100) / 100,
+      p_note: input.note?.trim() || null,
+      p_idempotency_key: input.idempotency_key && input.idempotency_key.length >= 8 && input.idempotency_key.length <= 120 ? input.idempotency_key : randomUUID(),
     });
-    if (!rows[0]) throw new BadRequestException('Não foi possível registar o pedido de contribuição.');
-    return rows[0];
+    const paymentId = String(created?.id ?? '');
+    if (!paymentId) throw new BadRequestException('O sistema não devolveu a referência da contribuição.');
+    const rows = await this.db.get<Array<Record<string, unknown>>>('giving_payments', token,
+      `?select=id,organization_id,fund_id,donor_user_id,method_id,amount,currency_code,status,reference,created_at,confirmed_at,expires_at&organization_id=eq.${encodeURIComponent(organizationId)}&id=eq.${encodeURIComponent(paymentId)}&limit=1`);
+    const row = rows[0];
+    if (!row) throw new BadRequestException('O pedido foi criado, mas não foi possível carregar os seus detalhes.');
+    const methods = await this.db.get<Array<{id:string;provider:string;label:string;public_details:Record<string,unknown>}>>(
+      'giving_payment_methods', token, `?select=id,provider,label,public_details&id=eq.${encodeURIComponent(String(row.method_id))}&limit=1`);
+    return {...row, contributor_id: user.id, reference_code: row.reference, payment_method: methods[0]?.provider ?? 'BANK_TRANSFER', instructions: methods[0] ? {label:methods[0].label,provider:methods[0].provider,details:methods[0].public_details} : created?.instructions ?? null};
   }
 
   async myGivingContributions(token: string, organizationId: string) {
     const user = await this.identity.getCurrentUser(token);
-    const rows = await this.db.get<Array<Record<string, unknown>>>('finance_giving_contributions', token,
-      `?select=id,organization_id,fund_id,amount,currency_code,payment_method,status,reference_code,created_at,contributor_id&organization_id=eq.${encodeURIComponent(organizationId)}&contributor_id=eq.${encodeURIComponent(user.id)}&order=created_at.desc&limit=100`);
+    const rows = await this.db.get<Array<Record<string, unknown>>>('giving_payments', token,
+      `?select=id,organization_id,fund_id,donor_user_id,method_id,amount,currency_code,status,reference,created_at,confirmed_at,expires_at&organization_id=eq.${encodeURIComponent(organizationId)}&donor_user_id=eq.${encodeURIComponent(user.id)}&order=created_at.desc&limit=100`);
     if (!rows.length) return [];
     const fundIds = [...new Set(rows.map((row) => String(row.fund_id)))];
-    const contributionIds = rows.map((row) => String(row.id));
-    const funds = await this.db.get<Array<{id:string;name:string}>>('finance_giving_funds', token, `?select=id,name&id=in.(${fundIds.map(encodeURIComponent).join(',')})`);
-    const receipts = await this.db.get<Array<{id:string;contribution_id:string;receipt_number:number;verification_hash:string;issued_at:string}>>('finance_giving_receipts', token, `?select=id,contribution_id,receipt_number,verification_hash,issued_at&contribution_id=in.(${contributionIds.map(encodeURIComponent).join(',')})`);
-    return rows.map((row) => ({...row, fund: funds.find((fund) => fund.id === row.fund_id) ?? null, receipt: receipts.find((receipt) => receipt.contribution_id === row.id) ?? null}));
+    const paymentIds = rows.map((row) => String(row.id));
+    const [funds, receipts, methods] = await Promise.all([
+      this.db.get<Array<{id:string;name:string}>>('giving_funds', token, `?select=id,name&id=in.(${fundIds.map(encodeURIComponent).join(',')})`),
+      this.db.get<Array<{payment_id:string;receipt_number:string;content_hash:string;verification_code:string;issued_at:string}>>('giving_receipts', token, `?select=payment_id,receipt_number,content_hash,verification_code,issued_at&payment_id=in.(${paymentIds.map(encodeURIComponent).join(',')})`),
+      this.db.get<Array<{id:string;provider:string;label:string}>>('giving_payment_methods', token, `?select=id,provider,label&id=in.(${[...new Set(rows.map(row=>String(row.method_id)))].map(encodeURIComponent).join(',')})`),
+    ]);
+    return rows.map((row) => {
+      const receipt = receipts.find((item) => item.payment_id === row.id);
+      const method = methods.find((item) => item.id === row.method_id);
+      return {...row, reference_code:row.reference, payment_method:method?.provider ?? 'BANK_TRANSFER',
+        status:row.status === 'AWAITING_CONFIRMATION' ? 'UNDER_REVIEW' : row.status === 'FAILED' ? 'REJECTED' : row.status,
+        fund:funds.find((fund) => fund.id === row.fund_id) ?? null,
+        receipt:receipt ? {receipt_number:receipt.receipt_number,verification_hash:receipt.content_hash,verification_code:receipt.verification_code,issued_at:receipt.issued_at} : null};
+    });
   }
 
   async treasuryGivingContributions(token: string, organizationId: string) {
     await this.identity.getCurrentUser(token);
-    return this.db.get<Array<Record<string, unknown>>>('finance_giving_contributions', token,
-      `?select=id,organization_id,fund_id,contributor_id,amount,currency_code,payment_method,status,reference_code,created_at,confirmed_at&organization_id=eq.${encodeURIComponent(organizationId)}&order=created_at.desc&limit=200`);
+    const rows = await this.db.rpc<Array<Record<string, unknown>>>('list_giving_payments', token, {
+      p_organization_id: organizationId, p_status: null, p_limit: 200,
+    });
+    return rows.map((row) => ({...row, reference_code:row.reference, payment_method:row.method_label,
+      status:row.status === 'AWAITING_CONFIRMATION' ? 'UNDER_REVIEW' : row.status === 'FAILED' ? 'REJECTED' : row.status}));
   }
 
   async confirmGivingContribution(token: string, organizationId: string, contributionId: string) {
-    const user = await this.identity.getCurrentUser(token);
-    const rows = await this.db.patch<Array<Record<string, unknown>>>('finance_giving_contributions', token,
-      {status:'CONFIRMED',confirmed_by:user.id,confirmed_at:new Date().toISOString()},
-      `?id=eq.${encodeURIComponent(contributionId)}&organization_id=eq.${encodeURIComponent(organizationId)}&status=in.(PENDING,UNDER_REVIEW)`);
-    if (!rows[0]) throw new NotFoundException('Pedido não encontrado, já confirmado ou sem permissão de tesouraria.');
-    return rows[0];
+    await this.identity.getCurrentUser(token);
+    const payment = await this.db.get<Array<{id:string;organization_id:string}>>('giving_payments', token,
+      `?select=id,organization_id&id=eq.${encodeURIComponent(contributionId)}&organization_id=eq.${encodeURIComponent(organizationId)}&limit=1`);
+    if (!payment[0]) throw new NotFoundException('Pedido não encontrado nesta organização.');
+    return this.db.rpc<Record<string, unknown>>('confirm_giving_payment', token, {
+      p_payment_id: contributionId, p_provider_reference: null,
+    });
+  }
+
+  async configureGivingBankTransfer(token: string, organizationId: string, input: { bank_name:string; account_holder:string; iban:string }) {
+    await this.identity.getCurrentUser(token);
+    const bankName = input.bank_name?.trim();
+    const accountHolder = input.account_holder?.trim();
+    const iban = input.iban?.replace(/\s+/g, '').toUpperCase();
+    if (!bankName || bankName.length < 2 || bankName.length > 120 || !accountHolder || accountHolder.length < 2 || accountHolder.length > 120 || !iban || !/^AO[0-9]{23}$/.test(iban)) {
+      throw new BadRequestException('Indique o banco, o titular da conta e um IBAN angolano válido (AO + 23 dígitos).');
+    }
+    const methods = await this.db.get<Array<{id:string;provider:string;asset_account_id:string|null}>>('giving_payment_methods', token,
+      `?select=id,provider,asset_account_id&organization_id=eq.${encodeURIComponent(organizationId)}&provider=eq.BANK_TRANSFER&limit=1`);
+    if (!methods[0]?.asset_account_id) throw new BadRequestException('A configuração contabilística ainda não foi inicializada. Sincronize a migração Giving.');
+    const payload = {is_enabled:true,public_details:{bank_name:bankName,account_holder:accountHolder,iban},updated_at:new Date().toISOString()};
+    const updated = await this.db.patch<Array<Record<string,unknown>>>('giving_payment_methods', token, payload,
+      `?id=eq.${encodeURIComponent(methods[0].id)}&organization_id=eq.${encodeURIComponent(organizationId)}`);
+    if (!updated[0]) throw new ForbiddenException('Sem permissão para configurar os dados bancários. É necessária a permissão giving.manage.');
+    return updated[0];
   }
 
 }
