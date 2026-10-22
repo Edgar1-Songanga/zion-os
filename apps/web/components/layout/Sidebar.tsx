@@ -50,6 +50,7 @@ export default function Sidebar() {
       { name: t("communities"), path: "/resa/communities" },
     ] },
     { title: t("organization"), items: [{ name: "Administração", path: "/admin" }] },
+    { title: "Preferências", items: [{ name: "Notificações", path: "/settings/notifications" }] },
   ];
 
   return (
