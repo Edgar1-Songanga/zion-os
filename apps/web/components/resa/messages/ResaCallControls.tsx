@@ -59,7 +59,7 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
   useEffect(() => {
     if (!incoming) return;
     let active = true;
-    let stopAlert = () => undefined;
+    let stopAlert: () => void = () => undefined;
     void resaRequest<NotificationAlertPreferences>("/v1/notifications/preferences")
       .catch(() => ({} as NotificationAlertPreferences))
       .then((preferences) => {
