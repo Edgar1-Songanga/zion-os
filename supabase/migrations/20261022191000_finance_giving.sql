@@ -139,3 +139,50 @@ drop trigger if exists giving_receipt_on_confirmation on public.finance_giving_c
 create trigger giving_receipt_on_confirmation before update of status on public.finance_giving_contributions
 for each row execute function public.issue_giving_receipt_after_confirmation();
 revoke all on function public.issue_giving_receipt_after_confirmation() from public, anon, authenticated;
+
+
+-- Automatically post confirmed giving to the existing double-entry ledger.
+create unique index if not exists finance_journal_giving_source_unique
+on public.finance_journal_entries(organization_id,source_type,source_id)
+where source_type='GIVING' and source_id is not null;
+
+create or replace function private.post_confirmed_giving_to_ledger()
+returns trigger language plpgsql security definer set search_path=public,private,pg_temp as $$
+declare
+  v_fund public.finance_giving_funds%rowtype;
+  v_cash_account uuid;
+  v_fund_account uuid;
+  v_entry uuid;
+begin
+  if new.status='CONFIRMED' and old.status is distinct from 'CONFIRMED' then
+    select * into v_fund from public.finance_giving_funds where id=new.fund_id and organization_id=new.organization_id;
+    if not found then raise exception 'giving_fund_not_found'; end if;
+
+    insert into public.finance_accounts(organization_id,code,name,account_type,currency_code)
+    values(new.organization_id,'GIV-CASH','Recebimentos de contribuições','ASSET','AOA')
+    on conflict(organization_id,code) do nothing;
+    select id into v_cash_account from public.finance_accounts where organization_id=new.organization_id and code='GIV-CASH';
+
+    insert into public.finance_accounts(organization_id,code,name,account_type,currency_code)
+    values(new.organization_id,'GIV-' || upper(substr(replace(v_fund.id::text,'-',''),1,8)),'Contribuições · ' || v_fund.name,'REVENUE','AOA')
+    on conflict(organization_id,code) do nothing;
+    select id into v_fund_account from public.finance_accounts where organization_id=new.organization_id and code='GIV-' || upper(substr(replace(v_fund.id::text,'-',''),1,8));
+
+    insert into public.finance_journal_entries(organization_id,entry_date,description,source_type,source_id,status,created_by)
+    values(new.organization_id,current_date,'Contribuição confirmada · ' || v_fund.name || ' · ' || new.reference_code,'GIVING',new.id,'POSTED',new.confirmed_by)
+    on conflict (organization_id,source_type,source_id) where source_type='GIVING' and source_id is not null do nothing
+    returning id into v_entry;
+
+    if v_entry is not null then
+      insert into public.finance_journal_lines(journal_entry_id,account_id,debit,credit,description)
+      values
+        (v_entry,v_cash_account,new.amount,0,'Recebimento · ' || new.reference_code),
+        (v_entry,v_fund_account,0,new.amount,'Destino: ' || v_fund.name);
+    end if;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists giving_post_to_ledger on public.finance_giving_contributions;
+create trigger giving_post_to_ledger after update of status on public.finance_giving_contributions
+for each row execute function private.post_confirmed_giving_to_ledger();
