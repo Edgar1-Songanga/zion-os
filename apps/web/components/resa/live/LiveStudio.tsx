@@ -852,9 +852,9 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
         <style jsx>{`@keyframes zion-reaction-rise { 0% { transform: translateY(18px) scale(.65); opacity: 0; } 18% { opacity: 1; } 75% { opacity: .95; } 100% { transform: translateY(-90px) scale(1.18); opacity: 0; } } .zion-live-reaction { animation: zion-reaction-rise 3.8s ease-out forwards; }`}</style>
         <header className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-4 text-white sm:px-6">
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">ZION · RESA Live</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-sky-200">ZION · RESA Live Studio</p>
             <h2 className="truncate font-semibold">{title}</h2>
-            <p className="mt-1 text-xs text-slate-400">{starting ? "A estabelecer ligação…" : connected ? (isHost ? "Estás a transmitir como anfitrião" : "Ligado como espectador") : "Sem ligação"}{connected ? " · " + elapsedLabel : ""}{recording ? " · GRAVAÇÃO ATIVA" : ""}{streamingExternal ? " · SAÍDA EXTERNA ATIVA" : ""}</p>
+            <p className="mt-1 text-xs text-slate-400">{starting ? "A estabelecer ligação…" : connected ? (isHost ? "Estás a transmitir como anfitrião" : isModerator ? "Ligado como co-host / moderador" : "Ligado como participante") : "Sem ligação"}{connected ? " · " + elapsedLabel : ""}{recording ? " · GRAVAÇÃO ATIVA" : ""}{streamingExternal ? " · SAÍDA EXTERNA ATIVA" : ""}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {audioNeedsGesture && <button onClick={() => void startAudio()} disabled={!connected} className="rounded-xl border border-sky-200/30 bg-sky-300/10 px-3 py-2 text-xs font-semibold text-sky-100 hover:bg-sky-300/20">Ativar áudio</button>}
@@ -867,7 +867,7 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
             <div className="relative flex min-h-[260px] flex-1 items-center justify-center overflow-hidden rounded-2xl bg-black p-2">
               <div ref={remoteRef} className={"grid h-full w-full content-center gap-3 " + (stageLayout === "grid" ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1")} />
               <div className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-full border border-white/15 bg-black/60 px-3 py-2 text-[11px] font-semibold text-white backdrop-blur">
-                <span className="h-2 w-2 rounded-full bg-red-500" /> LIVE <span className="text-white/60">{participants.length} participante{participants.length === 1 ? "" : "s"}</span>
+                <span className={"h-2 w-2 rounded-full " + (connected ? "animate-pulse bg-rose-400" : starting ? "bg-amber-300" : "bg-slate-500")} /> {connected ? "AO VIVO" : starting ? "A LIGAR" : "OFFLINE"} <span className="text-white/60">{participants.length} participante{participants.length === 1 ? "" : "s"}</span>
               </div>
               <div className="absolute right-4 top-4 z-10 flex gap-1 rounded-xl border border-white/10 bg-black/60 p-1 backdrop-blur">
                 <button type="button" onClick={() => setStageLayout("grid")} aria-pressed={stageLayout === "grid"} className={"rounded-lg px-2.5 py-1.5 text-xs font-semibold " + (stageLayout === "grid" ? "bg-sky-300 text-[#07142c]" : "text-white hover:bg-white/10")}>Grelha</button>
