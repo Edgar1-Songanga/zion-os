@@ -104,7 +104,7 @@ export class FinanceService {
 
   async myGivingContributions(token: string, organizationId: string) {
     const user = await this.identity.getCurrentUser(token);
-    const rows = await this.db.get<Array<Record<string, any>>>('finance_giving_contributions', token,
+    const rows = await this.db.get<Array<Record<string, unknown>>>('finance_giving_contributions', token,
       `?select=id,organization_id,fund_id,amount,currency_code,payment_method,status,reference_code,created_at,contributor_id&organization_id=eq.${encodeURIComponent(organizationId)}&contributor_id=eq.${encodeURIComponent(user.id)}&order=created_at.desc&limit=100`);
     if (!rows.length) return [];
     const fundIds = [...new Set(rows.map((row) => String(row.fund_id)))];
