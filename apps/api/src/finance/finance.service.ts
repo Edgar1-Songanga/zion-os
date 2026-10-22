@@ -178,7 +178,7 @@ export class FinanceService {
     await this.identity.getCurrentUser(token);
     const bankName = input.bank_name?.trim();
     const accountHolder = input.account_holder?.trim();
-    const iban = input.iban?.replace(/\\s+/g, '').toUpperCase();
+    const iban = input.iban?.replace(/\s+/g, '').toUpperCase();
     if (!bankName || bankName.length < 2 || bankName.length > 120 || !accountHolder || accountHolder.length < 2 || accountHolder.length > 120 || !iban || !/^AO[0-9]{23}$/.test(iban)) {
       throw new BadRequestException('Indique o banco, o titular da conta e um IBAN angolano válido (AO + 23 dígitos).');
     }
