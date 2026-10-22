@@ -50,8 +50,8 @@ export default function GivingPage() {
   }
   function printReceipt(item:Contribution) {
     if(!item.receipt)return;
-    const w=window.open("","_blank","noopener,noreferrer,width=720,height=800");
-    if(!w){setError("Permita abrir uma janela para imprimir o recibo.");return;}
+    const w=window.open("","_blank","width=720,height=800");
+    if(!w){setError("Permita abrir uma janela para imprimir o recibo.");return;} w.opener=null;
     const esc=(s:string)=>s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c] as string));
     w.document.write(`<!doctype html><html lang="pt"><meta charset="utf-8"><title>Recibo ZION #${item.receipt.receipt_number}</title><style>body{font:16px Arial,sans-serif;color:#142342;padding:42px;max-width:680px;margin:auto}header{border-bottom:3px solid #c6a45d;padding-bottom:20px}small{color:#777;letter-spacing:2px}h1{font-size:28px}dl{display:grid;grid-template-columns:180px 1fr;gap:14px}dt{color:#666}dd{margin:0;font-weight:600}.amount{font-size:28px;color:#96752d;margin:28px 0}.hash{word-break:break-all;background:#f4f2ec;padding:14px;border-radius:8px;font-size:11px}footer{margin-top:40px;color:#777;font-size:12px}@media print{button{display:none}}</style><header><small>ZION OS · RECIBO DIGITAL</small><h1>Recibo de contribuição #${item.receipt.receipt_number}</h1><p>Documento emitido após confirmação pela tesouraria.</p></header><p class="amount">${esc(money(Number(item.amount)))}</p><dl><dt>Destino</dt><dd>${esc(item.fund?.name??"Contribuição")}</dd><dt>Referência</dt><dd>${esc(item.reference_code)}</dd><dt>Data de emissão</dt><dd>${esc(new Date(item.receipt.issued_at).toLocaleString("pt-AO"))}</dd><dt>Estado</dt><dd>Confirmada</dd></dl><h3>Verificação</h3><div class="hash">${esc(item.receipt.verification_hash)}</div><footer>Guarde este documento para os seus registos. A confirmação corresponde aos dados registados no ZION OS.</footer><button onclick="window.print()">Imprimir / Guardar PDF</button></html>`);
     w.document.close();
