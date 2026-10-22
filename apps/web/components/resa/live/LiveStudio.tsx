@@ -14,6 +14,7 @@ type LivePacket =
   | { type: "speak_granted"; name?: string }
   | { type: "speak_revoked"; name?: string }
   | { type: "announcement"; text: string; name?: string }
+  | { type: "scripture"; title: string; text: string; name?: string }
   | { type: "reaction"; emoji: string; name?: string };
 
 const DATA_TOPIC = "zion-live";
@@ -75,6 +76,9 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
   const [liveElapsed, setLiveElapsed] = useState(0);
   const [stageLayout, setStageLayout] = useState<"grid" | "stage">("grid");
   const [liveReactions, setLiveReactions] = useState<Array<{ id: string; emoji: string; name: string }>>([]);
+  const [scriptureTitle, setScriptureTitle] = useState("");
+  const [scriptureText, setScriptureText] = useState("");
+  const [sharedScripture, setSharedScripture] = useState<{ title: string; text: string; name: string } | null>(null);
   const [mediaSource, setMediaSource] = useState<string | null>(null);
   const [mediaFileType, setMediaFileType] = useState<"audio" | "video" | null>(null);
   const [mediaFileName, setMediaFileName] = useState("");
@@ -210,6 +214,9 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
           setNotice("A moderação retirou a tua permissão de falar. O microfone, a câmara e a partilha foram desligados.");
         } else if (packet.type === "announcement") {
           setNotice(packet.text);
+        } else if (packet.type === "scripture" && packet.title?.trim() && packet.text?.trim()) {
+          setSharedScripture({ title: packet.title.trim().slice(0, 120), text: packet.text.trim().slice(0, 5000), name });
+          setNotice("Texto bíblico partilhado por " + name + ".");
         } else if (packet.type === "reaction" && ["👏", "❤️", "🙏", "🔥", "✨", "🙌"].includes(packet.emoji)) {
           const reaction = { id: identity + "-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6), emoji: packet.emoji, name };
           setLiveReactions((current) => [...current.slice(-11), reaction]);
@@ -334,6 +341,24 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
       window.setTimeout(() => setLiveReactions((current) => current.filter((item) => item.id !== own.id)), 5000);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível enviar a reação.");
+    }
+  }
+
+  async function shareScripture(event: React.FormEvent) {
+    event.preventDefault();
+    if ((!isHost && !isModerator) || !connected) return;
+    const titleText = scriptureTitle.trim().slice(0, 120);
+    const bodyText = scriptureText.trim().slice(0, 5000);
+    if (!titleText || !bodyText) { setError("Indica uma referência e o texto que queres partilhar."); return; }
+    try {
+      await sendPacket({ type: "scripture", title: titleText, text: bodyText, name: roomRef.current?.localParticipant.name || "Anfitrião" });
+      setSharedScripture({ title: titleText, text: bodyText, name: "Tu" });
+      setScriptureTitle("");
+      setScriptureText("");
+      setNotice("Texto partilhado com todos os participantes.");
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível partilhar o texto.");
     }
   }
 
@@ -827,9 +852,9 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
         <style jsx>{`@keyframes zion-reaction-rise { 0% { transform: translateY(18px) scale(.65); opacity: 0; } 18% { opacity: 1; } 75% { opacity: .95; } 100% { transform: translateY(-90px) scale(1.18); opacity: 0; } } .zion-live-reaction { animation: zion-reaction-rise 3.8s ease-out forwards; }`}</style>
         <header className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-4 text-white sm:px-6">
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">ZION · RESA Live</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-sky-200">ZION · RESA Live Studio</p>
             <h2 className="truncate font-semibold">{title}</h2>
-            <p className="mt-1 text-xs text-slate-400">{starting ? "A estabelecer ligação…" : connected ? (isHost ? "Estás a transmitir como anfitrião" : "Ligado como espectador") : "Sem ligação"}{connected ? " · " + elapsedLabel : ""}{recording ? " · GRAVAÇÃO ATIVA" : ""}{streamingExternal ? " · SAÍDA EXTERNA ATIVA" : ""}</p>
+            <p className="mt-1 text-xs text-slate-400">{starting ? "A estabelecer ligação…" : connected ? (isHost ? "Estás a transmitir como anfitrião" : isModerator ? "Ligado como co-host / moderador" : "Ligado como participante") : "Sem ligação"}{connected ? " · " + elapsedLabel : ""}{recording ? " · GRAVAÇÃO ATIVA" : ""}{streamingExternal ? " · SAÍDA EXTERNA ATIVA" : ""}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {audioNeedsGesture && <button onClick={() => void startAudio()} disabled={!connected} className="rounded-xl border border-sky-200/30 bg-sky-300/10 px-3 py-2 text-xs font-semibold text-sky-100 hover:bg-sky-300/20">Ativar áudio</button>}
@@ -842,7 +867,7 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
             <div className="relative flex min-h-[260px] flex-1 items-center justify-center overflow-hidden rounded-2xl bg-black p-2">
               <div ref={remoteRef} className={"grid h-full w-full content-center gap-3 " + (stageLayout === "grid" ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1")} />
               <div className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-full border border-white/15 bg-black/60 px-3 py-2 text-[11px] font-semibold text-white backdrop-blur">
-                <span className="h-2 w-2 rounded-full bg-red-500" /> LIVE <span className="text-white/60">{participants.length} participante{participants.length === 1 ? "" : "s"}</span>
+                <span className={"h-2 w-2 rounded-full " + (connected ? "animate-pulse bg-rose-400" : starting ? "bg-amber-300" : "bg-slate-500")} /> {connected ? "AO VIVO" : starting ? "A LIGAR" : "OFFLINE"} <span className="text-white/60">{participants.length} participante{participants.length === 1 ? "" : "s"}</span>
               </div>
               <div className="absolute right-4 top-4 z-10 flex gap-1 rounded-xl border border-white/10 bg-black/60 p-1 backdrop-blur">
                 <button type="button" onClick={() => setStageLayout("grid")} aria-pressed={stageLayout === "grid"} className={"rounded-lg px-2.5 py-1.5 text-xs font-semibold " + (stageLayout === "grid" ? "bg-sky-300 text-[#07142c]" : "text-white hover:bg-white/10")}>Grelha</button>
@@ -853,6 +878,8 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
               {camera && connected && <div className="absolute bottom-3 right-3 z-20 h-24 w-36 overflow-hidden rounded-xl border border-white/20 bg-slate-900 shadow-2xl sm:h-32 sm:w-48"><video ref={localVideoRef} autoPlay muted playsInline className="h-full w-full object-cover" /><span className="absolute bottom-1 left-1 rounded-md bg-black/65 px-2 py-1 text-[10px] font-semibold text-white">{roomRef.current?.localParticipant.name || "Tu"} · Tu</span></div>}
               {!connected && <div className="absolute inset-0 flex items-center justify-center bg-black/60 p-6 text-center text-sm text-slate-300">{error || (starting ? "A preparar áudio e vídeo…" : "A ligação foi interrompida.")}</div>}
             </div>
+            {sharedScripture && <article aria-live="polite" className="rounded-2xl border border-amber-200/25 bg-gradient-to-br from-amber-100/[0.10] via-white/[0.035] to-transparent p-5 shadow-[0_18px_50px_rgba(0,0,0,0.18)]"><p className="text-[10px] font-bold uppercase tracking-[0.22em] text-amber-200/80">Leitura partilhada</p><h3 className="mt-2 text-lg font-semibold text-amber-50">{sharedScripture.title}</h3><p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-100">{sharedScripture.text}</p><p className="mt-3 text-[10px] text-slate-500">Partilhado por {sharedScripture.name}</p></article>}
+            {connected && (isHost || isModerator) && <details className="group rounded-2xl border border-amber-200/20 bg-gradient-to-r from-amber-100/[0.06] to-white/[0.02] p-4"><summary className="cursor-pointer list-none text-sm font-semibold text-amber-100"><span className="mr-2 text-amber-300">✦</span>Partilhar texto bíblico ou mensagem <span className="float-right text-amber-200/70 transition group-open:rotate-180">⌄</span></summary><form onSubmit={(event) => void shareScripture(event)} className="mt-4 space-y-3"><input value={scriptureTitle} onChange={(event) => setScriptureTitle(event.target.value)} maxLength={120} placeholder="Referência ou título (ex.: Salmo 23)" className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-amber-200/40" /><textarea value={scriptureText} onChange={(event) => setScriptureText(event.target.value)} maxLength={5000} rows={3} placeholder="Escreve ou cola o texto que todos devem acompanhar…" className="w-full resize-y rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-amber-200/40" /><div className="flex items-center justify-between gap-3"><p className="text-[11px] leading-4 text-slate-500">Enviado em tempo real para todos os participantes.</p><button type="submit" disabled={!connected || !scriptureTitle.trim() || !scriptureText.trim()} className="rounded-xl bg-amber-200 px-4 py-2.5 text-xs font-bold text-[#07142c] transition hover:bg-amber-100 disabled:opacity-40">Partilhar no palco</button></div></form></details>}
             {connected && <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2"><span className="text-xs font-semibold text-slate-400">Reações ao vivo</span><div className="flex flex-wrap gap-1.5">{["👏", "❤️", "🙏", "🔥", "✨", "🙌"].map((emoji) => <button key={emoji} type="button" onClick={() => void sendReaction(emoji)} aria-label={"Enviar reação " + emoji} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-lg transition hover:-translate-y-0.5 hover:border-sky-300/40 hover:bg-sky-300/10">{emoji}</button>)}</div></div>}
             {notice && <div role="status" className="rounded-xl border border-sky-300/20 bg-sky-400/10 px-4 py-3 text-sm text-sky-100">{notice}<button onClick={() => setNotice(null)} className="ml-3 underline">Fechar</button></div>}
             {error && connected && <div role="alert" className="rounded-xl border border-red-300/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div>}
@@ -920,12 +947,12 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
                 </div>}
                 {participants.map((person) => (
                   <div key={person.identity} className="flex items-center justify-between gap-2 rounded-xl bg-white/5 p-3 text-sm text-white">
-                    <div className="min-w-0"><p className="truncate font-medium">{person.name}</p><p className="text-xs text-slate-500">{person.identity === selfIdentity ? "Este dispositivo" : isHost ? "Participante" : "Na live"}</p></div>
+                    <div className="min-w-0"><p className="truncate font-medium">{person.name}</p><p className="text-xs text-slate-500">{person.identity === selfIdentity ? "Este dispositivo" : moderatorIds.includes(person.identity) ? "Co-host · moderador" : isHost ? "Participante" : "Na live"}</p></div>
                     {(isHost || isModerator) && person.identity !== selfIdentity && person.identity !== (roomRef.current?.localParticipant.identity || "") && <div className="flex shrink-0 flex-wrap justify-end gap-1">
                       <button title="Autorizar a falar" onClick={() => void moderate(person.identity, "allow_speak")} className="rounded-lg bg-white/10 px-2 py-1 text-xs">Falar</button>
                       <button title="Retirar permissão de falar" onClick={() => void moderate(person.identity, "revoke_speak")} className="rounded-lg bg-white/10 px-2 py-1 text-xs">Silenciar</button>
                       <button title="Remover da live" onClick={() => void moderate(person.identity, "remove")} className="rounded-lg bg-red-500/20 px-2 py-1 text-xs text-red-200">Remover</button>
-                      {isHost && <button title="Delegar ou retirar moderação" onClick={() => void toggleModerator(person.identity)} className={"rounded-lg px-2 py-1 text-xs " + (moderatorIds.includes(person.identity) ? "bg-amber-300/20 text-amber-100" : "bg-white/10 text-slate-200")}>{moderatorIds.includes(person.identity) ? "Retirar moderador" : "Tornar moderador"}</button>}
+                      {isHost && <button title="Delegar ou retirar função de co-host" onClick={() => void toggleModerator(person.identity)} className={"rounded-lg px-2 py-1 text-xs " + (moderatorIds.includes(person.identity) ? "bg-amber-300/20 text-amber-100" : "bg-white/10 text-slate-200")}>{moderatorIds.includes(person.identity) ? "Retirar co-host" : "Tornar co-host"}</button>}
                     </div>}
                   </div>
                 ))}
