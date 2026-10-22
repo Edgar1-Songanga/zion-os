@@ -66,8 +66,8 @@ export function playNotificationAlert(
           oscillator.type = "sine";
           oscillator.frequency.setValueAtTime(note.hz, start);
           gain.gain.setValueAtTime(0.0001, start);
-          gain.gain.exponentialRampToValueAtTime(0.18, start + 0.025);
-          gain.gain.setValueAtTime(0.18, start + Math.max(0.04, note.duration - 0.06));
+          gain.gain.exponentialRampToValueAtTime(0.22, start + 0.025);
+          gain.gain.setValueAtTime(0.22, start + Math.max(0.04, note.duration - 0.06));
           gain.gain.exponentialRampToValueAtTime(0.0001, start + note.duration);
           oscillator.connect(gain);
           gain.connect(audio.destination);
