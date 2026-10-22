@@ -9,11 +9,12 @@ export type NotificationAlertPreferences = {
 
 let sharedAudioContext: AudioContext | undefined;
 
+/** Call from a user gesture to satisfy browser autoplay policies. */
 export function unlockNotificationAudio(): void {
-  if (typeof window === 'undefined' || !window.AudioContext) return;
+  if (typeof window === "undefined" || !window.AudioContext) return;
   try {
     sharedAudioContext ??= new window.AudioContext();
-    if (sharedAudioContext.state === 'suspended') void sharedAudioContext.resume().catch(() => undefined);
+    if (sharedAudioContext.state === "suspended") void sharedAudioContext.resume().catch(() => undefined);
   } catch { /* Audio is optional and subject to browser policy. */ }
 }
 
@@ -22,7 +23,7 @@ function isQuietNow(start?: string | null, end?: string | null): boolean {
   const now = new Date();
   const current = now.getHours() * 60 + now.getMinutes();
   const toMinutes = (value: string) => {
-    const match = /^(\d{2}):(\d{2})/.exec(value);
+    const match = /^(\d{2}):(\d{2})$/.exec(value);
     if (!match) return null;
     const hours = Number(match[1]);
     const minutes = Number(match[2]);
@@ -35,52 +36,70 @@ function isQuietNow(start?: string | null, end?: string | null): boolean {
   return from < until ? current >= from && current < until : current >= from || current < until;
 }
 
-export function playNotificationAlert(type: string, preferences: NotificationAlertPreferences | null | undefined, repeat = false): () => void {
+/** A short premium chime and one bounded vibration. Never loops, including incoming calls. */
+export function playNotificationAlert(
+  type: string,
+  preferences: NotificationAlertPreferences | null | undefined,
+  _repeat = false,
+): () => void {
   const settings = preferences ?? {};
   if (settings.enabled === false || settings.muted_types?.includes(type) || isQuietNow(settings.quiet_start, settings.quiet_end)) return () => undefined;
+
   let stopped = false;
-  let timer: number | undefined;
+  const oscillators: OscillatorNode[] = [];
+  const gains: GainNode[] = [];
   const beep = () => {
-    if (stopped || settings.sound_enabled === false || typeof window === 'undefined') return;
-    const AudioContextClass = window.AudioContext;
-    if (!AudioContextClass) return;
+    if (stopped || settings.sound_enabled === false || typeof window === "undefined" || !window.AudioContext) return;
     try {
-      sharedAudioContext ??= new AudioContextClass();
+      sharedAudioContext ??= new window.AudioContext();
       const audio = sharedAudioContext;
-      const playTone = () => {
-        if (stopped || audio.state !== 'running') return;
-        try {
+      const play = () => {
+        if (stopped || audio.state !== "running") return;
+        const isCall = type.toLowerCase().includes("call");
+        const notes = isCall
+          ? [{ at: 0, hz: 784, duration: 0.22 }, { at: 0.28, hz: 988, duration: 0.28 }, { at: 0.72, hz: 784, duration: 0.22 }, { at: 1.0, hz: 988, duration: 0.24 }]
+          : [{ at: 0, hz: 659, duration: 0.2 }, { at: 0.25, hz: 880, duration: 0.28 }];
+        for (const note of notes) {
           const oscillator = audio.createOscillator();
           const gain = audio.createGain();
-          oscillator.type = 'sine';
-          oscillator.frequency.value = type.includes('call') ? 880 : 660;
-          gain.gain.setValueAtTime(0.0001, audio.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.12, audio.currentTime + 0.025);
-          gain.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + 0.24);
+          const start = audio.currentTime + note.at;
+          oscillator.type = "sine";
+          oscillator.frequency.setValueAtTime(note.hz, start);
+          gain.gain.setValueAtTime(0.0001, start);
+          gain.gain.exponentialRampToValueAtTime(0.18, start + 0.025);
+          gain.gain.setValueAtTime(0.18, start + Math.max(0.04, note.duration - 0.06));
+          gain.gain.exponentialRampToValueAtTime(0.0001, start + note.duration);
           oscillator.connect(gain);
           gain.connect(audio.destination);
-          oscillator.start();
-          oscillator.stop(audio.currentTime + 0.25);
-        } catch { /* Browser audio policy may require prior user interaction. */ }
+          oscillator.start(start);
+          oscillator.stop(start + note.duration + 0.01);
+          oscillators.push(oscillator);
+          gains.push(gain);
+        }
       };
-      if (audio.state === 'suspended') {
-        // Wait for resume before scheduling the tone; scheduling while suspended can be inaudible.
-        void audio.resume().then(playTone).catch(() => undefined);
-      } else {
-        playTone();
-      }
-    } catch { /* Browser audio policy may require prior user interaction. */ }
+      if (audio.state === "suspended") void audio.resume().then(play).catch(() => undefined);
+      else play();
+    } catch { /* Browser audio may require explicit user interaction. */ }
   };
+
   const vibrate = () => {
-    if (stopped || settings.vibration_enabled === false || typeof navigator === 'undefined') return;
-    try { if ('vibrate' in navigator) navigator.vibrate(type.includes('call') ? [400, 120, 400, 120, 700] : [180, 80, 180]); } catch { /* Device support is optional. */ }
+    if (stopped || settings.vibration_enabled === false || typeof navigator === "undefined") return;
+    try {
+      if ("vibrate" in navigator) navigator.vibrate(type.toLowerCase().includes("call") ? [180, 70, 180] : [140, 60, 140]);
+    } catch { /* Vibration is optional and device/browser-dependent. */ }
   };
-  const alertOnce = () => { beep(); vibrate(); };
-  alertOnce();
-  if (repeat && typeof window !== 'undefined') timer = window.setInterval(alertOnce, 1800);
+
+  beep();
+  vibrate();
   return () => {
     stopped = true;
-    if (timer !== undefined && typeof window !== 'undefined') window.clearInterval(timer);
-    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate(0);
+    for (const oscillator of oscillators) {
+      try { oscillator.stop(); } catch { /* Already stopped. */ }
+      try { oscillator.disconnect(); } catch { /* Already disconnected. */ }
+    }
+    for (const gain of gains) { try { gain.disconnect(); } catch { /* Already disconnected. */ } }
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      try { navigator.vibrate(0); } catch { /* Optional device capability. */ }
+    }
   };
 }
