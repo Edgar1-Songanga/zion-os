@@ -80,6 +80,7 @@ export default function NotificationSettingsPage() {
       const saved = await resaRequest<Preferences>("/v1/notifications/preferences", { method: "PATCH", body: JSON.stringify(patch) });
       const next = { ...preferences, ...patch, ...saved };
       setPreferences(next); setMode(modeFromPreferences(next));
+      window.dispatchEvent(new CustomEvent<NotificationAlertPreferences>("zion:notification-preferences-updated", { detail: next }));
       setMessage("As preferências foram guardadas.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Não foi possível guardar as definições.");
