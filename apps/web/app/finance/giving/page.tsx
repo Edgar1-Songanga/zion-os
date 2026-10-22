@@ -20,7 +20,8 @@ export default function GivingPage() {
   const [step,setStep] = useState<"form"|"review">("form");
   const [busy,setBusy] = useState(false);
   const [error,setError] = useState("");
-  const [success,setSuccess] = useState<Contribution|null>(null);\n  const [requestKey,setRequestKey] = useState("");
+  const [success,setSuccess] = useState<Contribution|null>(null);
+  const [requestKey,setRequestKey] = useState("");
   const selected = useMemo(()=>funds.find(f=>f.id===fundId),[funds,fundId]);
   const numericAmount = Number(amount);
   const validAmount = Number.isFinite(numericAmount) && numericAmount>0 && Math.abs(numericAmount*100-Math.round(numericAmount*100))<1e-8;
@@ -42,7 +43,8 @@ export default function GivingPage() {
     if(!orgId||!fundId||!validAmount||busy)return;
     setBusy(true);setError("");
     try {
-      const key=requestKey||crypto.randomUUID();setRequestKey(key);\n      const item=await resaRequest<Contribution>(`/v1/finance/organizations/${orgId}/giving/contributions`,{method:"POST",body:JSON.stringify({fund_id:fundId,amount:numericAmount,payment_method:"BANK_TRANSFER",idempotency_key:key})});
+      const key=requestKey||crypto.randomUUID();setRequestKey(key);
+      const item=await resaRequest<Contribution>(`/v1/finance/organizations/${orgId}/giving/contributions`,{method:"POST",body:JSON.stringify({fund_id:fundId,amount:numericAmount,payment_method:"BANK_TRANSFER",idempotency_key:key})});
       setSuccess({...item,fund:{name:selected?.name??"Contribuição"}});setStep("form");setAmount("");
       await refresh(orgId);
     } catch(e) {setError(e instanceof Error?e.message:"Não foi possível registar o pedido.");}
