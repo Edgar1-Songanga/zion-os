@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { resaRequest } from "@/lib/resa/api";
+import { playNotificationAlert, unlockNotificationAudio, type NotificationAlertPreferences } from "@/lib/notifications/notification-alerts";
 
 type NotificationItem = {
   id: string;
@@ -18,142 +20,32 @@ type NotificationItem = {
 export default function NotificationBell() {
   const router = useRouter();
   const rootRef = useRef<HTMLDivElement>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
+  const preferencesRef = useRef<NotificationAlertPreferences>({ enabled: true, sound_enabled: true, vibration_enabled: true });
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [pushBusy, setPushBusy] = useState(false);
-  const [pushEnabled, setPushEnabled] = useState(false);
-  const [pushMessage, setPushMessage] = useState("");
   const [loadError, setLoadError] = useState(false);
   const loadingRef = useRef(false);
   const mountedRef = useRef(true);
-  const pushPublicKey = process.env.NEXT_PUBLIC_RESA_VAPID_PUBLIC_KEY || "BEmbs-5tKPOjip3OfVkjD4VynTnbOTxGQkXohOT_3KTCF-vCRJzbpLrJubl1y6CowFavkTDf1gSIJdXqNK2CJP8";
 
   useEffect(() => {
-    const unlockAudio = () => prepareNotificationAudio();
+    const updatePreferences = (event: Event) => {
+      const detail = (event as CustomEvent<NotificationAlertPreferences>).detail;
+      if (detail) preferencesRef.current = { ...preferencesRef.current, ...detail };
+    };
+    window.addEventListener("zion:notification-preferences-updated", updatePreferences);
+    const unlockAudio = () => unlockNotificationAudio();
     window.addEventListener("pointerdown", unlockAudio, { once: true });
-    return () => window.removeEventListener("pointerdown", unlockAudio);
+    window.addEventListener("keydown", unlockAudio, { once: true });
+    void resaRequest<NotificationAlertPreferences>("/v1/notifications/preferences")
+      .then((preferences) => { preferencesRef.current = { enabled: true, sound_enabled: true, vibration_enabled: true, ...preferences }; })
+      .catch(() => undefined);
+    return () => {
+      window.removeEventListener("pointerdown", unlockAudio);
+      window.removeEventListener("keydown", unlockAudio);
+      window.removeEventListener("zion:notification-preferences-updated", updatePreferences);
+    };
   }, []);
-
-  useEffect(() => {
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
-    void navigator.serviceWorker.getRegistration("/sw.js")
-      .then((registration) => registration?.pushManager.getSubscription())
-      .then((subscription) => setPushEnabled(Boolean(subscription)))
-      .catch(() => setPushEnabled(false));
-  }, []);
-
-  function prepareNotificationAudio() {
-    if (typeof window === "undefined" || !("AudioContext" in window)) return;
-    try {
-      const AudioContextConstructor = window.AudioContext;
-      if (!audioContextRef.current) audioContextRef.current = new AudioContextConstructor();
-      if (audioContextRef.current.state === "suspended") void audioContextRef.current.resume();
-    } catch {
-      // Audio is an enhancement; notification delivery must continue without it.
-    }
-  }
-
-  function playNotificationSound() {
-    const context = audioContextRef.current;
-    if (!context || context.state !== "running" || document.visibilityState !== "visible") return;
-    try {
-      const oscillator = context.createOscillator();
-      const gain = context.createGain();
-      oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(880, context.currentTime);
-      oscillator.frequency.setValueAtTime(660, context.currentTime + 0.12);
-      gain.gain.setValueAtTime(0.0001, context.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.12, context.currentTime + 0.025);
-      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.24);
-      oscillator.connect(gain);
-      gain.connect(context.destination);
-      oscillator.start();
-      oscillator.stop(context.currentTime + 0.25);
-    } catch {
-      // Audio is an enhancement; notification delivery must continue without it.
-    }
-  }
-
-  function decodeVapidPublicKey(value: string): Uint8Array {
-    const padding = "=".repeat((4 - value.length % 4) % 4);
-    const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
-    const raw = window.atob(base64);
-    return Uint8Array.from(raw, (character) => character.charCodeAt(0));
-  }
-
-  async function togglePush() {
-    if (pushBusy) return;
-    setPushBusy(true);
-    setPushMessage("");
-    prepareNotificationAudio();
-    try {
-      if (!pushPublicKey) {
-        setPushMessage("A configuração segura de Web Push ainda não foi concluída.");
-        return;
-      }
-      if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
-        setPushMessage("Este navegador não suporta notificações push. Em alguns telemóveis, instale o RESA como aplicação.");
-        return;
-      }
-      const supabase = createClient();
-      const { data: authData, error: authError } = await supabase.auth.getUser();
-      if (authError || !authData.user) throw new Error("Inicie sessão para configurar as notificações.");
-
-      const registration = await navigator.serviceWorker.register("/sw.js");
-      if (pushEnabled) {
-        const subscription = await registration.pushManager.getSubscription();
-        if (subscription) {
-          const endpoint = subscription.endpoint;
-          await subscription.unsubscribe();
-          const { error } = await supabase.from("resa_push_subscriptions")
-            .delete().eq("user_id", authData.user.id).eq("endpoint", endpoint);
-          if (error) throw error;
-        }
-        setPushEnabled(false);
-        setPushMessage("Notificações push desativadas neste dispositivo.");
-        return;
-      }
-
-      let permission = Notification.permission;
-      if (permission === "default") permission = await Notification.requestPermission();
-      if (permission !== "granted") {
-        setPushMessage("Permita notificações nas definições do navegador para continuar.");
-        return;
-      }
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: decodeVapidPublicKey(pushPublicKey) as BufferSource,
-      });
-      const serialized = subscription.toJSON();
-      const p256dh = serialized.keys?.p256dh;
-      const auth = serialized.keys?.auth;
-      if (!p256dh || !auth) {
-        await subscription.unsubscribe();
-        throw new Error("O navegador não devolveu as chaves necessárias para o push.");
-      }
-      const { error } = await supabase.from("resa_push_subscriptions").upsert({
-        user_id: authData.user.id,
-        endpoint: subscription.endpoint,
-        p256dh,
-        auth_secret: auth,
-        expiration_time: subscription.expirationTime,
-        user_agent: navigator.userAgent.slice(0, 500),
-        updated_at: new Date().toISOString(),
-      }, { onConflict: "endpoint" });
-      if (error) {
-        await subscription.unsubscribe();
-        throw error;
-      }
-      setPushEnabled(true);
-      setPushMessage("Notificações push ativadas neste dispositivo.");
-    } catch (error) {
-      setPushMessage(error instanceof Error ? error.message : "Não foi possível configurar as notificações push.");
-    } finally {
-      setPushBusy(false);
-    }
-  }
 
   const load = useCallback(async () => {
     if (loadingRef.current || document.visibilityState === "hidden") return;
@@ -194,7 +86,7 @@ export default function NotificationBell() {
           if (payload.eventType === "INSERT") {
             const next = payload.new as NotificationItem;
             setItems((current) => [next, ...current.filter((item) => item.id !== next.id)].slice(0, 20));
-            playNotificationSound();
+            playNotificationAlert("notification.incoming", preferencesRef.current);
           } else {
             void load();
           }
@@ -312,28 +204,12 @@ export default function NotificationBell() {
                 <p className="text-sm font-semibold text-[var(--zion-dark)]">Notificações</p>
                 <p className="text-[11px] text-[var(--zion-muted)]">{unread ? `${unread} por ler` : "Tudo em dia"}</p>
               </div>
-              {unread > 0 && <button onClick={() => void markAllRead()} disabled={busy} className="text-xs font-semibold text-[var(--zion-primary)] hover:text-[var(--zion-primary-deep)]">Marcar todas como lidas</button>}
+              <div className="flex items-center gap-3">{unread > 0 && <button onClick={() => void markAllRead()} disabled={busy} className="text-xs font-semibold text-[var(--zion-primary)] hover:text-[var(--zion-primary-deep)]">Marcar todas como lidas</button>}<Link href="/settings/notifications" onClick={() => setOpen(false)} className="text-xs font-semibold text-[var(--zion-primary)] hover:text-[var(--zion-primary-deep)]">Definições</Link></div>
             </div>
-            <div className="mt-3 rounded-xl border border-[var(--zion-border)] bg-slate-50 p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-[var(--zion-dark)]">Notificações neste dispositivo</p>
-                  <p className="mt-1 text-[11px] leading-4 text-[var(--zion-muted)]">{pushEnabled ? "Ativadas neste dispositivo." : "Ativa para receber alertas mesmo quando não estás com o RESA aberto."}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => void togglePush()}
-                  disabled={pushBusy || (!pushPublicKey && !pushEnabled)}
-                  className="shrink-0 rounded-lg bg-[var(--zion-primary)] px-3 py-2 text-[11px] font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {pushBusy ? "A configurar…" : pushEnabled ? "Desativar" : "Ativar"}
-                </button>
-              </div>
-              {pushMessage && <p role="status" className="mt-2 text-xs leading-5 text-[var(--zion-muted)]">{pushMessage}</p>}
-              {!pushPublicKey && !pushEnabled && <p className="mt-2 text-[11px] text-[var(--zion-muted)]">A configuração das chaves ainda não está concluída.</p>}
-            </div>
+            <div className="mt-3 rounded-xl border border-[var(--zion-border)] bg-slate-50 px-3 py-3"><p className="text-xs leading-5 text-[var(--zion-muted)]">Personaliza o som, a vibração e os alertas em segundo plano nas definições.</p></div>
           </div>
-          {loadError && <div role="status" className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">A ligação às notificações está instável. O sistema tentará atualizar novamente.</div>}\n          <div className="max-h-80 overflow-y-auto">
+          {loadError && <div role="status" className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">A ligação às notificações está instável. O sistema tentará atualizar novamente.</div>}
+          <div className="max-h-80 overflow-y-auto">
             {!items.length && <p className="px-5 py-10 text-center text-sm text-[var(--zion-muted)]">{loadError ? "Não foi possível atualizar as notificações." : "Não há notificações."}</p>}
             {items.map((item) => (
               <button

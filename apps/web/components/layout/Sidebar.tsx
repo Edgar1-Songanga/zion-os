@@ -93,6 +93,7 @@ export default function Sidebar() {
       { name: t("communities"), path: "/resa/communities" },
     ] },
     { title: t("organization"), items: organizationItems },
+    { title: "Preferências", items: [{ name: "Notificações", path: "/settings/notifications" }] },
   ];
 
   return (
