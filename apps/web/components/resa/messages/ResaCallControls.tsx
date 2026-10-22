@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Room, RoomEvent, Track } from "livekit-client";
 import { createClient } from "@/lib/supabase/client";
 import { resaRequest } from "@/lib/resa/api";
+import { playNotificationAlert, type NotificationAlertPreferences } from "@/lib/notifications/notification-alerts";
 
 type CallKind = "audio" | "video";
 type CallRow = { id: string; conversation_id: string; initiator_id: string; kind: CallKind; status: string };
@@ -24,8 +25,6 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
   const remoteMedia = useRef<HTMLDivElement | null>(null);
   const userId = useRef<string | null>(null);
   const callRef = useRef<CallRow | null>(null);
-  const ringAudioRef = useRef<AudioContext | null>(null);
-  const ringTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -58,45 +57,17 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
   }, [conversationId, incoming?.id, supabase]);
 
   useEffect(() => {
-    if (!incoming) {
-      if (ringTimerRef.current !== null) window.clearInterval(ringTimerRef.current);
-      ringTimerRef.current = null;
-      return;
-    }
-    // While RESA is open, repeatedly alert for an unanswered incoming call.
-    const ringOnce = () => {
-      try {
-        if (!ringAudioRef.current) ringAudioRef.current = new AudioContext();
-        const context = ringAudioRef.current;
-        if (context.state === "suspended") void context.resume();
-        if (context.state !== "running") return;
-        const playTone = (frequency: number, offset: number) => {
-          const oscillator = context.createOscillator();
-          const gain = context.createGain();
-          oscillator.type = "sine";
-          oscillator.frequency.setValueAtTime(frequency, context.currentTime + offset);
-          gain.gain.setValueAtTime(0.0001, context.currentTime + offset);
-          gain.gain.exponentialRampToValueAtTime(0.22, context.currentTime + offset + 0.04);
-          gain.gain.setValueAtTime(0.22, context.currentTime + offset + 0.22);
-          gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + offset + 0.28);
-          oscillator.connect(gain);
-          gain.connect(context.destination);
-          oscillator.start(context.currentTime + offset);
-          oscillator.stop(context.currentTime + offset + 0.3);
-        };
-        playTone(880, 0);
-        playTone(660, 0.34);
-      } catch {
-        // System push/vibration remains the background fallback.
-      }
-      if ("vibrate" in navigator) navigator.vibrate([400, 120, 400, 120, 700]);
-    };
-    ringOnce();
-    ringTimerRef.current = window.setInterval(ringOnce, 2200);
+    if (!incoming) return;
+    let active = true;
+    let stopAlert = () => undefined;
+    void resaRequest<NotificationAlertPreferences>("/v1/notifications/preferences")
+      .catch(() => ({} as NotificationAlertPreferences))
+      .then((preferences) => {
+        if (active) stopAlert = playNotificationAlert("resa.call.incoming", preferences, true);
+      });
     return () => {
-      if (ringTimerRef.current !== null) window.clearInterval(ringTimerRef.current);
-      ringTimerRef.current = null;
-      if ("vibrate" in navigator) navigator.vibrate(0);
+      active = false;
+      stopAlert();
     };
   }, [incoming?.id]);
 
