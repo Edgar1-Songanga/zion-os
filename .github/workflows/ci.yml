@@ -105,5 +105,11 @@ jobs:
           fi
           printf '%s\n' "$names"
 
+      - name: Generate and validate read-only Frame migration manifest
+        run: node apps/api/scripts/frame-migration-manifest.cjs > /tmp/frame-migration-manifest.json
+
+      - name: Test Frame migration manifest
+        run: node --test apps/api/scripts/frame-migration-manifest.test.cjs
+
       - name: Check whitespace
         run: git diff --check
