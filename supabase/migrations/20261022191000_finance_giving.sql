@@ -123,7 +123,7 @@ create policy giving_receipt_read on public.finance_giving_receipts for select t
 using (exists(select 1 from public.finance_giving_contributions c where c.id=contribution_id and (c.contributor_id=(select auth.uid()) or private.has_org_permission(c.organization_id,'finance.read'))));
 
 create or replace function public.issue_giving_receipt_after_confirmation()
-returns trigger language plpgsql security invoker set search_path=public as $$
+returns trigger language plpgsql security definer set search_path=public,pg_temp as $
 begin
   new.updated_at := now();
   if new.status='CONFIRMED' and old.status is distinct from 'CONFIRMED' then
@@ -138,3 +138,4 @@ end $$;
 drop trigger if exists giving_receipt_on_confirmation on public.finance_giving_contributions;
 create trigger giving_receipt_on_confirmation before update of status on public.finance_giving_contributions
 for each row execute function public.issue_giving_receipt_after_confirmation();
+revoke all on function public.issue_giving_receipt_after_confirmation() from public, anon, authenticated;
