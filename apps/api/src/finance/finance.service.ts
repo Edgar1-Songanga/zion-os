@@ -79,4 +79,54 @@ export class FinanceService {
       })),
     });
   }
+
+  async givingFunds(token: string, organizationId: string) {
+    await this.identity.getCurrentUser(token);
+    return this.db.get<Array<{id:string;name:string;description:string|null;fund_type:string;sort_order:number}>>('finance_giving_funds', token,
+      `?select=id,name,description,fund_type,sort_order&organization_id=eq.${encodeURIComponent(organizationId)}&is_active=eq.true&order=sort_order.asc,name.asc`);
+  }
+
+  async createGivingContribution(token: string, organizationId: string, input: { fund_id: string; amount: number; payment_method: string }) {
+    const user = await this.identity.getCurrentUser(token);
+    const amount = Number(input.amount);
+    if (!input.fund_id || !Number.isFinite(amount) || amount <= 0 || Math.abs(amount * 100 - Math.round(amount * 100)) > 1e-8) throw new BadRequestException('Escolha um destino e indique um valor positivo com até duas casas decimais.');
+    if (!['BANK_TRANSFER','MULTICAIXA_EXPRESS'].includes(input.payment_method)) throw new BadRequestException('Método de pagamento inválido.');
+    if (input.payment_method === 'MULTICAIXA_EXPRESS') throw new BadRequestException('O Multicaixa Express ainda não está ativado nesta organização. Escolha transferência bancária.');
+    const funds = await this.db.get<Array<{id:string}>>('finance_giving_funds', token, `?select=id&organization_id=eq.${encodeURIComponent(organizationId)}&id=eq.${encodeURIComponent(input.fund_id)}&is_active=eq.true&limit=1`);
+    if (!funds[0]) throw new NotFoundException('Destino de contribuição não encontrado ou inativo.');
+    const rows = await this.db.post<Array<Record<string, unknown>>>('finance_giving_contributions', token, {
+      organization_id: organizationId, fund_id: input.fund_id, contributor_id: user.id, amount: Math.round(amount * 100) / 100,
+      currency_code: 'AOA', payment_method: input.payment_method, status: 'PENDING',
+    });
+    if (!rows[0]) throw new BadRequestException('Não foi possível registar o pedido de contribuição.');
+    return rows[0];
+  }
+
+  async myGivingContributions(token: string, organizationId: string) {
+    const user = await this.identity.getCurrentUser(token);
+    const rows = await this.db.get<Array<Record<string, unknown>>>('finance_giving_contributions', token,
+      `?select=id,organization_id,fund_id,amount,currency_code,payment_method,status,reference_code,created_at,contributor_id&organization_id=eq.${encodeURIComponent(organizationId)}&contributor_id=eq.${encodeURIComponent(user.id)}&order=created_at.desc&limit=100`);
+    if (!rows.length) return [];
+    const fundIds = [...new Set(rows.map((row) => String(row.fund_id)))];
+    const contributionIds = rows.map((row) => String(row.id));
+    const funds = await this.db.get<Array<{id:string;name:string}>>('finance_giving_funds', token, `?select=id,name&id=in.(${fundIds.map(encodeURIComponent).join(',')})`);
+    const receipts = await this.db.get<Array<{id:string;contribution_id:string;receipt_number:number;verification_hash:string;issued_at:string}>>('finance_giving_receipts', token, `?select=id,contribution_id,receipt_number,verification_hash,issued_at&contribution_id=in.(${contributionIds.map(encodeURIComponent).join(',')})`);
+    return rows.map((row) => ({...row, fund: funds.find((fund) => fund.id === row.fund_id) ?? null, receipt: receipts.find((receipt) => receipt.contribution_id === row.id) ?? null}));
+  }
+
+  async treasuryGivingContributions(token: string, organizationId: string) {
+    await this.identity.getCurrentUser(token);
+    return this.db.get<Array<Record<string, unknown>>>('finance_giving_contributions', token,
+      `?select=id,organization_id,fund_id,contributor_id,amount,currency_code,payment_method,status,reference_code,created_at,confirmed_at&organization_id=eq.${encodeURIComponent(organizationId)}&order=created_at.desc&limit=200`);
+  }
+
+  async confirmGivingContribution(token: string, organizationId: string, contributionId: string) {
+    const user = await this.identity.getCurrentUser(token);
+    const rows = await this.db.patch<Array<Record<string, unknown>>>('finance_giving_contributions', token,
+      {status:'CONFIRMED',confirmed_by:user.id,confirmed_at:new Date().toISOString()},
+      `?id=eq.${encodeURIComponent(contributionId)}&organization_id=eq.${encodeURIComponent(organizationId)}&status=in.(PENDING,UNDER_REVIEW)`);
+    if (!rows[0]) throw new NotFoundException('Pedido não encontrado, já confirmado ou sem permissão de tesouraria.');
+    return rows[0];
+  }
+
 }
