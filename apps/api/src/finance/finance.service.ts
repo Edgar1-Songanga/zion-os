@@ -175,29 +175,21 @@ export class FinanceService {
   }
 
   async configureGivingBankTransfer(token: string, organizationId: string, input: { bank_name:string; account_holder:string; iban:string }) {
-    const user = await this.identity.getCurrentUser(token);
+    await this.identity.getCurrentUser(token);
     const bankName = input.bank_name?.trim();
     const accountHolder = input.account_holder?.trim();
     const iban = input.iban?.replace(/\\s+/g, '').toUpperCase();
     if (!bankName || bankName.length < 2 || bankName.length > 120 || !accountHolder || accountHolder.length < 2 || accountHolder.length > 120 || !iban || !/^AO[0-9]{23}$/.test(iban)) {
       throw new BadRequestException('Indique o banco, o titular da conta e um IBAN angolano válido (AO + 23 dígitos).');
     }
-    const accounts = await this.db.get<Array<{id:string}>>('finance_accounts', token,
-      `?select=id&organization_id=eq.${encodeURIComponent(organizationId)}&code=eq.GIV_CASH&is_active=eq.true&limit=1`);
-    if (!accounts[0]) throw new BadRequestException('A conta contabilística de recebimentos ainda não está configurada.');
-    const methods = await this.db.get<Array<{id:string;provider:string}>>('giving_payment_methods', token,
-      `?select=id,provider&organization_id=eq.${encodeURIComponent(organizationId)}&provider=eq.BANK_TRANSFER&limit=1`);
-    const payload = {organization_id:organizationId,provider:'BANK_TRANSFER',label:'Transferência bancária',is_enabled:true,currency_code:'AOA',
-      public_details:{bank_name:bankName,account_holder:accountHolder,iban},asset_account_id:accounts[0].id,min_amount:100,max_amount:100000000};
-    if (methods[0]) {
-      const updated = await this.db.patch<Array<Record<string,unknown>>>('giving_payment_methods', token, payload,
-        `?id=eq.${encodeURIComponent(methods[0].id)}&organization_id=eq.${encodeURIComponent(organizationId)}`);
-      if (!updated[0]) throw new ForbiddenException('Sem permissão para configurar os dados bancários. É necessária a permissão giving.manage.');
-      return updated[0];
-    }
-    const created = await this.db.post<Array<Record<string,unknown>>>('giving_payment_methods', token, payload);
-    if (!created[0]) throw new BadRequestException('Não foi possível guardar a configuração bancária.');
-    return created[0];
+    const methods = await this.db.get<Array<{id:string;provider:string;asset_account_id:string|null}>>('giving_payment_methods', token,
+      `?select=id,provider,asset_account_id&organization_id=eq.${encodeURIComponent(organizationId)}&provider=eq.BANK_TRANSFER&limit=1`);
+    if (!methods[0]?.asset_account_id) throw new BadRequestException('A configuração contabilística ainda não foi inicializada. Sincronize a migração Giving.');
+    const payload = {is_enabled:true,public_details:{bank_name:bankName,account_holder:accountHolder,iban},updated_at:new Date().toISOString()};
+    const updated = await this.db.patch<Array<Record<string,unknown>>>('giving_payment_methods', token, payload,
+      `?id=eq.${encodeURIComponent(methods[0].id)}&organization_id=eq.${encodeURIComponent(organizationId)}`);
+    if (!updated[0]) throw new ForbiddenException('Sem permissão para configurar os dados bancários. É necessária a permissão giving.manage.');
+    return updated[0];
   }
 
 }
