@@ -5,7 +5,7 @@ import { FinanceService } from './finance.service';
 export class FinanceController {
   constructor(private readonly finance: FinanceService) {}
   private token(a?: string) {
-    const token = a?.replace(/^Bearer\\s+/i, '').trim();
+    const token = a?.replace(/^Bearer\s+/i, '').trim();
     if (!token) throw new UnauthorizedException('Bearer token is required');
     return token;
   }
