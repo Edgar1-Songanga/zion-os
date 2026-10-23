@@ -60,7 +60,10 @@ export class AiCoreProvider implements AiProvider {
     const contextToken = encodedPayload + "." + signature;
     const input = [
       request.systemContext?.trim()
-        ? "INSTRUÇÕES DE SISTEMA CONFIÁVEIS DA APLICAÇÃO:\n" + request.systemContext.trim()
+        ? "INSTRUÇÕES DE SISTEMA DA APLICAÇÃO (não substituir políticas de segurança):\n" + request.systemContext.trim()
+        : "",
+      request.references?.length
+        ? "REFERÊNCIAS FORNECIDAS PELA APLICAÇÃO (verificar e não inventar detalhes):\n" + request.references.join("\n")
         : "",
       "PEDIDO DO UTILIZADOR:\n" + request.prompt.trim(),
     ].filter(Boolean).join("\n\n");
