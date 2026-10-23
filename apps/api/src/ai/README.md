@@ -4,14 +4,16 @@
 
 The ZION API calls the separately deployed MARKA × ZION AI Core. It does not connect the AI Core directly to ZION's database.
 
-- Endpoint: POST {AI_CORE_BASE_URL}/api/v1/ai/generate
+- ZION chat endpoint: POST /api/v1/ai/chat
+- Request body: organizationId and prompt; optional conversationId.
+- Endpoint called by ZION: POST {AI_CORE_BASE_URL}/api/v1/ai/generate
 - Space: zion unless AI_CORE_SPACE overrides it
 - Operation: CHAT
 - Authentication: x-ai-core-key
 - Tenant/user context: short-lived HMAC-SHA256 token in x-ai-context-token
 - Correlation: x-correlation-id
 
-The AI Core gateway accepts signed context only in production. The request body is not an authority for user roles or tenant identity. Callers must pass a tenant ID obtained from authenticated ZION identity/organization context; never derive it from arbitrary user input.
+The chat endpoint requires a valid Supabase bearer token and an active membership in the selected organization. It derives tenant and role context from the authenticated user and membership record; it does not trust role or tenant claims from the request body. AI Core must never connect directly to ZION's database.
 
 ## Runtime configuration
 
@@ -36,12 +38,12 @@ Do not place secrets in source control, client-side variables, logs, or this doc
 
 ## Current limitations / release gate
 
-The provider adapter is not by itself proof that the product feature is live. Before production enablement:
+The endpoint and provider are implemented in source but are not proven production-ready yet. Before production enablement:
 
 1. Verify that AI Core's current production deployment is healthy and its zion space is registered and active.
 2. Verify required server-side environment variables on both Vercel projects without exposing their values.
-3. Ensure each call supplies a tenant ID from authenticated ZION context.
+3. Ensure each chat call supplies a tenant ID from the authenticated membership record (the controller enforces this).
 4. Run API tests and an authenticated end-to-end request against the production gateway.
-5. Verify grounding/source behavior and privacy controls before adding user-facing chat routes or church analytics.
+5. Verify grounding/source behavior and privacy controls before expanding to church analytics or sensitive pastoral workflows.
 
 The provider fails closed when configuration or tenant context is absent and does not return a fabricated empty success response.
