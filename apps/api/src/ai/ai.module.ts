@@ -1,6 +1,15 @@
 import { Module } from "@nestjs/common";
-import { AiOrchestrator } from "./ai.orchestrator";
+import { AiCoreProvider } from "./ai-core.provider";
+import { AI_PROVIDER, AiOrchestrator } from "./ai.orchestrator";
 import { SpiritualAiService } from "./spiritual-ai.service";
 
-@Module({ providers: [AiOrchestrator, SpiritualAiService], exports: [AiOrchestrator, SpiritualAiService] })
+@Module({
+  providers: [
+    AiCoreProvider,
+    { provide: AI_PROVIDER, useExisting: AiCoreProvider },
+    AiOrchestrator,
+    SpiritualAiService,
+  ],
+  exports: [AiOrchestrator, SpiritualAiService],
+})
 export class AiModule {}
