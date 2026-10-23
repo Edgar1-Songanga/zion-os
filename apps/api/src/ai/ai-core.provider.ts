@@ -1,3 +1,4 @@
+import { Injectable } from "@nestjs/common";
 import { createHmac, randomUUID } from "node:crypto";
 import type { AiProvider, AiRequest, AiResponse } from "./ai.orchestrator";
 
@@ -12,6 +13,7 @@ function base64UrlJson(value: unknown): string {
   return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
 }
 
+@Injectable()
 export class AiCoreProvider implements AiProvider {
   async generate(request: AiRequest): Promise<AiResponse> {
     const baseUrl = process.env.AI_CORE_BASE_URL?.trim();
