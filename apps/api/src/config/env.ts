@@ -17,6 +17,12 @@ export const env = {
   aiGatewayApiKey: process.env.AI_GATEWAY_API_KEY ?? '',
   translationModel: process.env.TRANSLATION_MODEL ?? '',
   aiGatewayEndpoint: process.env.AI_GATEWAY_ENDPOINT ?? '',
+  aiCoreBaseUrl: process.env.AI_CORE_BASE_URL ?? '',
+  aiCoreApiKey: process.env.AI_CORE_API_KEY ?? '',
+  aiCoreSpace: process.env.AI_CORE_SPACE ?? 'zion',
+  aiContextSigningSecret: process.env.AI_CONTEXT_SIGNING_SECRET ?? '',
+  aiContextIssuer: process.env.AI_CONTEXT_ISSUER ?? 'zion-api',
+  aiContextAudience: process.env.AI_CONTEXT_AUDIENCE ?? 'ai-core',
 };
 
 export function assertSupabaseConfig(): void {

@@ -1,6 +1,21 @@
 import { Module } from "@nestjs/common";
-import { AiOrchestrator } from "./ai.orchestrator";
+import { SupabaseRestClient } from "../common/supabase/supabase-rest.client";
+import { IdentityModule } from "../identity/identity.module";
+import { AiController } from "./ai.controller";
+import { AiCoreProvider } from "./ai-core.provider";
+import { AI_PROVIDER, AiOrchestrator } from "./ai.orchestrator";
 import { SpiritualAiService } from "./spiritual-ai.service";
 
-@Module({ providers: [AiOrchestrator, SpiritualAiService], exports: [AiOrchestrator, SpiritualAiService] })
+@Module({
+  imports: [IdentityModule],
+  controllers: [AiController],
+  providers: [
+    SupabaseRestClient,
+    AiCoreProvider,
+    { provide: AI_PROVIDER, useExisting: AiCoreProvider },
+    AiOrchestrator,
+    SpiritualAiService,
+  ],
+  exports: [AiOrchestrator, SpiritualAiService],
+})
 export class AiModule {}
