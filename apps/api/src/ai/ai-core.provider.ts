@@ -19,12 +19,18 @@ export class AiCoreProvider implements AiProvider {
     const baseUrl = process.env.AI_CORE_BASE_URL?.trim();
     const apiKey = process.env.AI_CORE_API_KEY?.trim();
     const signingSecret = process.env.AI_CONTEXT_SIGNING_SECRET;
+    const vercelBypass = process.env.AI_CORE_VERCEL_BYPASS?.trim();
     const tenantId = request.tenantId?.trim();
     const space = process.env.AI_CORE_SPACE?.trim() || "zion";
     const issuer = process.env.AI_CONTEXT_ISSUER?.trim() || "zion-api";
     const audience = process.env.AI_CONTEXT_AUDIENCE?.trim() || "ai-core";
 
-    if (!baseUrl || !apiKey || !signingSecret) {
+    if (
+      !baseUrl ||
+      !apiKey ||
+      !signingSecret ||
+      (process.env.NODE_ENV === "production" && !vercelBypass)
+    ) {
       throw new Error("AI Core is not configured. Set AI_CORE_BASE_URL, AI_CORE_API_KEY and AI_CONTEXT_SIGNING_SECRET.");
     }
     if (!tenantId) {
@@ -80,6 +86,7 @@ export class AiCoreProvider implements AiProvider {
           "Content-Type": "application/json",
           "x-ai-core-key": apiKey,
           "x-ai-context-token": contextToken,
+          ...(vercelBypass ? { "x-vercel-protection-bypass": vercelBypass } : {}),
           "x-correlation-id": randomUUID(),
         },
         body: JSON.stringify({
