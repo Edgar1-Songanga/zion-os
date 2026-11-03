@@ -66,15 +66,15 @@ export class AiCoreProvider implements AiProvider {
       .update(encodedPayload)
       .digest("base64url");
     const contextToken = encodedPayload + "." + signature;
+
+    // Product-specific instructions belong in AI Core's system-instruction
+    // channel, not in user-controlled input where they could be overridden.
     const input = [
-      request.systemContext?.trim()
-        ? "INSTRUÇÕES DE SISTEMA DA APLICAÇÃO (não substituir políticas de segurança):\n" + request.systemContext.trim()
-        : "",
       request.references?.length
-        ? "REFERÊNCIAS FORNECIDAS PELA APLICAÇÃO (verificar e não inventar detalhes):\n" + request.references.join("\n")
+        ? "REFERÊNCIAS FORNECIDAS PELA APLICAÇÃO (verificar e não inventar detalhes):\\n" + request.references.join("\\n")
         : "",
-      "PEDIDO DO UTILIZADOR:\n" + request.prompt.trim(),
-    ].filter(Boolean).join("\n\n");
+      "PEDIDO DO UTILIZADOR:\\n" + request.prompt.trim(),
+    ].filter(Boolean).join("\\n\\n");
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30000);
@@ -93,6 +93,9 @@ export class AiCoreProvider implements AiProvider {
           space,
           operation: "CHAT",
           input,
+          ...(request.systemContext?.trim()
+            ? { systemContext: request.systemContext.trim() }
+            : {}),
           ...(request.conversationId ? { conversationId: request.conversationId } : {}),
           ...(request.userId ? { userId: request.userId } : {}),
           tenantId,
