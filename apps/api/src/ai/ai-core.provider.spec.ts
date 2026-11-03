@@ -11,14 +11,17 @@ describe("AiCoreProvider", () => {
     const fetchMock = jest.spyOn(global, "fetch").mockResolvedValue({
       ok: true, text: async () => JSON.stringify({ text: "Resposta fundamentada.", provider: "test-model", model: "model-a" }),
     } as Response);
-    const result = await new AiCoreProvider().generate({ userId: "u-1", tenantId: "church-1", roles: ["member"], prompt: "Explique João 3:16", references: ["João 3:16"] });
+    const result = await new AiCoreProvider().generate({ userId: "u-1", tenantId: "church-1", roles: ["member"], prompt: "Explique João 3:16", systemContext: "Não inventes referências bíblicas.", references: ["João 3:16"] });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
     expect(String(url)).toBe("https://ai-core.example/api/v1/ai/generate");
     const headers = new Headers(init.headers);
     expect(headers.get("x-ai-core-key")).toBe("k".repeat(40));
     expect(headers.get("x-ai-context-token")).toContain(".");
-    expect(JSON.parse(String(init.body))).toMatchObject({ space: "zion", operation: "CHAT", tenantId: "church-1" });
+    const body = JSON.parse(String(init.body));
+    expect(body).toMatchObject({ space: "zion", operation: "CHAT", tenantId: "church-1", systemContext: "Não inventes referências bíblicas." });
+    expect(body.input).toContain("PEDIDO DO UTILIZADOR:");
+    expect(body.input).not.toContain("Não inventes referências bíblicas.");
     expect(result.content).toBe("Resposta fundamentada.");
     expect(result.references).toEqual([]);
   });
