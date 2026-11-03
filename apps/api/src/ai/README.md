@@ -25,6 +25,7 @@ Configure these on the ZION API project (Production and Preview only where inten
 - AI_CONTEXT_ISSUER: zion-api by default.
 - AI_CONTEXT_AUDIENCE: ai-core by default.
 - AI_CORE_SPACE: zion by default.
+- AI_CORE_VERCEL_BYPASS: server-only Vercel protection bypass for the protected AI Core deployment.
 
 Configure these on the AI Core project and ensure they match:
 
@@ -32,13 +33,15 @@ Configure these on the AI Core project and ensure they match:
 - AI_CONTEXT_SIGNING_SECRET (at least 32 characters).
 - AI_ALLOWED_CONTEXT_ISSUERS includes zion-api.
 - AI_CONTEXT_AUDIENCE=ai-core.
-- Existing required AI Core settings: DATABASE_URL, AI_GATEWAY_API_KEY, and AI_MODEL.
+- Existing required AI Core settings: DATABASE_URL and AI_MODEL.
+- Vercel production can authenticate to AI Gateway with VERCEL_OIDC_TOKEN; AI_GATEWAY_API_KEY is an optional alternative for non-Vercel runtimes.
+- AI Core allows only the zion-api and marka-api signed-context issuers.
 
 Do not place secrets in source control, client-side variables, logs, or this document. Rotate secrets if exposed. The model gateway may incur usage charges; confirm its configured plan and limits before enabling production traffic.
 
 ## Current limitations / release gate
 
-The endpoint and provider are implemented in source but are not proven production-ready yet. Before production enablement:
+The endpoint and provider are deployed. Before opening full production traffic:
 
 1. Verify that AI Core's current production deployment is healthy and its zion space is registered and active.
 2. Verify required server-side environment variables on both Vercel projects without exposing their values.
