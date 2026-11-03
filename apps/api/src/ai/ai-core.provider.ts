@@ -71,10 +71,10 @@ export class AiCoreProvider implements AiProvider {
     // channel, not in user-controlled input where they could be overridden.
     const input = [
       request.references?.length
-        ? "REFERÊNCIAS FORNECIDAS PELA APLICAÇÃO (verificar e não inventar detalhes):\\n" + request.references.join("\\n")
+        ? "REFERÊNCIAS FORNECIDAS PELA APLICAÇÃO (verificar e não inventar detalhes):\n" + request.references.join("\n")
         : "",
-      "PEDIDO DO UTILIZADOR:\\n" + request.prompt.trim(),
-    ].filter(Boolean).join("\\n\\n");
+      "PEDIDO DO UTILIZADOR:\n" + request.prompt.trim(),
+    ].filter(Boolean).join("\n\n");
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30000);
