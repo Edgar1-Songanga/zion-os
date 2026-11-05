@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import CreatePost from "./CreatePost";
 import FeedCard from "./FeedCard";
+import FeedImpressionTracker from "./core/FeedImpressionTracker";
 import ResaIcon from "./core/ResaIcon";
 import { resaRequest } from "@/lib/resa/api";
 import { createClient } from "@/lib/supabase/client";
@@ -21,19 +22,12 @@ type ResaContent = {
   media_url?: string | null;
 };
 
-function newestFirst(items: ResaContent[]): ResaContent[] {
-  return [...items].sort((a, b) => {
-    const aTime = Date.parse(a.created_at);
-    const bTime = Date.parse(b.created_at);
-    return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
-  });
-}
-
 export default function ResaLiveFeed() {
   const { t } = useTranslation();
   const [items, setItems] = useState<ResaContent[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [resettingMemory, setResettingMemory] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlightRef = useRef(false);
   const deepLinkHandledRef = useRef<string | null>(null);
@@ -48,8 +42,8 @@ export default function ResaLiveFeed() {
     setError(null);
 
     try {
-      const latest = await resaRequest<ResaContent[]>("/v1/resa/feed?limit=30");
-      setItems(newestFirst(latest));
+      const latest = await resaRequest<ResaContent[]>("/v1/resa/personalized-feed?limit=30");
+      setItems(latest);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("feedLoadError"));
     } finally {
@@ -58,6 +52,19 @@ export default function ResaLiveFeed() {
       setRefreshing(false);
     }
   }, []);
+
+  const resetFeedMemory = useCallback(async () => {
+    if (!window.confirm('Limpar a memória de recomendações deste perfil? O feed começará a reaprender os seus interesses.')) return;
+    setResettingMemory(true);
+    try {
+      await resaRequest('/v1/resa/feed-memory', { method: 'DELETE' });
+      await load(true);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Não foi possível limpar a memória do feed.');
+    } finally {
+      setResettingMemory(false);
+    }
+  }, [load]);
 
   useEffect(() => {
     void load();
@@ -121,7 +128,7 @@ export default function ResaLiveFeed() {
     deepLinkHandledRef.current = postId;
     void resaRequest<ResaContent>("/v1/resa/content/" + encodeURIComponent(postId))
       .then((publication) => {
-        setItems((current) => newestFirst([publication, ...current.filter((item) => item.id !== publication.id)]));
+        setItems((current) => [publication, ...current.filter((item) => item.id !== publication.id)]);
         scrollToPublication();
       })
       .catch(() => {
@@ -138,6 +145,15 @@ export default function ResaLiveFeed() {
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{t("now")}</p>
           <h2 className="mt-1 text-xl font-semibold tracking-tight text-[#0C1A3D]">{t("communityWall")}</h2>
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void resetFeedMemory()}
+            disabled={resettingMemory || refreshing}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-500 transition hover:border-slate-300 hover:text-[#0C1A3D] disabled:opacity-50"
+          >
+            {resettingMemory ? 'A limpar…' : 'Limpar memória'}
+          </button>
         <button
           type="button"
           onClick={() => void load(true)}
@@ -147,6 +163,7 @@ export default function ResaLiveFeed() {
           <ResaIcon name="sparkles" size={15} />
           {refreshing ? t("refreshing") : t("refresh")}
         </button>
+        </div>
       </div>
 
       {loading && (
@@ -182,7 +199,15 @@ export default function ResaLiveFeed() {
         </div>
       )}
 
-      {!loading && !error && items.map((item) => <FeedCard key={item.id} content={item} />)}
+      {!loading && !error && items.map((item) => (
+        <FeedImpressionTracker key={item.id} contentId={item.id}>
+          <FeedCard
+            content={item}
+            onHideAuthor={(authorId) => setItems((current) => current.filter((entry) => entry.author_id !== authorId))}
+            onRemoveContent={(contentId) => setItems((current) => current.filter((entry) => entry.id !== contentId))}
+          />
+        </FeedImpressionTracker>
+      ))}
     </div>
   );
 }

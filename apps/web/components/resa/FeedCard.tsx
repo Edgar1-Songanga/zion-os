@@ -45,7 +45,15 @@ function renderLinkedText(value: string) {
   );
 }
 
-export default function FeedCard({ content }: { content: ResaContent }) {
+export default function FeedCard({
+  content,
+  onHideAuthor,
+  onRemoveContent,
+}: {
+  content: ResaContent;
+  onHideAuthor?: (authorId: string) => void;
+  onRemoveContent?: (contentId: string) => void;
+}) {
   const { t, locale } = useTranslation();
   const [reaction, setReaction] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -57,6 +65,8 @@ export default function FeedCard({ content }: { content: ResaContent }) {
   const [showComments, setShowComments] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [shareFeedback, setShareFeedback] = useState("");
+  const [showFeedActions, setShowFeedActions] = useState(false);
+  const [feedbackBusy, setFeedbackBusy] = useState(false);
 
   const meta = typeMeta[content.type] ?? typeMeta.text;
   const shareTitle = content.title?.trim() || t("publicationOnResa");
@@ -188,6 +198,32 @@ export default function FeedCard({ content }: { content: ResaContent }) {
     }
   }
 
+  async function submitFeedFeedback(feedback: "not_interested" | "hide_author" | "report") {
+    setFeedbackBusy(true);
+    setActionFeedback(null);
+    try {
+      await resaRequest(`/v1/resa/content/${content.id}/feedback`, {
+        method: "POST",
+        body: JSON.stringify({ feedback }),
+      });
+      setShowFeedActions(false);
+      if (feedback === "hide_author") {
+        onHideAuthor?.(content.author_id);
+        setActionFeedback("Deixaremos de recomendar publicações deste autor.");
+      } else if (feedback === "not_interested") {
+        onRemoveContent?.(content.id);
+        setActionFeedback("Vamos mostrar menos conteúdos semelhantes.");
+      } else {
+        onRemoveContent?.(content.id);
+        setActionFeedback("Publicação sinalizada para revisão.");
+      }
+    } catch (error) {
+      setActionFeedback(error instanceof Error ? error.message : "Não foi possível guardar a preferência.");
+    } finally {
+      setFeedbackBusy(false);
+    }
+  }
+
   return (
     <article id={`resa-post-${content.id}`} className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.05)] transition-shadow hover:shadow-[0_18px_55px_rgba(15,23,42,0.08)]">
       <div className="p-6 sm:p-7">
@@ -214,6 +250,24 @@ export default function FeedCard({ content }: { content: ResaContent }) {
               </span>
             </div>
             <p className="mt-1 text-xs text-slate-400">{new Date(content.created_at).toLocaleString(locale)}</p>
+          </div>
+          <div className="relative ml-auto">
+            <button
+              type="button"
+              aria-label="Mais opções para esta publicação"
+              aria-expanded={showFeedActions}
+              onClick={() => setShowFeedActions((value) => !value)}
+              className="rounded-xl px-3 py-2 text-lg leading-none text-slate-500 transition hover:bg-slate-100 hover:text-[#0C1A3D]"
+            >
+              ⋯
+            </button>
+            {showFeedActions && (
+              <div className="absolute right-0 top-11 z-30 w-60 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+                <button type="button" disabled={feedbackBusy} onClick={() => void submitFeedFeedback("not_interested")} className="block w-full rounded-xl px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50">Mostrar menos deste tipo</button>
+                <button type="button" disabled={feedbackBusy} onClick={() => void submitFeedFeedback("hide_author")} className="block w-full rounded-xl px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50">Deixar de recomendar este autor</button>
+                <button type="button" disabled={feedbackBusy} onClick={() => void submitFeedFeedback("report")} className="block w-full rounded-xl px-3 py-2.5 text-left text-sm text-red-700 hover:bg-red-50 disabled:opacity-50">Denunciar publicação</button>
+              </div>
+            )}
           </div>
         </header>
 
