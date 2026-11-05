@@ -40,8 +40,8 @@ create or replace function public.record_resa_feed_impression(
 returns void
 language plpgsql
 security definer
-set search_path = public
-as $$
+set search_path = ''
+as $
 declare
   actor_id uuid := auth.uid();
   content_type text;
@@ -126,6 +126,7 @@ begin
 
   delete from public.resa_feed_impressions where user_id = actor_id;
   delete from public.resa_feed_interest_profiles where user_id = actor_id;
+  delete from public.resa_feed_feedback where user_id = actor_id;
 end;
 $$;
 
