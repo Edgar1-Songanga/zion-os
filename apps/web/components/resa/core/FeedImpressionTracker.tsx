@@ -18,7 +18,6 @@ export default function FeedImpressionTracker({
 
     let visibleSince: number | null = null;
     let accumulatedMs = 0;
-    let sent = false;
 
     const flush = () => {
       if (visibleSince !== null) {
@@ -29,9 +28,9 @@ export default function FeedImpressionTracker({
 
     const send = () => {
       flush();
-      if (sent || accumulatedMs < 2000) return;
-      sent = true;
+      if (accumulatedMs < 2000) return;
       const duration = Math.min(Math.round(accumulatedMs), 300000);
+      accumulatedMs = 0;
       void resaRequest(`/v1/resa/content/${contentId}/impression`, {
         method: "POST",
         body: JSON.stringify({
@@ -50,7 +49,6 @@ export default function FeedImpressionTracker({
         if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
           if (visibleSince === null) visibleSince = performance.now();
         } else {
-          flush();
           send();
         }
       },
@@ -60,9 +58,16 @@ export default function FeedImpressionTracker({
     observer.observe(element);
     const onVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
-        flush();
         send();
-      } else if (visibleSince === null && element.getBoundingClientRect().top < window.innerHeight) {
+        return;
+      }
+
+      const rect = element.getBoundingClientRect();
+      const visibleHeight = Math.max(
+        0,
+        Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0),
+      );
+      if (rect.height > 0 && visibleHeight / rect.height >= 0.5 && visibleSince === null) {
         visibleSince = performance.now();
       }
     };
