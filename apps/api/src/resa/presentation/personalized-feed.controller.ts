@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Headers, Param, Post, Query, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Headers, Param, Post, Query, UnauthorizedException } from '@nestjs/common';
 import { ResaPersonalizedFeedService } from '../application/personalized-feed.service';
 
 @Controller('v1/resa')
@@ -27,5 +27,10 @@ export class ResaPersonalizedFeedController {
       throw new BadRequestException('duration_ms must be between 1000 and 300000');
     }
     return this.feed.recordImpression(this.token(authorization), contentId, duration, body.completed === true);
+  }
+
+  @Delete('feed-memory')
+  resetMemory(@Headers('authorization') authorization?: string) {
+    return this.feed.resetMemory(this.token(authorization));
   }
 }
