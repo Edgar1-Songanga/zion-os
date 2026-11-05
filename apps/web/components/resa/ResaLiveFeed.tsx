@@ -177,7 +177,11 @@ export default function ResaLiveFeed() {
 
       {!loading && !error && items.map((item) => (
         <FeedImpressionTracker key={item.id} contentId={item.id}>
-          <FeedCard content={item} />
+          <FeedCard
+            content={item}
+            onHideAuthor={(authorId) => setItems((current) => current.filter((entry) => entry.author_id !== authorId))}
+            onRemoveContent={(contentId) => setItems((current) => current.filter((entry) => entry.id !== contentId))}
+          />
         </FeedImpressionTracker>
       ))}
     </div>
