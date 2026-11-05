@@ -30,7 +30,7 @@ export class ResaPersonalizedFeedService {
     const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const interestSince = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString();
 
-    const [follows, feedback, reactions, saves, impressions, interests, contentTopics] = await Promise.all([
+    const [follows, feedback, reactions, saves, impressions, interests, contentTopics, hiddenFeedback] = await Promise.all([
       authorFilter
         ? this.db.get<any[]>('resa_follows', token, `?select=followed_id&follower_id=eq.${actor.id}&followed_id=${authorFilter}&limit=160`)
         : Promise.resolve([]),
@@ -38,15 +38,25 @@ export class ResaPersonalizedFeedService {
       this.db.get<any[]>('resa_reactions', token, `?select=content_id&content_id=${contentFilter}&limit=1500`),
       this.db.get<any[]>('resa_saves', token, `?select=content_id&user_id=eq.${actor.id}&content_id=${contentFilter}&limit=160`),
       this.db.get<any[]>('resa_feed_impressions', token, `?select=content_id,duration_ms,view_count,completed_count&user_id=eq.${actor.id}&content_id=${contentFilter}&viewed_on=gte.${since}&limit=3000`),
-      this.db.get<any[]>('resa_feed_interest_profiles', token, `?select=interest_key,interest_score&user_id=eq.${actor.id}&updated_at=gte.${interestSince}&limit=500`),
+      this.db.get<any[]>('resa_feed_interest_profiles', token, `?select=interest_key,interest_score,updated_at&user_id=eq.${actor.id}&updated_at=gte.${interestSince}&limit=500`),
       this.db.get<any[]>('resa_content_topics', token, `?select=content_id,topic_id&content_id=${contentFilter}&limit=1000`),
+      this.db.get<any[]>('resa_feed_feedback', token, `?select=content_id&user_id=eq.${actor.id}&feedback=eq.hide_author&limit=500`),
     ]);
 
     const followed = new Set(follows.map((row) => row.followed_id));
     const feedbackByContent = new Map(feedback.map((row) => [row.content_id, row.feedback]));
-    const hiddenAuthors = new Set(
-      contents.filter((item) => feedbackByContent.get(item.id) === 'hide_author').map((item) => item.author_id),
-    );
+    const hiddenContentIds = [...new Set(hiddenFeedback.map((row) => row.content_id).filter(Boolean))];
+    const previouslyHiddenAuthors = hiddenContentIds.length
+      ? await this.db.get<any[]>(
+          'resa_contents',
+          token,
+          `?select=author_id&id=in.(${hiddenContentIds.join(',')})&limit=500`,
+        )
+      : [];
+    const hiddenAuthors = new Set([
+      ...previouslyHiddenAuthors.map((row) => row.author_id),
+      ...contents.filter((item) => feedbackByContent.get(item.id) === 'hide_author').map((item) => item.author_id),
+    ]);
     const reactionCounts = reactions.reduce<Record<string, number>>((counts, row) => {
       counts[row.content_id] = (counts[row.content_id] ?? 0) + 1;
       return counts;
@@ -60,7 +70,13 @@ export class ResaPersonalizedFeedService {
       acc[row.content_id] = current;
       return acc;
     }, {});
-    const interestByKey = new Map(interests.map((row) => [row.interest_key, Number(row.interest_score) || 0]));
+    const now = Date.now();
+    const interestByKey = new Map(interests.map((row) => {
+      const updatedAt = Date.parse(row.updated_at);
+      const ageDays = Number.isFinite(updatedAt) ? Math.max(0, (now - updatedAt) / 86400000) : 180;
+      const decay = Math.pow(0.5, ageDays / 30);
+      return [row.interest_key, (Number(row.interest_score) || 0) * decay] as const;
+    }));
     const topicsByContent = contentTopics.reduce<Record<string, string[]>>((acc, row) => {
       (acc[row.content_id] ??= []).push(row.topic_id);
       return acc;
@@ -92,12 +108,21 @@ export class ResaPersonalizedFeedService {
         }),
     );
 
+    const diverseRanked: typeof ranked = [];
+    const authorExposure = new Map<string, number>();
+    for (const item of ranked) {
+      const exposure = authorExposure.get(item.author_id) ?? 0;
+      if (exposure >= 3) continue;
+      diverseRanked.push(item);
+      authorExposure.set(item.author_id, exposure + 1);
+    }
+
     const visibleProfiles = authorIds.length
       ? await this.db.rpc<any[]>('resa_profiles_for_ids', token, { p_user_ids: authorIds })
       : [];
     const profilesById = new Map(visibleProfiles.map((profile) => [profile.id, profile]));
 
-    return ranked.slice(0, size).map((item) => {
+    return diverseRanked.slice(0, size).map((item) => {
       const profile = profilesById.get(item.author_id);
       const displayName = profile?.display_name?.trim()
         || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim()
