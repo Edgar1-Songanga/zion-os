@@ -133,3 +133,61 @@ revoke all on function public.record_resa_feed_impression(uuid, integer, boolean
 grant execute on function public.record_resa_feed_impression(uuid, integer, boolean) to authenticated;
 revoke all on function public.reset_resa_feed_memory() from public;
 grant execute on function public.reset_resa_feed_memory() to authenticated;
+
+
+create or replace function public.record_resa_feed_feedback(
+  p_content_id uuid,
+  p_feedback text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  actor_id uuid := auth.uid();
+  content_type text;
+begin
+  if actor_id is null then
+    raise exception 'authentication_required' using errcode = '42501';
+  end if;
+
+  if p_feedback not in ('not_interested', 'hide_author', 'report') then
+    raise exception 'invalid_feed_feedback' using errcode = '22023';
+  end if;
+
+  select type into content_type
+  from public.resa_contents
+  where id = p_content_id and visibility = 'public';
+
+  if content_type is null then
+    raise exception 'content_not_available' using errcode = 'P0002';
+  end if;
+
+  insert into public.resa_feed_feedback (user_id, content_id, feedback, created_at)
+  values (actor_id, p_content_id, p_feedback, now())
+  on conflict (user_id, content_id)
+  do update set feedback = excluded.feedback, created_at = now();
+
+  if p_feedback = 'not_interested' then
+    update public.resa_feed_interest_profiles
+    set interest_score = greatest(0, interest_score - 12),
+        updated_at = now()
+    where user_id = actor_id
+      and interest_key = 'type:' || lower(content_type);
+
+    update public.resa_feed_interest_profiles
+    set interest_score = greatest(0, interest_score - 12),
+        updated_at = now()
+    where user_id = actor_id
+      and interest_key in (
+        select 'topic:' || topic_id::text
+        from public.resa_content_topics
+        where content_id = p_content_id
+      );
+  end if;
+end;
+$$;
+
+revoke all on function public.record_resa_feed_feedback(uuid, text) from public;
+grant execute on function public.record_resa_feed_feedback(uuid, text) to authenticated;
