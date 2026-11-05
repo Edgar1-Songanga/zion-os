@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import CreatePost from "./CreatePost";
 import FeedCard from "./FeedCard";
+import FeedImpressionTracker from "./core/FeedImpressionTracker";
 import ResaIcon from "./core/ResaIcon";
 import { resaRequest } from "@/lib/resa/api";
 import { createClient } from "@/lib/supabase/client";
@@ -20,14 +21,6 @@ type ResaContent = {
   media_type?: "image" | "video" | null;
   media_url?: string | null;
 };
-
-function newestFirst(items: ResaContent[]): ResaContent[] {
-  return [...items].sort((a, b) => {
-    const aTime = Date.parse(a.created_at);
-    const bTime = Date.parse(b.created_at);
-    return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
-  });
-}
 
 export default function ResaLiveFeed() {
   const { t } = useTranslation();
@@ -48,8 +41,8 @@ export default function ResaLiveFeed() {
     setError(null);
 
     try {
-      const latest = await resaRequest<ResaContent[]>("/v1/resa/feed?limit=30");
-      setItems(newestFirst(latest));
+      const latest = await resaRequest<ResaContent[]>("/v1/resa/personalized-feed?limit=30");
+      setItems(latest);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("feedLoadError"));
     } finally {
@@ -121,7 +114,7 @@ export default function ResaLiveFeed() {
     deepLinkHandledRef.current = postId;
     void resaRequest<ResaContent>("/v1/resa/content/" + encodeURIComponent(postId))
       .then((publication) => {
-        setItems((current) => newestFirst([publication, ...current.filter((item) => item.id !== publication.id)]));
+        setItems((current) => [publication, ...current.filter((item) => item.id !== publication.id)]);
         scrollToPublication();
       })
       .catch(() => {
@@ -182,7 +175,11 @@ export default function ResaLiveFeed() {
         </div>
       )}
 
-      {!loading && !error && items.map((item) => <FeedCard key={item.id} content={item} />)}
+      {!loading && !error && items.map((item) => (
+        <FeedImpressionTracker key={item.id} contentId={item.id}>
+          <FeedCard content={item} />
+        </FeedImpressionTracker>
+      ))}
     </div>
   );
 }
