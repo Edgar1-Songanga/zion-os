@@ -115,7 +115,7 @@ create or replace function public.reset_resa_feed_memory()
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 declare
   actor_id uuid := auth.uid();
@@ -143,7 +143,7 @@ create or replace function public.record_resa_feed_feedback(
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 declare
   actor_id uuid := auth.uid();
