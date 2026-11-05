@@ -27,6 +27,7 @@ export default function ResaLiveFeed() {
   const [items, setItems] = useState<ResaContent[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [resettingMemory, setResettingMemory] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlightRef = useRef(false);
   const deepLinkHandledRef = useRef<string | null>(null);
@@ -51,6 +52,19 @@ export default function ResaLiveFeed() {
       setRefreshing(false);
     }
   }, []);
+
+  const resetFeedMemory = useCallback(async () => {
+    if (!window.confirm('Limpar a memória de recomendações deste perfil? O feed começará a reaprender os seus interesses.')) return;
+    setResettingMemory(true);
+    try {
+      await resaRequest('/v1/resa/feed-memory', { method: 'DELETE' });
+      await load(true);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Não foi possível limpar a memória do feed.');
+    } finally {
+      setResettingMemory(false);
+    }
+  }, [load]);
 
   useEffect(() => {
     void load();
@@ -131,6 +145,15 @@ export default function ResaLiveFeed() {
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{t("now")}</p>
           <h2 className="mt-1 text-xl font-semibold tracking-tight text-[#0C1A3D]">{t("communityWall")}</h2>
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void resetFeedMemory()}
+            disabled={resettingMemory || refreshing}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-500 transition hover:border-slate-300 hover:text-[#0C1A3D] disabled:opacity-50"
+          >
+            {resettingMemory ? 'A limpar…' : 'Limpar memória'}
+          </button>
         <button
           type="button"
           onClick={() => void load(true)}
@@ -140,6 +163,7 @@ export default function ResaLiveFeed() {
           <ResaIcon name="sparkles" size={15} />
           {refreshing ? t("refreshing") : t("refresh")}
         </button>
+        </div>
       </div>
 
       {loading && (
