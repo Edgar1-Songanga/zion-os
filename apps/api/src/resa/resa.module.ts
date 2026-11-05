@@ -8,11 +8,31 @@ import { ResaRecommendationService } from './application/recommendation.service'
 import { ResaOperationalService } from './application/resa-operational.service';
 import { ResaOperationalController } from './presentation/resa-operational.controller';
 import { ResaLiveEgressService } from './application/resa-live-egress.service';
+import { ResaPersonalizedFeedService } from './application/personalized-feed.service';
+import { ResaPersonalizedFeedController } from './presentation/personalized-feed.controller';
 
 @Module({
   imports: [IdentityModule, MediaModule],
-  controllers: [ResaController, ResaOperationalController],
-  providers: [ResaEngine, ResaSocialService, ResaRecommendationService, ResaOperationalService, ResaLiveEgressService],
-  exports: [ResaEngine, ResaSocialService, ResaRecommendationService, ResaOperationalService, ResaLiveEgressService],
+  controllers: [
+    ResaController,
+    ResaOperationalController,
+    ResaPersonalizedFeedController,
+  ],
+  providers: [
+    ResaEngine,
+    ResaSocialService,
+    ResaRecommendationService,
+    ResaOperationalService,
+    ResaLiveEgressService,
+    ResaPersonalizedFeedService,
+  ],
+  exports: [
+    ResaEngine,
+    ResaSocialService,
+    ResaRecommendationService,
+    ResaOperationalService,
+    ResaLiveEgressService,
+    ResaPersonalizedFeedService,
+  ],
 })
 export class ResaModule {}
