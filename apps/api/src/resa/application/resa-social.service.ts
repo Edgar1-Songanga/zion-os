@@ -2,11 +2,16 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { IdentityService } from '../../identity/application/identity.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 import { ResaRecommendationService } from './recommendation.service';
+import { ResaTopicClassifierService } from './topic-classifier.service';
 
 @Injectable()
 export class ResaSocialService {
   private readonly db = new SupabaseRestClient();
-  constructor(private readonly identity: IdentityService, private readonly recommendations: ResaRecommendationService) {}
+  constructor(
+    private readonly identity: IdentityService,
+    private readonly recommendations: ResaRecommendationService,
+    private readonly topicClassifier: ResaTopicClassifierService,
+  ) {}
   private async actor(token: string) { return this.identity.getCurrentUser(token); }
   private clean(value: unknown, field: string, max = 10000) {
     if (typeof value !== 'string' || !value.trim()) throw new BadRequestException(`${field} is required`);
@@ -126,8 +131,72 @@ export class ResaSocialService {
     if (mediaType && !mediaUrl) throw new BadRequestException('media_url is required when media_type is provided');
     const body = { author_id: a.id, type, title: typeof input.title === 'string' ? input.title.trim() || null : null, body: typeof input.body === 'string' ? input.body.trim() || null : null, visibility, language: typeof input.language === 'string' && input.language.trim() ? input.language.trim() : 'pt', organization_id: input.organization_id ?? null, ministry_id: input.ministry_id ?? null, scripture_references: Array.isArray(input.scripture_references) ? input.scripture_references.slice(0, 50) : [], media_type: mediaType, media_url: mediaUrl, media_path: mediaPath };
     if (!body.body && !body.title) throw new BadRequestException('title or body is required');
-    const rows = await this.db.post<any[]>('resa_contents', token, body); return rows[0];
+    const rows = await this.db.post<any[]>('resa_contents', token, body);
+    const created = rows[0];
+    if (created?.id) {
+      try {
+        await this.attachClassifiedTopics(token, created.id, {
+          type: body.type,
+          title: body.title,
+          body: body.body,
+          scriptureReferences: body.scripture_references,
+        });
+      } catch {
+        // Topic enrichment is best-effort; publication creation must remain reliable.
+        console.error(JSON.stringify({ event: 'resa_topic_enrichment_failed' }));
+      }
+    }
+    return created;
   }
+  private async attachClassifiedTopics(
+    token: string,
+    contentId: string,
+    input: { type: string; title?: string | null; body?: string | null; scriptureReferences?: string[] },
+  ) {
+    const classified = this.topicClassifier.classify(input);
+    if (!classified.length) return;
+
+    const names = classified.map((topic) => topic.normalizedName);
+    const filter = `in.(${names.join(',')})`;
+    let topics = await this.db.get<any[]>(
+      'resa_topics',
+      token,
+      `?select=id,normalized_name&normalized_name=${filter}&limit=20`,
+    );
+    const known = new Set(topics.map((topic) => topic.normalized_name));
+    const missing = classified.filter((topic) => !known.has(topic.normalizedName));
+    if (missing.length) {
+      try {
+        const inserted = await this.db.post<any[]>(
+          'resa_topics',
+          token,
+          missing.map((topic) => ({ name: topic.name, normalized_name: topic.normalizedName })),
+        );
+        topics = [...topics, ...inserted];
+      } catch {
+        // Resolve concurrent topic creation without failing the user's publication.
+        topics = await this.db.get<any[]>(
+          'resa_topics',
+          token,
+          `?select=id,normalized_name&normalized_name=${filter}&limit=20`,
+        );
+      }
+    }
+
+    const linked = await this.db.get<any[]>(
+      'resa_content_topics',
+      token,
+      `?select=topic_id&content_id=eq.${contentId}&limit=20`,
+    );
+    const linkedIds = new Set(linked.map((row) => row.topic_id));
+    const relations = topics
+      .filter((topic) => !linkedIds.has(topic.id))
+      .map((topic) => ({ content_id: contentId, topic_id: topic.id }));
+    if (relations.length) {
+      await this.db.post('resa_content_topics', token, relations);
+    }
+  }
+
   async comment(token: string, contentId: string, input: { body: string; parent_id?: string | null }) {
     const a = await this.actor(token); const rows = await this.db.post<any[]>('resa_comments', token, { content_id: contentId, author_id: a.id, body: this.clean(input.body, 'body', 5000), parent_id: input.parent_id ?? null }); return rows[0];
   }
