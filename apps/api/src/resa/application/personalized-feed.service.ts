@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { IdentityService } from '../../identity/application/identity.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 import { ResaRecommendationService } from './recommendation.service';
@@ -99,7 +99,7 @@ export class ResaPersonalizedFeedService {
   async recordImpression(token: string, contentId: string, durationMs: number, completed: boolean) {
     await this.identity.getCurrentUser(token);
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(contentId)) {
-      throw new Error('Invalid content identifier');
+      throw new BadRequestException('Invalid content identifier');
     }
     const duration = Math.min(Math.max(Math.floor(durationMs), 1000), 300000);
     await this.db.rpc('record_resa_feed_impression', token, {
