@@ -10,6 +10,7 @@ export interface RecommendationContext {
   viewDurationMs?: number;
   viewCount?: number;
   completedViews?: number;
+  topicInterestScore?: number;
 }
 
 @Injectable()
@@ -24,6 +25,7 @@ export class ResaRecommendationService {
     const save = context.saved ? 18 : 0;
     const dwell = Math.min(Math.max(context.viewDurationMs ?? 0, 0) / 1000, 90) * 0.16;
     const completion = Math.min(Math.max(context.completedViews ?? 0, 0), 5) * 2;
+    const learnedInterest = Math.min(Math.max(context.topicInterestScore ?? 0, 0), 80) * 0.25;
     const repeatPenalty = Math.min(Math.max((context.viewCount ?? 0) - 2, 0) * 6, 24);
     const spiritualRelevance = [
       'prayer',
@@ -38,7 +40,7 @@ export class ResaRecommendationService {
     const explicitDisinterest = context.feedback === 'not_interested' ? 100 : 0;
 
     return relationship + popularity + save + dwell + completion
-      + spiritualRelevance + freshness + discovery
+      + learnedInterest + spiritualRelevance + freshness + discovery
       - repeatPenalty - explicitDisinterest;
   }
 
