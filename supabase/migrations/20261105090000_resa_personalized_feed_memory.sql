@@ -31,7 +31,7 @@ create or replace function public.record_resa_feed_impression(
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 declare
   actor_id uuid := auth.uid();
