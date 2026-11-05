@@ -10,6 +10,7 @@ import { ResaOperationalController } from './presentation/resa-operational.contr
 import { ResaLiveEgressService } from './application/resa-live-egress.service';
 import { ResaPersonalizedFeedService } from './application/personalized-feed.service';
 import { ResaPersonalizedFeedController } from './presentation/personalized-feed.controller';
+import { ResaTopicClassifierService } from './application/topic-classifier.service';
 
 @Module({
   imports: [IdentityModule, MediaModule],
@@ -25,6 +26,7 @@ import { ResaPersonalizedFeedController } from './presentation/personalized-feed
     ResaOperationalService,
     ResaLiveEgressService,
     ResaPersonalizedFeedService,
+    ResaTopicClassifierService,
   ],
   exports: [
     ResaEngine,
@@ -33,6 +35,7 @@ import { ResaPersonalizedFeedController } from './presentation/personalized-feed
     ResaOperationalService,
     ResaLiveEgressService,
     ResaPersonalizedFeedService,
+    ResaTopicClassifierService,
   ],
 })
 export class ResaModule {}
