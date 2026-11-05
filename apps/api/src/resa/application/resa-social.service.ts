@@ -242,7 +242,20 @@ export class ResaSocialService {
   async save(token: string, contentId: string) { const a = await this.actor(token); const rows = await this.db.upsert<any[]>('resa_saves', token, { content_id: contentId, user_id: a.id }, '?on_conflict=content_id,user_id'); return rows[0]; }
   async unsave(token: string, contentId: string) { const a = await this.actor(token); await this.db.delete('resa_saves', token, `?content_id=eq.${contentId}&user_id=eq.${a.id}`); return { removed: true }; }
   async repost(token: string, contentId: string, quote = false, body?: string) { const a = await this.actor(token); if (quote) { const rows = await this.db.post<any[]>('resa_contents', token, { author_id: a.id, type: 'text', body: this.clean(body, 'body', 5000), visibility: 'public', language: 'pt', quoted_content_id: contentId }); return rows[0]; } const rows = await this.db.post<any[]>('resa_shares', token, { content_id: contentId, user_id: a.id, share_type: 'repost' }); return rows[0]; }
-  async feedback(token: string, contentId: string, feedback: string) { const a = await this.actor(token); if (!['not_interested', 'hide_author', 'report'].includes(feedback)) throw new BadRequestException('Invalid feed feedback'); const rows = await this.db.upsert<any[]>('resa_feed_feedback', token, { user_id: a.id, content_id: contentId, feedback }, '?on_conflict=user_id,content_id'); return rows[0]; }
+  async feedback(token: string, contentId: string, feedback: string) {
+    await this.actor(token);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(contentId)) {
+      throw new BadRequestException('Invalid content identifier');
+    }
+    if (!['not_interested', 'hide_author', 'report'].includes(feedback)) {
+      throw new BadRequestException('Invalid feed feedback');
+    }
+    await this.db.rpc('record_resa_feed_feedback', token, {
+      p_content_id: contentId,
+      p_feedback: feedback,
+    });
+    return { saved: true, feedback };
+  }
   async schedule(token: string, contentId: string, scheduledFor: string) { const a = await this.actor(token); const date = new Date(scheduledFor); if (Number.isNaN(date.getTime()) || date.getTime() <= Date.now()) throw new BadRequestException('scheduled_for must be a future date'); const rows = await this.db.upsert<any[]>('resa_creator_schedules', token, { creator_id: a.id, content_id: contentId, scheduled_for: date.toISOString() }, '?on_conflict=content_id'); return rows[0]; }
   async schedules(token: string, limit = 50) { const a = await this.actor(token); const size = Math.min(Math.max(Number(limit) || 50, 1), 100); return this.db.get('resa_creator_schedules', token, `?select=*,resa_contents(*)&creator_id=eq.${a.id}&order=scheduled_for.asc&limit=${size}`); }
   async cancelSchedule(token: string, scheduleId: string) { const a = await this.actor(token); const rows = await this.db.patch<any[]>('resa_creator_schedules', token, { status: 'cancelled' }, `?id=eq.${scheduleId}&creator_id=eq.${a.id}&status=eq.scheduled`); if (!rows[0]) throw new BadRequestException('Scheduled content was not found or is no longer cancellable'); return rows[0]; }
