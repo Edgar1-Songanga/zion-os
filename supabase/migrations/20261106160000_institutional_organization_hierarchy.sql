@@ -110,6 +110,25 @@ before insert or update of organization_type, parent_id
 on public.organizations
 for each row execute function private.enforce_organization_hierarchy();
 
+create or replace function private.prevent_parent_organization_delete()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $function$
+begin
+  if exists (select 1 from public.organizations child where child.parent_id = old.id) then
+    raise exception 'An organization with subordinate organizations cannot be deleted';
+  end if;
+  return old;
+end;
+$function$;
+
+drop trigger if exists organizations_parent_delete_guard on public.organizations;
+create trigger organizations_parent_delete_guard
+before delete on public.organizations
+for each row execute function private.prevent_parent_organization_delete();
+
 create or replace function public.zion_create_institutional_organization(
   p_name text,
   p_slug text,
