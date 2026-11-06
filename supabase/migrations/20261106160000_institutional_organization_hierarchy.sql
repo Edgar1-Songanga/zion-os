@@ -113,8 +113,8 @@ declare
 begin
   app_meta := coalesce(auth.jwt() -> 'app_metadata', '{}'::jsonb);
   if auth.uid() is null
-     or app_meta ->> 'zion_global_role' <> 'global_admin'
-     or app_meta -> 'zion_verified' <> 'true'::jsonb then
+     or (app_meta ->> 'zion_global_role') is distinct from 'global_admin'
+     or (app_meta -> 'zion_verified') is distinct from 'true'::jsonb then
     raise exception 'A verified ZION global administrator is required'
       using errcode = '42501';
   end if;
