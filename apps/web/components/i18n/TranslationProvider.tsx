@@ -43,6 +43,22 @@ export const ZION_LOCALE_LABELS: Record<ZionLocale, string> = {
 const SOURCE_LOCALE: ZionLocale = "pt-AO";
 const STORAGE_KEY = "zion.locale";
 const CACHE_KEY = "zion.translation.shell.v1";
+const COUNTRY_DEFAULT_LOCALE: Record<string, ZionLocale> = {
+  AO: "pt-AO", PT: "pt-PT", BR: "pt-PT", MZ: "pt-AO", CV: "pt-AO", GW: "pt-AO", ST: "pt-AO",
+  GB: "en", US: "en", CA: "en", AU: "en", NZ: "en", IE: "en",
+  FR: "fr", BE: "fr", SN: "fr", CI: "fr", CD: "fr", CG: "fr", CM: "fr", GA: "fr", ML: "fr", NE: "fr", BF: "fr", TG: "fr", BJ: "fr", GN: "fr", TD: "fr", CF: "fr", DJ: "fr", MG: "fr", RW: "fr", BI: "fr",
+  ES: "es", MX: "es", AR: "es", CO: "es", CL: "es", PE: "es",
+  DE: "de", AT: "de", CH: "de",
+  IT: "it",
+  CN: "zh", TW: "zh", SG: "zh",
+  SA: "ar", EG: "ar", MA: "ar", DZ: "ar", TN: "ar", AE: "ar", QA: "ar", KW: "ar", JO: "ar", LB: "ar", IQ: "ar",
+  KE: "sw", TZ: "sw",
+  NA: "af", ZA: "af",
+  ET: "am",
+  NG: "ha",
+  AO: "pt-AO",
+};
+
 
 const sourceStrings = {
   brandDescription: "Ecossistema Digital Adventista Global",
@@ -210,7 +226,7 @@ function readCached(): Record<string, Record<string, string>> {
   }
 }
 
-export function TranslationProvider({ children }: { children: React.ReactNode }) {
+export function TranslationProvider({ children, countryCode }: { children: React.ReactNode; countryCode?: string | null }) {
   const [locale, setLocaleState] = useState<ZionLocale>(SOURCE_LOCALE);
   const [translations, setTranslations] = useState<Record<string, Record<string, string>>>(readCached);
   const [ready, setReady] = useState(false);
@@ -233,6 +249,17 @@ export function TranslationProvider({ children }: { children: React.ReactNode })
           window.localStorage.setItem(STORAGE_KEY, preferred);
         } else if (isLocale(stored)) {
           setLocaleState(stored);
+        } else {
+          const countryLocale = countryCode ? COUNTRY_DEFAULT_LOCALE[countryCode.toUpperCase()] : undefined;
+          const browserLanguage = navigator.languages?.find((candidate) => {
+            const normalized = candidate.toLowerCase();
+            return ZION_LOCALES.some((supported) =>
+              normalized === supported.toLowerCase() || normalized.startsWith(`${supported.toLowerCase()}-`),
+            );
+          });
+          const suggested = countryLocale ?? (browserLanguage as ZionLocale | undefined) ?? SOURCE_LOCALE;
+          setLocaleState(suggested);
+          window.localStorage.setItem(STORAGE_KEY, suggested);
         }
       } catch {
         if (active && isLocale(stored)) setLocaleState(stored);
