@@ -19,6 +19,7 @@ import { MINISTRY_DIRECTORY } from "./ministry/ministry.service";
 import { SupabaseMinistryDirectory } from "./ministry/supabase-ministry.directory";
 import { SupabaseRestClient } from "../common/supabase/supabase-rest.client";
 import { SpiritualProgressController } from "./spiritual-progress.controller";
+import { SpiritualChatController } from "./spiritual-chat.controller";
 import { GamificationController } from "../gamification/gamification.controller";
 import { GamificationService } from "../gamification/gamification.service";
 import { ReferralController } from "../referrals/referral.controller";
@@ -36,7 +37,7 @@ import { DepartmentOperationsService } from "./ministry/department-operations.se
 
 @Module({
   imports: [IdentityModule],
-  controllers: [BibleController, AdventistCanonController, SabbathSchoolController, MinistryController, DepartmentOperationsController, YouthClubController, YouthProgressionController, YouthActivityController, SpiritualProgressController, GamificationController, ReferralController],
+  controllers: [BibleController, AdventistCanonController, SabbathSchoolController, MinistryController, DepartmentOperationsController, YouthClubController, YouthProgressionController, YouthActivityController, SpiritualProgressController, SpiritualChatController, GamificationController, ReferralController],
   providers: [
     SupabaseRestClient,
     BibleService,
