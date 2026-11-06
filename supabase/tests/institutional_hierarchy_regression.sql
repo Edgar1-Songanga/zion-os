@@ -16,6 +16,15 @@ begin
   values ('Test General Conference','test-gc','GENERAL_CONFERENCE')
   returning id into gc;
 
+  rejected := false;
+  begin
+    insert into public.organizations(name,slug,organization_type)
+    values ('Duplicate General Conference','duplicate-gc','GENERAL_CONFERENCE');
+  exception when unique_violation then
+    rejected := true;
+  end;
+  if not rejected then raise exception 'A second General Conference root was not rejected'; end if;
+
   insert into public.organizations(name,slug,organization_type,parent_id)
   values ('Test Division','test-division','DIVISION',gc)
   returning id into division;
