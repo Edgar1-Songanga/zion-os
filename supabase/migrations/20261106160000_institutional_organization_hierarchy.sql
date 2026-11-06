@@ -153,6 +153,62 @@ begin
 end;
 $function$;
 
+create or replace function public.zion_get_organization_hierarchy(p_organization_id uuid)
+returns table (
+  id uuid,
+  name text,
+  organization_type text,
+  parent_id uuid,
+  depth integer
+)
+language plpgsql
+security definer
+set search_path = pg_catalog, public, private
+as $function$
+declare
+  app_meta jsonb;
+begin
+  app_meta := coalesce(auth.jwt() -> 'app_metadata', '{}'::jsonb);
+  if auth.uid() is null or not (
+    exists (
+      select 1
+      from public.organization_memberships m
+      where m.organization_id = p_organization_id
+        and m.user_id = auth.uid()
+        and m.status = 'ACTIVE'
+    )
+    or exists (
+      select 1 from public.organizations o
+      where o.id = p_organization_id and o.created_by = auth.uid()
+    )
+    or (
+      (app_meta ->> 'zion_global_role') = 'global_admin'
+      and (app_meta -> 'zion_verified') = 'true'::jsonb
+    )
+  ) then
+    raise exception 'Active organization membership is required to view this hierarchy'
+      using errcode = '42501';
+  end if;
+
+  return query
+    with recursive hierarchy(org_id, org_name, org_type, org_parent_id, level_depth) as (
+      select o.id, o.name, o.organization_type, o.parent_id, 0
+      from public.organizations o
+      where o.id = p_organization_id
+      union all
+      select parent.id, parent.name, parent.organization_type, parent.parent_id, child.level_depth + 1
+      from public.organizations parent
+      join hierarchy child on parent.id = child.org_parent_id
+    )
+    select h.org_id, h.org_name, h.org_type, h.org_parent_id, h.level_depth
+    from hierarchy h
+    order by h.level_depth desc;
+end;
+$function$;
+
+revoke all on function public.zion_get_organization_hierarchy(uuid) from public, anon;
+grant execute on function public.zion_get_organization_hierarchy(uuid) to authenticated;
+
 create or replace function public.zion_list_institutional_organizations()
 returns setof public.organizations
 language plpgsql
