@@ -50,6 +50,29 @@ begin
     raise exception 'Legacy standalone local church compatibility failed';
   end if;
 
+  if private.has_hr_permission_in_hierarchy(church, 'hr.manage') then
+    raise exception 'HR permissions must not be available at local church level';
+  end if;
+  if not private.has_hr_permission_in_hierarchy(mission, 'hr.manage') then
+    raise exception 'HR permissions should remain available at mission level when inherited';
+  end if;
+  if not exists (
+    select 1 from pg_policies
+    where schemaname='public' and tablename='hr_employees'
+      and policyname='hr_employees_insert'
+      and with_check like '%has_hr_permission_in_hierarchy%'
+  ) then
+    raise exception 'HR employee insert policy was not restricted to institutional levels';
+  end if;
+  if not exists (
+    select 1 from pg_policies
+    where schemaname='public' and tablename='payroll_runs'
+      and policyname='payroll_runs_insert'
+      and with_check like '%has_hr_permission_in_hierarchy%'
+  ) then
+    raise exception 'Payroll run insert policy was not restricted to institutional levels';
+  end if;
+
   begin
     insert into public.organizations(name,slug,organization_type,parent_id)
     values ('Invalid Mission','invalid-mission','MISSION',division);
