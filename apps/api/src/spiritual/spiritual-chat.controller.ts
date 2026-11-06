@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Get, Headers, Param, Post, Body, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Headers, Param, Post, UnauthorizedException } from "@nestjs/common";
 import { getSupabaseUser } from "../identity/infrastructure/supabase-auth.client";
 import { SupabaseRestClient } from "../common/supabase/supabase-rest.client";
 
@@ -10,7 +10,7 @@ export class SpiritualChatController {
   constructor(private readonly db: SupabaseRestClient) {}
 
   private async actor(authorization?: string) {
-    const token = authorization?.replace(/^Bearer\\s+/i, "").trim();
+    const token = authorization?.replace(/^Bearer\s+/i, "").trim();
     if (!token) throw new UnauthorizedException("Bearer token is required");
     const user = await getSupabaseUser(token);
     if (!user) throw new UnauthorizedException("Invalid or expired Supabase session");
