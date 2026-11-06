@@ -37,7 +37,7 @@ create table public.role_permissions (role_id uuid not null references public.ro
 
 create or replace function private.is_org_member(target_org uuid)
 returns boolean language sql stable
-as $ select exists (select 1 from public.organization_memberships m where m.organization_id=target_org and m.user_id=auth.uid() and m.status='ACTIVE') $;
+as $function$ select exists (select 1 from public.organization_memberships m where m.organization_id=target_org and m.user_id=auth.uid() and m.status='ACTIVE') $function$;
 
 create or replace function private.has_org_permission(target_org uuid, permission_key text)
 returns boolean language sql stable
