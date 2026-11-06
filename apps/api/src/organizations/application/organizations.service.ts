@@ -47,6 +47,21 @@ export class OrganizationsService {
     return organization;
   }
 
+  async hierarchy(accessToken: string, organizationId: string) {
+    await this.identity.getCurrentUser(accessToken);
+    return this.db.rpc<Array<{
+      id: string;
+      name: string;
+      organization_type: string;
+      parent_id: string | null;
+      depth: number;
+    }>>(
+      'zion_get_organization_hierarchy',
+      accessToken,
+      { p_organization_id: organizationId },
+    );
+  }
+
   async listInstitutional(accessToken: string) {
     await this.identity.requireGlobalAdmin(accessToken);
     return this.db.rpc<Organization[]>(
