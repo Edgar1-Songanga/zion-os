@@ -43,12 +43,12 @@ as $$
     and length(btrim(p_query)) between 2 and 120
     and coalesce(p.privacy->>'profile_visibility','community') <> 'private'
     and (
-      p.display_name ilike '%' || replace(replace(replace(btrim(p_query),'\\','\\\\'),'%','\\%'),'_','\\_') || '%'
-      or p.first_name ilike '%' || replace(replace(replace(btrim(p_query),'\\','\\\\'),'%','\\%'),'_','\\_') || '%'
-      or p.last_name ilike '%' || replace(replace(replace(btrim(p_query),'\\','\\\\'),'%','\\%'),'_','\\_') || '%'
+      pg_catalog.strpos(pg_catalog.lower(coalesce(p.display_name,'')), pg_catalog.lower(btrim(p_query))) > 0
+      or pg_catalog.strpos(pg_catalog.lower(coalesce(p.first_name,'')), pg_catalog.lower(btrim(p_query))) > 0
+      or pg_catalog.strpos(pg_catalog.lower(coalesce(p.last_name,'')), pg_catalog.lower(btrim(p_query))) > 0
       or (
         coalesce(p.privacy->>'profile_visibility','community') = 'public'
-        and u.email ilike '%' || replace(replace(replace(btrim(p_query),'\\','\\\\'),'%','\\%'),'_','\\_') || '%'
+        and pg_catalog.strpos(pg_catalog.lower(coalesce(u.email,'')), pg_catalog.lower(btrim(p_query))) > 0
       )
       or p.id::text = btrim(p_query)
     )
