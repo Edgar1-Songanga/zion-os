@@ -3,7 +3,8 @@ create table if not exists public.spiritual_chat_conversations (
   user_id uuid not null references auth.users(id) on delete cascade,
   title text not null check (char_length(title) between 1 and 160),
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint spiritual_chat_conversations_id_user_unique unique (id, user_id)
 );
 
 create index if not exists spiritual_chat_conversations_user_updated_idx
@@ -11,7 +12,7 @@ create index if not exists spiritual_chat_conversations_user_updated_idx
 
 create table if not exists public.spiritual_chat_messages (
   id uuid primary key default gen_random_uuid(),
-  conversation_id uuid not null references public.spiritual_chat_conversations(id) on delete cascade,
+  conversation_id uuid not null,
   user_id uuid not null references auth.users(id) on delete cascade,
   role text not null check (role in ('user','assistant')),
   content text not null check (char_length(content) between 1 and 20000),
@@ -23,8 +24,6 @@ create table if not exists public.spiritual_chat_messages (
     on delete cascade
 );
 
-create unique index if not exists spiritual_chat_conversations_id_user_uidx
-  on public.spiritual_chat_conversations(id, user_id);
 create index if not exists spiritual_chat_messages_conversation_created_idx
   on public.spiritual_chat_messages(conversation_id, created_at asc);
 
