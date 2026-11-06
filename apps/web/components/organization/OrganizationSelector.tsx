@@ -39,7 +39,7 @@ export function OrganizationSelector({ value, onChange, allowedOrganizationTypes
         {organizations.length === 0 && <option value="">{allowedOrganizationTypes?.length ? "Sem nível institucional elegível" : "Nenhuma organização disponível"}</option>}
         {organizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.name} · {organization.organization_type}</option>)}
       </select>
-      {allowedOrganizationTypes?.length > 0 && organizations.length === 0 && !loading && <span className="text-xs text-amber-700">Recursos Humanos e Payroll são geridos ao nível da Missão/Associação, União, Divisão ou Associação Geral.</span>}
+      {Boolean(allowedOrganizationTypes?.length) && organizations.length === 0 && !loading && <span className="text-xs text-amber-700">Recursos Humanos e Payroll são geridos ao nível da Missão/Associação, União, Divisão ou Associação Geral.</span>}
       {error && <span role="alert" className="text-xs text-red-700">{error}</span>}
     </label>
   );
