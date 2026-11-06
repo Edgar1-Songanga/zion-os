@@ -8,6 +8,8 @@ declare
   mission uuid;
   church uuid;
   standalone_church uuid;
+  test_user uuid := gen_random_uuid();
+  hierarchy_rows integer;
   rejected boolean := false;
 begin
   insert into public.organizations(name,slug,organization_type)
@@ -96,6 +98,35 @@ begin
   perform public.zion_create_institutional_organization(
     'Authorized Union','authorized-union','UNION',division
   );
+
+  insert into public.organization_memberships(organization_id,user_id,status)
+  values (church,test_user,'ACTIVE');
+
+  perform set_config('request.jwt.claim.sub', test_user::text, true);
+  perform set_config('request.jwt.claims', jsonb_build_object('sub', test_user)::text, true);
+  select count(*) into hierarchy_rows
+  from public.zion_get_organization_hierarchy(church);
+  if hierarchy_rows <> 5 then
+    raise exception 'Organization member did not receive the complete ancestry chain';
+  end if;
+
+  rejected := false;
+  begin
+    perform * from public.zion_get_organization_hierarchy(standalone_church);
+  exception when insufficient_privilege then
+    rejected := true;
+  end;
+  if not rejected then raise exception 'Member was able to inspect an unrelated organization hierarchy'; end if;
+
+  perform set_config('request.jwt.claim.sub', gen_random_uuid()::text, true);
+  perform set_config('request.jwt.claims', '{}'::text, true);
+  rejected := false;
+  begin
+    perform * from public.zion_get_organization_hierarchy(church);
+  exception when insufficient_privilege then
+    rejected := true;
+  end;
+  if not rejected then raise exception 'Unauthenticated user was able to inspect organization hierarchy'; end if;
 
   if not exists (select 1 from public.organizations where slug='authorized-union' and parent_id=division) then
     raise exception 'Verified global administrator could not create a valid institutional organization';
