@@ -293,6 +293,18 @@ begin
     raise exception 'Verified global administrator could not create an organization unit';
   end if;
 
+  insert into public.audit_logs(organization_id, actor_user_id, action, resource_type)
+  values (standalone_id, auth.uid(), 'organization_unit.created', 'organization_unit');
+
+  if not exists (
+    select 1 from public.audit_logs
+    where organization_id=standalone_id
+      and actor_user_id=auth.uid()
+      and action='organization_unit.created'
+  ) then
+    raise exception 'Verified global administrator could not write the audit event for an organization it administers';
+  end if;
+
   -- A malformed server claim must fail closed without raising a cast error.
   perform set_config(
     'request.jwt.claims',
@@ -356,6 +368,17 @@ begin
   end;
   if not rejected then
     raise exception 'Ordinary user with forged user_metadata created an organization unit';
+  end if;
+
+  rejected := false;
+  begin
+    insert into public.audit_logs(organization_id, actor_user_id, action, resource_type)
+    values (church_id, auth.uid(), 'forged.audit', 'organization_unit');
+  exception when insufficient_privilege then
+    rejected := true;
+  end;
+  if not rejected then
+    raise exception 'Ordinary user with forged user_metadata wrote an audit event for an unrelated organization';
   end if;
 end;
 $global_admin_rls$;
