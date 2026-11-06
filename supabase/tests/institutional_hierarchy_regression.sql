@@ -251,7 +251,7 @@ select set_config(
   true
 );
 
-do $
+do $global_admin_rls$
 declare
   church_id uuid;
   standalone_id uuid;
@@ -358,7 +358,7 @@ begin
     raise exception 'Ordinary user with forged user_metadata created an organization unit';
   end if;
 end;
-$;
+$global_admin_rls$;
 
 reset role;
 
