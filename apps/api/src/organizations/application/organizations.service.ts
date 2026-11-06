@@ -19,7 +19,7 @@ export class OrganizationsService {
   constructor(private readonly identity: IdentityService) {}
 
   async listMine(accessToken: string) {
-    const user = await this.identity.getCurrentUser(accessToken);
+    await this.identity.getCurrentUser(accessToken);
     return this.db.get<Organization[]>(
       'organizations',
       accessToken,
@@ -28,52 +28,22 @@ export class OrganizationsService {
   }
 
   async create(accessToken: string, input: { name: string; slug: string; organization_type?: string }) {
-    const user = await this.identity.getCurrentUser(accessToken);
+    await this.identity.getCurrentUser(accessToken);
     const name = input.name?.trim();
     const slug = input.slug?.trim().toLowerCase();
 
     if (!name || !slug) throw new BadRequestException('name and slug are required');
+    if (input.organization_type && input.organization_type !== 'LOCAL_CHURCH') {
+      throw new BadRequestException('Only local churches can be registered as organizations.');
+    }
 
-    const created = await this.db.post<Organization[]>(
-      'organizations',
+    const organization = await this.db.rpc<Organization>(
+      'zion_create_local_church',
       accessToken,
-      {
-        name,
-        slug,
-        organization_type: input.organization_type ?? 'LOCAL_CHURCH',
-        created_by: user.id,
-      },
+      { p_name: name, p_slug: slug },
     );
 
-    const organization = created[0];
-    if (!organization) throw new BadRequestException('Organization was not created');
-
-    const role = await this.db.get<{ id: string }[]>(
-      'roles',
-      accessToken,
-      '?select=id&key=eq.organization_owner&limit=1',
-    );
-    if (!role[0]) throw new BadRequestException('Organization owner role is not configured');
-
-    await this.db.post(
-      'organization_memberships',
-      accessToken,
-      { organization_id: organization.id, user_id: user.id, role_id: role[0].id, status: 'ACTIVE' },
-    );
-
-    await this.db.post(
-      'audit_logs',
-      accessToken,
-      {
-        organization_id: organization.id,
-        actor_user_id: user.id,
-        action: 'organization.created',
-        resource_type: 'organization',
-        resource_id: organization.id,
-        metadata: { organization_type: organization.organization_type },
-      },
-    );
-
+    if (!organization?.id) throw new BadRequestException('Church registration did not return a valid organization');
     return organization;
   }
 

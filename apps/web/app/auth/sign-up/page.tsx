@@ -66,6 +66,9 @@ export default function SignUpPage() {
         <p className="mt-6 text-sm text-[var(--zion-muted)]">
           Já tem conta? <Link href="/auth/sign-in" className="font-semibold text-[var(--zion-primary)] underline underline-offset-4">Entrar</Link>
         </p>
+        <p className="mt-3 text-sm text-[var(--zion-muted)]">
+          Representa uma igreja? <Link href="/church-registration" className="font-semibold text-[var(--zion-primary)] underline underline-offset-4">Registar igreja</Link>
+        </p>
       </section>
     </main>
   );
