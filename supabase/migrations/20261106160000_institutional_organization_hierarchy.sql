@@ -19,6 +19,10 @@ alter table public.organizations
 create index if not exists idx_organizations_type_parent
   on public.organizations(organization_type, parent_id);
 
+create unique index if not exists idx_organizations_single_general_conference
+  on public.organizations(organization_type)
+  where organization_type = 'GENERAL_CONFERENCE';
+
 create or replace function private.organization_parent_type_allowed(
   child_type text,
   parent_type text
