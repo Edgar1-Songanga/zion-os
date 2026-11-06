@@ -3,7 +3,7 @@ name: Institutional organization hierarchy regression
 on:
   pull_request:
     paths:
-      - "supabase/migrations/*institutional*"
+      - "supabase/migrations/*hierarchy*"
       - "supabase/tests/institutional*"
       - ".github/workflows/institutional-hierarchy.yml"
   push:
@@ -34,6 +34,8 @@ jobs:
         run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/institutional_hierarchy_fixture.sql
       - name: Apply hierarchy migration
         run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261106160000_institutional_organization_hierarchy.sql
+      - name: Apply department hierarchy guard
+        run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261106190000_organization_unit_hierarchy_guard.sql
       - name: Verify valid levels, invalid parent relationships and privileged creation
         run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/institutional_hierarchy_regression.sql
       - name: Stop disposable PostgreSQL
