@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { IdentityService } from '../identity/application/identity.service';
 import { SupabaseRestClient } from '../common/supabase/supabase-rest.client';
 import { FinanceService } from './finance.service';
@@ -10,6 +10,7 @@ describe('FinanceService manual journal safeguards', () => {
   let service: FinanceService;
   let getSpy: jest.SpyInstance;
   let rpcSpy: jest.SpyInstance;
+  let patchSpy: jest.SpyInstance;
   let identitySpy: jest.Mock;
 
   const balancedInput = (overrides: Record<string, unknown> = {}) => ({
@@ -30,6 +31,7 @@ describe('FinanceService manual journal safeguards', () => {
       { id: creditAccountId, currency_code: 'AOA', is_active: true },
     ]);
     rpcSpy = jest.spyOn(SupabaseRestClient.prototype, 'rpc').mockResolvedValue({ id: 'entry-1', status: 'POSTED' });
+    patchSpy = jest.spyOn(SupabaseRestClient.prototype, 'patch').mockResolvedValue([{ id: 'method-1' }]);
   });
 
   afterEach(() => jest.restoreAllMocks());
@@ -99,5 +101,73 @@ describe('FinanceService manual journal safeguards', () => {
     await expect(service.createJournal('access-token', organizationId, balancedInput() as never))
       .rejects.toBeInstanceOf(BadRequestException);
     expect(rpcSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('FinanceService Giving bank transfer configuration', () => {
+  const organizationId = '00000000-0000-4000-8000-000000000001';
+  let service: FinanceService;
+  let getSpy: jest.SpyInstance;
+  let patchSpy: jest.SpyInstance;
+  let identitySpy: jest.Mock;
+
+  beforeEach(() => {
+    identitySpy = jest.fn().mockResolvedValue({ id: 'treasurer-1' });
+    service = new FinanceService({ getCurrentUser: identitySpy } as unknown as IdentityService);
+    getSpy = jest.spyOn(SupabaseRestClient.prototype, 'get').mockResolvedValue([
+      { id: 'method-1', provider: 'BANK_TRANSFER', asset_account_id: 'cash-account-1' },
+    ]);
+    patchSpy = jest.spyOn(SupabaseRestClient.prototype, 'patch').mockResolvedValue([{ id: 'method-1' }]);
+  });
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it('normalizes IBAN whitespace before validating and saving the official bank details', async () => {
+    const compactIban = 'AO12345678901234567890123';
+    const result = await service.configureGivingBankTransfer('access-token', organizationId, {
+      bank_name: 'Banco de Angola',
+      account_holder: 'Igreja Local',
+      iban: 'AO12 3456 7890 1234 5678 9012 3',
+    });
+
+    expect(result).toEqual({ id: 'method-1' });
+    expect(identitySpy).toHaveBeenCalledWith('access-token');
+    expect(getSpy).toHaveBeenCalledWith(
+      'giving_payment_methods',
+      'access-token',
+      expect.stringContaining('provider=eq.BANK_TRANSFER'),
+    );
+    expect(patchSpy).toHaveBeenCalledWith(
+      'giving_payment_methods',
+      'access-token',
+      expect.objectContaining({
+        is_enabled: true,
+        public_details: { bank_name: 'Banco de Angola', account_holder: 'Igreja Local', iban: compactIban },
+      }),
+      expect.stringContaining('organization_id=eq.' + organizationId),
+    );
+  });
+
+  it('rejects an invalid Angolan IBAN before querying or updating payment methods', async () => {
+    await expect(service.configureGivingBankTransfer('access-token', organizationId, {
+      bank_name: 'Banco de Angola', account_holder: 'Igreja Local', iban: 'AO12345',
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(getSpy).not.toHaveBeenCalled();
+    expect(patchSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not activate bank transfer when the accounting asset account is missing', async () => {
+    getSpy.mockResolvedValueOnce([{ id: 'method-1', provider: 'BANK_TRANSFER', asset_account_id: null }]);
+    await expect(service.configureGivingBankTransfer('access-token', organizationId, {
+      bank_name: 'Banco de Angola', account_holder: 'Igreja Local', iban: 'AO12345678901234567890123',
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(patchSpy).not.toHaveBeenCalled();
+  });
+
+  it('reports an authorization failure when RLS prevents the payment method update', async () => {
+    patchSpy.mockResolvedValueOnce([]);
+    await expect(service.configureGivingBankTransfer('access-token', organizationId, {
+      bank_name: 'Banco de Angola', account_holder: 'Igreja Local', iban: 'AO12345678901234567890123',
+    })).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
