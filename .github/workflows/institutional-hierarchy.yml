@@ -1,0 +1,47 @@
+name: Institutional organization hierarchy regression
+
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/*hierarchy*"
+      - "supabase/migrations/*verified_global_admin*"
+      - "supabase/tests/institutional*"
+      - ".github/workflows/institutional-hierarchy.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/*institutional*"
+      - "supabase/migrations/*verified_global_admin*"
+      - "supabase/tests/institutional*"
+      - ".github/workflows/institutional-hierarchy.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  institutional-hierarchy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start disposable PostgreSQL
+        run: |
+          docker run --rm -d --name zion-hierarchy-postgres \
+            -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:16
+          for attempt in $(seq 1 30); do
+            if docker exec zion-hierarchy-postgres pg_isready -U postgres; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+      - name: Prepare isolated schema
+        run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/institutional_hierarchy_fixture.sql
+      - name: Apply hierarchy migration
+        run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261106220312_institutional_organization_hierarchy.sql
+      - name: Apply department hierarchy guard
+        run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261106220316_organization_unit_hierarchy_guard.sql
+      - name: Apply verified global administrator RLS permissions
+        run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261106220320_verified_global_admin_organization_unit_permissions.sql
+      - name: Verify valid levels, invalid parent relationships and privileged creation
+        run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/institutional_hierarchy_regression.sql
+      - name: Stop disposable PostgreSQL
+        if: always()
+        run: docker rm -f zion-hierarchy-postgres || true

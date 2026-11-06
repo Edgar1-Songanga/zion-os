@@ -17,7 +17,7 @@ type Ministry = {
 };
 type Membership = { id: string; user_id: string; status?: string; role_id?: string };
 type OrganizationUnit = { id: string; organization_id: string; parent_id: string | null; name: string; unit_type: string; description: string | null; is_active: boolean };
-type OrganizationNode = { id: string; name: string; organization_type: string; parent_id: string | null };
+type OrganizationNode = { id: string; name: string; organization_type: string; parent_id: string | null; depth: number };
 type YouthReport = {
   clubs_total?: number;
   clubs_active?: number;
@@ -68,7 +68,7 @@ export default function ChurchDashboard() {
       resaRequest<Membership[]>(`/v1/organizations/${encodeURIComponent(id)}/memberships`),
       resaRequest<YouthReport>(`/v1/youth/activities/organization/${encodeURIComponent(id)}/report`),
       resaRequest<OrganizationUnit[]>(`/v1/organizations/${encodeURIComponent(id)}/units`),
-      resaRequest<OrganizationNode[]>("/v1/organizations"),
+      resaRequest<OrganizationNode[]>(`/v1/organizations/${encodeURIComponent(id)}/hierarchy`),
     ]);
 
     const nextErrors: string[] = [];
@@ -224,15 +224,15 @@ export default function ChurchDashboard() {
         <section className="grid gap-5 xl:grid-cols-2">
           <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
             <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9B7A34]">Estrutura institucional</p>
-            <h2 className="mt-2 text-xl font-semibold">Organizações acessíveis</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-500">Mostra apenas organizações devolvidas pela API para a sua sessão. Relações superiores não são inventadas quando não estão acessíveis.</p>
+            <h2 className="mt-2 text-xl font-semibold">Hierarquia institucional</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500">Mostra a organização selecionada e a sua cadeia superior, devolvida pelo servidor após validar a sua pertença.</p>
             {!organizationTree ? <p className="mt-4 text-sm text-slate-500">Estrutura indisponível.</p> : organizationTree.length === 0 ? <p className="mt-4 text-sm text-slate-500">Não existem organizações acessíveis nesta sessão.</p> : (
               <div className="mt-4 space-y-2">
                 {organizationTree.map((item) => {
                   const parent = item.parent_id ? organizationTree.find((candidate) => candidate.id === item.parent_id) : null;
                   return <div key={item.id} className={`rounded-xl border p-3 ${item.id === organizationId ? "border-[#C8A24A] bg-[#FBF8F0]" : "border-slate-100 bg-slate-50"}`}>
                     <p className="font-semibold text-[#0C1A3D]">{item.name}</p>
-                    <p className="mt-1 text-xs text-slate-500">{item.organization_type}{parent ? ` · Unidade superior: ${parent.name}` : item.parent_id ? " · Unidade superior fora da lista acessível" : " · Sem unidade superior registada"}</p>
+                    <p className="mt-1 text-xs text-slate-500">{item.organization_type}{parent ? ` · Unidade superior: ${parent.name}` : item.parent_id ? " · Unidade superior não devolvida pelo servidor" : " · Sem unidade superior registada"}</p>
                   </div>;
                 })}
               </div>

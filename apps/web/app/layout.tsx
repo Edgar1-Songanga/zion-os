@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import "./globals.css";
 import AppShell from "@/components/layout/AppShell";
 import { TranslationProvider } from "@/components/i18n";
@@ -10,15 +11,18 @@ export const metadata: Metadata = {
   description: "Global Adventist Digital Ecosystem",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const requestHeaders = await headers();
+  const countryCode = requestHeaders.get("x-vercel-ip-country") ?? requestHeaders.get("cf-ipcountry") ?? null;
+
   return (
     <html lang="pt">
       <body className="min-h-screen bg-slate-100">
-        <TranslationProvider>
+        <TranslationProvider countryCode={countryCode}>
           <GlobalResaCallAlerts />
           <AppShell>{children}</AppShell>
           <BibleChallengeNudge />

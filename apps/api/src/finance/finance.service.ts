@@ -3,6 +3,15 @@ import { randomUUID } from 'node:crypto';
 import { IdentityService } from '../identity/application/identity.service';
 import { SupabaseRestClient } from '../common/supabase/supabase-rest.client';
 
+function isValidAngolanIban(iban: string): boolean {
+  if (!/^AO[0-9]{23}$/.test(iban)) return false;
+  const rearranged = iban.slice(4) + iban.slice(0, 4);
+  const expanded = rearranged.replace(/[A-Z]/g, (letter) => String(letter.charCodeAt(0) - 55));
+  let remainder = 0;
+  for (const digit of expanded) remainder = (remainder * 10 + Number(digit)) % 97;
+  return remainder === 1;
+}
+
 @Injectable()
 export class FinanceService {
   private readonly db = new SupabaseRestClient();
@@ -179,8 +188,8 @@ export class FinanceService {
     const bankName = input.bank_name?.trim();
     const accountHolder = input.account_holder?.trim();
     const iban = input.iban?.replace(/\s+/g, '').toUpperCase();
-    if (!bankName || bankName.length < 2 || bankName.length > 120 || !accountHolder || accountHolder.length < 2 || accountHolder.length > 120 || !iban || !/^AO[0-9]{23}$/.test(iban)) {
-      throw new BadRequestException('Indique o banco, o titular da conta e um IBAN angolano válido (AO + 23 dígitos).');
+    if (!bankName || bankName.length < 2 || bankName.length > 120 || !accountHolder || accountHolder.length < 2 || accountHolder.length > 120 || !iban || !isValidAngolanIban(iban)) {
+      throw new BadRequestException('Indique o banco, o titular da conta e um IBAN angolano válido (AO + 23 dígitos, com checksum correto).');
     }
     const methods = await this.db.get<Array<{id:string;provider:string;asset_account_id:string|null}>>('giving_payment_methods', token,
       `?select=id,provider,asset_account_id&organization_id=eq.${encodeURIComponent(organizationId)}&provider=eq.BANK_TRANSFER&limit=1`);

@@ -1,7 +1,8 @@
 export type SupportedLocale =
   | "pt-AO" | "pt-PT" | "en" | "fr" | "es" | "de" | "it" | "zh"
   | "ar" | "sw" | "af" | "osh" | "umb" | "kmb" | "kg" | "cjk"
-  | "nyk" | "lue" | "mck" | "kj" | "ln" | "am" | "yo" | "ha" | "zu" | "xh";
+  | "nyk" | "lue" | "mck" | "kj" | "ln" | "am" | "yo" | "ha" | "zu" | "xh"
+  | "pov" | "rw" | "fuf" | "mnk";
 
 export type TranslationContentType =
   | "ui"

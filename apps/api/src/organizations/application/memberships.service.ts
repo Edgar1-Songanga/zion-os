@@ -2,6 +2,28 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { IdentityService } from '../../identity/application/identity.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 
+type OrganizationMembership = {
+  id: string;
+  organization_id: string;
+  user_id: string;
+  status: string;
+};
+
+type OrganizationUnit = {
+  id: string;
+  organization_id: string;
+  name: string;
+  unit_type: string;
+  is_active: boolean;
+};
+
+type UnitAssignment = {
+  id: string;
+  unit_id: string;
+  membership_id: string;
+  created_at: string;
+};
+
 @Injectable()
 export class MembershipsService {
   private readonly db = new SupabaseRestClient();
@@ -67,19 +89,81 @@ export class MembershipsService {
     return membership;
   }
 
-  async assignUnit(accessToken: string, organizationId: string, membershipId: string, unitId: string) {
-    const actor = await this.identity.getCurrentUser(accessToken);
-    const units = await this.db.get<{ id: string }[]>(
+  async listOrganizationUnitAssignments(accessToken: string, organizationId: string) {
+    await this.identity.getCurrentUser(accessToken);
+    const memberships = await this.db.get<OrganizationMembership[]>(
+      'organization_memberships',
+      accessToken,
+      `?select=id,user_id,status&organization_id=eq.${organizationId}&order=joined_at.asc`,
+    );
+    if (!memberships.length) return [];
+
+    const membershipById = new Map(memberships.map((membership) => [membership.id, membership]));
+    const assignments = await this.db.get<UnitAssignment[]>(
+      'unit_memberships',
+      accessToken,
+      `?select=id,unit_id,membership_id,created_at&membership_id=in.(${memberships.map((membership) => membership.id).join(',')})&order=created_at.asc`,
+    );
+    if (!assignments.length) return [];
+
+    const unitIds = [...new Set(assignments.map((assignment) => assignment.unit_id))];
+    const units = await this.db.get<OrganizationUnit[]>(
       'organization_units',
       accessToken,
-      `?select=id&organization_id=eq.${organizationId}&id=eq.${unitId}&limit=1`,
+      `?select=id,organization_id,name,unit_type,is_active&id=in.(${unitIds.join(',')})&organization_id=eq.${organizationId}`,
     );
-    if (!units[0]) throw new NotFoundException('Organization unit not found');
+    const unitById = new Map(units.map((unit) => [unit.id, unit]));
+    return assignments.flatMap((assignment) => {
+      const unit = unitById.get(assignment.unit_id);
+      const membership = membershipById.get(assignment.membership_id);
+      return unit && membership ? [{ ...assignment, unit, user_id: membership.user_id, membership_status: membership.status }] : [];
+    });
+  }
 
-    const rows = await this.db.post<Array<{ id: string; [key: string]: unknown }>>(
+  async listUnitAssignments(accessToken: string, organizationId: string, membershipId: string) {
+    await this.identity.getCurrentUser(accessToken);
+    await this.requireMembership(accessToken, organizationId, membershipId);
+
+    const assignments = await this.db.get<UnitAssignment[]>(
+      'unit_memberships',
+      accessToken,
+      `?select=id,unit_id,membership_id,created_at&membership_id=eq.${membershipId}&order=created_at.asc`,
+    );
+    if (!assignments.length) return [];
+
+    const unitIds = [...new Set(assignments.map((assignment) => assignment.unit_id))];
+    const units = await this.db.get<OrganizationUnit[]>(
+      'organization_units',
+      accessToken,
+      `?select=id,organization_id,name,unit_type,is_active&id=in.(${unitIds.join(',')})&organization_id=eq.${organizationId}`,
+    );
+    const unitById = new Map(units.map((unit) => [unit.id, unit]));
+    return assignments
+      .filter((assignment) => unitById.has(assignment.unit_id))
+      .map((assignment) => ({ ...assignment, unit: unitById.get(assignment.unit_id) }));
+  }
+
+  async assignUnit(accessToken: string, organizationId: string, membershipId: string, unitId: string) {
+    const actor = await this.identity.getCurrentUser(accessToken);
+    const membership = await this.requireMembership(accessToken, organizationId, membershipId);
+    if (membership.status.toUpperCase() !== 'ACTIVE') {
+      throw new BadRequestException('Only active organization members can be assigned to a department');
+    }
+    const unit = await this.requireUnit(accessToken, organizationId, unitId);
+    if (!unit.is_active) throw new BadRequestException('Inactive organization units cannot receive new assignments');
+
+    const existing = await this.db.get<UnitAssignment[]>(
+      'unit_memberships',
+      accessToken,
+      `?select=id,unit_id,membership_id,created_at&unit_id=eq.${unitId}&membership_id=eq.${membershipId}&limit=1`,
+    );
+    if (existing[0]) return existing[0];
+
+    const rows = await this.db.upsert<UnitAssignment[]>(
       'unit_memberships',
       accessToken,
       { unit_id: unitId, membership_id: membershipId },
+      '?on_conflict=unit_id,membership_id',
     );
     const assignment = rows[0];
     if (!assignment) throw new BadRequestException('Unit assignment was not created');
@@ -93,24 +177,40 @@ export class MembershipsService {
 
   async removeUnit(accessToken: string, organizationId: string, membershipId: string, unitId: string) {
     const actor = await this.identity.getCurrentUser(accessToken);
-    const units = await this.db.get<{ id: string }[]>(
-      'organization_units',
-      accessToken,
-      `?select=id&organization_id=eq.${organizationId}&id=eq.${unitId}&limit=1`,
-    );
-    if (!units[0]) throw new NotFoundException('Organization unit not found');
+    await this.requireMembership(accessToken, organizationId, membershipId);
+    await this.requireUnit(accessToken, organizationId, unitId);
 
-    const removed = await this.db.delete<Array<{ id: string; [key: string]: unknown }>>(
+    const removed = await this.db.delete<UnitAssignment[]>(
       'unit_memberships',
       accessToken,
       `?unit_id=eq.${unitId}&membership_id=eq.${membershipId}`,
     );
     if (!removed.length) throw new NotFoundException('Unit assignment not found');
-    await this.audit(accessToken, organizationId, actor.id, 'membership.unit_removed', 'unit_membership', unitId, {
+    await this.audit(accessToken, organizationId, actor.id, 'membership.unit_removed', 'unit_membership', removed[0].id, {
       membership_id: membershipId,
       unit_id: unitId,
     });
     return { success: true };
+  }
+
+  private async requireMembership(accessToken: string, organizationId: string, membershipId: string) {
+    const memberships = await this.db.get<OrganizationMembership[]>(
+      'organization_memberships',
+      accessToken,
+      `?select=id,organization_id,user_id,status&id=eq.${membershipId}&organization_id=eq.${organizationId}&limit=1`,
+    );
+    if (!memberships[0]) throw new NotFoundException('Membership not found in this organization');
+    return memberships[0];
+  }
+
+  private async requireUnit(accessToken: string, organizationId: string, unitId: string) {
+    const units = await this.db.get<OrganizationUnit[]>(
+      'organization_units',
+      accessToken,
+      `?select=id,organization_id,name,unit_type,is_active&id=eq.${unitId}&organization_id=eq.${organizationId}&limit=1`,
+    );
+    if (!units[0]) throw new NotFoundException('Organization unit not found');
+    return units[0];
   }
 
   private async audit(accessToken: string, organizationId: string, actorUserId: string, action: string, resourceType: string, resourceId: string, metadata: unknown) {

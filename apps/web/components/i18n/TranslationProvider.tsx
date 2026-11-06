@@ -6,7 +6,7 @@ import { ZION_TRANSLATION_CATALOGS } from "./catalogs";
 
 export const ZION_LOCALES = [
   "pt-AO", "pt-PT", "en", "fr", "es", "de", "it", "zh", "ar", "sw",
-  "af", "osh", "umb", "kmb", "kg", "cjk", "nyk", "lue", "mck", "kj", "ln", "am", "yo", "ha", "zu", "xh",
+  "af", "osh", "umb", "kmb", "kg", "cjk", "nyk", "lue", "mck", "kj", "ln", "am", "yo", "ha", "zu", "xh", "pov", "rw", "fuf", "mnk",
 ] as const;
 
 export type ZionLocale = (typeof ZION_LOCALES)[number];
@@ -32,6 +32,10 @@ export const ZION_LOCALE_LABELS: Record<ZionLocale, string> = {
   ha: "Hausa",
   zu: "isiZulu",
   xh: "isiXhosa",
+  pov: "Kriol (Guiné-Bissau) · Beta",
+  rw: "Ikinyarwanda · Beta",
+  fuf: "Pulaar / Fula · Beta",
+  mnk: "Mandinka · Beta",
   kg: "Kikongo",
   cjk: "Cokwe",
   nyk: "Olunyaneka",
@@ -43,6 +47,21 @@ export const ZION_LOCALE_LABELS: Record<ZionLocale, string> = {
 const SOURCE_LOCALE: ZionLocale = "pt-AO";
 const STORAGE_KEY = "zion.locale";
 const CACHE_KEY = "zion.translation.shell.v1";
+const COUNTRY_DEFAULT_LOCALE: Record<string, ZionLocale> = {
+  AO: "pt-AO", PT: "pt-PT", BR: "pt-PT", MZ: "pt-AO", CV: "pt-AO", GW: "pov", ST: "pt-AO",
+  GB: "en", US: "en", CA: "en", AU: "en", NZ: "en", IE: "en",
+  FR: "fr", BE: "fr", SN: "fr", CI: "fr", CD: "fr", CG: "fr", CM: "fr", GA: "fr", ML: "fr", NE: "fr", BF: "fr", TG: "fr", BJ: "fr", GN: "fr", TD: "fr", CF: "fr", DJ: "fr", MG: "fr", BI: "fr",
+  ES: "es", MX: "es", AR: "es", CO: "es", CL: "es", PE: "es",
+  DE: "de", AT: "de", CH: "de",
+  IT: "it",
+  CN: "zh", TW: "zh", SG: "zh",
+  SA: "ar", EG: "ar", MA: "ar", DZ: "ar", TN: "ar", AE: "ar", QA: "ar", KW: "ar", JO: "ar", LB: "ar", IQ: "ar",
+  KE: "sw", TZ: "sw", RW: "rw",
+  NA: "en", ZA: "en",
+  ET: "am",
+  NG: "en",
+};
+
 
 const sourceStrings = {
   brandDescription: "Ecossistema Digital Adventista Global",
@@ -139,6 +158,50 @@ const sourceStrings = {
   cannotCopy: "Não foi possível copiar a ligação.",
   copyLink: "Copiar ligação",
   commentPlaceholder: "Escreva um comentário…",
+  dashEyebrow: "ZION OS · A TUA JORNADA",
+  dashHeroTitle: "Um lugar para aprender, pertencer e crescer.",
+  dashHeroDescription: "Encontra inspiração nas Escrituras, aprende ao teu ritmo e transforma boas ideias em gestos concretos na tua vida e comunidade.",
+  dashStartBible: "Começar uma jornada bíblica",
+  dashDiscoverCommunity: "Descobrir a comunidade",
+  dashBenefitLearn: "Aprende com contexto e referências",
+  dashBenefitPace: "Avança ao teu próprio ritmo",
+  dashBenefitCommunity: "Cresce em comunidade",
+  dashNextStep: "Um próximo passo possível",
+  dashAttentionTitle: "Pensa no que merece ocupar a tua atenção.",
+  dashReading: "Leitura sugerida:",
+  dashReadingPrompt: "Lê a passagem com calma e pergunta a ti próprio: que pensamento bom posso alimentar e pôr em prática hoje?",
+  dashOpenBibleEngine: "Abrir o Bible Engine",
+  dashManyPaths: "Uma experiência, muitos caminhos",
+  dashFaithCommunity: "A tua fé também cresce em comunidade.",
+  dashShareCommunity: "Partilha uma reflexão, acompanha uma conversa ou encontra um espaço onde possas aprender com outras pessoas.",
+  dashEnterCommunity: "Entrar na comunidade",
+  dashExploreZion: "Explora a ZION",
+  dashChooseNext: "Escolhe o teu próximo passo.",
+  dashNoRush: "Não precisas de fazer tudo hoje. Escolhe aquilo que é útil para ti neste momento.",
+  dashLearn: "APRENDER",
+  dashLearnDesc: "Explora as Escrituras, responde a perguntas e consolida o que aprendeste.",
+  dashContinue: "Continuar a jornada",
+  dashReflect: "REFLETIR",
+  dashDevotion: "Estudo e devoção",
+  dashDevotionDesc: "Reserva um momento para ler, refletir e registar o que levas contigo.",
+  dashOpenDevotion: "Abrir devoção",
+  dashBelong: "PERTENCER",
+  dashCommunity: "Comunidade",
+  dashCommunityDesc: "Descobre conversas, partilha experiências e cresce com outras pessoas.",
+  dashFindCommunity: "Encontrar comunidade",
+  dashPray: "ORAR",
+  dashPrayer: "Oração",
+  dashPrayerDesc: "Encontra um espaço para pedidos de oração, intercessão e apoio mútuo.",
+  dashPrayerAction: "Entrar no espaço de oração",
+  dashStudyTogether: "ESTUDAR EM CONJUNTO",
+  dashSabbath: "Escola Sabatina",
+  dashSabbathDesc: "Aprofunda temas bíblicos e acompanha a aprendizagem em comunidade.",
+  dashExploreStudies: "Explorar estudos",
+  dashGrow: "CRESCER",
+  dashJourney: "Jornada espiritual",
+  dashJourneyDesc: "Consulta os espaços de acompanhamento e reflexão da tua caminhada.",
+  dashViewJourney: "Ver jornada",
+  dashClosing: "A tua jornada não é uma corrida. Avança ao teu ritmo e leva contigo aquilo que faz sentido.",
 } as const;
 
 type TranslationKey = keyof typeof sourceStrings;
@@ -166,17 +229,70 @@ function readCached(): Record<string, Record<string, string>> {
   }
 }
 
-export function TranslationProvider({ children }: { children: React.ReactNode }) {
+export function TranslationProvider({ children, countryCode }: { children: React.ReactNode; countryCode?: string | null }) {
   const [locale, setLocaleState] = useState<ZionLocale>(SOURCE_LOCALE);
   const [translations, setTranslations] = useState<Record<string, Record<string, string>>>(readCached);
   const [ready, setReady] = useState(false);
   const [dynamicTranslationUnavailable, setDynamicTranslationUnavailable] = useState(false);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (stored && (ZION_LOCALES as readonly string[]).includes(stored)) setLocaleState(stored as ZionLocale);
-    setReady(true);
-  }, []);
+    let active = true;
+    const isLocale = (value: unknown): value is ZionLocale =>
+      typeof value === "string" && (ZION_LOCALES as readonly string[]).includes(value);
+
+    const restorePreference = async () => {
+      const stored = window.localStorage.getItem(STORAGE_KEY);
+      try {
+        const supabase = createClient();
+        const { data } = await supabase.auth.getUser();
+        const preferred = data.user?.user_metadata?.preferred_locale;
+        if (!active) return;
+        if (isLocale(preferred)) {
+          setLocaleState(preferred);
+          window.localStorage.setItem(STORAGE_KEY, preferred);
+        } else if (isLocale(stored)) {
+          setLocaleState(stored);
+          // If the member chose a language before signing in, promote that
+          // choice to the account so it is available on their other devices.
+          if (data.user) {
+            const { error } = await supabase.auth.updateUser({ data: { preferred_locale: stored } });
+            if (error) console.error("[ZION i18n] Could not sync the local language preference to the account.", error);
+          }
+        } else {
+          const countryLocale = countryCode ? COUNTRY_DEFAULT_LOCALE[countryCode.toUpperCase()] : undefined;
+          const browserLanguage = navigator.languages?.find((candidate) => {
+            const normalized = candidate.toLowerCase();
+            return ZION_LOCALES.some((supported) =>
+              normalized === supported.toLowerCase() || normalized.startsWith(`${supported.toLowerCase()}-`),
+            );
+          });
+          const suggested = countryLocale ?? (browserLanguage as ZionLocale | undefined) ?? SOURCE_LOCALE;
+          setLocaleState(suggested);
+          window.localStorage.setItem(STORAGE_KEY, suggested);
+        }
+      } catch {
+        if (active && isLocale(stored)) setLocaleState(stored);
+      } finally {
+        if (active) setReady(true);
+      }
+    };
+
+    void restorePreference();
+    const supabase = createClient();
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event !== "SIGNED_IN" && event !== "USER_UPDATED" && event !== "TOKEN_REFRESHED") return;
+      const preferred = session?.user?.user_metadata?.preferred_locale;
+      if (isLocale(preferred)) {
+        setLocaleState(preferred);
+        window.localStorage.setItem(STORAGE_KEY, preferred);
+      }
+    });
+
+    return () => {
+      active = false;
+      listener.subscription.unsubscribe();
+    };
+  }, [countryCode]);
 
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -188,6 +304,25 @@ export function TranslationProvider({ children }: { children: React.ReactNode })
   const setLocale = useCallback((next: ZionLocale) => {
     setDynamicTranslationUnavailable(false);
     setLocaleState(next);
+    window.localStorage.setItem(STORAGE_KEY, next);
+
+    // Persist the preference in the authenticated account so it follows the
+    // member across browsers and devices; local storage remains an offline fallback.
+    void (async () => {
+      try {
+        const supabase = createClient();
+        const { data } = await supabase.auth.getUser();
+        if (!data.user) return;
+        const { error } = await supabase.auth.updateUser({
+          data: { preferred_locale: next },
+        });
+        if (error) {
+          console.error("[ZION i18n] Could not persist the language preference to the account.", error);
+        }
+      } catch (error) {
+        console.error("[ZION i18n] Language preference persistence failed.", error);
+      }
+    })();
   }, []);
 
   const translateText = useCallback(async (
@@ -256,11 +391,15 @@ export function TranslationProvider({ children }: { children: React.ReactNode })
     }
   }, [locale, translations]);
 
-  const t = useCallback((key: TranslationKey) => {
-    if (locale === SOURCE_LOCALE) return sourceStrings[key];
-    return ZION_TRANSLATION_CATALOGS[locale]?.[key]
-      ?? translations[locale]?.[`${SOURCE_LOCALE}:${locale}:ui:${sourceStrings[key]}`]
-      ?? sourceStrings[key];
+  const t = useCallback((key: TranslationKey): string => {
+    const sourceText: string = sourceStrings[key];
+    if (locale === SOURCE_LOCALE) return sourceText;
+    const catalog: Record<string, string> = ZION_TRANSLATION_CATALOGS[locale] ?? {};
+    const cached = translations[locale]?.[`${SOURCE_LOCALE}:${locale}:ui:${sourceText}`];
+    // Keep the interface readable when a locale catalog is still being translated.
+    // A completed target-language catalog wins, then saved AI translation, then English.
+    const englishFallback = ZION_TRANSLATION_CATALOGS.en?.[key];
+    return catalog[key] ?? cached ?? englishFallback ?? sourceText;
   }, [locale, translations]);
 
   const value = useMemo(() => ({

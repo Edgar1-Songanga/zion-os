@@ -1,0 +1,40 @@
+name: Sabbath School attendance correction regression
+
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/*sabbath_school_attendance*"
+      - "supabase/tests/sabbath_school_attendance*"
+      - ".github/workflows/sabbath-school-attendance.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/*sabbath_school_attendance*"
+      - "supabase/tests/sabbath_school_attendance*"
+      - ".github/workflows/sabbath-school-attendance.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  attendance-correction:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start disposable PostgreSQL
+        run: |
+          docker run --rm -d --name zion-attendance-postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:16
+          for attempt in $(seq 1 30); do
+            if docker exec zion-attendance-postgres pg_isready -U postgres; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+      - name: Prepare isolated fixture
+        run: docker exec -i zion-attendance-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/sabbath_school_attendance_fixture.sql
+      - name: Apply attendance correction migration
+        run: docker exec -i zion-attendance-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261106220339_sabbath_school_attendance_correction.sql
+      - name: Verify correction, uniqueness and authorization
+        run: docker exec -i zion-attendance-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/sabbath_school_attendance_regression.sql
+      - name: Stop disposable PostgreSQL
+        if: always()
+        run: docker rm -f zion-attendance-postgres || true

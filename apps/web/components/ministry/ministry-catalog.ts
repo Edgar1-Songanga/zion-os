@@ -29,7 +29,7 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
   {
     id: "youth-ministry",
     profileImage: "https://files.adventistas.org/institucional/pt/sites/20/2013/03/18151050/IMG_9030.jpg",
-    name: "Ministério Jovem Adventista",
+    name: "Ministério Jovem",
     category: "Juventude",
     summary: "Forma uma geração ligada a Cristo, comprometida com o discipulado, a liderança e a missão.",
     mission: "Conduzir os jovens a uma relação salvadora com Jesus e ao discipulado, integrando Missão, Relacionamento, Nutrição espiritual e Templo (MRNT); em 2026, reforçar a missão prática em cada comunidade.",
@@ -127,7 +127,7 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
   },
   {
     id: "communication",
-    name: "Ministério da Comunicação",
+    name: "Comunicação",
     category: "Administração e Comunicação",
     summary: "Comunica a missão, as iniciativas e as histórias da igreja com clareza, responsabilidade e relevância.",
     mission: "Facilitar uma comunicação fiel, acessível e coordenada entre a igreja, os membros, os meios de comunicação e a comunidade.",
@@ -138,7 +138,7 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
   },
   {
     id: "education",
-    name: "Ministério da Educação",
+    name: "Educação",
     category: "Crianças e Família",
     summary: "Promove educação integral, desenvolvimento do caráter e aprendizagem ao longo da vida.",
     mission: "Apoiar a educação cristã e a cooperação entre igreja, famílias, escolas e instituições educativas.",
@@ -149,7 +149,7 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
   },
   {
     id: "health-ministries",
-    name: "Ministério da Saúde",
+    name: "Saúde",
     category: "Serviço e Comunidade",
     summary: "Incentiva hábitos saudáveis e iniciativas de bem-estar físico, mental, social e espiritual.",
     mission: "Servir a comunidade através da promoção de saúde integral, educação preventiva e estilo de vida saudável.",
@@ -193,7 +193,7 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
   },
   {
     id: "adventist-community-services",
-    name: "Serviços Comunitários Adventistas",
+    name: "Ação Solidária Adventista (ASA)",
     category: "Serviço e Comunidade",
     summary: "Organiza ações práticas de solidariedade, assistência e serviço às pessoas em situação de necessidade.",
     mission: "Demonstrar o amor de Cristo através do serviço compassivo, da resposta às necessidades locais e da mobilização de voluntários.",
@@ -204,7 +204,7 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
   },
   {
     id: "stewardship",
-    name: "Ministério de Mordomia Cristã",
+    name: "Mordomia Cristã",
     category: "Discipulado e Missão",
     summary: "Ensina a administração fiel e generosa do tempo, dons, recursos e responsabilidades confiadas por Deus.",
     mission: "Cultivar uma vida de fidelidade, gratidão, generosidade e responsabilidade cristã.",
@@ -215,7 +215,7 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
   },
   {
     id: "publishing-ministries",
-    name: "Ministério de Publicações",
+    name: "Publicações",
     category: "Discipulado e Missão",
     summary: "Partilha literatura e recursos cristãos para apoiar o estudo bíblico, o discipulado e a evangelização.",
     mission: "Levar mensagens de esperança através de publicações e de pessoas preparadas para partilhar literatura.",
@@ -226,7 +226,7 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
   },
   {
     id: "adventist-possibility-ministries",
-    name: "Ministério Adventista das Possibilidades",
+    name: "Ministério Adventista das Possibilidades (MAP)",
     category: "Serviço e Comunidade",
     summary: "Promove inclusão, dignidade, participação e apoio a pessoas e famílias com necessidades específicas.",
     mission: "Criar uma igreja acessível e acolhedora onde cada pessoa é valorizada, incluída e capacitada para servir.",
@@ -237,7 +237,7 @@ export const ADVENTIST_MINISTRY_CATALOG: MinistryCatalogEntry[] = [
   },
   {
     id: "public-affairs-religious-liberty",
-    name: "Assuntos Públicos e Liberdade Religiosa",
+    name: "Liberdade Religiosa e Assuntos Públicos",
     category: "Serviço e Comunidade",
     summary: "Acompanha questões de liberdade de consciência, liberdade religiosa e relações com a sociedade.",
     mission: "Promover a liberdade religiosa, a consciência e o respeito pelos direitos fundamentais de todas as pessoas.",

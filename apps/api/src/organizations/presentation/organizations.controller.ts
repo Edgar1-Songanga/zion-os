@@ -24,6 +24,27 @@ export class OrganizationsController {
     return this.organizations.create(this.token(authorization), body);
   }
 
+  @Get(':organizationId/hierarchy')
+  hierarchy(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('organizationId') organizationId: string,
+  ) {
+    return this.organizations.hierarchy(this.token(authorization), organizationId);
+  }
+
+  @Get('institutional')
+  listInstitutional(@Headers('authorization') authorization: string | undefined) {
+    return this.organizations.listInstitutional(this.token(authorization));
+  }
+
+  @Post('institutional')
+  createInstitutional(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: { name: string; slug: string; organization_type: string; parent_id?: string | null },
+  ) {
+    return this.organizations.createInstitutional(this.token(authorization), body);
+  }
+
   @Get(':organizationId/memberships')
   memberships(
     @Headers('authorization') authorization: string | undefined,

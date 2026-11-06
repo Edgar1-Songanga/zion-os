@@ -9,7 +9,17 @@ function SignInForm() {
   const supabase = createClient();
   const searchParams = useSearchParams();
   const next = searchParams.get("next");
-  const redirectPath = next?.startsWith("/") ? next : "/dashboard";
+  const redirectPath = (() => {
+    if (!next) return "/dashboard";
+    try {
+      const target = new URL(next, window.location.origin);
+      return target.origin === window.location.origin && !target.pathname.startsWith("//")
+        ? `${target.pathname}${target.search}${target.hash}`
+        : "/dashboard";
+    } catch {
+      return "/dashboard";
+    }
+  })();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mfaCode, setMfaCode] = useState("");
@@ -44,42 +54,48 @@ function SignInForm() {
       return;
     }
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      setError(error.message);
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    if (signInError) {
+      setError(signInError.message);
       setLoading(false);
       return;
     }
 
-    const { data: aal, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-    if (aalError) {
-      setError(aalError.message);
-      setLoading(false);
-      return;
-    }
+    // Never turn an MFA lookup outage into an MFA bypass. Keep the valid
+    // password session, but require a retry before entering the application.
+    try {
+      const { data: aal, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (aalError) {
+        setError("A sessão foi iniciada, mas não foi possível confirmar o estado da verificação MFA. Tente novamente; a sua sessão continua ativa.");
+        setLoading(false);
+        return;
+      }
 
-    if (aal.currentLevel === "aal1" && aal.nextLevel === "aal2") {
-      const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
-      if (factorsError) {
-        setError(factorsError.message);
-        setLoading(false);
-        return;
+      if (aal?.currentLevel === "aal1" && aal.nextLevel === "aal2") {
+        const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
+        if (factorsError) {
+          setError("A sessão foi iniciada, mas não foi possível consultar o autenticador MFA. Tente novamente; a sua sessão continua ativa.");
+          setLoading(false);
+          return;
+        }
+
+        const verifiedFactor = factors.totp.find((factor) => factor.status === "verified");
+        if (verifiedFactor) {
+          const challenge = await supabase.auth.mfa.challenge({ factorId: verifiedFactor.id });
+          if (challenge.error) {
+            setError("Não foi possível iniciar a verificação MFA. Tente novamente; a sua sessão de palavra-passe continua ativa.");
+            setLoading(false);
+            return;
+          }
+          setFactorId(verifiedFactor.id);
+          setChallengeId(challenge.data.id);
+          setNeedsMfa(true);
+          setLoading(false);
+          return;
+        }
       }
-      const verifiedFactor = factors.totp.find((factor) => factor.status === "verified");
-      if (!verifiedFactor) {
-        setError("A conta requer MFA, mas não foi encontrado um fator verificado.");
-        setLoading(false);
-        return;
-      }
-      const challenge = await supabase.auth.mfa.challenge({ factorId: verifiedFactor.id });
-      if (challenge.error) {
-        setError(challenge.error.message);
-        setLoading(false);
-        return;
-      }
-      setFactorId(verifiedFactor.id);
-      setChallengeId(challenge.data.id);
-      setNeedsMfa(true);
+    } catch {
+      setError("A sessão foi iniciada, mas não foi possível confirmar a verificação de segurança. Tente novamente; a sua sessão continua ativa.");
       setLoading(false);
       return;
     }

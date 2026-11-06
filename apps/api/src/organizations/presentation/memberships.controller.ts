@@ -35,6 +35,23 @@ export class MembershipsController {
     return this.memberships.update(this.token(authorization), organizationId, membershipId, body);
   }
 
+  @Get('unit-assignments')
+  listOrganizationUnitAssignments(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('organizationId') organizationId: string,
+  ) {
+    return this.memberships.listOrganizationUnitAssignments(this.token(authorization), organizationId);
+  }
+
+  @Get(':membershipId/units')
+  listUnitAssignments(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('organizationId') organizationId: string,
+    @Param('membershipId') membershipId: string,
+  ) {
+    return this.memberships.listUnitAssignments(this.token(authorization), organizationId, membershipId);
+  }
+
   @Post(':membershipId/units/:unitId')
   assignUnit(
     @Headers('authorization') authorization: string | undefined,

@@ -1,0 +1,49 @@
+name: RESA security regressions
+
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/*resa*"
+      - "supabase/migrations/*department*"
+      - "supabase/tests/resa_security*"
+      - ".github/workflows/resa-security.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/*resa*"
+      - "supabase/migrations/*department*"
+      - "supabase/tests/resa_security*"
+      - ".github/workflows/resa-security.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  private-live-and-department-purge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start disposable PostgreSQL
+        run: |
+          docker run --rm -d --name zion-resa-security-postgres \
+            -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:16
+          for attempt in $(seq 1 30); do
+            if docker exec zion-resa-security-postgres pg_isready -U postgres; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+      - name: Prepare isolated RESA and department fixture
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_security_fixture.sql
+      - name: Apply password and purge-scope hardening
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261106220330_resa_password_bruteforce_and_department_purge_scope.sql
+      - name: Apply profile discovery privacy hardening
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261106220334_resa_profile_search_privacy_hardening.sql
+      - name: Verify lockout, profile privacy, authorization scope and grants
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_security_regression.sql
+      - name: Stop disposable PostgreSQL
+        if: always()
+        run: docker rm -f zion-resa-security-postgres || true

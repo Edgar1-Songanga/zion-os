@@ -3,6 +3,7 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import { OrganizationSelector, type ZionOrganization } from "@/components/organization/OrganizationSelector";
+import qrcode from "@/lib/qrcode-generator";
 
 type Fund = { id: string; name: string; description?: string | null; fund_type: string };
 type Receipt = { receipt_number: string | number; verification_hash: string; verification_code?: string; issued_at: string };
@@ -45,18 +46,86 @@ export default function GivingPage() {
     try {
       const key=requestKey||crypto.randomUUID();setRequestKey(key);
       const item=await resaRequest<Contribution>(`/v1/finance/organizations/${orgId}/giving/contributions`,{method:"POST",body:JSON.stringify({fund_id:fundId,amount:numericAmount,payment_method:"BANK_TRANSFER",idempotency_key:key})});
-      setSuccess({...item,fund:{name:selected?.name??"Contribuição"}});setStep("form");setAmount("");
+      setSuccess({...item,fund:{name:selected?.name??"Contribuição"}});setStep("form");setAmount("");setRequestKey("");
       await refresh(orgId);
     } catch(e) {setError(e instanceof Error?e.message:"Não foi possível registar o pedido.");}
     finally {setBusy(false);}
   }
+  function receiptQrSvg(item:Contribution,size=180,x=0,y=0) {
+    if(!item.receipt?.verification_code)return "";
+    const url=new URL("/recibo/verificar",window.location.origin);
+    url.searchParams.set("codigo",item.receipt.verification_code);
+    const qr=qrcode(0,"M");
+    qr.addData(url.toString());
+    qr.make();
+    const count=qr.getModuleCount();
+    const cell=100/(count+8);
+    const modules:string[]=[];
+    for(let row=0;row<count;row++)for(let col=0;col<count;col++)if(qr.isDark(row,col)){
+      modules.push(`<rect x="${(col+4)*cell}" y="${(row+4)*cell}" width="${cell+0.08}" height="${cell+0.08}" fill="#142342"/>`);
+    }
+    return `<svg xmlns="http://www.w3.org/2000/svg" x="${x}" y="${y}" width="${size}" height="${size}" viewBox="0 0 100 100" role="img" aria-label="QR code para verificar autenticidade"><rect width="100" height="100" fill="#fff"/>${modules.join("")}</svg>`;
+  }
+
+  function receiptHtml(item:Contribution) {
+    if(!item.receipt)return "";
+    const verifyUrl=item.receipt.verification_code?new URL("/recibo/verificar",window.location.origin):null;
+    if(verifyUrl)verifyUrl.searchParams.set("codigo",item.receipt.verification_code!);
+    const esc=(s:string)=>s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c] as string));
+    return `<!doctype html><html lang="pt"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Recibo ZION #${esc(String(item.receipt.receipt_number))}</title><style>body{font:16px Arial,sans-serif;color:#142342;padding:42px;max-width:680px;margin:auto}header{border-bottom:3px solid #c6a45d;padding-bottom:20px}small{color:#777;letter-spacing:2px}h1{font-size:28px}dl{display:grid;grid-template-columns:180px 1fr;gap:14px}dt{color:#666}dd{margin:0;font-weight:600}.amount{font-size:28px;color:#96752d;margin:28px 0}.hash{word-break:break-all;background:#f4f2ec;padding:14px;border-radius:8px;font-size:11px}footer{margin-top:40px;color:#777;font-size:12px}.qr{display:flex;justify-content:flex-end;margin-top:18px}.qr svg{width:180px;height:180px}.actions{display:flex;gap:10px;margin-top:28px}.actions button{padding:12px 18px;background:#142342;color:white;border:0;border-radius:8px}@media print{.actions{display:none}body{padding:0}}</style><header><small>ZION OS · RECIBO DIGITAL</small><h1>Recibo de contribuição #${esc(String(item.receipt.receipt_number))}</h1><p>Documento emitido após confirmação pela tesouraria.</p></header><p class="amount">${esc(money(Number(item.amount)))}</p><dl><dt>Destino</dt><dd>${esc(item.fund?.name??"Contribuição")}</dd><dt>Referência</dt><dd>${esc(item.reference_code)}</dd><dt>Data de emissão</dt><dd>${esc(new Date(item.receipt.issued_at).toLocaleString("pt-AO"))}</dd><dt>Estado</dt><dd>Confirmada</dd></dl><h3>Verificação de integridade</h3><p>Código: <strong>${esc(item.receipt.verification_code??"Não disponibilizado")}</strong></p><div class="hash">${esc(item.receipt.verification_hash)}</div>${verifyUrl?`<p><a href="${esc(verifyUrl.toString())}">Verificar autenticidade online</a></p><div class="qr">${receiptQrSvg(item,180)}</div>`:""}<footer>Documento institucional gerado pelo ZION OS. A confirmação corresponde aos dados registados no sistema.</footer><div class="actions"><button onclick="window.print()">Imprimir / Guardar PDF</button></div></html>`;
+  }
+  function saveBlob(filename:string,content:BlobPart,type:string) {
+    const url=URL.createObjectURL(new Blob([content],{type}));
+    const anchor=document.createElement("a");anchor.href=url;anchor.download=filename;anchor.click();
+    window.setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
   function printReceipt(item:Contribution) {
     if(!item.receipt)return;
     const w=window.open("","_blank","width=720,height=800");
-    if(!w){setError("Permita abrir uma janela para imprimir o recibo.");return;} w.opener=null;
+    if(!w){setError("Permita abrir uma janela para imprimir o recibo.");return;}
+    w.opener=null;w.document.open();w.document.write(receiptHtml(item));w.document.close();
+  }
+  function downloadReceiptHtml(item:Contribution) {
+    if(!item.receipt)return;
+    saveBlob(`zion-recibo-${String(item.receipt.receipt_number).replace(/[^a-zA-Z0-9_-]/g,"-")}.html`,receiptHtml(item),"text/html;charset=utf-8");
+  }
+  function receiptSvg(item:Contribution) {
+    if(!item.receipt)return "";
     const esc=(s:string)=>s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c] as string));
-    w.document.write(`<!doctype html><html lang="pt"><meta charset="utf-8"><title>Recibo ZION #${item.receipt.receipt_number}</title><style>body{font:16px Arial,sans-serif;color:#142342;padding:42px;max-width:680px;margin:auto}header{border-bottom:3px solid #c6a45d;padding-bottom:20px}small{color:#777;letter-spacing:2px}h1{font-size:28px}dl{display:grid;grid-template-columns:180px 1fr;gap:14px}dt{color:#666}dd{margin:0;font-weight:600}.amount{font-size:28px;color:#96752d;margin:28px 0}.hash{word-break:break-all;background:#f4f2ec;padding:14px;border-radius:8px;font-size:11px}footer{margin-top:40px;color:#777;font-size:12px}@media print{button{display:none}}</style><header><small>ZION OS · RECIBO DIGITAL</small><h1>Recibo de contribuição #${item.receipt.receipt_number}</h1><p>Documento emitido após confirmação pela tesouraria.</p></header><p class="amount">${esc(money(Number(item.amount)))}</p><dl><dt>Destino</dt><dd>${esc(item.fund?.name??"Contribuição")}</dd><dt>Referência</dt><dd>${esc(item.reference_code)}</dd><dt>Data de emissão</dt><dd>${esc(new Date(item.receipt.issued_at).toLocaleString("pt-AO"))}</dd><dt>Estado</dt><dd>Confirmada</dd></dl><h3>Verificação</h3><div class="hash">${esc(item.receipt.verification_hash)}</div><footer>Guarde este documento para os seus registos. A confirmação corresponde aos dados registados no ZION OS.</footer><button onclick="window.print()">Imprimir / Guardar PDF</button></html>`);
-    w.document.close();
+    const lines=(item.receipt.verification_hash.match(/.{1,48}/g)??[]);
+    const hashLines=lines.map((line,i)=>`<text x="76" y="${650+i*22}" font-size="13" fill="#475569">${esc(line)}</text>`).join("");
+    const verifyUrl=item.receipt.verification_code?new URL("/recibo/verificar",window.location.origin):null;
+    if(verifyUrl)verifyUrl.searchParams.set("codigo",item.receipt.verification_code!);
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="850" viewBox="0 0 1200 850"><rect width="1200" height="850" fill="#f5f3ed"/><rect x="40" y="40" width="1120" height="770" rx="28" fill="#fff" stroke="#e7e2d6" stroke-width="2"/><path d="M68 220H1132" stroke="#c6a45d" stroke-width="5"/><text x="76" y="105" font-family="Arial,sans-serif" font-size="20" letter-spacing="5" fill="#9b7b37">ZION OS · RECIBO DIGITAL</text><text x="76" y="170" font-family="Arial,sans-serif" font-size="42" font-weight="700" fill="#142342">Recibo de contribuição #${esc(String(item.receipt.receipt_number))}</text><text x="76" y="280" font-family="Arial,sans-serif" font-size="20" fill="#64748b">VALOR CONFIRMADO</text><text x="76" y="335" font-family="Arial,sans-serif" font-size="42" font-weight="700" fill="#96752d">${esc(money(Number(item.amount)))}</text><text x="76" y="410" font-family="Arial,sans-serif" font-size="18" fill="#64748b">Destino</text><text x="390" y="410" font-family="Arial,sans-serif" font-size="20" font-weight="700" fill="#142342">${esc(item.fund?.name??"Contribuição")}</text><text x="76" y="460" font-family="Arial,sans-serif" font-size="18" fill="#64748b">Referência</text><text x="390" y="460" font-family="Arial,sans-serif" font-size="20" font-weight="700" fill="#142342">${esc(item.reference_code)}</text><text x="76" y="510" font-family="Arial,sans-serif" font-size="18" fill="#64748b">Emitido em</text><text x="390" y="510" font-family="Arial,sans-serif" font-size="20" font-weight="700" fill="#142342">${esc(new Date(item.receipt.issued_at).toLocaleString("pt-AO"))}</text><text x="76" y="560" font-family="Arial,sans-serif" font-size="18" fill="#64748b">Estado</text><text x="390" y="560" font-family="Arial,sans-serif" font-size="20" font-weight="700" fill="#047857">CONFIRMADA</text><text x="76" y="615" font-family="Arial,sans-serif" font-size="17" font-weight="700" fill="#142342">Código de verificação: ${esc(item.receipt.verification_code??"Não disponibilizado")}</text>${hashLines}${receiptQrSvg(item,220,900,420)}<text x="900" y="665" font-family="Arial,sans-serif" font-size="16" font-weight="700" fill="#142342">LER E VERIFICAR</text><text x="76" y="770" font-family="Arial,sans-serif" font-size="15" fill="#64748b">Verificação online: ${esc(verifyUrl?.toString()??"Não disponível")}</text><text x="76" y="795" font-family="Arial,sans-serif" font-size="13" fill="#94a3b8">Documento institucional ZION OS · Dados pessoais do contribuinte não são publicados.</text></svg>`;
+  }
+  function downloadReceiptSvg(item:Contribution) {
+    if(!item.receipt)return;
+    saveBlob(`zion-recibo-${String(item.receipt.receipt_number).replace(/[^a-zA-Z0-9_-]/g,"-")}.svg`,receiptSvg(item),"image/svg+xml;charset=utf-8");
+  }
+  async function downloadReceiptImage(item:Contribution,format:"png"|"jpg") {
+    if(!item.receipt)return;
+    const svg=receiptSvg(item);
+    const url=URL.createObjectURL(new Blob([svg],{type:"image/svg+xml;charset=utf-8"}));
+    try {
+      const image=new Image();
+      image.src=url;
+      await new Promise<void>((resolve,reject)=>{image.onload=()=>resolve();image.onerror=()=>reject(new Error("Não foi possível preparar a imagem do recibo."));});
+      const canvas=document.createElement("canvas");canvas.width=2400;canvas.height=1700;
+      const context=canvas.getContext("2d");
+      if(!context)throw new Error("O navegador não suporta a exportação de imagem.");
+      if(format==="jpg"){context.fillStyle="#ffffff";context.fillRect(0,0,canvas.width,canvas.height);}
+      context.drawImage(image,0,0,canvas.width,canvas.height);
+      const blob=await new Promise<Blob|null>(resolve=>canvas.toBlob(resolve,format==="png"?"image/png":"image/jpeg",0.94));
+      if(!blob)throw new Error("Falha ao gerar a imagem do recibo.");
+      saveBlob(`zion-recibo-${String(item.receipt.receipt_number).replace(/[^a-zA-Z0-9_-]/g,"-")}.${format}`,blob,blob.type);
+    } catch(e) {
+      setError(e instanceof Error?e.message:"Não foi possível exportar a imagem.");
+    } finally {URL.revokeObjectURL(url);}
+  }
+  function downloadReceiptJson(item:Contribution) {
+    if(!item.receipt)return;
+    const data={issuer:"ZION OS",receipt_number:item.receipt.receipt_number,issued_at:item.receipt.issued_at,status:"CONFIRMED",amount:Number(item.amount),currency:item.currency_code,fund:item.fund?.name??"Contribuição",reference:item.reference_code,verification_code:item.receipt.verification_code??null,verification_hash:item.receipt.verification_hash};
+    saveBlob(`zion-recibo-${String(item.receipt.receipt_number).replace(/[^a-zA-Z0-9_-]/g,"-")}.json`,JSON.stringify(data,null,2),"application/json;charset=utf-8");
   }
 
   return <main className="min-h-screen bg-[#f5f3ed] px-4 py-5 text-[#142342] sm:px-6 sm:py-8"><div className="mx-auto max-w-5xl">
@@ -72,6 +141,6 @@ export default function GivingPage() {
     {step==="review"&&<div className="mt-4 rounded-2xl bg-[#f7f5ef] p-4"><p className="text-xs uppercase tracking-wider text-slate-500">Confirme antes de enviar</p><p className="mt-2 text-xl font-semibold">{money(numericAmount)}</p><p className="text-sm text-slate-600">{selected?.name} · Transferência bancária</p><p className="mt-2 text-xs leading-5 text-slate-500">Este pedido não é um comprovativo de pagamento. O recibo só será emitido após confirmação da tesouraria.</p></div>}
     <div className="mt-5 flex gap-3">{step==="review"&&<button type="button" onClick={()=>setStep("form")} className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold">Voltar</button>}<button disabled={!orgId||!fundId||!validAmount||!funds.length||busy} className="flex-1 rounded-xl bg-[#142342] px-5 py-3 text-sm font-semibold text-white shadow-sm disabled:opacity-40">{busy?"A registar…":step==="form"?"Rever contribuição →":"Confirmar pedido"}</button></div>
     </form><aside className="space-y-4"><section className="rounded-[26px] border border-[#e7e2d6] bg-white p-5 sm:p-6"><h3 className="font-semibold">Como funciona</h3><div className="mt-4 space-y-4">{[["01","Escolha","Selecione dízimo, construção, ofertas ou um ministério."],["02","Registe","Indique o valor e guarde a referência do pedido."],["03","Confirmação","A tesouraria valida o recebimento e o sistema emite o recibo."]].map(([n,t,d])=><div key={n} className="flex gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-[#f5f0e3] text-xs font-semibold text-[#96752d]">{n}</span><div><p className="text-sm font-semibold">{t}</p><p className="mt-1 text-xs leading-5 text-slate-500">{d}</p></div></div>)}</div></section><section className="rounded-[26px] bg-[#eeece5] p-5"><p className="text-xs font-semibold uppercase tracking-[.18em] text-[#927538]">Privacidade e confiança</p><p className="mt-2 text-sm leading-6 text-slate-600">O seu histórico é privado. Nenhum recibo é emitido para um pagamento ainda não confirmado.</p></section></aside></div>
-    <section className="mt-8"><div className="mb-3 flex items-end justify-between"><div><p className="text-[10px] font-semibold uppercase tracking-[.2em] text-[#9b7b37]">Área pessoal</p><h2 className="mt-1 text-xl font-semibold">Histórico e recibos</h2></div><span className="text-xs text-slate-500">{history.length} registo(s)</span></div><div className="overflow-hidden rounded-[24px] border border-[#e7e2d6] bg-white">{history.map(item=><article key={item.id} className="flex items-center justify-between gap-4 border-b border-slate-100 p-4 last:border-0 sm:p-5"><div className="min-w-0"><p className="truncate text-sm font-semibold">{item.fund?.name??"Contribuição"}</p><p className="mt-1 text-xs text-slate-500">{new Date(item.created_at).toLocaleDateString("pt-AO")} · {item.reference_code}</p><p className={`mt-2 text-xs font-medium ${item.status==="CONFIRMED"?"text-emerald-700":item.status==="REJECTED"?"text-red-700":"text-amber-700"}`}>{labels[item.status]??item.status}</p></div><div className="shrink-0 text-right"><p className="text-sm font-semibold">{money(Number(item.amount))}</p>{item.receipt&&<button type="button" onClick={()=>printReceipt(item)} className="mt-2 rounded-lg bg-[#142342] px-3 py-2 text-xs font-semibold text-white">Recibo · PDF</button>}</div></article>)}{!history.length&&<p className="p-6 text-center text-sm text-slate-500">As suas contribuições aparecerão aqui.</p>}</div></section><footer className="py-7 text-center text-xs text-slate-400">ZION OS · Generosidade com transparência</footer>
+    <section className="mt-8"><div className="mb-3 flex items-end justify-between"><div><p className="text-[10px] font-semibold uppercase tracking-[.2em] text-[#9b7b37]">Área pessoal</p><h2 className="mt-1 text-xl font-semibold">Histórico e recibos</h2></div><span className="text-xs text-slate-500">{history.length} registo(s)</span></div><div className="overflow-hidden rounded-[24px] border border-[#e7e2d6] bg-white">{history.map(item=><article key={item.id} className="flex items-center justify-between gap-4 border-b border-slate-100 p-4 last:border-0 sm:p-5"><div className="min-w-0"><p className="truncate text-sm font-semibold">{item.fund?.name??"Contribuição"}</p><p className="mt-1 text-xs text-slate-500">{new Date(item.created_at).toLocaleDateString("pt-AO")} · {item.reference_code}</p><p className={`mt-2 text-xs font-medium ${item.status==="CONFIRMED"?"text-emerald-700":item.status==="REJECTED"?"text-red-700":"text-amber-700"}`}>{labels[item.status]??item.status}</p></div><div className="shrink-0 text-right"><p className="text-sm font-semibold">{money(Number(item.amount))}</p>{item.receipt&&<div className="mt-2 flex flex-wrap justify-end gap-2"><button type="button" onClick={()=>printReceipt(item)} className="rounded-lg bg-[#142342] px-3 py-2 text-xs font-semibold text-white">Imprimir / PDF</button><button type="button" onClick={()=>downloadReceiptHtml(item)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">HTML</button><button type="button" onClick={()=>downloadReceiptJson(item)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">JSON</button><button type="button" onClick={()=>downloadReceiptSvg(item)} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">SVG</button><button type="button" onClick={()=>void downloadReceiptImage(item,"png")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">PNG</button><button type="button" onClick={()=>void downloadReceiptImage(item,"jpg")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">JPG</button></div>}</div></article>)}{!history.length&&<p className="p-6 text-center text-sm text-slate-500">As suas contribuições aparecerão aqui.</p>}</div></section><footer className="py-7 text-center text-xs text-slate-400">ZION OS · Generosidade com transparência</footer>
   </div></main>;
 }

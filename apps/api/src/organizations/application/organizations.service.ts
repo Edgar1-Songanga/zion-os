@@ -47,6 +47,62 @@ export class OrganizationsService {
     return organization;
   }
 
+  async hierarchy(accessToken: string, organizationId: string) {
+    await this.identity.getCurrentUser(accessToken);
+    return this.db.rpc<Array<{
+      id: string;
+      name: string;
+      organization_type: string;
+      parent_id: string | null;
+      depth: number;
+    }>>(
+      'zion_get_organization_hierarchy',
+      accessToken,
+      { p_organization_id: organizationId },
+    );
+  }
+
+  async listInstitutional(accessToken: string) {
+    await this.identity.requireGlobalAdmin(accessToken);
+    return this.db.rpc<Organization[]>(
+      'zion_list_institutional_organizations',
+      accessToken,
+      {},
+    );
+  }
+
+  async createInstitutional(
+    accessToken: string,
+    input: { name: string; slug: string; organization_type: string; parent_id?: string | null },
+  ) {
+    await this.identity.requireGlobalAdmin(accessToken);
+    const name = input.name?.trim();
+    const slug = input.slug?.trim().toLowerCase();
+    const organizationType = input.organization_type?.trim().toUpperCase();
+
+    if (!name || !slug || !organizationType) {
+      throw new BadRequestException('name, slug and organization_type are required');
+    }
+    if (!['GENERAL_CONFERENCE', 'DIVISION', 'UNION', 'CONFERENCE', 'MISSION'].includes(organizationType)) {
+      throw new BadRequestException('Unsupported institutional organization type');
+    }
+
+    const organization = await this.db.rpc<Organization>(
+      'zion_create_institutional_organization',
+      accessToken,
+      {
+        p_name: name,
+        p_slug: slug,
+        p_organization_type: organizationType,
+        p_parent_id: input.parent_id ?? null,
+      },
+    );
+    if (!organization?.id) {
+      throw new BadRequestException('Institutional organization registration did not return a valid organization');
+    }
+    return organization;
+  }
+
   async memberships(accessToken: string, organizationId: string) {
     return this.db.get(
       'organization_memberships',

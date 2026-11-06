@@ -126,6 +126,63 @@ export class SpiritualProgressController {
     };
   }
 
+  @Get("bible-challenge/progress")
+  async getBibleChallengeProgress(@Headers("authorization") authorization: string | undefined) {
+    const { token, user } = await this.actor(authorization);
+    const rows = await this.db.get<Array<{ state: Record<string, unknown>; updated_at: string }>>(
+      "spiritual_bible_challenge_progress",
+      token,
+      "?select=state,updated_at&user_id=eq." + encodeURIComponent(user.id) + "&limit=1",
+    );
+    return rows[0]
+      ? { progress: rows[0].state, updatedAt: rows[0].updated_at }
+      : { progress: null, updatedAt: null };
+  }
+
+  @Put("bible-challenge/progress")
+  async saveBibleChallengeProgress(
+    @Headers("authorization") authorization: string | undefined,
+    @Body() body: { progress?: Record<string, unknown> },
+  ) {
+    const { token, user } = await this.actor(authorization);
+    const state = body?.progress;
+    const integerInRange = (value: unknown, min: number, max: number) =>
+      Number.isSafeInteger(value) && Number(value) >= min && Number(value) <= max;
+    const validStringArray = (value: unknown, maxItems: number, maxLength: number) =>
+      Array.isArray(value) && value.length <= maxItems
+      && value.every((item) => typeof item === "string" && item.length <= maxLength);
+    const validIdArray = (value: unknown) =>
+      Array.isArray(value) && value.length <= 200
+      && value.every((item) => integerInRange(item, 1, 10000));
+
+    if (!state || typeof state !== "object" || Array.isArray(state)
+      || state.schemaVersion !== 1
+      || !integerInRange(state.levelIndex, 0, 5)
+      || !integerInRange(state.questionIndex, 0, 200)
+      || !integerInRange(state.totalScore, 0, 10000000)
+      || !integerInRange(state.levelCorrect, 0, 200)
+      || !integerInRange(state.currentStreak, 0, 200)
+      || !integerInRange(state.bestStreak, 0, 200)
+      || !["junior", "classic", "hyper"].includes(String(state.playMode))
+      || !(state.selectedOption === null || (typeof state.selectedOption === "string" && state.selectedOption.length <= 500))
+      || typeof state.levelFinished !== "boolean"
+      || typeof state.hintUsed !== "boolean"
+      || !validIdArray(state.missedQuestionIds)
+      || !validIdArray(state.shuffledOrder)
+      || !validStringArray(state.optionOrder, 10, 500)
+      || !validStringArray(state.hiddenOptions, 10, 500)) {
+      throw new BadRequestException("Invalid Bible Challenge progress payload.");
+    }
+
+    const rows = await this.db.upsert<Array<{ state: Record<string, unknown>; updated_at: string }>>(
+      "spiritual_bible_challenge_progress",
+      token,
+      { user_id: user.id, state, updated_at: new Date().toISOString() },
+      "?on_conflict=user_id",
+    );
+    return { progress: rows[0].state, updatedAt: rows[0].updated_at };
+  }
+
   @Post("growth")
   async recordGrowth(
     @Headers("authorization") authorization: string | undefined,

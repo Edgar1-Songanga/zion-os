@@ -1,51 +1,42 @@
 "use client";
 
-interface OrganizationNode {
-  name:string;
-  type:string;
-  children?:OrganizationNode[];
+import type { ReactNode } from "react";
+
+export interface OrganizationTreeNode {
+  id: string;
+  name: string;
+  organization_type: string;
+  parent_id: string | null;
 }
 
-const structure:OrganizationNode={
-  name:"Conferência Geral",
-  type:"Divisão Global",
-  children:[
-    {
-      name:"União Angola",
-      type:"União",
-      children:[
-        {
-          name:"Missão Norte Angola",
-          type:"Missão",
-          children:[
-            {
-              name:"Distrito Luanda",
-              type:"Distrito",
-              children:[
-                { name:"Igreja Local Viana", type:"Igreja" }
-              ]
-            }
-          ]
-        }
-      ]
-    }
-  ]
-};
+export default function OrganizationTree({
+  organizations,
+  selectedId,
+}: {
+  organizations: OrganizationTreeNode[];
+  selectedId?: string;
+}) {
+  const ids = new Set(organizations.map((organization) => organization.id));
+  const roots = organizations.filter((organization) => !organization.parent_id || !ids.has(organization.parent_id));
+  const childrenByParent = new Map<string, OrganizationTreeNode[]>();
+  for (const organization of organizations) {
+    if (!organization.parent_id) continue;
+    const children = childrenByParent.get(organization.parent_id) ?? [];
+    children.push(organization);
+    childrenByParent.set(organization.parent_id, children);
+  }
 
-function TreeNode({node}:{node:OrganizationNode}){
-  return (
-    <div className="ml-5 mt-4">
-      <div className="rounded-xl border border-[var(--zion-border)] bg-white p-4 shadow-[var(--zion-shadow-sm)] transition hover:border-[var(--zion-sky)]">
-        <h3 className="font-bold text-[var(--zion-dark)]">{node.name}</h3>
-        <p className="text-sm text-[var(--zion-muted)]">{node.type}</p>
+  function renderNode(node: OrganizationTreeNode): ReactNode {
+    return (
+      <div key={node.id} className="ml-5 mt-3">
+        <article className={`rounded-xl border p-4 transition ${node.id === selectedId ? "border-[#C8A24A] bg-[#FBF8F0]" : "border-slate-200 bg-white"}`}>
+          <h3 className="font-semibold text-[#0C1A3D]">{node.name}</h3>
+          <p className="mt-1 text-xs text-slate-500">{node.organization_type}</p>
+        </article>
+        {(childrenByParent.get(node.id) ?? []).map(renderNode)}
       </div>
-      {node.children?.map((child)=>(
-        <TreeNode key={child.name} node={child}/>
-      ))}
-    </div>
-  );
-}
+    );
+  }
 
-export default function OrganizationTree(){
-  return <div>{<TreeNode node={structure}/>}</div>;
+  return <div>{roots.map(renderNode)}</div>;
 }

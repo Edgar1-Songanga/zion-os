@@ -24,6 +24,10 @@ import yo from "./yo.json";
 import ha from "./ha.json";
 import zu from "./zu.json";
 import xh from "./xh.json";
+import pov from "./pov.json";
+import rw from "./rw.json";
+import fuf from "./fuf.json";
+import mnk from "./mnk.json";
 
 export const ZION_TRANSLATION_CATALOGS: Record<string, Record<string, string>> = {
   "pt-AO": ptAO,
@@ -52,4 +56,8 @@ export const ZION_TRANSLATION_CATALOGS: Record<string, Record<string, string>> =
   ha,
   zu,
   xh,
+  pov,
+  rw,
+  fuf,
+  mnk,
 };

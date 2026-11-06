@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
+import { createClient } from "@/lib/supabase/client";
 import { bibleQuestions, type BibleChallengeQuestion } from "@/data/bible/questions";
 
 const LEVELS = [
@@ -17,6 +18,15 @@ type PlayMode = "junior" | "classic" | "hyper";
 type ReviewScheduleEntry = { dueAt: number; intervalDays: number; repetitions: number; updatedAt?: string };
 type ReviewSchedule = Record<number, ReviewScheduleEntry>;
 const REVIEW_STORAGE_KEY = "zion:bible-review-schedule:v1";
+
+async function getReviewStorageKey(): Promise<string> {
+  try {
+    const { data } = await createClient().auth.getUser();
+    return REVIEW_STORAGE_KEY + ":" + (data.user?.id ?? "guest");
+  } catch {
+    return REVIEW_STORAGE_KEY + ":guest";
+  }
+}
 const MODE_LABELS: Record<PlayMode, string> = {
   junior: "Júnior",
   classic: "Clássico",
@@ -55,11 +65,102 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
   const [deckVersion, setDeckVersion] = useState(0);
   const [shuffledOrder, setShuffledOrder] = useState<number[] | null>(null);
   const [optionOrder, setOptionOrder] = useState<string[] | null>(null);
+  const [progressHydrated, setProgressHydrated] = useState(false);
+  const [challengeSyncStatus, setChallengeSyncStatus] = useState<"loading" | "synced" | "local">("loading");
+
+  useEffect(() => {
+    let active = true;
+    const hydrateProgress = async () => {
+      const storageKey = (await getReviewStorageKey()) + ":challenge";
+      let local: Record<string, unknown> | null = null;
+      try {
+        const stored = window.localStorage.getItem(storageKey);
+        if (stored) local = JSON.parse(stored) as Record<string, unknown>;
+      } catch { /* Continue with server state. */ }
+
+      let remote: Record<string, unknown> | null = null;
+      try {
+        const response = await resaRequest<{ progress: Record<string, unknown> | null }>("/v1/spiritual/bible-challenge/progress");
+        remote = response.progress;
+      } catch { /* Local progress remains available when offline or signed out. */ }
+
+      const saved = remote ?? local;
+      if (active && saved && saved.schemaVersion === 1) {
+        const numberInRange = (value: unknown, min: number, max: number) =>
+          Number.isSafeInteger(value) && Number(value) >= min && Number(value) <= max;
+        if (numberInRange(saved.levelIndex, 0, LEVELS.length - 1)) setLevelIndex(Number(saved.levelIndex));
+        if (numberInRange(saved.questionIndex, 0, 200)) setQuestionIndex(Number(saved.questionIndex));
+        if (numberInRange(saved.totalScore, 0, 10000000)) setTotalScore(Number(saved.totalScore));
+        if (numberInRange(saved.levelCorrect, 0, 200)) setLevelCorrect(Number(saved.levelCorrect));
+        if (numberInRange(saved.currentStreak, 0, 200)) setCurrentStreak(Number(saved.currentStreak));
+        if (numberInRange(saved.bestStreak, 0, 200)) setBestStreak(Number(saved.bestStreak));
+        if (["junior", "classic", "hyper"].includes(String(saved.playMode))) setPlayMode(saved.playMode as PlayMode);
+        if (saved.selectedOption === null || typeof saved.selectedOption === "string") setSelectedOption(saved.selectedOption as string | null);
+        if (typeof saved.levelFinished === "boolean") setLevelFinished(saved.levelFinished);
+        if (typeof saved.hintUsed === "boolean") setHintUsed(saved.hintUsed);
+        if (Array.isArray(saved.missedQuestionIds)) {
+          setMissedQuestions(saved.missedQuestionIds
+            .map((id) => bibleQuestions.find((item) => item.id === id))
+            .filter((item): item is BibleChallengeQuestion => item !== undefined));
+        }
+        if (Array.isArray(saved.shuffledOrder) && saved.shuffledOrder.every((id) => Number.isSafeInteger(id))) {
+          setShuffledOrder(saved.shuffledOrder as number[]);
+        }
+        if (Array.isArray(saved.optionOrder) && saved.optionOrder.every((item) => typeof item === "string")) {
+          setOptionOrder(saved.optionOrder as string[]);
+        }
+        if (Array.isArray(saved.hiddenOptions) && saved.hiddenOptions.every((item) => typeof item === "string")) {
+          setHiddenOptions(saved.hiddenOptions as string[]);
+        }
+      }
+      if (!active) return;
+      setChallengeSyncStatus(remote ? "synced" : "local");
+      setProgressHydrated(true);
+    };
+    void hydrateProgress();
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!progressHydrated) return;
+    const progress = {
+      schemaVersion: 1,
+      levelIndex, questionIndex, totalScore, levelCorrect, currentStreak, bestStreak,
+      playMode, selectedOption, levelFinished, hintUsed,
+      missedQuestionIds: missedQuestions.map((item) => item.id),
+      shuffledOrder: shuffledOrder ?? [],
+      optionOrder: optionOrder ?? [],
+      hiddenOptions,
+    };
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      const storageKey = (await getReviewStorageKey()) + ":challenge";
+      try { window.localStorage.setItem(storageKey, JSON.stringify(progress)); } catch { /* Optional local backup. */ }
+      try {
+        await resaRequest("/v1/spiritual/bible-challenge/progress", {
+          method: "PUT",
+          body: JSON.stringify({ progress }),
+        });
+        if (active) setChallengeSyncStatus("synced");
+      } catch {
+        if (active) setChallengeSyncStatus("local");
+      }
+    }, 500);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [
+    progressHydrated, levelIndex, questionIndex, totalScore, levelCorrect, currentStreak,
+    bestStreak, playMode, selectedOption, levelFinished, hintUsed, missedQuestions,
+    shuffledOrder, optionOrder, hiddenOptions,
+  ]);
 
   const level = LEVELS[levelIndex];
+  const isQuestionAvailableForMode = useCallback(
+    (item: BibleChallengeQuestion) => playMode !== "junior" || item.audience !== "adult",
+    [playMode],
+  );
   const baseQuestionPool = useMemo(
-    () => bibleQuestions.filter((item) => item.level === levelIndex + 1),
-    [levelIndex],
+    () => bibleQuestions.filter((item) => item.level === levelIndex + 1 && isQuestionAvailableForMode(item)),
+    [levelIndex, isQuestionAvailableForMode],
   );
   const dueReviewQuestions = useMemo(() => {
     const currentIds = new Set(baseQuestionPool.map((item) => item.id));
@@ -67,8 +168,8 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
       .filter((id) => !currentIds.has(id))
       .slice(0, 3)
       .map((id) => bibleQuestions.find((item) => item.id === id))
-      .filter((item): item is BibleChallengeQuestion => item !== undefined);
-  }, [baseQuestionPool, reviewDeckIds]);
+      .filter((item): item is BibleChallengeQuestion => item !== undefined && isQuestionAvailableForMode(item));
+  }, [baseQuestionPool, reviewDeckIds, isQuestionAvailableForMode]);
   const questionPool = useMemo(
     () => [...baseQuestionPool, ...dueReviewQuestions],
     [baseQuestionPool, dueReviewQuestions],
@@ -79,8 +180,9 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
     let active = true;
     const loadSchedule = async () => {
       let local: ReviewSchedule = {};
+      const storageKey = await getReviewStorageKey();
       try {
-        const stored = window.localStorage.getItem(REVIEW_STORAGE_KEY);
+        const stored = window.localStorage.getItem(storageKey);
         if (stored) {
           const parsed = JSON.parse(stored) as Record<string, ReviewScheduleEntry>;
           for (const [id, entry] of Object.entries(parsed)) {
@@ -110,6 +212,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
         }
 
         const merged: ReviewSchedule = { ...remote };
+        const pendingUploads: Promise<unknown>[] = [];
         for (const [id, localEntry] of Object.entries(local)) {
           const questionId = Number(id);
           const remoteEntry = remote[questionId];
@@ -117,21 +220,23 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
           const remoteUpdated = remoteEntry?.updatedAt ? Date.parse(remoteEntry.updatedAt) : 0;
           if (!remoteEntry || localUpdated > remoteUpdated) {
             merged[questionId] = localEntry;
-            void resaRequest("/v1/spiritual/bible-review/" + questionId, {
+            pendingUploads.push(resaRequest("/v1/spiritual/bible-review/" + questionId, {
               method: "PUT",
               body: JSON.stringify({
                 dueAt: new Date(localEntry.dueAt).toISOString(),
                 intervalDays: localEntry.intervalDays,
                 repetitions: localEntry.repetitions,
               }),
-            }).catch(() => undefined);
+            }));
           }
         }
+        const uploadResults = await Promise.allSettled(pendingUploads);
         if (!active) return;
         setReviewSchedule(merged);
         setReviewDeckIds(Object.entries(merged).filter(([, entry]) => entry.dueAt <= Date.now()).map(([id]) => Number(id)));
-        setReviewSyncStatus("synced");
-        try { window.localStorage.setItem(REVIEW_STORAGE_KEY, JSON.stringify(merged)); } catch { /* Optional local cache. */ }
+        const uploadsSucceeded = uploadResults.every((result) => result.status === "fulfilled");
+        setReviewSyncStatus(uploadsSucceeded ? "synced" : "local");
+        try { window.localStorage.setItem(storageKey, JSON.stringify(merged)); } catch { /* Optional local cache. */ }
       } catch {
         if (!active) return;
         setReviewSchedule(local);
@@ -158,7 +263,9 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
       : { dueAt: now + 24 * 60 * 60 * 1000, intervalDays: 1, repetitions: 0, updatedAt: new Date(now).toISOString() };
     const next = { ...reviewSchedule, [questionId]: nextEntry };
     setReviewSchedule(next);
-    try { window.localStorage.setItem(REVIEW_STORAGE_KEY, JSON.stringify(next)); } catch { /* Account persistence remains available. */ }
+    void getReviewStorageKey().then((storageKey) => {
+      try { window.localStorage.setItem(storageKey, JSON.stringify(next)); } catch { /* Optional local cache. */ }
+    });
     void resaRequest("/v1/spiritual/bible-review/" + questionId, {
       method: "PUT",
       body: JSON.stringify({ dueAt: new Date(nextEntry.dueAt).toISOString(), intervalDays: nextEntry.intervalDays, repetitions: nextEntry.repetitions }),
@@ -182,7 +289,16 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
   const isSkipped = selectedOption === "__skip__";
 
   useEffect(() => {
-    setShuffledOrder(shuffle(questionPool.map((item) => item.id)));
+    setShuffledOrder((current) => {
+      if (!current) return shuffle(questionPool.map((item) => item.id));
+      const available = new Set(questionPool.map((item) => item.id));
+      const retained = current.filter((id) => available.has(id));
+      const present = new Set(retained);
+      const added = shuffle(questionPool.map((item) => item.id).filter((id) => !present.has(id)));
+      return retained.length === current.length && added.length === 0
+        ? current
+        : [...retained, ...added];
+    });
   }, [levelIndex, deckVersion, questionPool]);
 
   useEffect(() => {
@@ -295,6 +411,22 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
     setSelectedOption("__skip__");
   }
 
+  function changePlayMode(mode: PlayMode) {
+    if (mode === playMode) return;
+    setPlayMode(mode);
+    setQuestionIndex(0);
+    setLevelCorrect(0);
+    setMissedQuestions([]);
+    setSelectedOption(null);
+    setLevelFinished(false);
+    setHintUsed(false);
+    setHintVisible(false);
+    setHiddenOptions([]);
+    setHintNudge(false);
+    setShuffledOrder(null);
+    setDeckVersion((value) => value + 1);
+  }
+
   function nextLevel() {
     if (!passed || levelIndex >= LEVELS.length - 1) return;
     refreshReviewDeck();
@@ -336,6 +468,19 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
     setDeckVersion((value) => value + 1);
   }
 
+  if (!progressHydrated) {
+    return (
+      <section className={compact
+        ? "overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white text-[#0C1A3D]"
+        : "overflow-hidden rounded-[2rem] border border-slate-200 bg-white text-[#0C1A3D] shadow-[0_18px_55px_rgba(15,23,42,0.07)]"}>
+        <div className="bg-[#071126] px-6 py-10 text-center text-white">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#E2C477]">ZION · Desafio bíblico</p>
+          <p className="mt-3 text-sm text-slate-300" role="status" aria-live="polite">A recuperar a tua jornada e a sincronizar o progresso…</p>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className={compact
       ? "overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white text-[#0C1A3D]"
@@ -350,6 +495,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
             <p className="mt-3 text-xs text-slate-400">120 perguntas · 6 níveis progressivos · revisão espaçada</p>
             {dueReviewCount > 0 && <p className="mt-2 inline-flex rounded-full border border-[#E2C477]/25 bg-[#E2C477]/10 px-3 py-1.5 text-[11px] font-medium text-[#E2C477]">{dueReviewCount} pergunta(s) prontas para rever</p>}
             <p className="mt-2 text-[10px] text-slate-400" role="status">{reviewSyncStatus === "loading" ? "A preparar as tuas revisões…" : reviewSyncStatus === "synced" ? "Revisões associadas à tua conta" : "Revisões guardadas neste dispositivo; inicia sessão para sincronizar"}</p>
+            <p className="mt-1 text-[10px] text-slate-400" role="status">{!progressHydrated || challengeSyncStatus === "loading" ? "A carregar a tua jornada…" : challengeSyncStatus === "synced" ? "Progresso da jornada sincronizado" : "Progresso guardado localmente; a sincronização será retomada quando possível"}</p>
           </div>
           <div className="flex gap-2">
             <div className="rounded-2xl border border-white/15 bg-white/[0.07] px-3 py-3 text-right">
@@ -379,7 +525,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Escolhe o ritmo</p>
           <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1" role="group" aria-label="Modo de jogo">
             {(["junior", "classic", "hyper"] as PlayMode[]).map((mode) => (
-              <button key={mode} type="button" onClick={() => setPlayMode(mode)}
+              <button key={mode} type="button" onClick={() => changePlayMode(mode)}
                 aria-pressed={playMode === mode}
                 className={"rounded-lg px-3 py-2 text-xs font-semibold transition " + (playMode === mode ? "bg-[#0C1A3D] text-white shadow-sm" : "text-slate-500 hover:text-slate-900")}>
                 {MODE_LABELS[mode]}

@@ -19,6 +19,8 @@ type ResaContent = {
   created_at: string;
   media_type?: "image" | "video" | null;
   media_url?: string | null;
+  viewer_reacted?: boolean;
+  viewer_saved?: boolean;
 };
 
 function newestFirst(items: ResaContent[]): ResaContent[] {

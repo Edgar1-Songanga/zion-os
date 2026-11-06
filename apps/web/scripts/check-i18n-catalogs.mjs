@@ -22,19 +22,47 @@ for (const locale of locales) {
     errors.push(`${locale}: missing ${file}`);
     continue;
   }
-  if (!registry.includes(`./${file.replace(".json", "")}.json`)) errors.push(`${locale}: not registered in index.ts`);
-  const catalog = JSON.parse(await readFile(resolve(catalogDir, file), "utf8"));
-  const missing = uniqueKeys.filter((key) => typeof catalog[key] !== "string" || !catalog[key].trim());
+  if (!registry.includes(`./${file.replace(".json", "")}.json`)) errors.push(`${locale}: not imported in catalog registry`);
+  const exposedAsShorthand = registry.includes(`  ${locale},`);
+  const exposedAsNamed = registry.includes(`  "${locale}":`);
+  if (!exposedAsShorthand && !exposedAsNamed) errors.push(`${locale}: not exposed by catalog registry`);
+
+  let catalog;
+  try {
+    catalog = JSON.parse(await readFile(resolve(catalogDir, file), "utf8"));
+  } catch (error) {
+    errors.push(`${locale}: invalid JSON (${error.message})`);
+    continue;
+  }
+  if (!catalog || typeof catalog !== "object" || Array.isArray(catalog)) {
+    errors.push(`${locale}: catalog must be a JSON object`);
+    continue;
+  }
+
   const extra = Object.keys(catalog).filter((key) => !uniqueKeys.includes(key));
-  if (missing.length) errors.push(`${locale}: missing/empty keys: ${missing.join(", ")}`);
   if (extra.length) errors.push(`${locale}: unexpected keys: ${extra.join(", ")}`);
 }
 
+const english = JSON.parse(await readFile(resolve(catalogDir, "en.json"), "utf8"));
+const missingEnglish = uniqueKeys.filter((key) => typeof english[key] !== "string" || !english[key].trim());
+if (missingEnglish.length) errors.push(`en: required fallback strings missing: ${missingEnglish.join(", ")}`);
+
 const unexpectedFiles = [...files].filter((name) => !locales.includes(name.slice(0, -5)));
 if (unexpectedFiles.length) errors.push(`Unregistered catalog files: ${unexpectedFiles.join(", ")}`);
+
+const coverage = [];
+for (const locale of locales) {
+  const catalog = JSON.parse(await readFile(resolve(catalogDir, `${locale}.json`), "utf8"));
+  const missing = uniqueKeys.filter((key) => typeof catalog[key] !== "string" || !catalog[key].trim());
+  if (missing.length) coverage.push(`${locale}: ${uniqueKeys.length - missing.length}/${uniqueKeys.length} translated; ${missing.length} use English fallback`);
+}
 if (errors.length) {
   console.error(errors.join("\n"));
   process.exitCode = 1;
 } else {
-  console.log(`Validated ${locales.length} locale catalogs × ${uniqueKeys.length} messages.`);
+  console.log(`Validated ${locales.length} locale catalogs, registry entries, JSON integrity and ${uniqueKeys.length} English fallback messages.`);
+  if (coverage.length) {
+    console.warn("Translation coverage (incomplete locales use the English fallback):");
+    console.warn(coverage.join("\n"));
+  }
 }

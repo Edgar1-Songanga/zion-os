@@ -18,7 +18,15 @@ export class OrganizationUnitsService {
 
   constructor(private readonly identity: IdentityService) {}
 
+  private assertUuid(value: string, field: string) {
+    if (typeof value !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
+      throw new BadRequestException(`${field} must be a valid UUID`);
+    }
+  }
+
+
   async list(accessToken: string, organizationId: string) {
+    this.assertUuid(organizationId, 'organizationId');
     await this.identity.getCurrentUser(accessToken);
     return this.db.get<Unit[]>(
       'organization_units',
@@ -28,9 +36,18 @@ export class OrganizationUnitsService {
   }
 
   async create(accessToken: string, organizationId: string, input: { name: string; unit_type?: string; description?: string; parent_id?: string | null }) {
+    this.assertUuid(organizationId, 'organizationId');
+    if (typeof input.name !== 'string' || !input.name.trim()) throw new BadRequestException('name is required');
+    if (input.unit_type !== undefined && (typeof input.unit_type !== 'string' || !input.unit_type.trim())) {
+      throw new BadRequestException('unit_type must be a non-empty string');
+    }
+    if (input.description !== undefined && input.description !== null && typeof input.description !== 'string') {
+      throw new BadRequestException('description must be text');
+    }
+    if (input.parent_id !== undefined && input.parent_id !== null) this.assertUuid(input.parent_id, 'parent_id');
+
     const user = await this.identity.getCurrentUser(accessToken);
-    const name = input.name?.trim();
-    if (!name) throw new BadRequestException('name is required');
+    const name = input.name.trim();
 
     const created = await this.db.post<Unit[]>(
       'organization_units',
@@ -54,13 +71,30 @@ export class OrganizationUnitsService {
   }
 
   async update(accessToken: string, organizationId: string, unitId: string, input: Partial<{ name: string; unit_type: string; description: string | null; parent_id: string | null; is_active: boolean }>) {
+    this.assertUuid(organizationId, 'organizationId');
+    this.assertUuid(unitId, 'unitId');
+    if (!input || typeof input !== 'object') throw new BadRequestException('A request body is required');
+    if (input.name !== undefined && (typeof input.name !== 'string' || !input.name.trim())) {
+      throw new BadRequestException('name must be a non-empty string');
+    }
+    if (input.unit_type !== undefined && (typeof input.unit_type !== 'string' || !input.unit_type.trim())) {
+      throw new BadRequestException('unit_type must be a non-empty string');
+    }
+    if (input.description !== undefined && input.description !== null && typeof input.description !== 'string') {
+      throw new BadRequestException('description must be text');
+    }
+    if (input.parent_id !== undefined && input.parent_id !== null) this.assertUuid(input.parent_id, 'parent_id');
+
     const user = await this.identity.getCurrentUser(accessToken);
     const patch: Record<string, unknown> = {};
     if (input.name !== undefined) patch.name = input.name.trim();
     if (input.unit_type !== undefined) patch.unit_type = input.unit_type.trim();
     if (input.description !== undefined) patch.description = input.description?.trim() || null;
     if (input.parent_id !== undefined) patch.parent_id = input.parent_id;
-    if (input.is_active !== undefined) patch.is_active = input.is_active;
+    if (input.is_active !== undefined) {
+      if (typeof input.is_active !== 'boolean') throw new BadRequestException('is_active must be a boolean');
+      patch.is_active = input.is_active;
+    }
     if (!Object.keys(patch).length) throw new BadRequestException('No changes supplied');
 
     const updated = await this.db.patch<Unit[]>(
