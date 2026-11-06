@@ -47,6 +47,15 @@ export class OrganizationsService {
     return organization;
   }
 
+  async listInstitutional(accessToken: string) {
+    await this.identity.requireGlobalAdmin(accessToken);
+    return this.db.rpc<Organization[]>(
+      'zion_list_institutional_organizations',
+      accessToken,
+      {},
+    );
+  }
+
   async createInstitutional(
     accessToken: string,
     input: { name: string; slug: string; organization_type: string; parent_id?: string | null },
