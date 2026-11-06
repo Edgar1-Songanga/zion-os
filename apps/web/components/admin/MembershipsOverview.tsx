@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import { OrganizationSelector, type ZionOrganization } from "@/components/organization/OrganizationSelector";
 
+type OrganizationUnit = { id: string; name: string; unit_type: string; is_active: boolean };
+type UnitAssignment = { id: string; membership_id: string; unit_id: string; user_id: string; unit: OrganizationUnit };
 type Membership = {
   id: string;
   user_id: string;
@@ -22,6 +24,10 @@ export default function MembershipsOverview() {
   const [organizationId, setOrganizationId] = useState("");
   const [organization, setOrganization] = useState<ZionOrganization | null>(null);
   const [memberships, setMemberships] = useState<Membership[]>([]);
+  const [units, setUnits] = useState<OrganizationUnit[]>([]);
+  const [assignments, setAssignments] = useState<UnitAssignment[]>([]);
+  const [unitSelections, setUnitSelections] = useState<Record<string, string>>({});
+  const [assignmentSavingId, setAssignmentSavingId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -33,8 +39,14 @@ export default function MembershipsOverview() {
     setLoading(true);
     setError("");
     try {
-      const result = await resaRequest<Membership[]>(`/v1/organizations/${encodeURIComponent(id)}/memberships`);
+      const [result, organizationUnits, organizationAssignments] = await Promise.all([
+        resaRequest<Membership[]>(`/v1/organizations/${encodeURIComponent(id)}/memberships`),
+        resaRequest<OrganizationUnit[]>(`/v1/organizations/${encodeURIComponent(id)}/units`),
+        resaRequest<UnitAssignment[]>(`/v1/organizations/${encodeURIComponent(id)}/memberships/unit-assignments`),
+      ]);
       setMemberships(result);
+      setUnits(organizationUnits.filter((unit) => unit.is_active));
+      setAssignments(organizationAssignments);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível carregar as adesões da organização.");
     } finally {
@@ -52,6 +64,23 @@ export default function MembershipsOverview() {
       [item.user_id, item.status, roleLabel(item.roles)].some((value) => value.toLocaleLowerCase().includes(normalized)),
     );
   }, [memberships, query]);
+
+  async function changeUnitAssignment(item: Membership, unitId: string, remove = false) {
+    if (!organizationId || !unitId || assignmentSavingId) return;
+    setAssignmentSavingId(item.id);
+    setError("");
+    setMessage("");
+    try {
+      const path = `/v1/organizations/${encodeURIComponent(organizationId)}/memberships/${encodeURIComponent(item.id)}/units/${encodeURIComponent(unitId)}`;
+      await resaRequest(path, { method: remove ? "PATCH" : "POST" });
+      await load(organizationId);
+      setMessage(remove ? "Atribuição removida." : "Membro associado ao departamento.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível atualizar a atribuição.");
+    } finally {
+      setAssignmentSavingId(null);
+    }
+  }
 
   async function changeStatus(item: Membership) {
     const nextStatus = item.status.toUpperCase() === "ACTIVE" ? "INACTIVE" : "ACTIVE";
@@ -111,6 +140,27 @@ export default function MembershipsOverview() {
               <div className="flex flex-wrap items-center gap-2">
                 <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${item.status.toUpperCase() === "ACTIVE" ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>{item.status}</span>
                 <button type="button" disabled={savingId === item.id} onClick={() => void changeStatus(item)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-[#0C1A3D] hover:border-[#C8A24A] disabled:opacity-40">{savingId === item.id ? "A guardar…" : item.status.toUpperCase() === "ACTIVE" ? "Desativar" : "Reativar"}</button>
+              </div>
+              <div className="sm:col-span-4 rounded-xl bg-slate-50 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Departamentos associados</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {assignments.filter((assignment) => assignment.membership_id === item.id).map((assignment) => (
+                    <span key={assignment.id} className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-700">
+                      {assignment.unit.name}
+                      <button type="button" aria-label={`Remover ${assignment.unit.name}`} disabled={assignmentSavingId === item.id} onClick={() => void changeUnitAssignment(item, assignment.unit_id, true)} className="font-bold text-slate-400 hover:text-red-600 disabled:opacity-40">×</button>
+                    </span>
+                  ))}
+                  {assignments.every((assignment) => assignment.membership_id !== item.id) && <span className="text-xs text-slate-400">Sem departamento atribuído</span>}
+                  {units.some((unit) => !assignments.some((assignment) => assignment.membership_id === item.id && assignment.unit_id === unit.id)) && (
+                    <>
+                      <select aria-label={`Escolher departamento para ${item.user_id}`} value={unitSelections[item.id] ?? ""} onChange={(event) => setUnitSelections((current) => ({ ...current, [item.id]: event.target.value }))} className="min-w-40 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs">
+                        <option value="">Adicionar departamento…</option>
+                        {units.filter((unit) => !assignments.some((assignment) => assignment.membership_id === item.id && assignment.unit_id === unit.id)).map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
+                      </select>
+                      <button type="button" disabled={!unitSelections[item.id] || assignmentSavingId === item.id} onClick={() => void changeUnitAssignment(item, unitSelections[item.id])} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#0C1A3D] disabled:opacity-40">{assignmentSavingId === item.id ? "A guardar…" : "Atribuir"}</button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           ))}</div>}
