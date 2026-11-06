@@ -6,7 +6,7 @@ export class MembershipsController {
   constructor(private readonly memberships: MembershipsService) {}
 
   private token(authorization?: string) {
-    const token = authorization?.replace(/^Bearer\s+/i, '').trim();
+    const token = authorization?.replace(/^Bearer\\s+/i, '').trim();
     if (!token) throw new UnauthorizedException('Bearer token is required');
     return token;
   }
@@ -33,6 +33,15 @@ export class MembershipsController {
     @Body() body: { role_id?: string; status?: string },
   ) {
     return this.memberships.update(this.token(authorization), organizationId, membershipId, body);
+  }
+
+  @Get(':membershipId/units')
+  listUnitAssignments(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('organizationId') organizationId: string,
+    @Param('membershipId') membershipId: string,
+  ) {
+    return this.memberships.listUnitAssignments(this.token(authorization), organizationId, membershipId);
   }
 
   @Post(':membershipId/units/:unitId')
