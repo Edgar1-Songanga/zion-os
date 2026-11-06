@@ -153,5 +153,42 @@ begin
 end;
 $function$;
 
+create or replace function public.zion_list_institutional_organizations()
+returns setof public.organizations
+language plpgsql
+security definer
+set search_path = pg_catalog, public, private
+as $function$
+declare
+  app_meta jsonb;
+begin
+  app_meta := coalesce(auth.jwt() -> 'app_metadata', '{}'::jsonb);
+  if auth.uid() is null
+     or (app_meta ->> 'zion_global_role') is distinct from 'global_admin'
+     or (app_meta -> 'zion_verified') is distinct from 'true'::jsonb then
+    raise exception 'A verified ZION global administrator is required'
+      using errcode = '42501';
+  end if;
+
+  return query
+    select o.*
+    from public.organizations o
+    order by
+      case o.organization_type
+        when 'GENERAL_CONFERENCE' then 1
+        when 'DIVISION' then 2
+        when 'UNION' then 3
+        when 'CONFERENCE' then 4
+        when 'MISSION' then 5
+        when 'LOCAL_CHURCH' then 6
+        else 7
+      end,
+      o.name asc;
+end;
+$function$;
+
+revoke all on function public.zion_list_institutional_organizations() from public, anon;
+grant execute on function public.zion_list_institutional_organizations() to authenticated;
+
 revoke all on function public.zion_create_institutional_organization(text, text, text, uuid) from public, anon;
 grant execute on function public.zion_create_institutional_organization(text, text, text, uuid) to authenticated;
