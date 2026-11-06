@@ -63,6 +63,24 @@ using (
   or private.is_verified_zion_global_admin()
 );
 
+-- A verified platform administrator may write an audit record for an
+-- organization they administer even without holding a local membership.
+-- The actor identity remains bound to auth.uid(); ordinary users retain the
+-- original active-membership restriction.
+drop policy if exists audit_insert_actor on public.audit_logs;
+create policy audit_insert_actor
+on public.audit_logs
+for insert
+to authenticated
+with check (
+  actor_user_id = (select auth.uid())
+  and (
+    organization_id is null
+    or private.is_org_member(organization_id)
+    or private.is_verified_zion_global_admin()
+  )
+);
+
 -- Keep function execution scoped to authenticated sessions. RLS policies invoke
 -- these helpers under the caller's JWT context.
 revoke all on function private.is_verified_zion_global_admin() from public, anon;
