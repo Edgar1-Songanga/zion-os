@@ -41,12 +41,12 @@ as $function$ select exists (select 1 from public.organization_memberships m whe
 
 create or replace function private.has_org_permission(target_org uuid, permission_key text)
 returns boolean language sql stable
-as $ select exists (
+as $function$ select exists (
   select 1 from public.organization_memberships m
   join public.role_permissions rp on rp.role_id=m.role_id
   join public.permissions p on p.id=rp.permission_id
   where m.organization_id=target_org and m.user_id=auth.uid() and m.status='ACTIVE' and p.key=permission_key
-) $;
+) $function$;
 
 create table public.organization_units (
   id uuid primary key default gen_random_uuid(),
