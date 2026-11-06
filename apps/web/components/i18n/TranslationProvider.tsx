@@ -6,7 +6,7 @@ import { ZION_TRANSLATION_CATALOGS } from "./catalogs";
 
 export const ZION_LOCALES = [
   "pt-AO", "pt-PT", "en", "fr", "es", "de", "it", "zh", "ar", "sw",
-  "af", "osh", "umb", "kmb", "kg", "cjk", "nyk", "lue", "mck", "kj", "ln", "am", "yo", "ha", "zu", "xh",
+  "af", "osh", "umb", "kmb", "kg", "cjk", "nyk", "lue", "mck", "kj", "ln", "am", "yo", "ha", "zu", "xh", "pov", "rw", "fuf", "mnk",
 ] as const;
 
 export type ZionLocale = (typeof ZION_LOCALES)[number];
@@ -32,6 +32,10 @@ export const ZION_LOCALE_LABELS: Record<ZionLocale, string> = {
   ha: "Hausa",
   zu: "isiZulu",
   xh: "isiXhosa",
+  pov: "Kriol (Guiné-Bissau) · Beta",
+  rw: "Ikinyarwanda · Beta",
+  fuf: "Pulaar / Fula · Beta",
+  mnk: "Mandinka · Beta",
   kg: "Kikongo",
   cjk: "Cokwe",
   nyk: "Olunyaneka",
@@ -44,7 +48,7 @@ const SOURCE_LOCALE: ZionLocale = "pt-AO";
 const STORAGE_KEY = "zion.locale";
 const CACHE_KEY = "zion.translation.shell.v1";
 const COUNTRY_DEFAULT_LOCALE: Record<string, ZionLocale> = {
-  AO: "pt-AO", PT: "pt-PT", BR: "pt-PT", MZ: "pt-AO", CV: "pt-AO", GW: "pt-AO", ST: "pt-AO",
+  AO: "pt-AO", PT: "pt-PT", BR: "pt-PT", MZ: "pt-AO", CV: "pt-AO", GW: "pov", ST: "pt-AO",
   GB: "en", US: "en", CA: "en", AU: "en", NZ: "en", IE: "en",
   FR: "fr", BE: "fr", SN: "fr", CI: "fr", CD: "fr", CG: "fr", CM: "fr", GA: "fr", ML: "fr", NE: "fr", BF: "fr", TG: "fr", BJ: "fr", GN: "fr", TD: "fr", CF: "fr", DJ: "fr", MG: "fr", RW: "fr", BI: "fr",
   ES: "es", MX: "es", AR: "es", CO: "es", CL: "es", PE: "es",
@@ -52,7 +56,7 @@ const COUNTRY_DEFAULT_LOCALE: Record<string, ZionLocale> = {
   IT: "it",
   CN: "zh", TW: "zh", SG: "zh",
   SA: "ar", EG: "ar", MA: "ar", DZ: "ar", TN: "ar", AE: "ar", QA: "ar", KW: "ar", JO: "ar", LB: "ar", IQ: "ar",
-  KE: "sw", TZ: "sw",
+  KE: "sw", TZ: "sw", RW: "rw",
   NA: "en", ZA: "en",
   ET: "am",
   NG: "en",
