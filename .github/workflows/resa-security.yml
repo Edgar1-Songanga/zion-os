@@ -38,7 +38,10 @@ jobs:
       - name: Apply password and purge-scope hardening
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261106235900_resa_password_bruteforce_and_department_purge_scope.sql
-      - name: Verify lockout, password reset, authorization scope and grants
+      - name: Apply profile discovery privacy hardening
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261106235930_resa_profile_search_privacy_hardening.sql
+      - name: Verify lockout, profile privacy, authorization scope and grants
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_security_regression.sql
       - name: Stop disposable PostgreSQL
