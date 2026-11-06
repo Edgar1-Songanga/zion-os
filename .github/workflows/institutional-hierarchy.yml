@@ -4,12 +4,14 @@ on:
   pull_request:
     paths:
       - "supabase/migrations/*hierarchy*"
+      - "supabase/migrations/*verified_global_admin*"
       - "supabase/tests/institutional*"
       - ".github/workflows/institutional-hierarchy.yml"
   push:
     branches: [main]
     paths:
       - "supabase/migrations/*institutional*"
+      - "supabase/migrations/*verified_global_admin*"
       - "supabase/tests/institutional*"
       - ".github/workflows/institutional-hierarchy.yml"
 
@@ -36,6 +38,8 @@ jobs:
         run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261106160000_institutional_organization_hierarchy.sql
       - name: Apply department hierarchy guard
         run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261106190000_organization_unit_hierarchy_guard.sql
+      - name: Apply verified global administrator RLS permissions
+        run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261106210000_verified_global_admin_organization_unit_permissions.sql
       - name: Verify valid levels, invalid parent relationships and privileged creation
         run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/institutional_hierarchy_regression.sql
       - name: Stop disposable PostgreSQL
