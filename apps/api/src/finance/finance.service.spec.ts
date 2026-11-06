@@ -18,7 +18,6 @@ describe('FinanceService manual journal safeguards', () => {
   let service: FinanceService;
   let getSpy: jest.SpyInstance;
   let rpcSpy: jest.SpyInstance;
-  let patchSpy: jest.SpyInstance;
   let identitySpy: jest.Mock;
 
   const balancedInput = (overrides: Record<string, unknown> = {}) => ({
@@ -39,7 +38,6 @@ describe('FinanceService manual journal safeguards', () => {
       { id: creditAccountId, currency_code: 'AOA', is_active: true },
     ]);
     rpcSpy = jest.spyOn(SupabaseRestClient.prototype, 'rpc').mockResolvedValue({ id: 'entry-1', status: 'POSTED' });
-    patchSpy = jest.spyOn(SupabaseRestClient.prototype, 'patch').mockResolvedValue([{ id: 'method-1' }]);
   });
 
   afterEach(() => jest.restoreAllMocks());
