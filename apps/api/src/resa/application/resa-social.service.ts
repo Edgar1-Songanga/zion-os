@@ -45,7 +45,7 @@ export class ResaSocialService {
     // entire follow graph, feedback history, and saved-content list on every refresh.
     const contentFilter = contentIds.length ? `in.(${contentIds.join(',')})` : null;
     const authorFilter = authorIds.length ? `in.(${authorIds.join(',')})` : null;
-    const [follows, feedback, reactions, saves] = await Promise.all([
+    const [follows, feedback, reactions, saves, viewerReactions] = await Promise.all([
       authorFilter
         ? this.db.get<any[]>( 'resa_follows', token, `?select=followed_id&follower_id=eq.${a.id}&followed_id=${authorFilter}&limit=120`)
         : Promise.resolve([]),
@@ -57,6 +57,9 @@ export class ResaSocialService {
         : Promise.resolve([]),
       contentFilter
         ? this.db.get<any[]>( 'resa_saves', token, `?select=content_id&user_id=eq.${a.id}&content_id=${contentFilter}&limit=120`)
+        : Promise.resolve([]),
+      contentFilter
+        ? this.db.get<any[]>( 'resa_reactions', token, `?select=content_id&user_id=eq.${a.id}&content_id=${contentFilter}&limit=120`)
         : Promise.resolve([]),
     ]);
 
@@ -72,6 +75,7 @@ export class ResaSocialService {
       return counts;
     }, {});
     const saved = new Set(saves.map((row) => row.content_id));
+    const reactedByViewer = new Set(viewerReactions.map((row) => row.content_id));
     const ranked = this.recommendations.rank(contents
       .filter((item) => !hiddenAuthors.has(item.author_id))
       .map((item) => ({
@@ -79,6 +83,8 @@ export class ResaSocialService {
         followedAuthor: followed.has(item.author_id),
         interactionCount: reactionCounts[item.id] ?? 0,
         saved: saved.has(item.id),
+        viewer_saved: saved.has(item.id),
+        viewer_reacted: reactedByViewer.has(item.id),
         feedback: hidden.get(item.id),
         contentType: item.type,
         ageHours: Math.max(0, (Date.now() - Date.parse(item.created_at)) / 3600000),
