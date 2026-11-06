@@ -29,3 +29,31 @@ create table public.organization_memberships (
   user_id uuid not null,
   status text not null default 'ACTIVE'
 );
+
+create or replace function private.has_org_permission_in_hierarchy(target_org uuid, permission_key text)
+returns boolean language sql stable
+as $$ select true $$;
+
+create table public.hr_employees (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id),
+  user_id uuid
+);
+alter table public.hr_employees enable row level security;
+create policy hr_employees_insert on public.hr_employees
+for insert to authenticated
+with check (private.has_org_permission_in_hierarchy(organization_id, 'hr.manage'::text));
+create policy hr_employees_select on public.hr_employees
+for select to authenticated
+using (private.has_org_permission_in_hierarchy(organization_id, 'hr.read'::text) or user_id = auth.uid());
+
+create table public.payroll_runs (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id)
+);
+alter table public.payroll_runs enable row level security;
+create policy payroll_runs_insert on public.payroll_runs
+for insert to authenticated
+with check (private.has_org_permission_in_hierarchy(organization_id, 'payroll.manage'::text));
+
+grant select, insert on public.hr_employees, public.payroll_runs to authenticated;
