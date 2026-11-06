@@ -66,7 +66,7 @@ create table public.organization_units (
 
 create or replace function private.has_org_permission_in_hierarchy(target_org uuid, permission_key text)
 returns boolean language sql stable
-as $ select true $;
+as $function$ select true $function$;
 
 create table public.audit_logs (
   id uuid primary key default gen_random_uuid(),
