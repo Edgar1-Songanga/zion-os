@@ -70,6 +70,17 @@ begin
     raise exception 'Invalid parent level for organization type %', new.organization_type;
   end if;
 
+  if tg_op = 'UPDATE'
+     and new.organization_type is distinct from old.organization_type
+     and exists (
+       select 1
+       from public.organizations child
+       where child.parent_id = new.id
+         and not private.organization_parent_type_allowed(child.organization_type, new.organization_type)
+     ) then
+    raise exception 'Changing this organization level would invalidate an existing child organization';
+  end if;
+
   if tg_op = 'UPDATE' and new.parent_id is distinct from old.parent_id then
     with recursive ancestors(id, parent_id) as (
       select id, parent_id from public.organizations where id = new.parent_id
