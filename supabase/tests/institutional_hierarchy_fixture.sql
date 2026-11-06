@@ -85,6 +85,12 @@ with check (
   actor_user_id = (select auth.uid())
   and (organization_id is null or private.is_org_member(organization_id))
 );
+create policy audit_select_member on public.audit_logs
+for select to authenticated
+using (
+  actor_user_id = (select auth.uid())
+  or private.has_org_permission(organization_id, 'audit.read'::text)
+);
 grant insert, select on public.audit_logs to authenticated;
 
 create table public.hr_employees (
