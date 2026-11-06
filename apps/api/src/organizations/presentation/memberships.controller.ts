@@ -35,6 +35,14 @@ export class MembershipsController {
     return this.memberships.update(this.token(authorization), organizationId, membershipId, body);
   }
 
+  @Get('unit-assignments')
+  listOrganizationUnitAssignments(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('organizationId') organizationId: string,
+  ) {
+    return this.memberships.listOrganizationUnitAssignments(this.token(authorization), organizationId);
+  }
+
   @Get(':membershipId/units')
   listUnitAssignments(
     @Headers('authorization') authorization: string | undefined,
