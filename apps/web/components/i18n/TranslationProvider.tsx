@@ -248,6 +248,12 @@ export function TranslationProvider({ children, countryCode }: { children: React
           window.localStorage.setItem(STORAGE_KEY, preferred);
         } else if (isLocale(stored)) {
           setLocaleState(stored);
+          // If the member chose a language before signing in, promote that
+          // choice to the account so it is available on their other devices.
+          if (data.user) {
+            const { error } = await supabase.auth.updateUser({ data: { preferred_locale: stored } });
+            if (error) console.error("[ZION i18n] Could not sync the local language preference to the account.", error);
+          }
         } else {
           const countryLocale = countryCode ? COUNTRY_DEFAULT_LOCALE[countryCode.toUpperCase()] : undefined;
           const browserLanguage = navigator.languages?.find((candidate) => {
