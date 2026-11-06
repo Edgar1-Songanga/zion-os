@@ -80,7 +80,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = pg_catalog, public, private
-as $
+as $$
 begin
   if old.status = 'POSTED' then
     raise exception using
@@ -93,7 +93,7 @@ begin
   end if;
   return new;
 end;
-$;
+$$;
 
 revoke all on function private.guard_finance_journal_entry_mutation() from public, anon, authenticated;
 
