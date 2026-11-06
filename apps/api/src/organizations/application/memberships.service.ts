@@ -145,8 +145,12 @@ export class MembershipsService {
 
   async assignUnit(accessToken: string, organizationId: string, membershipId: string, unitId: string) {
     const actor = await this.identity.getCurrentUser(accessToken);
-    await this.requireMembership(accessToken, organizationId, membershipId);
-    await this.requireUnit(accessToken, organizationId, unitId);
+    const membership = await this.requireMembership(accessToken, organizationId, membershipId);
+    if (membership.status.toUpperCase() !== 'ACTIVE') {
+      throw new BadRequestException('Only active organization members can be assigned to a department');
+    }
+    const unit = await this.requireUnit(accessToken, organizationId, unitId);
+    if (!unit.is_active) throw new BadRequestException('Inactive organization units cannot receive new assignments');
 
     const existing = await this.db.get<UnitAssignment[]>(
       'unit_memberships',
