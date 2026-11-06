@@ -89,6 +89,37 @@ export class MembershipsService {
     return membership;
   }
 
+  async listOrganizationUnitAssignments(accessToken: string, organizationId: string) {
+    await this.identity.getCurrentUser(accessToken);
+    const memberships = await this.db.get<OrganizationMembership[]>(
+      'organization_memberships',
+      accessToken,
+      `?select=id,user_id,status&organization_id=eq.${organizationId}&order=joined_at.asc`,
+    );
+    if (!memberships.length) return [];
+
+    const membershipById = new Map(memberships.map((membership) => [membership.id, membership]));
+    const assignments = await this.db.get<UnitAssignment[]>(
+      'unit_memberships',
+      accessToken,
+      `?select=id,unit_id,membership_id,created_at&membership_id=in.(${memberships.map((membership) => membership.id).join(',')})&order=created_at.asc`,
+    );
+    if (!assignments.length) return [];
+
+    const unitIds = [...new Set(assignments.map((assignment) => assignment.unit_id))];
+    const units = await this.db.get<OrganizationUnit[]>(
+      'organization_units',
+      accessToken,
+      `?select=id,organization_id,name,unit_type,is_active&id=in.(${unitIds.join(',')})&organization_id=eq.${organizationId}`,
+    );
+    const unitById = new Map(units.map((unit) => [unit.id, unit]));
+    return assignments.flatMap((assignment) => {
+      const unit = unitById.get(assignment.unit_id);
+      const membership = membershipById.get(assignment.membership_id);
+      return unit && membership ? [{ ...assignment, unit, user_id: membership.user_id, membership_status: membership.status }] : [];
+    });
+  }
+
   async listUnitAssignments(accessToken: string, organizationId: string, membershipId: string) {
     await this.identity.getCurrentUser(accessToken);
     await this.requireMembership(accessToken, organizationId, membershipId);
