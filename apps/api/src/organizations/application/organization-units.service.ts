@@ -36,6 +36,7 @@ export class OrganizationUnitsService {
   }
 
   async create(accessToken: string, organizationId: string, input: { name: string; unit_type?: string; description?: string; parent_id?: string | null }) {
+    this.assertUuid(organizationId, 'organizationId');
     if (typeof input.name !== 'string' || !input.name.trim()) throw new BadRequestException('name is required');
     if (input.unit_type !== undefined && (typeof input.unit_type !== 'string' || !input.unit_type.trim())) {
       throw new BadRequestException('unit_type must be a non-empty string');
