@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
+import { createClient } from "@/lib/supabase/client";
 import { bibleQuestions, type BibleChallengeQuestion } from "@/data/bible/questions";
 
 const LEVELS = [
@@ -17,6 +18,15 @@ type PlayMode = "junior" | "classic" | "hyper";
 type ReviewScheduleEntry = { dueAt: number; intervalDays: number; repetitions: number; updatedAt?: string };
 type ReviewSchedule = Record<number, ReviewScheduleEntry>;
 const REVIEW_STORAGE_KEY = "zion:bible-review-schedule:v1";
+
+async function getReviewStorageKey(): Promise<string> {
+  try {
+    const { data } = await createClient().auth.getUser();
+    return REVIEW_STORAGE_KEY + ":" + (data.user?.id ?? "guest");
+  } catch {
+    return REVIEW_STORAGE_KEY + ":guest";
+  }
+}
 const MODE_LABELS: Record<PlayMode, string> = {
   junior: "Júnior",
   classic: "Clássico",
@@ -79,8 +89,9 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
     let active = true;
     const loadSchedule = async () => {
       let local: ReviewSchedule = {};
+      const storageKey = await getReviewStorageKey();
       try {
-        const stored = window.localStorage.getItem(REVIEW_STORAGE_KEY);
+        const stored = window.localStorage.getItem(storageKey);
         if (stored) {
           const parsed = JSON.parse(stored) as Record<string, ReviewScheduleEntry>;
           for (const [id, entry] of Object.entries(parsed)) {
@@ -110,6 +121,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
         }
 
         const merged: ReviewSchedule = { ...remote };
+        const pendingUploads: Promise<unknown>[] = [];
         for (const [id, localEntry] of Object.entries(local)) {
           const questionId = Number(id);
           const remoteEntry = remote[questionId];
@@ -117,21 +129,23 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
           const remoteUpdated = remoteEntry?.updatedAt ? Date.parse(remoteEntry.updatedAt) : 0;
           if (!remoteEntry || localUpdated > remoteUpdated) {
             merged[questionId] = localEntry;
-            void resaRequest("/v1/spiritual/bible-review/" + questionId, {
+            pendingUploads.push(resaRequest("/v1/spiritual/bible-review/" + questionId, {
               method: "PUT",
               body: JSON.stringify({
                 dueAt: new Date(localEntry.dueAt).toISOString(),
                 intervalDays: localEntry.intervalDays,
                 repetitions: localEntry.repetitions,
               }),
-            }).catch(() => undefined);
+            }));
           }
         }
+        const uploadResults = await Promise.allSettled(pendingUploads);
         if (!active) return;
         setReviewSchedule(merged);
         setReviewDeckIds(Object.entries(merged).filter(([, entry]) => entry.dueAt <= Date.now()).map(([id]) => Number(id)));
-        setReviewSyncStatus("synced");
-        try { window.localStorage.setItem(REVIEW_STORAGE_KEY, JSON.stringify(merged)); } catch { /* Optional local cache. */ }
+        const uploadsSucceeded = uploadResults.every((result) => result.status === "fulfilled");
+        setReviewSyncStatus(uploadsSucceeded ? "synced" : "local");
+        try { window.localStorage.setItem(storageKey, JSON.stringify(merged)); } catch { /* Optional local cache. */ }
       } catch {
         if (!active) return;
         setReviewSchedule(local);
@@ -158,7 +172,9 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
       : { dueAt: now + 24 * 60 * 60 * 1000, intervalDays: 1, repetitions: 0, updatedAt: new Date(now).toISOString() };
     const next = { ...reviewSchedule, [questionId]: nextEntry };
     setReviewSchedule(next);
-    try { window.localStorage.setItem(REVIEW_STORAGE_KEY, JSON.stringify(next)); } catch { /* Account persistence remains available. */ }
+    void getReviewStorageKey().then((storageKey) => {
+      try { window.localStorage.setItem(storageKey, JSON.stringify(next)); } catch { /* Optional local cache. */ }
+    });
     void resaRequest("/v1/spiritual/bible-review/" + questionId, {
       method: "PUT",
       body: JSON.stringify({ dueAt: new Date(nextEntry.dueAt).toISOString(), intervalDays: nextEntry.intervalDays, repetitions: nextEntry.repetitions }),
