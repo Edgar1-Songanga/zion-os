@@ -182,8 +182,8 @@ begin
       where o.id = p_organization_id and o.created_by = auth.uid()
     )
     or (
-      (app_meta ->> 'zion_global_role') = 'global_admin'
-      and (app_meta -> 'zion_verified') = 'true'::jsonb
+      (app_meta ->> 'zion_global_role') is not distinct from 'global_admin'
+      and (app_meta -> 'zion_verified') is not distinct from 'true'::jsonb
     )
   ) then
     raise exception 'Active organization membership is required to view this hierarchy'
@@ -191,14 +191,15 @@ begin
   end if;
 
   return query
-    with recursive hierarchy(org_id, org_name, org_type, org_parent_id, level_depth) as (
-      select o.id, o.name, o.organization_type, o.parent_id, 0
+    with recursive hierarchy(org_id, org_name, org_type, org_parent_id, level_depth, visited) as (
+      select o.id, o.name, o.organization_type, o.parent_id, 0, array[o.id]
       from public.organizations o
       where o.id = p_organization_id
       union all
-      select parent.id, parent.name, parent.organization_type, parent.parent_id, child.level_depth + 1
+      select parent.id, parent.name, parent.organization_type, parent.parent_id, child.level_depth + 1, child.visited || parent.id
       from public.organizations parent
       join hierarchy child on parent.id = child.org_parent_id
+      where not parent.id = any(child.visited)
     )
     select h.org_id, h.org_name, h.org_type, h.org_parent_id, h.level_depth
     from hierarchy h
