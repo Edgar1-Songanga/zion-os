@@ -10,6 +10,8 @@ declare
   standalone_church uuid;
   test_user uuid := gen_random_uuid();
   hierarchy_rows integer;
+  department_root uuid;
+  department_child uuid;
   rejected boolean := false;
 begin
   insert into public.organizations(name,slug,organization_type)
@@ -184,6 +186,45 @@ begin
 
   if (select count(*) from public.zion_list_institutional_organizations()) <> 7 then
     raise exception 'Verified global administrator did not receive the institutional directory';
+  end if;
+
+  -- Department trees must remain inside one organization and be acyclic.
+  insert into public.organization_units(organization_id, name, unit_type)
+  values (church, 'Department root', 'DEPARTMENT')
+  returning id into department_root;
+
+  insert into public.organization_units(organization_id, parent_id, name, unit_type)
+  values (church, department_root, 'Department child', 'SUBDEPARTMENT')
+  returning id into department_child;
+
+  rejected := false;
+  begin
+    insert into public.organization_units(organization_id, parent_id, name, unit_type)
+    values (standalone_church, department_root, 'Cross-organization child', 'SUBDEPARTMENT');
+  exception when others then
+    rejected := true;
+  end;
+  if not rejected then
+    raise exception 'A department was allowed to reference a parent in another organization';
+  end if;
+
+  rejected := false;
+  begin
+    update public.organization_units
+       set parent_id = department_child
+     where id = department_root;
+  exception when others then
+    rejected := true;
+  end;
+  if not rejected then
+    raise exception 'A cyclic department hierarchy was allowed';
+  end if;
+
+  if not exists (
+    select 1 from public.organization_units
+     where id = department_child and parent_id = department_root
+  ) then
+    raise exception 'Valid department hierarchy was not preserved';
   end if;
 end;
 $$;
