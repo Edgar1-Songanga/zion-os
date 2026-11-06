@@ -15,4 +15,4 @@ create table public.finance_journal_lines (
   debit numeric(18,2) not null default 0,
   credit numeric(18,2) not null default 0
 );
-grant select, insert, update on public.finance_journal_lines to authenticated;
+grant select, insert, update on public.finance_journal_entries, public.finance_journal_lines to authenticated;
