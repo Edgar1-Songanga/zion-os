@@ -19,6 +19,8 @@ type ResaContent = {
   created_at: string;
   media_type?: "image" | "video" | null;
   media_url?: string | null;
+  viewer_reacted?: boolean;
+  viewer_saved?: boolean;
 };
 
 type CommentItem = {
@@ -47,8 +49,8 @@ function renderLinkedText(value: string) {
 
 export default function FeedCard({ content }: { content: ResaContent }) {
   const { t, locale } = useTranslation();
-  const [reaction, setReaction] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [reaction, setReaction] = useState(Boolean(content.viewer_reacted));
+  const [saved, setSaved] = useState(Boolean(content.viewer_saved));
   const [saving, setSaving] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [reposting, setReposting] = useState(false);
@@ -115,6 +117,11 @@ export default function FeedCard({ content }: { content: ResaContent }) {
     window.open(targets[network], "_blank", "noopener,noreferrer");
     setShareFeedback(t("shareWindowOpened"));
   }
+
+  useEffect(() => {
+    setReaction(Boolean(content.viewer_reacted));
+    setSaved(Boolean(content.viewer_saved));
+  }, [content.id, content.viewer_reacted, content.viewer_saved]);
 
   useEffect(() => {
     if (!showComments) return;
