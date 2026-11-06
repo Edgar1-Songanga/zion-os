@@ -24,6 +24,11 @@ export class OrganizationsController {
     return this.organizations.create(this.token(authorization), body);
   }
 
+  @Get('institutional')
+  listInstitutional(@Headers('authorization') authorization: string | undefined) {
+    return this.organizations.listInstitutional(this.token(authorization));
+  }
+
   @Post('institutional')
   createInstitutional(
     @Headers('authorization') authorization: string | undefined,
