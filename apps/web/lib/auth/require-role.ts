@@ -8,7 +8,7 @@ export async function requireGlobalAdmin(nextPath = "/admin") {
   const { data } = await supabase.auth.getClaims();
   const claims = data?.claims as Claims | undefined;
   if (!claims?.sub) redirect("/auth/sign-in?next=" + encodeURIComponent(nextPath));
-  if (claims.app_metadata?.zion_global_role !== "global_admin") {
+  if (claims.app_metadata?.zion_global_role !== "global_admin" || claims.app_metadata?.zion_verified !== true) {
     redirect("/dashboard?access=denied");
   }
 }
@@ -18,7 +18,7 @@ export async function requireAnyOrganizationRole(allowedRoles: readonly string[]
   const { data } = await supabase.auth.getClaims();
   const claims = data?.claims as Claims | undefined;
   if (!claims?.sub) redirect("/auth/sign-in?next=" + encodeURIComponent(nextPath));
-  if (claims.app_metadata?.zion_global_role === "global_admin") return;
+  if (claims.app_metadata?.zion_global_role === "global_admin" && claims.app_metadata?.zion_verified === true) return;
 
   const { data: memberships, error: membershipError } = await supabase
     .from("organization_memberships")
