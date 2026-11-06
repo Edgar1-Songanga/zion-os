@@ -56,4 +56,8 @@ export const ZION_TRANSLATION_CATALOGS: Record<string, Record<string, string>> =
   ha,
   zu,
   xh,
+  pov,
+  rw,
+  fuf,
+  mnk,
 };
