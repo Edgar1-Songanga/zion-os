@@ -30,6 +30,18 @@ create table public.organization_memberships (
   status text not null default 'ACTIVE'
 );
 
+create table public.organization_units (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  parent_id uuid references public.organization_units(id) on delete set null,
+  name text not null,
+  unit_type text not null default 'DEPARTMENT',
+  description text,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create or replace function private.has_org_permission_in_hierarchy(target_org uuid, permission_key text)
 returns boolean language sql stable
 as $$ select true $$;
