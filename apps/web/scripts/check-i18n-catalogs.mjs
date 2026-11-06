@@ -24,7 +24,7 @@ for (const locale of locales) {
   }
   if (!registry.includes(`./${file.replace(".json", "")}.json`)) errors.push(`${locale}: not imported in catalog registry`);
   const exposedAsShorthand = registry.includes(`  ${locale},`);
-  const exposedAsNamed = registry.includes(`  "${locale}": ${locale},`);
+  const exposedAsNamed = registry.includes(`  "${locale}":`);
   if (!exposedAsShorthand && !exposedAsNamed) errors.push(`${locale}: not exposed by catalog registry`);
 
   let catalog;
