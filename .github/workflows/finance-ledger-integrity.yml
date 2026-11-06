@@ -1,0 +1,44 @@
+name: Finance ledger integrity
+
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/*finance*"
+      - "supabase/tests/finance*"
+      - ".github/workflows/finance-ledger-integrity.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/*finance*"
+      - "supabase/tests/finance*"
+      - ".github/workflows/finance-ledger-integrity.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  posted-journal-line-immutability:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start disposable PostgreSQL
+        run: |
+          docker run --rm -d --name zion-finance-postgres \
+            -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:16
+          for attempt in $(seq 1 30); do
+            if docker exec zion-finance-postgres pg_isready -U postgres; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+      - name: Prepare isolated schema
+        run: |
+          docker exec -i zion-finance-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/finance_ledger_fixture.sql
+      - name: Apply ledger immutability migration
+        run: |
+          docker exec -i zion-finance-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261106130000_finance_posted_journal_line_immutability.sql
+      - name: Verify draft edits, posted immutability and least privilege
+        run: |
+          docker exec -i zion-finance-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/finance_posted_journal_line_immutability.sql
+      - name: Stop disposable PostgreSQL
+        if: always()
+        run: docker rm -f zion-finance-postgres || true
