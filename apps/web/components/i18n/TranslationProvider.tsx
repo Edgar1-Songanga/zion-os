@@ -53,10 +53,9 @@ const COUNTRY_DEFAULT_LOCALE: Record<string, ZionLocale> = {
   CN: "zh", TW: "zh", SG: "zh",
   SA: "ar", EG: "ar", MA: "ar", DZ: "ar", TN: "ar", AE: "ar", QA: "ar", KW: "ar", JO: "ar", LB: "ar", IQ: "ar",
   KE: "sw", TZ: "sw",
-  NA: "af", ZA: "af",
+  NA: "en", ZA: "en",
   ET: "am",
-  NG: "ha",
-  AO: "pt-AO",
+  NG: "en",
 };
 
 
@@ -283,7 +282,7 @@ export function TranslationProvider({ children, countryCode }: { children: React
       active = false;
       listener.subscription.unsubscribe();
     };
-  }, []);
+  }, [countryCode]);
 
   useEffect(() => {
     document.documentElement.lang = locale;
