@@ -186,7 +186,7 @@ describe('FinanceService Giving bank transfer configuration', () => {
   it('reports an authorization failure when RLS prevents the payment method update', async () => {
     patchSpy.mockResolvedValueOnce([]);
     await expect(service.configureGivingBankTransfer('access-token', organizationId, {
-      bank_name: 'Banco de Angola', account_holder: 'Igreja Local', iban: 'AO12345678901234567890123',
+      bank_name: 'Banco de Angola', account_holder: 'Igreja Local', iban: makeValidAngolanIban(),
     })).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
