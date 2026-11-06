@@ -61,31 +61,43 @@ function SignInForm() {
       return;
     }
 
-    // MFA is challenged only when the account has a verified TOTP factor.
-    // A transient assurance/factor lookup failure must not discard a valid password session.
+    // Never turn an MFA lookup outage into an MFA bypass. Keep the valid
+    // password session, but require a retry before entering the application.
     try {
       const { data: aal, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-      if (!aalError && aal?.currentLevel === "aal1" && aal.nextLevel === "aal2") {
+      if (aalError) {
+        setError("A sessão foi iniciada, mas não foi possível confirmar o estado da verificação MFA. Tente novamente; a sua sessão continua ativa.");
+        setLoading(false);
+        return;
+      }
+
+      if (aal?.currentLevel === "aal1" && aal.nextLevel === "aal2") {
         const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
-        if (!factorsError) {
-          const verifiedFactor = factors.totp.find((factor) => factor.status === "verified");
-          if (verifiedFactor) {
-            const challenge = await supabase.auth.mfa.challenge({ factorId: verifiedFactor.id });
-            if (challenge.error) {
-              setError("Não foi possível iniciar a verificação MFA. Tente novamente; a sua sessão de palavra-passe continua ativa.");
-              setLoading(false);
-              return;
-            }
-            setFactorId(verifiedFactor.id);
-            setChallengeId(challenge.data.id);
-            setNeedsMfa(true);
+        if (factorsError) {
+          setError("A sessão foi iniciada, mas não foi possível consultar o autenticador MFA. Tente novamente; a sua sessão continua ativa.");
+          setLoading(false);
+          return;
+        }
+
+        const verifiedFactor = factors.totp.find((factor) => factor.status === "verified");
+        if (verifiedFactor) {
+          const challenge = await supabase.auth.mfa.challenge({ factorId: verifiedFactor.id });
+          if (challenge.error) {
+            setError("Não foi possível iniciar a verificação MFA. Tente novamente; a sua sessão de palavra-passe continua ativa.");
             setLoading(false);
             return;
           }
+          setFactorId(verifiedFactor.id);
+          setChallengeId(challenge.data.id);
+          setNeedsMfa(true);
+          setLoading(false);
+          return;
         }
       }
     } catch {
-      // Keep the authenticated password session; a later protected action can request step-up auth.
+      setError("A sessão foi iniciada, mas não foi possível confirmar a verificação de segurança. Tente novamente; a sua sessão continua ativa.");
+      setLoading(false);
+      return;
     }
 
     window.location.replace(redirectPath);
