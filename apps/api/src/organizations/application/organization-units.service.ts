@@ -18,7 +18,15 @@ export class OrganizationUnitsService {
 
   constructor(private readonly identity: IdentityService) {}
 
+  private assertUuid(value: string, field: string) {
+    if (typeof value !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
+      throw new BadRequestException(`${field} must be a valid UUID`);
+    }
+  }
+
+
   async list(accessToken: string, organizationId: string) {
+    this.assertUuid(organizationId, 'organizationId');
     await this.identity.getCurrentUser(accessToken);
     return this.db.get<Unit[]>(
       'organization_units',
@@ -54,13 +62,19 @@ export class OrganizationUnitsService {
   }
 
   async update(accessToken: string, organizationId: string, unitId: string, input: Partial<{ name: string; unit_type: string; description: string | null; parent_id: string | null; is_active: boolean }>) {
+    this.assertUuid(organizationId, 'organizationId');
+    this.assertUuid(unitId, 'unitId');
+    if (!input || typeof input !== 'object') throw new BadRequestException('A request body is required');
     const user = await this.identity.getCurrentUser(accessToken);
     const patch: Record<string, unknown> = {};
     if (input.name !== undefined) patch.name = input.name.trim();
     if (input.unit_type !== undefined) patch.unit_type = input.unit_type.trim();
     if (input.description !== undefined) patch.description = input.description?.trim() || null;
     if (input.parent_id !== undefined) patch.parent_id = input.parent_id;
-    if (input.is_active !== undefined) patch.is_active = input.is_active;
+    if (input.is_active !== undefined) {
+      if (typeof input.is_active !== 'boolean') throw new BadRequestException('is_active must be a boolean');
+      patch.is_active = input.is_active;
+    }
     if (!Object.keys(patch).length) throw new BadRequestException('No changes supplied');
 
     const updated = await this.db.patch<Unit[]>(
