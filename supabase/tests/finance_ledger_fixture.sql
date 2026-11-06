@@ -6,6 +6,7 @@ create function auth.uid() returns uuid language sql stable as $$ select null::u
 
 create table public.finance_journal_entries (
   id uuid primary key,
+  description text not null default '',
   status text not null check (status in ('DRAFT','POSTED','VOID'))
 );
 create table public.finance_journal_lines (
