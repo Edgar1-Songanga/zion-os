@@ -2,27 +2,36 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
-  const code = searchParams.get("code");
-  let next = searchParams.get("next") ?? "/dashboard";
+  const requestUrl = new URL(request.url);
+  const code = requestUrl.searchParams.get("code");
+  const requestedNext = requestUrl.searchParams.get("next") ?? "/dashboard";
 
-  if (!next.startsWith("/")) next = "/dashboard";
+  let destination = new URL("/dashboard", requestUrl.origin);
+  try {
+    const candidate = new URL(requestedNext, requestUrl.origin);
+    if (
+      candidate.origin === requestUrl.origin &&
+      candidate.pathname.startsWith("/") &&
+      !candidate.pathname.startsWith("//")
+    ) {
+      destination = candidate;
+    }
+  } catch {
+    // Invalid or external redirect targets fall back to the dashboard.
+  }
 
   if (code) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
-      const forwardedHost = request.headers.get("x-forwarded-host");
-      const destination = process.env.NODE_ENV === "development"
-        ? `${origin}${next}`
-        : forwardedHost
-          ? `https://${forwardedHost}${next}`
-          : `${origin}${next}`;
-
-      return NextResponse.redirect(destination);
+      const response = NextResponse.redirect(destination);
+      response.headers.set("Cache-Control", "private, no-store");
+      return response;
     }
   }
 
-  return NextResponse.redirect(`${origin}/auth/auth-code-error`);
+  const errorResponse = NextResponse.redirect(new URL("/auth/auth-code-error", requestUrl.origin));
+  errorResponse.headers.set("Cache-Control", "private, no-store");
+  return errorResponse;
 }
