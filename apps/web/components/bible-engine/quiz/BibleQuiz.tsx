@@ -448,6 +448,19 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
     setDeckVersion((value) => value + 1);
   }
 
+  if (!progressHydrated) {
+    return (
+      <section className={compact
+        ? "overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white text-[#0C1A3D]"
+        : "overflow-hidden rounded-[2rem] border border-slate-200 bg-white text-[#0C1A3D] shadow-[0_18px_55px_rgba(15,23,42,0.07)]"}>
+        <div className="bg-[#071126] px-6 py-10 text-center text-white">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#E2C477]">ZION · Desafio bíblico</p>
+          <p className="mt-3 text-sm text-slate-300" role="status" aria-live="polite">A recuperar a tua jornada e a sincronizar o progresso…</p>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className={compact
       ? "overflow-hidden rounded-[1.6rem] border border-slate-200 bg-white text-[#0C1A3D]"
