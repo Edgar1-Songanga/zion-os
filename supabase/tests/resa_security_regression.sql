@@ -1,11 +1,11 @@
 \set ON_ERROR_STOP on
 
-insert into auth.users(id) values
- ('10000000-0000-4000-8000-000000000001'),
- ('10000000-0000-4000-8000-000000000002'),
- ('10000000-0000-4000-8000-000000000003'),
- ('10000000-0000-4000-8000-000000000004'),
- ('10000000-0000-4000-8000-000000000005');
+insert into auth.users(id,email) values
+ ('10000000-0000-4000-8000-000000000001','host@example.test'),
+ ('10000000-0000-4000-8000-000000000002','private@example.test'),
+ ('10000000-0000-4000-8000-000000000003','community@example.test'),
+ ('10000000-0000-4000-8000-000000000004','public@example.test'),
+ ('10000000-0000-4000-8000-000000000005','manager@example.test');
 
 -- Five failed attempts lock only this user/live pair; a correct password is denied while locked.
 insert into public.resa_live_sessions(id,host_id,visibility,status,password_hash)
@@ -83,7 +83,7 @@ insert into public.ministries(id,organization_id,department) values
 insert into public.ministry_leaders(ministry_id,user_id)
 values ('40000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000003');
 insert into public.sabbath_school_classes(id,organization_id,ministry_id,teacher_user_id) values
- ('50000000-0000-4000-8000-000000000001','30000000-0000-4000-8000-000000000001','40000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000003'),
+ ('50000000-0000-4000-8000-000000000001','30000000-0000-4000-8000-000000000001','40000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000003','community@example.test'),
  ('50000000-0000-4000-8000-000000000002','30000000-0000-4000-8000-000000000001','40000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000004');
 insert into public.sabbath_school_attendance_sessions(id,organization_id,class_id,expires_at) values
  ('60000000-0000-4000-8000-000000000001','30000000-0000-4000-8000-000000000001','50000000-0000-4000-8000-000000000001',now()-interval '1 day'),
@@ -171,6 +171,65 @@ begin
   if has_table_privilege('anon','private.resa_live_password_attempts','SELECT')
      or has_table_privilege('authenticated','private.resa_live_password_attempts','SELECT') then
     raise exception 'Untrusted role can read password attempt metadata';
+  end if;
+end
+$test$;
+
+
+-- Profile discovery must not enumerate on blank queries or reveal private profiles.
+insert into public.profiles(id,display_name,first_name,last_name,avatar_url,privacy) values
+ ('10000000-0000-4000-8000-000000000002','Private Alice','Alice','Private',null,'{"profile_visibility":"private"}'),
+ ('10000000-0000-4000-8000-000000000003','Community Alice','Alice','Community',null,'{"profile_visibility":"community"}'),
+ ('10000000-0000-4000-8000-000000000004','Public Alice','Alice','Public',null,'{"profile_visibility":"public"}');
+
+do $test$
+declare
+  v_count integer;
+  v_email text;
+begin
+  select count(*) into v_count from public.resa_search_profiles(' ',20);
+  if v_count <> 0 then
+    raise exception 'Blank profile search returned % profiles', v_count;
+  end if;
+
+  select count(*) into v_count from public.resa_search_profiles('Alice',20);
+  if v_count <> 2 then
+    raise exception 'Expected only community/public Alice profiles, got %', v_count;
+  end if;
+
+  if exists (
+    select 1 from public.resa_search_profiles('Alice',20)
+     where id='10000000-0000-4000-8000-000000000002'
+  ) then
+    raise exception 'Private profile appeared in profile search';
+  end if;
+
+  select email into v_email
+    from public.resa_search_profiles('Community Alice',20)
+   where id='10000000-0000-4000-8000-000000000003';
+  if v_email is not null then
+    raise exception 'Community profile exposed its email address';
+  end if;
+
+  select email into v_email
+    from public.resa_search_profiles('Public Alice',20)
+   where id='10000000-0000-4000-8000-000000000004';
+  if v_email <> 'public@example.test' then
+    raise exception 'Explicitly public profile email behavior changed';
+  end if;
+
+  select count(*) into v_count
+    from public.resa_profiles_for_ids(array[
+      '10000000-0000-4000-8000-000000000002'::uuid,
+      '10000000-0000-4000-8000-000000000003'::uuid,
+      '10000000-0000-4000-8000-000000000004'::uuid
+    ]);
+  if v_count <> 2 then
+    raise exception 'ID-based lookup did not preserve profile privacy';
+  end if;
+
+  if has_function_privilege('anon','public.resa_search_profiles(text,integer)','EXECUTE') then
+    raise exception 'Anonymous users can execute profile search';
   end if;
 end
 $test$;
