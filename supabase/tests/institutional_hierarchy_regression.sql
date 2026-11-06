@@ -101,6 +101,14 @@ begin
 
   rejected := false;
   begin
+    delete from public.organizations where id = mission;
+  exception when others then
+    rejected := true;
+  end;
+  if not rejected then raise exception 'Deleting an organization with subordinate churches was not rejected'; end if;
+
+  rejected := false;
+  begin
     perform public.zion_create_institutional_organization(
       'Unauthorized Union','unauthorized-union','UNION',division
     );
