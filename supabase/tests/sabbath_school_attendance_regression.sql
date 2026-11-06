@@ -19,7 +19,7 @@ begin
  if not exists(select 1 from public.sabbath_school_attendance where member_record_id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' and attendance_status='PRESENT') then raise exception 'Corrected second status missing'; end if;
 end $$;
 set request.jwt.claim.sub = '22222222-2222-4222-8222-222222222222';
-do $
+do $$
 begin
  begin
   perform public.save_sabbath_school_attendance(
