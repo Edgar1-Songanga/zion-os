@@ -396,7 +396,10 @@ export function TranslationProvider({ children, countryCode }: { children: React
     if (locale === SOURCE_LOCALE) return sourceText;
     const catalog: Record<string, string> = ZION_TRANSLATION_CATALOGS[locale] ?? {};
     const cached = translations[locale]?.[`${SOURCE_LOCALE}:${locale}:ui:${sourceText}`];
-    return catalog[key] ?? cached ?? sourceText;
+    // Keep the interface readable when a locale catalog is still being translated.
+    // A completed target-language catalog wins, then saved AI translation, then English.
+    const englishFallback = ZION_TRANSLATION_CATALOGS.en?.[key];
+    return catalog[key] ?? cached ?? englishFallback ?? sourceText;
   }, [locale, translations]);
 
   const value = useMemo(() => ({
