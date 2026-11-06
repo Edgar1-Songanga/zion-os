@@ -35,11 +35,11 @@ jobs:
       - name: Prepare isolated schema
         run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/institutional_hierarchy_fixture.sql
       - name: Apply hierarchy migration
-        run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261106160000_institutional_organization_hierarchy.sql
+        run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261106220312_institutional_organization_hierarchy.sql
       - name: Apply department hierarchy guard
-        run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261106190000_organization_unit_hierarchy_guard.sql
+        run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261106220316_organization_unit_hierarchy_guard.sql
       - name: Apply verified global administrator RLS permissions
-        run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261106210000_verified_global_admin_organization_unit_permissions.sql
+        run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261106220320_verified_global_admin_organization_unit_permissions.sql
       - name: Verify valid levels, invalid parent relationships and privileged creation
         run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/institutional_hierarchy_regression.sql
       - name: Stop disposable PostgreSQL

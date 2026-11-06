@@ -37,7 +37,7 @@ jobs:
           docker exec -i zion-finance-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/finance_ledger_fixture.sql
       - name: Apply ledger immutability migration
         run: |
-          docker exec -i zion-finance-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261106143000_finance_posted_journal_line_immutability.sql
+          docker exec -i zion-finance-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261106220251_finance_posted_journal_line_immutability.sql
       - name: Verify draft edits, posted immutability and least privilege
         run: |
           docker exec -i zion-finance-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/finance_posted_journal_line_immutability.sql
@@ -46,7 +46,7 @@ jobs:
           docker exec -i zion-finance-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/giving_receipt_verification_fixture.sql
       - name: Apply Giving receipt verification migration
         run: |
-          docker exec -i zion-finance-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261106230000_giving_receipt_verification_entropy.sql
+          docker exec -i zion-finance-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261106220324_giving_receipt_verification_entropy.sql
       - name: Verify 128-bit codes and legacy receipt preservation
         run: |
           docker exec -i zion-finance-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/giving_receipt_verification_regression.sql

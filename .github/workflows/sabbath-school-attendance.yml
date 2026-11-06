@@ -32,7 +32,7 @@ jobs:
       - name: Prepare isolated fixture
         run: docker exec -i zion-attendance-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/sabbath_school_attendance_fixture.sql
       - name: Apply attendance correction migration
-        run: docker exec -i zion-attendance-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261107090000_sabbath_school_attendance_correction.sql
+        run: docker exec -i zion-attendance-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261106220339_sabbath_school_attendance_correction.sql
       - name: Verify correction, uniqueness and authorization
         run: docker exec -i zion-attendance-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/sabbath_school_attendance_regression.sql
       - name: Stop disposable PostgreSQL
