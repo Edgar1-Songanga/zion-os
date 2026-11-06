@@ -173,9 +173,45 @@ export function TranslationProvider({ children }: { children: React.ReactNode })
   const [dynamicTranslationUnavailable, setDynamicTranslationUnavailable] = useState(false);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (stored && (ZION_LOCALES as readonly string[]).includes(stored)) setLocaleState(stored as ZionLocale);
-    setReady(true);
+    let active = true;
+    const isLocale = (value: unknown): value is ZionLocale =>
+      typeof value === "string" && (ZION_LOCALES as readonly string[]).includes(value);
+
+    const restorePreference = async () => {
+      const stored = window.localStorage.getItem(STORAGE_KEY);
+      try {
+        const supabase = createClient();
+        const { data } = await supabase.auth.getUser();
+        const preferred = data.user?.user_metadata?.preferred_locale;
+        if (!active) return;
+        if (isLocale(preferred)) {
+          setLocaleState(preferred);
+          window.localStorage.setItem(STORAGE_KEY, preferred);
+        } else if (isLocale(stored)) {
+          setLocaleState(stored);
+        }
+      } catch {
+        if (active && isLocale(stored)) setLocaleState(stored);
+      } finally {
+        if (active) setReady(true);
+      }
+    };
+
+    void restorePreference();
+    const supabase = createClient();
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event !== "SIGNED_IN" && event !== "USER_UPDATED" && event !== "TOKEN_REFRESHED") return;
+      const preferred = session?.user?.user_metadata?.preferred_locale;
+      if (isLocale(preferred)) {
+        setLocaleState(preferred);
+        window.localStorage.setItem(STORAGE_KEY, preferred);
+      }
+    });
+
+    return () => {
+      active = false;
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -188,6 +224,25 @@ export function TranslationProvider({ children }: { children: React.ReactNode })
   const setLocale = useCallback((next: ZionLocale) => {
     setDynamicTranslationUnavailable(false);
     setLocaleState(next);
+    window.localStorage.setItem(STORAGE_KEY, next);
+
+    // Persist the preference in the authenticated account so it follows the
+    // member across browsers and devices; local storage remains an offline fallback.
+    void (async () => {
+      try {
+        const supabase = createClient();
+        const { data } = await supabase.auth.getUser();
+        if (!data.user) return;
+        const { error } = await supabase.auth.updateUser({
+          data: { preferred_locale: next },
+        });
+        if (error) {
+          console.error("[ZION i18n] Could not persist the language preference to the account.", error);
+        }
+      } catch (error) {
+        console.error("[ZION i18n] Language preference persistence failed.", error);
+      }
+    })();
   }, []);
 
   const translateText = useCallback(async (
