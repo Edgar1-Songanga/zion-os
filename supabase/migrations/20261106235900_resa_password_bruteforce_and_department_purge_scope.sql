@@ -36,7 +36,12 @@ begin
   changed := found;
 
   if changed then
-    delete from private.resa_live_password_attempts where live_id = p_live_id;
+    update private.resa_live_password_attempts
+       set window_started_at = clock_timestamp(),
+           failed_attempts = 0,
+           locked_until = null,
+           updated_at = clock_timestamp()
+     where live_id = p_live_id;
     delete from public.resa_live_access_grants where live_id = p_live_id;
   end if;
 
@@ -156,6 +161,7 @@ begin
   end if;
 
   if p_organization_id is null
+     or p_data_domain is null
      or p_data_domain not in ('SABBATH_SCHOOL_ATTENDANCE', 'PERSONAL_MINISTRY_FOLLOW_UP') then
     raise exception 'Unsupported department data domain or organization' using errcode = '22023';
   end if;
