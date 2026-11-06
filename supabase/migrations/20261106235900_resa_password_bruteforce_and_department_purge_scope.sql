@@ -19,7 +19,7 @@ create or replace function public.resa_set_live_password(p_live_id uuid, p_passw
 returns boolean
 language plpgsql
 security definer
-set search_path = pg_catalog, public, private, extensions
+set search_path = pg_catalog, pg_temp
 as $$
 declare
   changed boolean;
@@ -53,7 +53,7 @@ create or replace function public.resa_unlock_private_live(p_live_id uuid, p_pas
 returns boolean
 language plpgsql
 security definer
-set search_path = pg_catalog, public, private, extensions
+set search_path = pg_catalog, pg_temp
 as $$
 declare
   v_user_id uuid := auth.uid();
@@ -148,7 +148,7 @@ create or replace function public.purge_expired_department_records(
 returns jsonb
 language plpgsql
 security definer
-set search_path = pg_catalog, public, private
+set search_path = pg_catalog, pg_temp
 as $$
 declare
   v_user_id uuid := auth.uid();
