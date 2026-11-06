@@ -76,6 +76,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Test local receipt QR generator
+        run: node apps/web/scripts/test-receipt-qr.cjs
+
       - name: Build Web
         run: pnpm --filter web build
 
