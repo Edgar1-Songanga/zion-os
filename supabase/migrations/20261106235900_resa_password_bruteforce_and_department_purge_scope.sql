@@ -89,7 +89,11 @@ begin
   end if;
 
   if v_saved_hash = extensions.crypt(p_password, v_saved_hash) then
-    delete from private.resa_live_password_attempts
+    update private.resa_live_password_attempts
+       set window_started_at = v_now,
+           failed_attempts = 0,
+           locked_until = null,
+           updated_at = v_now
      where live_id = p_live_id and user_id = v_user_id;
 
     insert into public.resa_live_access_grants (live_id, user_id, expires_at)
@@ -228,6 +232,10 @@ begin
     delete from public.sabbath_school_attendance_sessions s
      where s.organization_id = p_organization_id
        and s.expires_at <= clock_timestamp()
+       and not exists (
+         select 1 from public.sabbath_school_attendance a
+          where a.session_id = s.id and a.expires_at > clock_timestamp()
+       )
        and (
          v_is_org_manager
          or exists (
