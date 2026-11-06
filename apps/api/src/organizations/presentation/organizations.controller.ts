@@ -24,6 +24,14 @@ export class OrganizationsController {
     return this.organizations.create(this.token(authorization), body);
   }
 
+  @Get(':organizationId/hierarchy')
+  hierarchy(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('organizationId') organizationId: string,
+  ) {
+    return this.organizations.hierarchy(this.token(authorization), organizationId);
+  }
+
   @Get('institutional')
   listInstitutional(@Headers('authorization') authorization: string | undefined) {
     return this.organizations.listInstitutional(this.token(authorization));
