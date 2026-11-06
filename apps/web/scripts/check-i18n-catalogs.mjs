@@ -57,12 +57,12 @@ for (const locale of locales) {
   if (missing.length) coverage.push(`${locale}: ${uniqueKeys.length - missing.length}/${uniqueKeys.length} translated; ${missing.length} use English fallback`);
 }
 if (errors.length) {
-  console.error(errors.join("\\n"));
+  console.error(errors.join("\n"));
   process.exitCode = 1;
 } else {
   console.log(`Validated ${locales.length} locale catalogs, registry entries, JSON integrity and ${uniqueKeys.length} English fallback messages.`);
   if (coverage.length) {
     console.warn("Translation coverage (incomplete locales use the English fallback):");
-    console.warn(coverage.join("\\n"));
+    console.warn(coverage.join("\n"));
   }
 }
