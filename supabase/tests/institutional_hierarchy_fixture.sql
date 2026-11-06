@@ -104,3 +104,7 @@ for delete to authenticated
 using (private.has_org_permission(organization_id, 'organization.manage'));
 
 grant select, insert, update, delete on public.organization_units to authenticated;
+
+grant usage on schema private to authenticated;
+grant execute on function private.is_org_member(uuid) to authenticated;
+grant execute on function private.has_org_permission(uuid, text) to authenticated;
