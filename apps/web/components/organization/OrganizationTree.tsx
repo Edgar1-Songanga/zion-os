@@ -1,37 +1,12 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 export interface OrganizationTreeNode {
   id: string;
   name: string;
   organization_type: string;
   parent_id: string | null;
-}
-
-function TreeNode({
-  node,
-  children,
-  selectedId,
-}: {
-  node: OrganizationTreeNode;
-  children: OrganizationTreeNode[];
-  selectedId?: string;
-}) {
-  return (
-    <div className="ml-5 mt-3">
-      <article className={`rounded-xl border p-4 transition ${node.id === selectedId ? "border-[#C8A24A] bg-[#FBF8F0]" : "border-slate-200 bg-white"}`}>
-        <h3 className="font-semibold text-[#0C1A3D]">{node.name}</h3>
-        <p className="mt-1 text-xs text-slate-500">{node.organization_type}</p>
-      </article>
-      {children.map((child) => (
-        <TreeNode
-          key={child.id}
-          node={child}
-          children={[]}
-          selectedId={selectedId}
-        />
-      ))}
-    </div>
-  );
 }
 
 export default function OrganizationTree({
@@ -51,7 +26,7 @@ export default function OrganizationTree({
     childrenByParent.set(organization.parent_id, children);
   }
 
-  function renderNode(node: OrganizationTreeNode): React.ReactNode {
+  function renderNode(node: OrganizationTreeNode): ReactNode {
     return (
       <div key={node.id} className="ml-5 mt-3">
         <article className={`rounded-xl border p-4 transition ${node.id === selectedId ? "border-[#C8A24A] bg-[#FBF8F0]" : "border-slate-200 bg-white"}`}>
