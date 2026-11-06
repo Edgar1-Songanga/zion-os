@@ -16,7 +16,7 @@ values (
  extensions.crypt('correct horse battery', extensions.gen_salt('bf'))
 );
 
-select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000002',true);
+select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000002',false);
 do $test$
 declare i integer;
 begin
@@ -95,7 +95,7 @@ insert into public.sabbath_school_class_members(id,organization_id,class_id,expi
  ('80000000-0000-4000-8000-000000000001','30000000-0000-4000-8000-000000000001','50000000-0000-4000-8000-000000000001',now()-interval '1 day'),
  ('80000000-0000-4000-8000-000000000002','30000000-0000-4000-8000-000000000001','50000000-0000-4000-8000-000000000002',now()-interval '1 day');
 
-select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000003',true);
+select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000003',false);
 select public.purge_expired_department_records(
  '30000000-0000-4000-8000-000000000001','SABBATH_SCHOOL_ATTENDANCE'
 );
@@ -137,7 +137,7 @@ end
 $test$;
 
 -- An unrelated authenticated user cannot purge another ministry's attendance.
-select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000005',true);
+select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000005',false);
 do $test$
 begin
   begin
@@ -152,8 +152,8 @@ end
 $test$;
 
 -- An organization manager retains organization-wide purge authority.
-select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000005',true);
-select set_config('test.zion_manager_org','30000000-0000-4000-8000-000000000001',true);
+select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000005',false);
+select set_config('test.zion_manager_org','30000000-0000-4000-8000-000000000001',false);
 select public.purge_expired_department_records(
  '30000000-0000-4000-8000-000000000001','PERSONAL_MINISTRY_FOLLOW_UP'
 );
