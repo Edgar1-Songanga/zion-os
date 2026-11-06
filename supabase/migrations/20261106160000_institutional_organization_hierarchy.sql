@@ -260,3 +260,75 @@ grant execute on function public.zion_list_institutional_organizations() to auth
 
 revoke all on function public.zion_create_institutional_organization(text, text, text, uuid) from public, anon;
 grant execute on function public.zion_create_institutional_organization(text, text, text, uuid) to authenticated;
+
+-- HR and payroll are institution-level functions, not local-church modules.
+-- Finance retains its separate hierarchy permission helper.
+create or replace function private.has_hr_permission_in_hierarchy(
+  target_org uuid,
+  permission_key text
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = pg_catalog, public, private
+as $function$
+  select exists (
+    select 1
+    from public.organizations target
+    where target.id = target_org
+      and target.organization_type in (
+        'MISSION', 'CONFERENCE', 'UNION', 'DIVISION', 'GENERAL_CONFERENCE'
+      )
+      and private.has_org_permission_in_hierarchy(target_org, permission_key)
+  );
+$function$;
+
+do $policy_migration$
+declare
+  policy_row record;
+  statement text;
+begin
+  for policy_row in
+    select schemaname, tablename, policyname, qual, with_check
+    from pg_policies
+    where schemaname = 'public'
+      and tablename in (
+        'hr_employees',
+        'hr_contracts',
+        'hr_employee_components',
+        'hr_employee_documents',
+        'hr_leave_requests',
+        'hr_payroll_components',
+        'payroll_runs',
+        'payroll_items',
+        'payroll_item_lines',
+        'payroll_statutory_rules'
+      )
+      and (
+        coalesce(qual, '') like '%has_org_permission_in_hierarchy%'
+        or coalesce(with_check, '') like '%has_org_permission_in_hierarchy%'
+      )
+  loop
+    statement := format('alter policy %I on %I.%I',
+      policy_row.policyname, policy_row.schemaname, policy_row.tablename);
+
+    if policy_row.qual is not null then
+      statement := statement || format(
+        ' using (%s)',
+        replace(policy_row.qual, 'has_org_permission_in_hierarchy', 'has_hr_permission_in_hierarchy')
+      );
+    end if;
+
+    if policy_row.with_check is not null then
+      statement := statement || format(
+        ' with check (%s)',
+        replace(policy_row.with_check, 'has_org_permission_in_hierarchy', 'has_hr_permission_in_hierarchy')
+      );
+    end if;
+
+    execute statement;
+  end loop;
+end;
+$policy_migration$;
+
