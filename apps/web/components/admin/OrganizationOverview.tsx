@@ -16,7 +16,6 @@ export default function OrganizationOverview() {
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
-  const [type, setType] = useState("LOCAL_CHURCH");
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -32,7 +31,7 @@ export default function OrganizationOverview() {
     try {
       const created = await resaRequest<Organization>("/v1/organizations", {
         method: "POST",
-        body: JSON.stringify({ name: name.trim(), slug: slug.trim().toLowerCase(), organization_type: type }),
+        body: JSON.stringify({ name: name.trim(), slug: slug.trim().toLowerCase(), organization_type: "LOCAL_CHURCH" }),
       });
       setOrganizations((current) => [created, ...current]);
       setName("");
@@ -54,9 +53,9 @@ export default function OrganizationOverview() {
       <div className="mb-8 rounded-2xl border border-slate-200 bg-slate-50 p-5">
         <p className="text-sm font-semibold text-[#0C1A3D]">Registar organização real</p>
         <div className="mt-3 grid gap-3 md:grid-cols-[1.4fr_1fr_1fr_auto]">
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome da igreja/organização" className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none" />
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome da igreja local" className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none" />
           <input value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="slug" className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none" />
-          <select value={type} onChange={(e) => setType(e.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none"><option>LOCAL_CHURCH</option><option>DISTRICT</option><option>CONFERENCE</option><option>UNION</option><option>DIVISION</option><option>GENERAL_CONFERENCE</option></select>
+          <div className="flex items-center rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-medium text-slate-600">Igreja local</div>
           <button type="button" onClick={() => void createOrganization()} disabled={!name.trim() || !slug.trim() || creating} className="rounded-xl bg-[#0C1A3D] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">{creating ? "A criar…" : "Criar"}</button>
         </div>
       </div>
