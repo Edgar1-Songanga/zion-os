@@ -45,7 +45,7 @@ export default function GivingPage() {
     try {
       const key=requestKey||crypto.randomUUID();setRequestKey(key);
       const item=await resaRequest<Contribution>(`/v1/finance/organizations/${orgId}/giving/contributions`,{method:"POST",body:JSON.stringify({fund_id:fundId,amount:numericAmount,payment_method:"BANK_TRANSFER",idempotency_key:key})});
-      setSuccess({...item,fund:{name:selected?.name??"Contribuição"}});setStep("form");setAmount("");
+      setSuccess({...item,fund:{name:selected?.name??"Contribuição"}});setStep("form");setAmount("");setRequestKey("");
       await refresh(orgId);
     } catch(e) {setError(e instanceof Error?e.message:"Não foi possível registar o pedido.");}
     finally {setBusy(false);}
