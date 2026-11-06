@@ -92,6 +92,7 @@ with check (private.has_org_permission_in_hierarchy(organization_id, 'payroll.ma
 
 grant select, insert on public.hr_employees, public.payroll_runs to authenticated;
 grant select on public.organizations to authenticated;
+grant select on public.organization_memberships to authenticated;
 
 alter table public.organization_units enable row level security;
 create policy units_select_member on public.organization_units
