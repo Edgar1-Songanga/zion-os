@@ -1,6 +1,39 @@
 -- Enforce organization boundaries and acyclic parent relationships for departments/units.
 -- Existing organization_units rows are preserved; this migration adds guards only.
 
+-- Refuse to install the guard over inconsistent legacy data.
+do $preflight$
+declare
+  has_cycle boolean;
+begin
+  if exists (
+    select 1
+      from public.organization_units child
+      join public.organization_units parent on parent.id = child.parent_id
+     where child.organization_id is distinct from parent.organization_id
+  ) then
+    raise exception 'Existing department hierarchy contains cross-organization parent links';
+  end if;
+
+  with recursive walk(start_id, current_id, parent_id, visited, cycle_found) as (
+    select u.id, u.id, u.parent_id, array[u.id], false
+      from public.organization_units u
+    union all
+    select w.start_id, parent.id, parent.parent_id,
+           w.visited || parent.id, parent.id = any(w.visited)
+      from walk w
+      join public.organization_units parent on parent.id = w.parent_id
+     where not w.cycle_found
+  )
+  select exists (select 1 from walk where cycle_found)
+    into has_cycle;
+
+  if has_cycle then
+    raise exception 'Existing department hierarchy contains a cycle';
+  end if;
+end;
+$preflight$;
+
 create or replace function private.enforce_organization_unit_hierarchy()
 returns trigger
 language plpgsql
