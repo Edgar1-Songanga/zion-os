@@ -75,6 +75,14 @@ begin
   end;
   if not rejected then raise exception 'Institutional creation without verified global admin was not rejected'; end if;
 
+  rejected := false;
+  begin
+    perform * from public.zion_list_institutional_organizations();
+  exception when insufficient_privilege then
+    rejected := true;
+  end;
+  if not rejected then raise exception 'Institutional directory access without verified global admin was not rejected'; end if;
+
   perform set_config('request.jwt.claim.sub', gen_random_uuid()::text, true);
   perform set_config(
     'request.jwt.claims',
@@ -91,6 +99,10 @@ begin
 
   if not exists (select 1 from public.organizations where slug='authorized-union' and parent_id=division) then
     raise exception 'Verified global administrator could not create a valid institutional organization';
+  end if;
+
+  if (select count(*) from public.zion_list_institutional_organizations()) <> 7 then
+    raise exception 'Verified global administrator did not receive the institutional directory';
   end if;
 end;
 $$;
