@@ -50,7 +50,7 @@ const CACHE_KEY = "zion.translation.shell.v1";
 const COUNTRY_DEFAULT_LOCALE: Record<string, ZionLocale> = {
   AO: "pt-AO", PT: "pt-PT", BR: "pt-PT", MZ: "pt-AO", CV: "pt-AO", GW: "pov", ST: "pt-AO",
   GB: "en", US: "en", CA: "en", AU: "en", NZ: "en", IE: "en",
-  FR: "fr", BE: "fr", SN: "fr", CI: "fr", CD: "fr", CG: "fr", CM: "fr", GA: "fr", ML: "fr", NE: "fr", BF: "fr", TG: "fr", BJ: "fr", GN: "fr", TD: "fr", CF: "fr", DJ: "fr", MG: "fr", RW: "fr", BI: "fr",
+  FR: "fr", BE: "fr", SN: "fr", CI: "fr", CD: "fr", CG: "fr", CM: "fr", GA: "fr", ML: "fr", NE: "fr", BF: "fr", TG: "fr", BJ: "fr", GN: "fr", TD: "fr", CF: "fr", DJ: "fr", MG: "fr", BI: "fr",
   ES: "es", MX: "es", AR: "es", CO: "es", CL: "es", PE: "es",
   DE: "de", AT: "de", CH: "de",
   IT: "it",
