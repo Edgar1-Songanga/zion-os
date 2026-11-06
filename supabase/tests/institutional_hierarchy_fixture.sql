@@ -22,3 +22,10 @@ create table public.organizations (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create table public.organization_memberships (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  user_id uuid not null,
+  status text not null default 'ACTIVE'
+);
