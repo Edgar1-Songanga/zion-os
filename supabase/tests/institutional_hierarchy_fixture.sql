@@ -66,7 +66,26 @@ create table public.organization_units (
 
 create or replace function private.has_org_permission_in_hierarchy(target_org uuid, permission_key text)
 returns boolean language sql stable
-as $$ select true $$;
+as $ select true $;
+
+create table public.audit_logs (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid references public.organizations(id),
+  actor_user_id uuid not null,
+  action text not null,
+  resource_type text,
+  resource_id uuid,
+  metadata jsonb,
+  created_at timestamptz not null default now()
+);
+alter table public.audit_logs enable row level security;
+create policy audit_insert_actor on public.audit_logs
+for insert to authenticated
+with check (
+  actor_user_id = (select auth.uid())
+  and (organization_id is null or private.is_org_member(organization_id))
+);
+grant insert, select on public.audit_logs to authenticated;
 
 create table public.hr_employees (
   id uuid primary key default gen_random_uuid(),
