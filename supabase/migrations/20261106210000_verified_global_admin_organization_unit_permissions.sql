@@ -14,7 +14,7 @@ set search_path = pg_catalog, auth
 as $$
   select auth.uid() is not null
     and coalesce(auth.jwt() -> 'app_metadata' ->> 'zion_global_role', '') = 'global_admin'
-    and coalesce((auth.jwt() -> 'app_metadata' ->> 'zion_verified')::boolean, false) is true;
+    and coalesce(auth.jwt() -> 'app_metadata' ->> 'zion_verified', '') = 'true';
 $$;
 
 comment on function private.is_verified_zion_global_admin() is
