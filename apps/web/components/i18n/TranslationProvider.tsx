@@ -355,11 +355,12 @@ export function TranslationProvider({ children }: { children: React.ReactNode })
     }
   }, [locale, translations]);
 
-  const t = useCallback((key: TranslationKey) => {
-    if (locale === SOURCE_LOCALE) return sourceStrings[key];
-    return ZION_TRANSLATION_CATALOGS[locale]?.[key]
-      ?? translations[locale]?.[`${SOURCE_LOCALE}:${locale}:ui:${sourceStrings[key]}`]
-      ?? sourceStrings[key];
+  const t = useCallback((key: TranslationKey): string => {
+    const sourceText: string = sourceStrings[key];
+    if (locale === SOURCE_LOCALE) return sourceText;
+    const catalog: Record<string, string> = ZION_TRANSLATION_CATALOGS[locale] ?? {};
+    const cached = translations[locale]?.[`${SOURCE_LOCALE}:${locale}:ui:${sourceText}`];
+    return catalog[key] ?? cached ?? sourceText;
   }, [locale, translations]);
 
   const value = useMemo(() => ({
