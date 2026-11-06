@@ -128,6 +128,16 @@ begin
   end;
   if not rejected then raise exception 'Unauthenticated user was able to inspect organization hierarchy'; end if;
 
+  perform set_config('request.jwt.claim.sub', gen_random_uuid()::text, true);
+  perform set_config(
+    'request.jwt.claims',
+    jsonb_build_object(
+      'sub', current_setting('request.jwt.claim.sub'),
+      'app_metadata', jsonb_build_object('zion_global_role','global_admin','zion_verified',true)
+    )::text,
+    true
+  );
+
   if not exists (select 1 from public.organizations where slug='authorized-union' and parent_id=division) then
     raise exception 'Verified global administrator could not create a valid institutional organization';
   end if;
