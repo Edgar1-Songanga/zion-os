@@ -9,7 +9,17 @@ function SignInForm() {
   const supabase = createClient();
   const searchParams = useSearchParams();
   const next = searchParams.get("next");
-  const redirectPath = next?.startsWith("/") ? next : "/dashboard";
+  const redirectPath = (() => {
+    if (!next) return "/dashboard";
+    try {
+      const target = new URL(next, window.location.origin);
+      return target.origin === window.location.origin && !target.pathname.startsWith("//")
+        ? `${target.pathname}${target.search}${target.hash}`
+        : "/dashboard";
+    } catch {
+      return "/dashboard";
+    }
+  })();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mfaCode, setMfaCode] = useState("");
@@ -44,44 +54,38 @@ function SignInForm() {
       return;
     }
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      setError(error.message);
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    if (signInError) {
+      setError(signInError.message);
       setLoading(false);
       return;
     }
 
-    const { data: aal, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-    if (aalError) {
-      setError(aalError.message);
-      setLoading(false);
-      return;
-    }
-
-    if (aal.currentLevel === "aal1" && aal.nextLevel === "aal2") {
-      const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
-      if (factorsError) {
-        setError(factorsError.message);
-        setLoading(false);
-        return;
+    // MFA is challenged only when the account has a verified TOTP factor.
+    // A transient assurance/factor lookup failure must not discard a valid password session.
+    try {
+      const { data: aal, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (!aalError && aal?.currentLevel === "aal1" && aal.nextLevel === "aal2") {
+        const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
+        if (!factorsError) {
+          const verifiedFactor = factors.totp.find((factor) => factor.status === "verified");
+          if (verifiedFactor) {
+            const challenge = await supabase.auth.mfa.challenge({ factorId: verifiedFactor.id });
+            if (challenge.error) {
+              setError("Não foi possível iniciar a verificação MFA. Tente novamente; a sua sessão de palavra-passe continua ativa.");
+              setLoading(false);
+              return;
+            }
+            setFactorId(verifiedFactor.id);
+            setChallengeId(challenge.data.id);
+            setNeedsMfa(true);
+            setLoading(false);
+            return;
+          }
+        }
       }
-      const verifiedFactor = factors.totp.find((factor) => factor.status === "verified");
-      if (!verifiedFactor) {
-        setError("A conta requer MFA, mas não foi encontrado um fator verificado.");
-        setLoading(false);
-        return;
-      }
-      const challenge = await supabase.auth.mfa.challenge({ factorId: verifiedFactor.id });
-      if (challenge.error) {
-        setError(challenge.error.message);
-        setLoading(false);
-        return;
-      }
-      setFactorId(verifiedFactor.id);
-      setChallengeId(challenge.data.id);
-      setNeedsMfa(true);
-      setLoading(false);
-      return;
+    } catch {
+      // Keep the authenticated password session; a later protected action can request step-up auth.
     }
 
     window.location.replace(redirectPath);
