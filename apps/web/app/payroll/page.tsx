@@ -59,7 +59,7 @@ export default function Payroll() {
   }
 
   return <main className="min-h-screen bg-[var(--zion-light)] p-6 lg:p-10"><div className="mx-auto max-w-7xl">
-    <header className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.2em] text-[var(--zion-gold)]">Finance • People</p><h1 className="mt-2 text-3xl font-semibold text-[var(--zion-dark)]">Payroll</h1><p className="mt-2 text-slate-500">Períodos de processamento, cálculo controlado e aprovação separada.</p></div><OrganizationSelector value={organizationId} onChange={load}/></header>
+    <header className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.2em] text-[var(--zion-gold)]">Finance • People</p><h1 className="mt-2 text-3xl font-semibold text-[var(--zion-dark)]">Payroll</h1><p className="mt-2 text-slate-500">Períodos de processamento, cálculo controlado e aprovação separada.</p></div><OrganizationSelector value={organizationId} onChange={load} allowedOrganizationTypes={["MISSION", "CONFERENCE", "UNION", "DIVISION", "GENERAL_CONFERENCE"]}/></header>
     {organization&&<div className="mb-5 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">Organização: <strong className="text-slate-900">{organization.name}</strong> · {organization.organization_type}</div>}
     {error&&<div role="alert" className="mb-4 rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</div>}
     {notice&&<div aria-live="polite" className="mb-4 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</div>}
