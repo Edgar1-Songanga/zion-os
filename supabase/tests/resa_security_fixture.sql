@@ -13,7 +13,7 @@ begin
 end
 $roles$;
 
-create table auth.users (id uuid primary key);
+create table auth.users (id uuid primary key, email text);
 create or replace function auth.uid()
 returns uuid language sql stable
 as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
@@ -81,4 +81,13 @@ create table public.personal_ministry_follow_ups (
   ministry_id uuid not null references public.ministries(id),
   assigned_to uuid not null references auth.users(id),
   expires_at timestamptz not null
+);
+
+create table public.profiles (
+  id uuid primary key references auth.users(id),
+  display_name text,
+  first_name text,
+  last_name text,
+  avatar_url text,
+  privacy jsonb not null default '{}'::jsonb
 );
