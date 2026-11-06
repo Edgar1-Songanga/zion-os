@@ -24,6 +24,14 @@ export class OrganizationsController {
     return this.organizations.create(this.token(authorization), body);
   }
 
+  @Post('institutional')
+  createInstitutional(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: { name: string; slug: string; organization_type: string; parent_id?: string | null },
+  ) {
+    return this.organizations.createInstitutional(this.token(authorization), body);
+  }
+
   @Get(':organizationId/memberships')
   memberships(
     @Headers('authorization') authorization: string | undefined,
