@@ -58,6 +58,26 @@ export default function Payroll() {
     finally { setBusy(""); }
   }
 
+  if (!organizationId) {
+    return (
+      <main className="min-h-screen bg-[var(--zion-light)] p-6 lg:p-10">
+        <div className="mx-auto max-w-7xl">
+          <header className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[.2em] text-[var(--zion-gold)]">Institutional administration</p>
+              <h1 className="mt-2 text-3xl font-semibold text-[var(--zion-dark)]">Payroll</h1>
+              <p className="mt-2 max-w-2xl text-slate-500">Este módulo é administrado ao nível da Missão/Associação, União, Divisão ou Associação Geral. Igrejas locais não têm este módulo.</p>
+            </div>
+            <OrganizationSelector value={organizationId} onChange={load} allowedOrganizationTypes={["MISSION", "CONFERENCE", "UNION", "DIVISION", "GENERAL_CONFERENCE"]}/>
+          </header>
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+            Selecione uma organização institucional elegível. Se não tiver acesso a nenhuma, contacte o administrador da sua estrutura.
+          </section>
+        </div>
+      </main>
+    );
+  }
+
   return <main className="min-h-screen bg-[var(--zion-light)] p-6 lg:p-10"><div className="mx-auto max-w-7xl">
     <header className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.2em] text-[var(--zion-gold)]">Finance • People</p><h1 className="mt-2 text-3xl font-semibold text-[var(--zion-dark)]">Payroll</h1><p className="mt-2 text-slate-500">Períodos de processamento, cálculo controlado e aprovação separada.</p></div><OrganizationSelector value={organizationId} onChange={load} allowedOrganizationTypes={["MISSION", "CONFERENCE", "UNION", "DIVISION", "GENERAL_CONFERENCE"]}/></header>
     {organization&&<div className="mb-5 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">Organização: <strong className="text-slate-900">{organization.name}</strong> · {organization.organization_type}</div>}
