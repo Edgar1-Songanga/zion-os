@@ -29,6 +29,7 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
   const intentionalDisconnectRef = useRef(false);
   const ringAudioRef = useRef<AudioContext | null>(null);
   const ringTimerRef = useRef<number | null>(null);
+  const callTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -49,6 +50,10 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "resa_calls", filter: "conversation_id=eq." + conversationId }, (payload) => {
         const next = payload.new as CallRow;
+        if (callRef.current?.id === next.id && next.status !== "ringing" && callTimeoutRef.current !== null) {
+          window.clearTimeout(callTimeoutRef.current);
+          callTimeoutRef.current = null;
+        }
         if (callRef.current?.id === next.id && ["ended", "declined", "missed"].includes(next.status)) {
           void roomRef.current?.disconnect(true);
           roomRef.current = null;
@@ -115,6 +120,8 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
       intentionalDisconnectRef.current = true;
       if (ringTimerRef.current !== null) window.clearInterval(ringTimerRef.current);
       ringTimerRef.current = null;
+      if (callTimeoutRef.current !== null) window.clearTimeout(callTimeoutRef.current);
+      callTimeoutRef.current = null;
       if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(0);
       void room?.disconnect(true);
       const audio = ringAudioRef.current;
@@ -197,6 +204,29 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
       if (insertError) throw insertError;
       created = data as CallRow;
       callRef.current = created; setCall(created);
+      // A ringing call expires after 45 seconds unless the callee answers first.
+      callTimeoutRef.current = window.setTimeout(() => {
+        callTimeoutRef.current = null;
+        void (async () => {
+          const { data: expired, error: expiryError } = await supabase.from("resa_calls")
+            .update({ status: "missed", ended_at: new Date().toISOString() })
+            .eq("id", created!.id).eq("status", "ringing")
+            .select("id").maybeSingle();
+          if (expiryError) {
+            setError("Não foi possível finalizar automaticamente a chamada não atendida. Termine-a manualmente.");
+            return;
+          }
+          if (expired && callRef.current?.id === created!.id) {
+            intentionalDisconnectRef.current = true;
+            await roomRef.current?.disconnect(true);
+            roomRef.current = null;
+            intentionalDisconnectRef.current = false;
+            callRef.current = null;
+            setCall(null); setActive(false); setConnected(false); setReconnecting(false);
+            setError("A chamada não foi atendida. Pode tentar novamente.");
+          }
+        })();
+      }, 45_000);
       const { error: participantError } = await supabase.from("resa_call_participants")
         .upsert({ call_id: created.id, user_id: userId.current, status: "joined", joined_at: new Date().toISOString() }, { onConflict: "call_id,user_id" });
       if (participantError) throw participantError;
@@ -204,6 +234,8 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
       setActive(true);
     } catch (reason) {
       if (created) {
+        if (callTimeoutRef.current !== null) window.clearTimeout(callTimeoutRef.current);
+        callTimeoutRef.current = null;
         await supabase.from("resa_calls").update({ status: "ended", ended_at: new Date().toISOString() }).eq("id", created.id);
         callRef.current = null; setCall(null);
       }
@@ -246,6 +278,8 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
 
   async function end() {
     const id = callRef.current?.id;
+    if (callTimeoutRef.current !== null) window.clearTimeout(callTimeoutRef.current);
+    callTimeoutRef.current = null;
     const room = roomRef.current;
     roomRef.current = null; callRef.current = null;
     intentionalDisconnectRef.current = true;
