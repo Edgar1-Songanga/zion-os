@@ -6,6 +6,7 @@ on:
       - "supabase/migrations/*resa*"
       - "supabase/migrations/*department*"
       - "supabase/tests/resa_security*"
+      - "supabase/tests/resa_call_security*"
       - ".github/workflows/resa-security.yml"
   push:
     branches: [main]
@@ -13,6 +14,7 @@ on:
       - "supabase/migrations/*resa*"
       - "supabase/migrations/*department*"
       - "supabase/tests/resa_security*"
+      - "supabase/tests/resa_call_security*"
       - ".github/workflows/resa-security.yml"
 
 permissions:
@@ -44,6 +46,12 @@ jobs:
       - name: Verify lockout, profile privacy, authorization scope and grants
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_security_regression.sql
+      - name: Apply call lifecycle security hardening
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261107073931_resa_call_lifecycle_security.sql
+      - name: Verify call identity, lifecycle, participants and signaling boundaries
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_call_security_regression.sql
       - name: Stop disposable PostgreSQL
         if: always()
         run: docker rm -f zion-resa-security-postgres || true

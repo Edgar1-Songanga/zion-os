@@ -16,6 +16,7 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
   const [active, setActive] = useState(false);
   const [connected, setConnected] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
+  const [connectionFailed, setConnectionFailed] = useState(false);
   const [muted, setMuted] = useState(false);
   const [camera, setCamera] = useState(true);
   const [ready, setReady] = useState(false);
@@ -25,6 +26,7 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
   const remoteMedia = useRef<HTMLDivElement | null>(null);
   const userId = useRef<string | null>(null);
   const callRef = useRef<CallRow | null>(null);
+  const intentionalDisconnectRef = useRef(false);
   const ringAudioRef = useRef<AudioContext | null>(null);
   const ringTimerRef = useRef<number | null>(null);
 
@@ -62,6 +64,9 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
     if (!incoming) {
       if (ringTimerRef.current !== null) window.clearInterval(ringTimerRef.current);
       ringTimerRef.current = null;
+      const audio = ringAudioRef.current;
+      ringAudioRef.current = null;
+      if (audio && audio.state !== "closed") void audio.close();
       return;
     }
     // While RESA is open, repeatedly alert for an unanswered incoming call.
@@ -101,6 +106,28 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
     };
   }, [incoming?.id]);
 
+  useEffect(() => {
+    return () => {
+      const activeCallId = callRef.current?.id;
+      const room = roomRef.current;
+      roomRef.current = null;
+      callRef.current = null;
+      intentionalDisconnectRef.current = true;
+      if (ringTimerRef.current !== null) window.clearInterval(ringTimerRef.current);
+      ringTimerRef.current = null;
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(0);
+      void room?.disconnect(true);
+      const audio = ringAudioRef.current;
+      ringAudioRef.current = null;
+      if (audio && audio.state !== "closed") void audio.close();
+      if (activeCallId) {
+        void supabase.from("resa_calls")
+          .update({ status: "ended", ended_at: new Date().toISOString() })
+          .eq("id", activeCallId);
+      }
+    };
+  }, [supabase]);
+
   async function otherMembers() {
     if (!userId.current) throw new Error("Sessão ZION não encontrada.");
     const { data, error: queryError } = await supabase.from("resa_conversation_members").select("user_id").eq("conversation_id", conversationId);
@@ -115,10 +142,16 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
     }
     const room = new Room({ adaptiveStream: true, dynacast: true });
     roomRef.current = room;
-    room.on(RoomEvent.Connected, () => { setConnected(true); setReconnecting(false); });
-    room.on(RoomEvent.Reconnecting, () => { setConnected(false); setReconnecting(true); });
-    room.on(RoomEvent.Reconnected, () => { setConnected(true); setReconnecting(false); setError(null); });
-    room.on(RoomEvent.Disconnected, () => { setConnected(false); setReconnecting(false); });
+    room.on(RoomEvent.Connected, () => { setConnected(true); setReconnecting(false); setConnectionFailed(false); });
+    room.on(RoomEvent.Reconnecting, () => { setConnected(false); setReconnecting(true); setConnectionFailed(false); });
+    room.on(RoomEvent.Reconnected, () => { setConnected(true); setReconnecting(false); setConnectionFailed(false); setError(null); });
+    room.on(RoomEvent.Disconnected, () => {
+      setConnected(false); setReconnecting(false);
+      if (!intentionalDisconnectRef.current && callRef.current) {
+        setConnectionFailed(true);
+        setError("A ligação foi interrompida. Termine a chamada antes de iniciar outra.");
+      }
+    });
     room.on(RoomEvent.TrackSubscribed, (track) => {
       const element = track.attach();
       element.autoplay = true;
@@ -143,7 +176,9 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
       }
       return room;
     } catch (joinError) {
+      intentionalDisconnectRef.current = true;
       await room.disconnect(true);
+      intentionalDisconnectRef.current = false;
       roomRef.current = null;
       throw joinError;
     }
@@ -152,7 +187,7 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
   async function start(kind: CallKind) {
     let created: CallRow | null = null;
     try {
-      setError(null);
+      setError(null); setConnectionFailed(false);
       if (!ready || !userId.current) throw new Error("A sessão de utilizador ainda não está pronta.");
       const others = await otherMembers();
       if (!others[0]) throw new Error("Esta conversa ainda não tem outro participante disponível.");
@@ -180,7 +215,7 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
     const target = incoming;
     if (!target) return;
     try {
-      setError(null);
+      setError(null); setConnectionFailed(false);
       callRef.current = target; setCall(target);
       await joinMedia(target, target.kind);
       if (!userId.current) throw new Error("Sessão ZION não encontrada.");
@@ -192,7 +227,9 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
       if (updateError) throw updateError;
       setIncoming(null); setActive(true);
     } catch (reason) {
+      intentionalDisconnectRef.current = true;
       await roomRef.current?.disconnect(true); roomRef.current = null;
+      intentionalDisconnectRef.current = false;
       callRef.current = null; setCall(null);
       setError(reason instanceof Error ? reason.message : "Não foi possível atender a chamada.");
     }
@@ -209,9 +246,12 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
 
   async function end() {
     const id = callRef.current?.id;
-    await roomRef.current?.disconnect(true);
+    const room = roomRef.current;
     roomRef.current = null; callRef.current = null;
-    setCall(null); setActive(false); setConnected(false); setReconnecting(false);
+    intentionalDisconnectRef.current = true;
+    await room?.disconnect(true);
+    intentionalDisconnectRef.current = false;
+    setCall(null); setActive(false); setConnected(false); setReconnecting(false); setConnectionFailed(false);
     if (id) {
       const { error: updateError } = await supabase.from("resa_calls")
         .update({ status: "ended", ended_at: new Date().toISOString() }).eq("id", id);
@@ -240,6 +280,6 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
     <button disabled={!ready || active} onClick={() => void start("video")} aria-label="Iniciar videochamada" title="Videochamada" className="flex h-10 items-center gap-2 rounded-xl bg-[#0C1A3D] px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-[#122858] disabled:opacity-40"><span aria-hidden="true">▣</span><span className="hidden sm:inline">Vídeo</span></button>
     {error&&<span role="alert" className="max-w-[240px] text-xs text-red-600">{error}</span>}
     {incoming&&<div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#061127]/60 p-4 backdrop-blur-md"><div className="w-full max-w-sm rounded-[2rem] bg-white p-6 shadow-2xl"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Chamada recebida</p><h3 className="mt-2 text-2xl font-semibold text-[#0C1A3D]">{incoming.kind === "video" ? "Videochamada" : "Chamada de áudio"}</h3><div className="mt-6 flex gap-3"><button onClick={() => void decline()} className="flex-1 rounded-2xl border px-4 py-3 font-semibold">Recusar</button><button onClick={() => void accept()} className="flex-1 rounded-2xl bg-[#0C1A3D] px-4 py-3 font-semibold text-white">Atender</button></div></div></div>}
-    {active&&<div className="fixed inset-0 z-[60] bg-[#020817]/95 p-3 backdrop-blur-md sm:p-5"><div className="mx-auto flex h-full max-w-6xl flex-col"><div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white"><div><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">RESA · chamada segura</p><p className="mt-1 font-semibold">{connected ? "Ligado" : reconnecting ? "A recuperar ligação…" : "A ligar…"} · {call?.kind === "video" ? "Vídeo" : "Áudio"}</p></div><button onClick={() => void end()} className="rounded-xl bg-red-500/90 px-4 py-2 text-sm font-semibold shadow-lg hover:bg-red-500">Terminar</button></div><div className="relative mt-4 min-h-0 flex-1 overflow-hidden rounded-[2rem] bg-slate-900"><div ref={remoteMedia} className="flex h-full w-full items-center justify-center gap-3 [&_video]:max-h-full [&_video]:max-w-full" />{call?.kind === "video"&&<video ref={localVideo} autoPlay muted playsInline className="absolute bottom-5 right-5 h-32 w-52 rounded-2xl border-2 border-white/20 bg-slate-900 object-cover shadow-2xl" />}{call?.kind === "audio"&&<div className="pointer-events-none absolute inset-0 flex items-center justify-center text-6xl text-white/80">☎</div>}</div><div className="mt-4 flex justify-center gap-3"><button onClick={() => void toggleMute()} aria-label={muted ? "Ativar microfone" : "Silenciar microfone"} className={"rounded-2xl px-5 py-3 text-sm font-semibold text-white shadow-lg " + (muted ? "bg-red-500/80" : "bg-white/10 hover:bg-white/15")}>{muted ? "Ativar microfone" : "Silenciar microfone"}</button>{call?.kind === "video"&&<button onClick={() => void toggleCamera()} aria-label={camera ? "Desligar câmara" : "Ligar câmara"} className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold text-white shadow-lg hover:bg-white/15">{camera ? "Desligar câmara" : "Ligar câmara"}</button>}<button onClick={() => void startAudio()} className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold text-white shadow-lg hover:bg-white/15">Ativar áudio</button></div></div></div>}
+    {active&&<div className="fixed inset-0 z-[60] bg-[#020817]/95 p-3 backdrop-blur-md sm:p-5"><div className="mx-auto flex h-full max-w-6xl flex-col"><div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white"><div><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">RESA · chamada segura</p><p className="mt-1 font-semibold">{connected ? "Ligado" : reconnecting ? "A recuperar ligação…" : connectionFailed ? "Ligação interrompida" : "A ligar…"} · {call?.kind === "video" ? "Vídeo" : "Áudio"}</p></div><button onClick={() => void end()} className="rounded-xl bg-red-500/90 px-4 py-2 text-sm font-semibold shadow-lg hover:bg-red-500">Terminar</button></div><div className="relative mt-4 min-h-0 flex-1 overflow-hidden rounded-[2rem] bg-slate-900"><div ref={remoteMedia} className="flex h-full w-full items-center justify-center gap-3 [&_video]:max-h-full [&_video]:max-w-full" />{call?.kind === "video"&&<video ref={localVideo} autoPlay muted playsInline className="absolute bottom-5 right-5 h-32 w-52 rounded-2xl border-2 border-white/20 bg-slate-900 object-cover shadow-2xl" />}{call?.kind === "audio"&&<div className="pointer-events-none absolute inset-0 flex items-center justify-center text-6xl text-white/80">☎</div>}</div><div className="mt-4 flex justify-center gap-3"><button onClick={() => void toggleMute()} aria-label={muted ? "Ativar microfone" : "Silenciar microfone"} className={"rounded-2xl px-5 py-3 text-sm font-semibold text-white shadow-lg " + (muted ? "bg-red-500/80" : "bg-white/10 hover:bg-white/15")}>{muted ? "Ativar microfone" : "Silenciar microfone"}</button>{call?.kind === "video"&&<button onClick={() => void toggleCamera()} aria-label={camera ? "Desligar câmara" : "Ligar câmara"} className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold text-white shadow-lg hover:bg-white/15">{camera ? "Desligar câmara" : "Ligar câmara"}</button>}<button onClick={() => void startAudio()} className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold text-white shadow-lg hover:bg-white/15">Ativar áudio</button></div></div></div>}
   </div>;
 }

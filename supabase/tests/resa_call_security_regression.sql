@@ -1,0 +1,132 @@
+\set ON_ERROR_STOP on
+begin;
+
+insert into auth.users(id,email) values
+ ('00000000-0000-4000-8000-000000000001','caller@example.test'),
+ ('00000000-0000-4000-8000-000000000002','member@example.test'),
+ ('00000000-0000-4000-8000-000000000003','outsider@example.test');
+
+insert into public.resa_conversations(id,created_by) values
+ ('10000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001'),
+ ('10000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000001');
+
+insert into public.resa_conversation_members(conversation_id,user_id) values
+ ('10000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001'),
+ ('10000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000002'),
+ ('10000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000001');
+
+insert into public.resa_calls(id,conversation_id,initiator_id,kind,status) values
+ ('20000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001','audio','ringing'),
+ ('20000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001','video','ringing');
+
+insert into public.resa_call_participants(call_id,user_id,status) values
+ ('20000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000002','joined');
+
+-- Seed a signal addressed to a non-member so the SELECT policy can be checked.
+insert into public.resa_call_signals(call_id,sender_id,recipient_id,kind,payload) values
+ ('20000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000003','ice','{}'::jsonb);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000001',true);
+
+-- A valid ringing -> active transition remains available to conversation members.
+update public.resa_calls
+set status='active', answered_at=now()
+where id='20000000-0000-4000-8000-000000000001';
+
+-- Even a member of both conversations cannot move a call to another conversation.
+do $test$
+declare changed integer;
+begin
+  begin
+    update public.resa_calls
+    set conversation_id='10000000-0000-4000-8000-000000000002'
+    where id='20000000-0000-4000-8000-000000000001';
+    get diagnostics changed = row_count;
+    if changed = 0 then raise exception 'Call row unexpectedly hidden from its member'; end if;
+    raise exception 'Call conversation_id mutation unexpectedly succeeded';
+  exception when insufficient_privilege then null;
+  end;
+end
+$test$;
+
+do $test$
+declare changed integer;
+begin
+  begin
+    update public.resa_calls
+    set initiator_id='00000000-0000-4000-8000-000000000002'
+    where id='20000000-0000-4000-8000-000000000001';
+    get diagnostics changed = row_count;
+    if changed = 0 then raise exception 'Call row unexpectedly hidden from its member'; end if;
+    raise exception 'Call initiator_id mutation unexpectedly succeeded';
+  exception when insufficient_privilege then null;
+  end;
+end
+$test$;
+
+-- Signaling is limited to another member of the same active call.
+do $test$
+begin
+  begin
+    insert into public.resa_call_signals(call_id,sender_id,recipient_id,kind,payload)
+    values ('20000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000003','ice','{}'::jsonb);
+    raise exception 'Signal to a non-member unexpectedly succeeded';
+  exception when insufficient_privilege then null;
+  end;
+end
+$test$;
+
+insert into public.resa_call_signals(call_id,sender_id,recipient_id,kind,payload)
+values ('20000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000002','ice','{}'::jsonb);
+
+-- Participant identity cannot be reassigned to another call in the same conversation.
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000002',true);
+do $test$
+declare changed integer;
+begin
+  begin
+    update public.resa_call_participants
+    set call_id='20000000-0000-4000-8000-000000000002'
+    where call_id='20000000-0000-4000-8000-000000000001'
+      and user_id='00000000-0000-4000-8000-000000000002';
+    get diagnostics changed = row_count;
+    if changed = 0 then raise exception 'Participant row unexpectedly hidden from its owner'; end if;
+    raise exception 'Participant call_id mutation unexpectedly succeeded';
+  exception when insufficient_privilege then null;
+  end;
+end
+$test$;
+
+-- Terminal calls cannot be reopened.
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000001',true);
+update public.resa_calls
+set status='ended', ended_at=now()
+where id='20000000-0000-4000-8000-000000000001';
+do $test$
+declare changed integer;
+begin
+  begin
+    update public.resa_calls
+    set status='active'
+    where id='20000000-0000-4000-8000-000000000001';
+    get diagnostics changed = row_count;
+    if changed = 0 then raise exception 'Finished call unexpectedly hidden from its member'; end if;
+    raise exception 'Finished call was reopened';
+  exception when insufficient_privilege then null;
+  end;
+end
+$test$;
+
+-- An outsider cannot read call signaling addressed to them for a call they do not belong to.
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000003',true);
+do $test$
+declare visible integer;
+begin
+  select count(*) into visible from public.resa_call_signals
+  where recipient_id='00000000-0000-4000-8000-000000000003';
+  if visible <> 0 then raise exception 'Outsider can read call signaling'; end if;
+end
+$test$;
+
+rollback;
