@@ -118,6 +118,32 @@ begin
 end
 $test$;
 
+-- An unanswered ringing call can expire to missed and must remain terminal.
+update public.resa_calls
+set status='missed', ended_at=now()
+where id='20000000-0000-4000-8000-000000000002';
+do $test$
+declare changed integer;
+begin
+  if not exists (
+    select 1 from public.resa_calls
+    where id='20000000-0000-4000-8000-000000000002'
+      and status='missed' and ended_at is not null
+  ) then
+    raise exception 'Ringing call did not transition to missed with ended_at';
+  end if;
+  begin
+    update public.resa_calls
+    set status='active', answered_at=now()
+    where id='20000000-0000-4000-8000-000000000002';
+    get diagnostics changed = row_count;
+    if changed = 0 then raise exception 'Missed call unexpectedly hidden from its member'; end if;
+    raise exception 'Missed call was reopened';
+  exception when insufficient_privilege then null;
+  end;
+end
+$test$;
+
 -- An outsider cannot read call signaling addressed to them for a call they do not belong to.
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000003',true);
 do $test$
