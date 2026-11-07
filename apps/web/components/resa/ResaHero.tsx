@@ -15,8 +15,7 @@ export default function ResaHero() {
       <div className="absolute -right-28 -top-32 -z-10 h-80 w-80 rounded-full border border-white/10 bg-white/[0.025] blur-[1px] transition-transform duration-700 group-hover:scale-110" />
       <div className="absolute -bottom-40 left-[38%] -z-10 h-96 w-96 rounded-full bg-cyan-400/[0.07] blur-3xl" />
 
-      <div className="block">
-        <div className="min-w-0">
+      <div className="min-w-0">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">
               {t("resaNetwork")}
           </div>
@@ -46,7 +45,6 @@ export default function ResaHero() {
               <ResaIcon name="live" size={15} /> {t("live")}
             </Link>
           </div>
-        </div>
       </div>
     </section>
   );
