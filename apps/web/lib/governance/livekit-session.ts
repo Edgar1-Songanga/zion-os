@@ -38,12 +38,8 @@ export class LiveKitMeetingSession {
   }
 
   async startLocalMedia(): Promise<MediaStream> {
-    await this.room.localParticipant.setMicrophoneEnabled(true);
-    await this.room.localParticipant.setCameraEnabled(true);
-    const tracks = Array.from(this.room.localParticipant.trackPublications.values())
-      .map((publication) => publication.track?.mediaStreamTrack)
-      .filter((track): track is MediaStreamTrack => Boolean(track));
-    return new MediaStream(tracks);
+    // Join the waiting room without requesting microphone or camera permissions.
+    return this.getLocalStream();
   }
 
   async setAudioEnabled(enabled: boolean) {
