@@ -304,7 +304,7 @@ export default function ReportIntakePanel({
         key === "attendance_records" && Array.isArray(fieldValue) ? fieldValue : typeof fieldValue === "string" ? fieldValue.slice(0, 1000) : typeof fieldValue === "number" || typeof fieldValue === "boolean" || fieldValue === null ? fieldValue : JSON.stringify(fieldValue).slice(0, 1000),
       ]));
       setExtractedFields(qrFields);
-      if (Array.isArray(qrFields.attendance_records)) setAttendanceJson(JSON.stringify(qrFields.attendance_records, null, 2));
+
     }
     setQrPayload(value.slice(0, 2048));
     setNotice("QR reconhecido. O relatório será encaminhado para " + destination.name + ".");
@@ -495,13 +495,12 @@ export default function ReportIntakePanel({
       setClassificationMethod("AI");
       setClassificationReason(String(parsed.reason ?? "").slice(0, 1000));
       const fields = parsed.extracted_fields && typeof parsed.extracted_fields === "object" && !Array.isArray(parsed.extracted_fields)
-        ? Object.fromEntries(Object.entries(parsed.extracted_fields).slice(0, 30).map(([key, value]) => [
+        ? Object.fromEntries(Object.entries(parsed.extracted_fields).filter(([key]) => key !== "attendance_records").slice(0, 30).map(([key, value]) => [
             key.slice(0, 80),
             key === "attendance_records" && Array.isArray(value) ? value : typeof value === "string" ? value.slice(0, 1000) : typeof value === "number" || typeof value === "boolean" || value === null ? value : JSON.stringify(value).slice(0, 1000),
           ]))
         : {};
       setExtractedFields(fields);
-      if (Array.isArray(fields.attendance_records)) setAttendanceJson(JSON.stringify(fields.attendance_records, null, 2));
       setDocumentDate(/^\\d{4}-\\d{2}-\\d{2}$/.test(parsed.document_date ?? "") ? parsed.document_date! : "");
       setReportType(String(parsed.report_type ?? "").slice(0, 100));
       if (parsed.document_title?.trim()) setTitle(parsed.document_title.trim().slice(0, 240));
