@@ -230,16 +230,16 @@ export class ResaOperationalService {
   async listLiveSessions(token: string, limit = 30) {
     const actor = await this.actor(token);
     const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
-    const sessions = await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,title,description,status,visibility,scheduled_at,started_at,ended_at,created_at,organization_id,organization_unit_id,ministry_id&status=neq.ended&order=scheduled_at.asc.nullslast,created_at.desc&limit=${size}`);
+    const sessions = await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,title,description,status,visibility,community_id,scheduled_at,started_at,ended_at,created_at,organization_id,organization_unit_id,ministry_id&status=neq.ended&order=scheduled_at.asc.nullslast,created_at.desc&limit=${size}`);
     return sessions.map((session) => ({ ...session, is_host: session.host_id === actor.id }));
   }
 
   private async assertLiveChatAccess(token: string, liveId: string, actorId: string) {
     const id = this.id(liveId, 'live_id');
-    const rows = await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status,visibility,organization_id&id=eq.${id}&limit=1`);
+    const rows = await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status,visibility,community_id,organization_id&id=eq.${id}&limit=1`);
     const live = rows[0];
-    if (!live || (live.host_id !== actorId && !['public', 'organization', 'private'].includes(live.visibility))) throw new NotFoundException('Live session not found');
-    if (live.visibility === 'private' && live.host_id !== actorId) {
+    if (!live) throw new NotFoundException('Live session not found');
+    if (live.host_id !== actorId) {
       const hasAccess = await this.db.rpc<boolean>('resa_has_live_access', token, { p_live_id: id });
       if (hasAccess !== true) throw new NotFoundException('Live session not found');
     }
@@ -289,10 +289,22 @@ export class ResaOperationalService {
     };
   }
 
-  async createLiveSession(token: string, input: { title: unknown; description?: unknown; visibility?: unknown; scheduled_at?: unknown; organization_id?: unknown; organization_unit_id?: unknown; ministry_id?: unknown; password?: unknown }) {
+  async createLiveSession(token: string, input: { title: unknown; description?: unknown; visibility?: unknown; community_id?: unknown; scheduled_at?: unknown; organization_id?: unknown; organization_unit_id?: unknown; ministry_id?: unknown; password?: unknown }) {
     const actor = await this.actor(token);
     const visibility = input.visibility ?? 'public';
     if (!['public', 'followers', 'community', 'organization', 'private'].includes(visibility as string)) throw new BadRequestException('Invalid live visibility');
+    const communityId = input.community_id ? this.id(input.community_id, 'community_id') : null;
+    if (visibility === 'community' && !communityId) throw new BadRequestException('Selecione uma comunidade para esta transmissão.');
+    if (communityId && visibility !== 'community') throw new BadRequestException('A comunidade só pode ser definida para transmissões com visibilidade de comunidade.');
+    if (communityId) {
+      const communities = await this.db.get<any[]>('resa_communities', token, `?select=id,created_by,status&id=eq.${communityId}&limit=1`);
+      const community = communities[0];
+      if (!community || community.status !== 'active') throw new NotFoundException('Comunidade não encontrada.');
+      if (community.created_by !== actor.id) {
+        const memberships = await this.db.get<any[]>('resa_community_members', token, `?select=status&community_id=eq.${communityId}&user_id=eq.${actor.id}&status=eq.active&limit=1`);
+        if (!memberships.length) throw new BadRequestException('Tem de ser membro ativo da comunidade para criar uma Live exclusiva.');
+      }
+    }
     const organizationId = input.organization_id ? this.id(input.organization_id, 'organization_id') : null;
     const organizationUnitId = input.organization_unit_id ? this.id(input.organization_unit_id, 'organization_unit_id') : null;
     const ministryId = input.ministry_id ? this.id(input.ministry_id, 'ministry_id') : null;
@@ -304,7 +316,7 @@ export class ResaOperationalService {
     const rows = await this.db.post<any[]>('resa_live_sessions', token, {
       host_id: actor.id, title: this.text(input.title, 'title', 2, 160),
       description: typeof input.description === 'string' ? input.description.trim() || null : null,
-      visibility, scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null, status: 'scheduled',
+      visibility, community_id: communityId, scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null, status: 'scheduled',
       organization_id: organizationId, organization_unit_id: organizationUnitId, ministry_id: ministryId,
     });
     const session = rows[0];
@@ -416,19 +428,24 @@ export class ResaOperationalService {
     const actor = await this.actor(token);
     const id = this.id(liveId, 'live_id');
     const passwordText = typeof password === 'string' ? password : '';
-    if (passwordText) {
+    const rows = await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status,visibility,community_id,organization_id,attendee_publish_allowed,attendee_camera_on_join,attendee_microphone_on_join&id=eq.${id}&limit=1`);
+    const live = rows[0];
+    if (!live) throw new NotFoundException('Live session not found');
+    const isHost = live.host_id === actor.id;
+    if (!isHost && live.visibility === 'private' && passwordText) {
       const unlocked = await this.db.rpc<boolean>('resa_unlock_private_live', token, { p_live_id: id, p_password: passwordText });
       if (unlocked !== true) throw new NotFoundException('Live privada não encontrada ou palavra-passe incorreta.');
     }
-    const rows = await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status,visibility,attendee_publish_allowed,attendee_camera_on_join,attendee_microphone_on_join&id=eq.${id}&limit=1`);
-    const live = rows[0];
-    if (!live) throw new NotFoundException('Live session not found');
-    if (live.host_id !== actor.id && !['public', 'organization', 'private'].includes(live.visibility)) throw new NotFoundException('Live session not found');
-    if (live.visibility === 'private' && live.host_id !== actor.id && !passwordText) throw new NotFoundException('Esta Live privada exige palavra-passe.');
-    if (live.status !== 'live' && live.host_id !== actor.id) throw new BadRequestException('Live session has not started');
+    if (!isHost) {
+      const hasAccess = await this.db.rpc<boolean>('resa_has_live_access', token, { p_live_id: id });
+      if (hasAccess !== true) {
+        if (live.visibility === 'private') throw new NotFoundException('Esta Live privada exige uma palavra-passe válida.');
+        throw new NotFoundException('Live session not found');
+      }
+    }
+    if (live.status !== 'live' && !isHost) throw new BadRequestException('Live session has not started');
     if (live.status === 'ended') throw new BadRequestException('Live session has ended');
     if (!this.media.createJoinConfig) throw new BadRequestException('Media provider does not expose a join configuration');
-    const isHost = live.host_id === actor.id;
     const profile = (await this.profilesById(token, [actor.id], actor.id)).get(actor.id);
     const displayName = this.profileDisplayName(profile, actor.email ?? 'Membro RESA');
     const config = await this.media.createJoinConfig({
