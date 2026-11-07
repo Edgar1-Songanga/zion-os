@@ -267,7 +267,7 @@ export class ResaOperationalService {
 
   async sendLiveChatMessage(token: string, liveId: string, rawBody: unknown) {
     const actor = await this.actor(token);
-    const live = await this.assertLiveChatAccess(token, liveId, actor.id);
+    const live = await this.assertLiveChatAccess(token, liveId);
     const body = this.text(rawBody, 'body', 1, 1000);
     const rows = await this.db.post<any[]>('resa_live_chat_messages', token, {
       live_id: live.id,
