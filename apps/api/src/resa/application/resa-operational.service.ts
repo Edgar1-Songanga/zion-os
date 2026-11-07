@@ -234,22 +234,20 @@ export class ResaOperationalService {
     return sessions.map((session) => ({ ...session, is_host: session.host_id === actor.id }));
   }
 
-  private async assertLiveChatAccess(token: string, liveId: string, actorId: string) {
+  private async assertLiveChatAccess(token: string, liveId: string) {
     const id = this.id(liveId, 'live_id');
+    // The session lookup is performed with the caller's JWT. PostgreSQL RLS is
+    // the authoritative audience gate for public, follower, community, org and private Lives.
     const rows = await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status,visibility,community_id,organization_id&id=eq.${id}&limit=1`);
     const live = rows[0];
     if (!live) throw new NotFoundException('Live session not found');
-    if (live.host_id !== actorId) {
-      const hasAccess = await this.db.rpc<boolean>('resa_has_live_access', token, { p_live_id: id });
-      if (hasAccess !== true) throw new NotFoundException('Live session not found');
-    }
     if (live.status !== 'live') throw new BadRequestException('O chat só está disponível enquanto a Live está ativa.');
     return live;
   }
 
   async listLiveChatMessages(token: string, liveId: string, limit = 100) {
     const actor = await this.actor(token);
-    const live = await this.assertLiveChatAccess(token, liveId, actor.id);
+    const live = await this.assertLiveChatAccess(token, liveId);
     const size = Math.min(Math.max(Number(limit) || 100, 1), 100);
     const rows = await this.db.get<any[]>(
       'resa_live_chat_messages',
@@ -428,21 +426,16 @@ export class ResaOperationalService {
     const actor = await this.actor(token);
     const id = this.id(liveId, 'live_id');
     const passwordText = typeof password === 'string' ? password : '';
+    // Password grants must be created before the RLS-protected session lookup.
+    // For all other audiences, the same lookup is the authoritative access check.
+    if (passwordText) {
+      const unlocked = await this.db.rpc<boolean>('resa_unlock_private_live', token, { p_live_id: id, p_password: passwordText });
+      if (unlocked !== true) throw new NotFoundException('Live privada não encontrada ou palavra-passe incorreta.');
+    }
     const rows = await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status,visibility,community_id,organization_id,attendee_publish_allowed,attendee_camera_on_join,attendee_microphone_on_join&id=eq.${id}&limit=1`);
     const live = rows[0];
     if (!live) throw new NotFoundException('Live session not found');
     const isHost = live.host_id === actor.id;
-    if (!isHost && live.visibility === 'private' && passwordText) {
-      const unlocked = await this.db.rpc<boolean>('resa_unlock_private_live', token, { p_live_id: id, p_password: passwordText });
-      if (unlocked !== true) throw new NotFoundException('Live privada não encontrada ou palavra-passe incorreta.');
-    }
-    if (!isHost) {
-      const hasAccess = await this.db.rpc<boolean>('resa_has_live_access', token, { p_live_id: id });
-      if (hasAccess !== true) {
-        if (live.visibility === 'private') throw new NotFoundException('Esta Live privada exige uma palavra-passe válida.');
-        throw new NotFoundException('Live session not found');
-      }
-    }
     if (live.status !== 'live' && !isHost) throw new BadRequestException('Live session has not started');
     if (live.status === 'ended') throw new BadRequestException('Live session has ended');
     if (!this.media.createJoinConfig) throw new BadRequestException('Media provider does not expose a join configuration');
