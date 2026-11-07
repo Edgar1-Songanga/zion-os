@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { resaRequest } from "@/lib/resa/api";
 import { getMinistryCatalogEntry } from "@/components/ministry/ministry-catalog";
 
 type Destination = { id: string; name: string; department: string };
@@ -91,6 +92,10 @@ function parseQrPayload(value: string) {
       organizationId: String(parsed.organization_id ?? parsed.organizationId ?? ""),
       ministryId: String(parsed.ministry_id ?? parsed.ministryId ?? ""),
       department: String(parsed.department ?? ""),
+      title: String(parsed.title ?? parsed.report_title ?? ""),
+      reportType: String(parsed.report_type ?? parsed.reportType ?? ""),
+      documentDate: String(parsed.document_date ?? parsed.documentDate ?? ""),
+      fields: parsed.fields && typeof parsed.fields === "object" && !Array.isArray(parsed.fields) ? parsed.fields as Record<string, unknown> : {},
     };
   } catch {
     // QR may be a URL or a short ZION routing token.
@@ -101,10 +106,14 @@ function parseQrPayload(value: string) {
       organizationId: url.searchParams.get("organization_id") ?? url.searchParams.get("organizationId") ?? "",
       ministryId: url.searchParams.get("ministry_id") ?? url.searchParams.get("ministryId") ?? "",
       department: url.searchParams.get("department") ?? "",
+      title: url.searchParams.get("title") ?? "",
+      reportType: url.searchParams.get("report_type") ?? "",
+      documentDate: url.searchParams.get("document_date") ?? "",
+      fields: {},
     };
   } catch {
     const match = raw.match(/^zion-report:([0-9a-f-]{36})$/i);
-    return match ? { organizationId: "", ministryId: match[1], department: "" } : null;
+    return match ? { organizationId: "", ministryId: match[1], department: "", title: "", reportType: "", documentDate: "", fields: {} as Record<string, unknown> } : null;
   }
 }
 
@@ -129,7 +138,13 @@ export default function ReportIntakePanel({
   const [ocrConfidence, setOcrConfidence] = useState<number | null>(null);
   const [selectedMinistryId, setSelectedMinistryId] = useState("");
   const [classificationConfidence, setClassificationConfidence] = useState(0);
-  const [classificationMethod, setClassificationMethod] = useState<"RULES" | "QR" | "MANUAL">("RULES");
+  const [classificationMethod, setClassificationMethod] = useState<"RULES" | "QR" | "MANUAL" | "AI">("RULES");
+  const [classificationReason, setClassificationReason] = useState("");
+  const [extractedFields, setExtractedFields] = useState<Record<string, unknown>>({});
+  const [documentDate, setDocumentDate] = useState("");
+  const [reportType, setReportType] = useState("");
+  const [allowAiAnalysis, setAllowAiAnalysis] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
   const [qrPayload, setQrPayload] = useState("");
   const [qrManual, setQrManual] = useState("");
   const [scanning, setScanning] = useState(false);
@@ -199,6 +214,16 @@ export default function ReportIntakePanel({
     setSelectedMinistryId(destination.id);
     setClassificationConfidence(1);
     setClassificationMethod("QR");
+    setClassificationReason("Departamento e referência identificados através do QR validado.");
+    if (parsed.title.trim()) setTitle(parsed.title.trim().slice(0, 240));
+    if (parsed.reportType.trim()) setReportType(parsed.reportType.trim().slice(0, 100));
+    if (/^\\d{4}-\\d{2}-\\d{2}$/.test(parsed.documentDate)) setDocumentDate(parsed.documentDate);
+    if (Object.keys(parsed.fields).length) {
+      setExtractedFields(Object.fromEntries(Object.entries(parsed.fields).slice(0, 30).map(([key, fieldValue]) => [
+        key.slice(0, 80),
+        typeof fieldValue === "string" ? fieldValue.slice(0, 1000) : typeof fieldValue === "number" || typeof fieldValue === "boolean" || fieldValue === null ? fieldValue : JSON.stringify(fieldValue).slice(0, 1000),
+      ])));
+    }
     setQrPayload(value.slice(0, 2048));
     setNotice("QR reconhecido. O relatório será encaminhado para " + destination.name + ".");
     setError(null);
@@ -254,16 +279,22 @@ export default function ReportIntakePanel({
       setOcrText(text);
       setOcrConfidence(result.data.confidence / 100);
       const guess = classifyDocument(text, destinations);
-      if (guess) {
+      if (qrPayload) {
+        setNotice("Texto OCR extraído. O destino já identificado pelo QR foi preservado; confirme os dados antes de enviar.");
+      } else if (guess) {
         setSelectedMinistryId(guess.destination.id);
         setClassificationConfidence(guess.confidence);
         setClassificationMethod("RULES");
+        setClassificationReason(guess.ambiguous
+          ? "A correspondência de conteúdo encontrou mais de um departamento próximo; é necessária confirmação."
+          : "Sugestão baseada na correspondência entre o conteúdo reconhecido e os temas do departamento.");
         setNotice(guess.ambiguous
           ? "Leitura concluída, mas existem departamentos próximos. Confirme o destino antes de enviar."
           : "Leitura concluída. O conteúdo sugere " + guess.destination.name + "; confirme antes de enviar.");
       } else {
         setSelectedMinistryId("");
         setClassificationConfidence(0);
+        setClassificationReason("A classificação local não encontrou evidência suficiente para encaminhar automaticamente.");
         setNotice("Texto extraído. Não foi possível identificar um destino com segurança; escolha o departamento manualmente.");
       }
       if (!text) setError("Não foi possível reconhecer texto nesta imagem. Tente outra fotografia com melhor iluminação e foco.");
@@ -279,6 +310,80 @@ export default function ReportIntakePanel({
     setSelectedMinistryId(value);
     setClassificationMethod("MANUAL");
     setClassificationConfidence(value ? 1 : 0);
+    setClassificationReason(value ? "Destino confirmado manualmente pelo utilizador." : "");
+  }
+
+  async function analyzeWithAi() {
+    if (!allowAiAnalysis || !organizationId || !ocrText.trim() || aiBusy) return;
+    setAiBusy(true);
+    setError(null);
+    try {
+      const departmentOptions = destinations.map((destination) => {
+        const catalog = getMinistryCatalogEntry(destination.department) ?? getMinistryCatalogEntry(destination.name);
+        return {
+          id: destination.id,
+          name: destination.name,
+          department: destination.department,
+          focus_areas: (catalog?.focusAreas ?? []).slice(0, 5).map((value) => value.slice(0, 80)),
+        };
+      });
+      const prompt = [
+        "Classifica este relatório institucional para o departamento/ministério correto.",
+        "Usa exclusivamente a lista de destinos fornecida. Não inventes IDs nem destinos.",
+        "Analisa o conteúdo, objetivo, atividades, indicadores e assunto principal; não decidas apenas pelo título.",
+        "Extrai campos factuais úteis quando existirem, sem inferir valores em falta.",
+        "Responde APENAS com JSON válido neste formato: {\"destination_id\":\"id ou vazio\",\"confidence\":0.0,\"reason\":\"justificação curta\",\"document_title\":\"título\",\"document_date\":\"YYYY-MM-DD ou vazio\",\"report_type\":\"tipo ou vazio\",\"extracted_fields\":{}}.",
+        "Se o destino não for claro, usa destination_id vazio e confidence abaixo de 0.5.",
+        "DESTINOS: " + JSON.stringify(departmentOptions).slice(0, 3500),
+        "TEXTO OCR (pode conter erros de reconhecimento): " + ocrText.slice(0, 7000),
+      ].join("\n\n");
+      const response = await resaRequest<{ content?: string }>("/v1/ai/chat", {
+        method: "POST",
+        body: JSON.stringify({ organizationId, prompt: prompt.slice(0, 11900) }),
+      });
+      const raw = response.content ?? "";
+      const json = raw.match(/\{[\s\S]*\}/)?.[0];
+      if (!json) throw new Error("A IA não devolveu uma classificação estruturada.");
+      const parsed = JSON.parse(json) as {
+        destination_id?: string;
+        confidence?: number;
+        reason?: string;
+        document_title?: string;
+        document_date?: string;
+        report_type?: string;
+        extracted_fields?: Record<string, unknown>;
+      };
+      const destination = destinations.find((item) =>
+        item.id === parsed.destination_id ||
+        normalize(item.name) === normalize(parsed.destination_id ?? "") ||
+        normalize(item.department) === normalize(parsed.destination_id ?? "")
+      );
+      if (!destination || Number(parsed.confidence ?? 0) < 0.5) {
+        setClassificationReason(String(parsed.reason ?? "A análise não encontrou um destino suficientemente seguro."));
+        setNotice("A IA não conseguiu escolher um departamento com confiança suficiente. Confirme manualmente.");
+        return;
+      }
+      const confidence = Math.max(0, Math.min(0.99, Number(parsed.confidence)));
+      setSelectedMinistryId(destination.id);
+      setClassificationConfidence(confidence);
+      setClassificationMethod("AI");
+      setClassificationReason(String(parsed.reason ?? "").slice(0, 1000));
+      const fields = parsed.extracted_fields && typeof parsed.extracted_fields === "object" && !Array.isArray(parsed.extracted_fields)
+        ? Object.fromEntries(Object.entries(parsed.extracted_fields).slice(0, 30).map(([key, value]) => [
+            key.slice(0, 80),
+            typeof value === "string" ? value.slice(0, 1000) : typeof value === "number" || typeof value === "boolean" || value === null ? value : JSON.stringify(value).slice(0, 1000),
+          ]))
+        : {};
+      setExtractedFields(fields);
+      setDocumentDate(/^\\d{4}-\\d{2}-\\d{2}$/.test(parsed.document_date ?? "") ? parsed.document_date! : "");
+      setReportType(String(parsed.report_type ?? "").slice(0, 100));
+      if (parsed.document_title?.trim()) setTitle(parsed.document_title.trim().slice(0, 240));
+      setNotice("Análise inteligente concluída. A IA sugere " + destination.name + "; reveja os campos antes de enviar.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "A análise inteligente não está disponível. Pode continuar com a classificação local.");
+    } finally {
+      setAiBusy(false);
+    }
   }
 
   async function submitDocument() {
@@ -314,6 +419,10 @@ export default function ReportIntakePanel({
         classification_department: selectedDestination.department,
         classification_confidence: classificationConfidence,
         classification_method: classificationMethod,
+        classification_reason: classificationReason.slice(0, 1000) || null,
+        extracted_fields: extractedFields,
+        document_date: documentDate || null,
+        report_type: reportType.trim().slice(0, 100) || null,
         submitted_by: authData.user.id,
       });
       if (insertError) throw new Error("O documento foi carregado, mas não foi registado: " + insertError.message);
@@ -324,6 +433,11 @@ export default function ReportIntakePanel({
       setSelectedMinistryId("");
       setClassificationConfidence(0);
       setClassificationMethod("RULES");
+      setClassificationReason("");
+      setExtractedFields({});
+      setDocumentDate("");
+      setReportType("");
+      setAllowAiAnalysis(false);
       setQrPayload("");
       setNotice("Relatório enviado para revisão de " + selectedDestination.name + ". O original ficou guardado em armazenamento privado.");
       await refreshRecent();
@@ -386,6 +500,7 @@ export default function ReportIntakePanel({
                 return;
               }
               setFile(selected);
+              setAllowAiAnalysis(false);
               setOcrText("");
               setOcrConfidence(null);
               setError(null);
@@ -416,14 +531,36 @@ export default function ReportIntakePanel({
               {destinations.map((destination) => <option key={destination.id} value={destination.id}>{destination.name} · {destination.department}</option>)}
             </select>
           </label>
-          {selectedDestination && <p className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">Encaminhamento: <strong>{selectedDestination.name}</strong> · método {classificationMethod} · confiança {Math.round(classificationConfidence * 100)}%</p>}
+          {selectedDestination && <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
+            <p>Encaminhamento: <strong>{selectedDestination.name}</strong> · método {classificationMethod} · confiança {Math.round(classificationConfidence * 100)}%</p>
+            {classificationReason && <p className="mt-1">{classificationReason}</p>}
+          </div>}
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-[1fr_2fr]">
-        <label className="block text-sm font-semibold text-slate-700">Título do relatório
-          <input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={240} placeholder="Título identificado ou introduza um" className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+      <div className="rounded-xl border border-violet-200 bg-violet-50/70 p-4">
+        <label className="flex items-start gap-2 text-xs leading-5 text-violet-950">
+          <input type="checkbox" checked={allowAiAnalysis} onChange={(event) => setAllowAiAnalysis(event.target.checked)} className="mt-0.5" />
+          <span><strong>Autorizar análise inteligente remota do texto OCR.</strong> Se ativada, apenas o texto reconhecido e a lista de departamentos serão enviados ao serviço de IA do ZION para classificar o relatório e extrair campos. A fotografia original não é enviada para esta análise. Não ative se o documento contiver informação que não deva ser processada pelo serviço de IA.</span>
         </label>
+        <button type="button" onClick={() => void analyzeWithAi()} disabled={!allowAiAnalysis || !ocrText.trim() || aiBusy} className="mt-3 rounded-lg border border-violet-300 bg-white px-4 py-2 text-xs font-semibold text-violet-900 disabled:opacity-40">{aiBusy ? "A analisar conteúdo…" : "Analisar conteúdo com IA"}</button>
+        {Object.keys(extractedFields).length > 0 && <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {Object.entries(extractedFields).map(([key, value]) => <p key={key} className="rounded-lg bg-white p-2 text-xs text-slate-700"><strong>{key.replace(/_/g, " ")}:</strong> {typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? String(value) : JSON.stringify(value)}</p>)}
+        </div>}
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-[1fr_2fr]">
+        <div className="space-y-3">
+          <label className="block text-sm font-semibold text-slate-700">Título do relatório
+            <input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={240} placeholder="Título identificado ou introduza um" className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+          </label>
+          <label className="block text-sm font-semibold text-slate-700">Tipo de relatório
+            <input value={reportType} onChange={(event) => setReportType(event.target.value)} maxLength={100} placeholder="Ex.: relatório mensal, atividade, inventário" className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+          </label>
+          <label className="block text-sm font-semibold text-slate-700">Data do documento
+            <input type="date" value={documentDate} onChange={(event) => setDocumentDate(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+          </label>
+        </div>
         <label className="block text-sm font-semibold text-slate-700">Texto extraído — confirme e corrija
           <textarea value={ocrText} onChange={(event) => setOcrText(event.target.value)} rows={5} maxLength={100000} placeholder="O texto reconhecido aparecerá aqui. Pode corrigir erros antes de enviar." className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm leading-6" />
         </label>
