@@ -22,6 +22,7 @@ export default function CommunityCard() {
   useEffect(() => {
     void resaRequest<DiscoveryItem[]>("/v1/resa/explore?limit=3")
       .then((data) => setItems(data.slice(0, 3)))
+      .catch(() => setItems([]))
       .finally(() => setLoading(false));
   }, []);
 
@@ -74,7 +75,7 @@ export default function CommunityCard() {
 
         {!loading && items.length === 0 && (
           <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
-            Ainda não existem conteúdos públicos para descobrir.
+            {t("emptyDiscovery")}
           </div>
         )}
       </div>
