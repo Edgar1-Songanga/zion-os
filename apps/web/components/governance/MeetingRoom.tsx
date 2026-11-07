@@ -27,6 +27,7 @@ export default function MeetingRoom({ meetingId }: Props) {
   const mediaVideo = useRef<HTMLVideoElement>(null);
   const mediaAudio = useRef<HTMLAudioElement>(null);
   const mediaObjectUrl = useRef<string | null>(null);
+  const endedHandled = useRef(false);
   const remoteVideos = useRef(new Map<string, HTMLVideoElement>());
   const sessionRef = useRef<MeetingSession | null>(null);
   const realtimeRef = useRef<Awaited<ReturnType<typeof createMeetingRealtime>> | null>(null);
@@ -180,7 +181,15 @@ export default function MeetingRoom({ meetingId }: Props) {
         await syncControls();
         controlsTimer = window.setInterval(() => { void syncControls(); }, 2000);
         lifecycleTimer = window.setInterval(() => {
-          void getMeetingLifecycle(meetingId).then((value) => setMeetingStatus(String(value.meeting?.status ?? "PLANNED"))).catch(() => {});
+          void getMeetingLifecycle(meetingId).then((value) => {
+            const nextStatus = String(value.meeting?.status ?? "PLANNED");
+            setMeetingStatus(nextStatus);
+            if (nextStatus === "ENDED" && !endedHandled.current) {
+              endedHandled.current = true;
+              setConnected(false);
+              void sessionRef.current?.close();
+            }
+          }).catch(() => {});
         }, 8000);
       } catch (cause) {
         if (!active) return;
@@ -336,6 +345,9 @@ export default function MeetingRoom({ meetingId }: Props) {
       }
       const meeting = await endMeeting(meetingId);
       setMeetingStatus(String(meeting.status ?? "ENDED"));
+      endedHandled.current = true;
+      await sessionRef.current?.close();
+      setConnected(false);
       setMeetingNotice("A reunião foi encerrada.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Não foi possível encerrar a reunião.");
@@ -476,13 +488,19 @@ export default function MeetingRoom({ meetingId }: Props) {
 
 function RemoteVideo({ peerId, stream, onRef, label, presentation = false }: { peerId: string; stream: MediaStream; onRef?: (node: HTMLVideoElement | null) => void; label?: string; presentation?: boolean }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [needsPlayback, setNeedsPlayback] = useState(false);
   useEffect(() => {
-    if (videoRef.current) videoRef.current.srcObject = stream;
+    if (!videoRef.current) return;
+    videoRef.current.srcObject = stream;
+    void videoRef.current.play().then(() => setNeedsPlayback(false)).catch(() => setNeedsPlayback(true));
   }, [stream]);
   return (
     <div className={"relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900 " + (presentation ? "col-span-full aspect-video xl:col-span-2" : "aspect-video")}>
       <video ref={(node) => { videoRef.current = node; onRef?.(node); }} autoPlay playsInline className={"h-full w-full " + (presentation ? "object-contain" : "object-cover")} />
       <span className="absolute bottom-3 left-3 rounded-lg bg-black/70 px-2.5 py-1 text-xs">{label || ("Participante " + peerId.slice(0, 8))}</span>
+      {needsPlayback && <button type="button" onClick={() => {
+        void videoRef.current?.play().then(() => setNeedsPlayback(false)).catch(() => setNeedsPlayback(true));
+      }} className="absolute right-3 top-3 rounded-lg bg-black/75 px-3 py-2 text-xs font-semibold text-white">Ativar áudio/vídeo</button>}
     </div>
   );
 }
