@@ -654,7 +654,7 @@ export default function ReportIntakePanel({
           <div className="rounded-xl border border-slate-200 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div><h3 className="text-sm font-semibold text-slate-800">Leitura de QR Code</h3><p className="mt-1 text-xs text-slate-500">Identifica organização e departamento quando o QR contém uma referência ZION.</p></div>
-              <button type="button" onClick={() => scanning ? stopQrScanner() : void startQrScanner()} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">{scanning ? "Parar câmara" : reportType.trim().toUpperCase() === "SABBATH_SCHOOL_ATTENDANCE" ? "Ler QR de membro" : "Abrir câmara QR"}</button>
+              <button type="button" onClick={() => scanning ? stopQrScanner() : void startQrScanner()} disabled={reportType.trim().toUpperCase() === "SABBATH_SCHOOL_ATTENDANCE" && attendanceRoster.length === 0} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-40">{scanning ? "Parar câmara" : reportType.trim().toUpperCase() === "SABBATH_SCHOOL_ATTENDANCE" ? "Ler QR de membro" : "Abrir câmara QR"}</button>
             </div>
             {scanning && <video ref={qrVideo} autoPlay playsInline muted className="mt-3 max-h-56 w-full rounded-lg bg-black object-cover" />}
             <div className="mt-3 flex gap-2">
@@ -700,9 +700,7 @@ export default function ReportIntakePanel({
             <div className="rounded-lg border border-sky-200 bg-white p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs font-semibold text-slate-700">Lista ativa da turma · {attendanceRoster.filter((row) => row.attendance_status).length}/{attendanceRoster.length} confirmados</p>
-                <button type="button" onClick={() => scanning ? stopQrScanner() : void startQrScanner()} disabled={attendanceRoster.length === 0} className="rounded-lg bg-[#0C1A3D] px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">{scanning ? "Parar leitura QR" : "Ler QR dos membros"}</button>
               </div>
-              {scanning && <video ref={qrVideo} autoPlay playsInline muted className="mt-3 max-h-48 w-full rounded-lg bg-black object-cover" />}
               {attendanceRoster.length === 0 ? <p className="mt-3 text-xs text-slate-500">Selecione uma turma autorizada para carregar a lista de membros.</p> : (
                 <div className="mt-3 max-h-72 space-y-2 overflow-y-auto">
                   {attendanceRoster.map((member) => (
