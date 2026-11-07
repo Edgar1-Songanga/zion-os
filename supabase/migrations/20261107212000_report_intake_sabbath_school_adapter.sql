@@ -36,7 +36,7 @@ returns jsonb
 language plpgsql
 security definer
 set search_path = pg_catalog, pg_temp
-as $
+as $attendance$
 declare
   target_class public.sabbath_school_classes%rowtype;
   saved_session public.sabbath_school_attendance_sessions%rowtype;
@@ -125,7 +125,7 @@ begin
 
   return pg_catalog.to_jsonb(saved_session);
 end;
-$;
+$attendance$;
 
 revoke all on function public.save_sabbath_school_attendance(uuid, date, text, jsonb) from public, anon;
 grant execute on function public.save_sabbath_school_attendance(uuid, date, text, jsonb) to authenticated;
