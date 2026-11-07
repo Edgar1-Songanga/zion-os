@@ -131,6 +131,26 @@ create table public.resa_call_signals (
 alter table public.resa_calls enable row level security;
 alter table public.resa_call_participants enable row level security;
 alter table public.resa_call_signals enable row level security;
+
+create policy resa_calls_member_select on public.resa_calls
+for select to authenticated
+using (
+  exists (
+    select 1 from public.resa_conversation_members m
+    where m.conversation_id = resa_calls.conversation_id
+      and m.user_id = (select auth.uid())
+  )
+);
+create policy resa_call_participants_select on public.resa_call_participants
+for select to authenticated
+using (
+  exists (
+    select 1 from public.resa_calls c
+    join public.resa_conversation_members m on m.conversation_id = c.conversation_id
+    where c.id = resa_call_participants.call_id
+      and m.user_id = (select auth.uid())
+  )
+);
 grant usage on schema private to authenticated;
 grant usage on schema auth to authenticated;
 grant execute on function auth.uid() to authenticated;
