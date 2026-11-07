@@ -26,6 +26,7 @@ export default function NotificationBell() {
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushMessage, setPushMessage] = useState("");
   const [loadError, setLoadError] = useState(false);
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
   const loadingRef = useRef(false);
   const mountedRef = useRef(true);
   const pushPublicKey = process.env.NEXT_PUBLIC_RESA_VAPID_PUBLIC_KEY || "BEmbs-5tKPOjip3OfVkjD4VynTnbOTxGQkXohOT_3KTCF-vCRJzbpLrJubl1y6CowFavkTDf1gSIJdXqNK2CJP8";
@@ -200,29 +201,41 @@ export default function NotificationBell() {
           }
         })
         .subscribe((status) => {
-          if (status === "SUBSCRIBED") void load();
+          if (!mountedRef.current) return;
+          if (status === "SUBSCRIBED") {
+            setRealtimeConnected(true);
+            setLoadError(false);
+            void load();
+          }
           if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-            if (mountedRef.current) setLoadError(true);
+            setRealtimeConnected(false);
+            setLoadError(true);
           }
         });
     }).catch(() => {
       if (mountedRef.current) setLoadError(true);
     });
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") void load();
-    }, 60000);
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") void load();
-    };
-    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       disposed = true;
       mountedRef.current = false;
-      window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", onVisibility);
       if (channel) void supabase.removeChannel(channel);
     };
   }, [load]);
+
+  useEffect(() => {
+    // Realtime is the primary delivery path. Poll only while disconnected.
+    const refresh = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    const timer = realtimeConnected ? null : window.setInterval(refresh, 60000);
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      if (timer !== null) window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [load, realtimeConnected]);
 
   const unread = items.filter((item) => !item.read_at).length;
 
