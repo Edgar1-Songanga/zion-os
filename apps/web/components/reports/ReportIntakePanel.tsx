@@ -279,7 +279,9 @@ export default function ReportIntakePanel({
       setOcrText(text);
       setOcrConfidence(result.data.confidence / 100);
       const guess = classifyDocument(text, destinations);
-      if (guess) {
+      if (qrPayload) {
+        setNotice("Texto OCR extraído. O destino já identificado pelo QR foi preservado; confirme os dados antes de enviar.");
+      } else if (guess) {
         setSelectedMinistryId(guess.destination.id);
         setClassificationConfidence(guess.confidence);
         setClassificationMethod("RULES");
