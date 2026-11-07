@@ -45,11 +45,11 @@ export class WebRtcSession {
     await this.send({ type: "offer", peerId: this.options.peerId, targetPeerId: peerId, sdp: offer });
   }
 
-  setAudioEnabled(enabled: boolean): void {
+  async setAudioEnabled(enabled: boolean): Promise<void> {
     this.localStream?.getAudioTracks().forEach((track) => { track.enabled = enabled; });
   }
 
-  setVideoEnabled(enabled: boolean): void {
+  async setVideoEnabled(enabled: boolean): Promise<void> {
     this.localStream?.getVideoTracks().forEach((track) => { track.enabled = enabled; });
   }
 
