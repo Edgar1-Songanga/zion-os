@@ -77,7 +77,7 @@ export class SpiritualChatController {
     );
     if (!owned[0]) throw new UnauthorizedException("Conversation not found.");
     const rows = await this.db.post<MessageRow[]>("spiritual_chat_messages", token, [
-      { conversation_id: id, user_id: user.id, role: "user", content: question },
+      { conversation_id: id, user_id: user.id, role: "user", content: question, payload: {} },
       { conversation_id: id, user_id: user.id, role: "assistant", content: answer, payload: body.payload ?? {} },
     ]);
     await this.db.patch("spiritual_chat_conversations", token, { updated_at: new Date().toISOString() },
