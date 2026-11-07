@@ -5,13 +5,15 @@ begin;
 
 alter table public.report_intake_documents
   add column if not exists operational_data_domain text,
-  add column if not exists operational_record_id uuid references public.stewardship_period_reports(id) on delete set null;
+  add column if not exists operational_record_id uuid references public.stewardship_period_reports(id);
 
 alter table public.report_intake_documents
   drop constraint if exists report_intake_operational_domain_check;
 alter table public.report_intake_documents
   add constraint report_intake_operational_domain_check
-  check (operational_data_domain is null or operational_data_domain = 'STEWARDSHIP_PERIOD');
+  check (operational_data_domain is null or operational_data_domain = 'STEWARDSHIP_PERIOD'),
+  add constraint report_intake_operational_link_pair_check
+  check ((operational_data_domain is null) = (operational_record_id is null));
 
 create index if not exists report_intake_operational_record_idx
   on public.report_intake_documents(operational_data_domain, operational_record_id)
