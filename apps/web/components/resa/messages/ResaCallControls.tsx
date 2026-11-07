@@ -205,11 +205,7 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
       if (insertError) throw insertError;
       created = data as CallRow;
       callRef.current = created; setCall(created);
-      const { error: participantError } = await supabase.from("resa_call_participants")
-        .upsert({ call_id: created.id, user_id: userId.current, status: "joined", joined_at: new Date().toISOString() }, { onConflict: "call_id,user_id" });
-      if (participantError) throw participantError;
-      await joinMedia(created, kind);
-      // A ringing call expires after 45 seconds unless the callee answers first.
+      // Start the 45-second unanswered-call window at creation, not after media setup.
       callTimeoutRef.current = window.setTimeout(() => {
         callTimeoutRef.current = null;
         void (async () => {
@@ -232,6 +228,24 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
           }
         })();
       }, 45_000);
+      const { error: participantError } = await supabase.from("resa_call_participants")
+        .upsert({ call_id: created.id, user_id: userId.current, status: "joined", joined_at: new Date().toISOString() }, { onConflict: "call_id,user_id" });
+      if (participantError) throw participantError;
+      await joinMedia(created, kind);
+      // A delayed media connection must not resurrect a call already expired or ended.
+      const { data: latestCall, error: statusError } = await supabase.from("resa_calls")
+        .select("status").eq("id", created.id).maybeSingle();
+      if (statusError) throw statusError;
+      if (!latestCall || ["missed", "ended", "declined"].includes(latestCall.status)) {
+        intentionalDisconnectRef.current = true;
+        await roomRef.current?.disconnect(true);
+        roomRef.current = null;
+        intentionalDisconnectRef.current = false;
+        callRef.current = null;
+        setCall(null); setActive(false); setConnected(false); setReconnecting(false);
+        setError("A chamada expirou antes de a ligação ficar pronta. Pode tentar novamente.");
+        return;
+      }
       setActive(true);
     } catch (reason) {
       if (created) {
