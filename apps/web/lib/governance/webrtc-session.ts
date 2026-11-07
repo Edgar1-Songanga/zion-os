@@ -178,7 +178,7 @@ export class WebRtcSession {
       }
       await this.send({ type: "screen-share", peerId: this.options.peerId, targetPeerId: peerId, enabled: false });
     });
-    await Promise.all(replacements);
+    await Promise.allSettled(replacements);
     const outgoingAudioTrack = this.screenAudioTrack;
     this.screenAudioTrack = null;
     this.screenAudioDestination = null;
@@ -191,6 +191,7 @@ export class WebRtcSession {
       this.screenAudioContext = null;
     }
     stream.getTracks().forEach((track) => track.stop());
+    this.options.onLocalScreenShareChange?.(false);
   }
 
   getPeerIds(): string[] { return [...this.peers.keys()]; }
