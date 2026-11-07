@@ -100,13 +100,13 @@ begin
 
       v_fields := coalesce(v_document.extracted_fields, '{}'::jsonb);
       if jsonb_typeof(v_fields) <> 'object'
-        or coalesce(v_fields->>'period_start', '') !~ '^\\d{4}-\\d{2}-\\d{2}$'
-        or coalesce(v_fields->>'period_end', '') !~ '^\\d{4}-\\d{2}-\\d{2}$'
-        or coalesce(v_fields->>'activities_count', '') !~ '^\\d{1,5}$'
-        or coalesce(v_fields->>'programs_completed_count', '') !~ '^\\d{1,5}$'
-        or coalesce(v_fields->>'materials_distributed_count', '') !~ '^\\d{1,6}$'
+        or coalesce(v_fields->>'period_start', '') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+        or coalesce(v_fields->>'period_end', '') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+        or coalesce(v_fields->>'activities_count', '') !~ '^[0-9]{1,5}$'
+        or coalesce(v_fields->>'programs_completed_count', '') !~ '^[0-9]{1,5}$'
+        or coalesce(v_fields->>'materials_distributed_count', '') !~ '^[0-9]{1,6}$'
         or (nullif(v_fields->>'participants_count', '') is not null
-          and v_fields->>'participants_count' !~ '^\\d{1,6}$')
+          and v_fields->>'participants_count' !~ '^[0-9]{1,6}$')
       then
         raise exception 'Stewardship report requires valid period_start, period_end, activities_count, programs_completed_count and materials_distributed_count fields' using errcode = '22023';
       end if;
