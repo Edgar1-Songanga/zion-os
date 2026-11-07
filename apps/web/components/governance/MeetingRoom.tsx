@@ -12,8 +12,8 @@ import { LiveKitMeetingSession } from "@/lib/governance/livekit-session";
 type Props = { meetingId: string };
 type MeetingSession = {
   startLocalMedia: () => Promise<MediaStream>;
-  setAudioEnabled: (enabled: boolean) => void;
-  setVideoEnabled: (enabled: boolean) => void;
+  setAudioEnabled: (enabled: boolean) => Promise<void>;
+  setVideoEnabled: (enabled: boolean) => Promise<void>;
   startScreenShare: () => Promise<void>;
   stopScreenShare: () => Promise<void>;
   startMediaBroadcast: (element: HTMLMediaElement) => Promise<void>;
@@ -33,8 +33,8 @@ export default function MeetingRoom({ meetingId }: Props) {
   const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
   const [remoteScreenStreams, setRemoteScreenStreams] = useState<Record<string, MediaStream>>({});
   const [remoteScreenSharing, setRemoteScreenSharing] = useState<Record<string, boolean>>({});
-  const [mic, setMic] = useState(true);
-  const [camera, setCamera] = useState(true);
+  const [mic, setMic] = useState(false);
+  const [camera, setCamera] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [status, setStatus] = useState("A preparar a sala…");
   const [error, setError] = useState<string | null>(null);
@@ -158,7 +158,7 @@ export default function MeetingRoom({ meetingId }: Props) {
         if (localVideo.current) localVideo.current.srcObject = meetingSession.getLocalStream();
 
         await realtime.trackPresence({ userId: authSession.user.id, mic: false, camera: false, sharing: false });
-        void setSelfMeetingControl(meetingId, { mic_muted: true, camera_enabled: false }).catch(() => {});
+        await setSelfMeetingControl(meetingId, { mic_muted: true, camera_enabled: false });
         setStatus(media.mode === "SFU" ? "Sala de espera ligada via ZION SFU" : "Sala de espera ligada");
 
         const syncControls = async () => {
@@ -200,21 +200,31 @@ export default function MeetingRoom({ meetingId }: Props) {
   }, [meetingId, supabase]);
 
   async function toggleMic() {
+    if (mediaBroadcasting) { setError("Termine a transmissão do conteúdo antes de ativar o microfone."); return; }
     const next = !mic;
-    await sessionRef.current?.setAudioEnabled(next);
-    if (localVideo.current && sessionRef.current) localVideo.current.srcObject = sessionRef.current.getLocalStream();
-    setMic(next);
-    void realtimeRef.current?.trackPresence({ mic: next, camera, sharing });
-    void setSelfMeetingControl(meetingId, { mic_muted: !next }).catch((cause) => setError(cause instanceof Error ? cause.message : "Falha ao guardar o microfone."));
+    try {
+      await sessionRef.current?.setAudioEnabled(next);
+      if (localVideo.current && sessionRef.current) localVideo.current.srcObject = sessionRef.current.getLocalStream();
+      setMic(next);
+      void realtimeRef.current?.trackPresence({ mic: next, camera, sharing });
+      void setSelfMeetingControl(meetingId, { mic_muted: !next }).catch((cause) => setError(cause instanceof Error ? cause.message : "Falha ao guardar o microfone."));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível ativar o microfone.");
+    }
   }
 
   async function toggleCamera() {
+    if (mediaBroadcasting) { setError("Termine a transmissão do conteúdo antes de ativar a câmara."); return; }
     const next = !camera;
-    await sessionRef.current?.setVideoEnabled(next);
-    if (localVideo.current && sessionRef.current) localVideo.current.srcObject = sessionRef.current.getLocalStream();
-    setCamera(next);
-    void realtimeRef.current?.trackPresence({ mic, camera: next, sharing });
-    void setSelfMeetingControl(meetingId, { camera_enabled: next }).catch((cause) => setError(cause instanceof Error ? cause.message : "Falha ao guardar a câmara."));
+    try {
+      await sessionRef.current?.setVideoEnabled(next);
+      if (localVideo.current && sessionRef.current) localVideo.current.srcObject = sessionRef.current.getLocalStream();
+      setCamera(next);
+      void realtimeRef.current?.trackPresence({ mic, camera: next, sharing });
+      void setSelfMeetingControl(meetingId, { camera_enabled: next }).catch((cause) => setError(cause instanceof Error ? cause.message : "Falha ao guardar a câmara."));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível ativar a câmara.");
+    }
   }
 
   async function toggleScreenShare() {
@@ -265,7 +275,11 @@ export default function MeetingRoom({ meetingId }: Props) {
   }
 
   async function toggleMediaBroadcast() {
-    if (!isModerator || !sessionRef.current) return;
+    if (!isModerator || !sessionRef.current || meetingStatus === "ENDED") return;
+    if (!mediaBroadcasting && sharing) {
+      setError("Termine primeiro a partilha de ecrã.");
+      return;
+    }
     if (mediaBroadcasting) {
       setMediaBusy(true);
       try {
@@ -421,7 +435,7 @@ export default function MeetingRoom({ meetingId }: Props) {
               {mediaFileName && <p className="truncate text-xs text-sky-100" title={mediaFileName}>{mediaFileName}</p>}
               {mediaUrl && mediaFileType === "video" && <video ref={mediaVideo} src={mediaUrl} controls playsInline onEnded={() => { if (mediaBroadcasting) void toggleMediaBroadcast(); }} className="max-h-64 w-full rounded-xl bg-black" />}
               {mediaUrl && mediaFileType === "audio" && <audio ref={mediaAudio} src={mediaUrl} controls onEnded={() => { if (mediaBroadcasting) void toggleMediaBroadcast(); }} className="w-full" />}
-              <button type="button" onClick={() => void toggleMediaBroadcast()} disabled={!connected || !mediaUrl || mediaBusy} className={"w-full rounded-xl px-4 py-3 text-sm font-semibold disabled:opacity-40 " + (mediaBroadcasting ? "bg-rose-500/20 text-rose-100" : "bg-indigo-300 text-slate-950")}>
+              <button type="button" onClick={() => void toggleMediaBroadcast()} disabled={!connected || !mediaUrl || mediaBusy || meetingStatus === "ENDED" || sharing} className={"w-full rounded-xl px-4 py-3 text-sm font-semibold disabled:opacity-40 " + (mediaBroadcasting ? "bg-rose-500/20 text-rose-100" : "bg-indigo-300 text-slate-950")}>
                 {mediaBusy ? "A preparar transmissão…" : mediaBroadcasting ? "Parar transmissão do conteúdo" : "Transmitir música/vídeo aos participantes"}
               </button>
             </div>
