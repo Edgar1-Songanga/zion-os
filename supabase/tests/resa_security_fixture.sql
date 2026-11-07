@@ -12,7 +12,7 @@ create table cron.job (
 );
 create or replace function cron.schedule(job_name text, schedule text, command text)
 returns bigint language plpgsql
-as $
+as $cron$
 declare v_job_id bigint;
 begin
   insert into cron.job(jobname, schedule, command)
@@ -20,15 +20,15 @@ begin
   returning jobid into v_job_id;
   return v_job_id;
 end;
-$;
+$cron$;
 create or replace function cron.unschedule(job_id bigint)
 returns boolean language plpgsql
-as $
+as $cron$
 begin
   delete from cron.job where jobid = job_id;
   return found;
 end;
-$;
+$cron$;
 create extension if not exists pgcrypto with schema extensions;
 
 do $roles$
