@@ -341,12 +341,29 @@ export default function MeetingRoom({ meetingId }: Props) {
             <h1 className="mt-1 text-2xl font-semibold">Sala de reunião</h1>
             <p className="mt-1 text-sm text-slate-400">{status}</p>
           </div>
-          <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-300">
-            {Object.keys(remoteStreams).length + 1} participante(s)
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-300">
+              {Object.keys(remoteStreams).length + Object.keys(remoteScreenStreams).length + 1} participante(s)
+            </span>
+            <span className="rounded-full border border-amber-300/20 bg-amber-300/10 px-3 py-1.5 text-xs text-amber-100">
+              {meetingStatus === "LIVE" ? "Reunião em curso" : meetingStatus === "ENDED" ? "Reunião encerrada" : "Sala de espera"}
+            </span>
+            {isModerator && meetingStatus !== "LIVE" && meetingStatus !== "ENDED" && (
+              <button type="button" onClick={() => void beginOfficialMeeting()} disabled={meetingActionBusy} className="rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-slate-950 disabled:opacity-40">
+                {meetingActionBusy ? "A iniciar…" : "Iniciar reunião"}
+              </button>
+            )}
+            {isModerator && meetingStatus === "LIVE" && (
+              <button type="button" onClick={() => void finishOfficialMeeting()} disabled={meetingActionBusy} className="rounded-xl bg-rose-500/20 px-4 py-2 text-xs font-semibold text-rose-100 disabled:opacity-40">
+                {meetingActionBusy ? "A encerrar…" : "Encerrar reunião"}
+              </button>
+            )}
           </div>
         </header>
 
         {error && <div className="rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div>}
+        {meetingNotice && <div role="status" className="rounded-xl border border-sky-300/20 bg-sky-300/10 px-4 py-3 text-sm text-sky-100">{meetingNotice}</div>}
+        {meetingStatus !== "LIVE" && meetingStatus !== "ENDED" && <div className="rounded-xl border border-amber-200/15 bg-amber-200/[0.06] px-4 py-3 text-sm text-amber-100">Sala de espera aberta. O anfitrião pode partilhar conteúdos enquanto os participantes aguardam o início oficial.</div>}
 
         <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           <div className="relative aspect-video overflow-hidden rounded-2xl border border-white/10 bg-slate-900 shadow-2xl">
@@ -388,6 +405,29 @@ export default function MeetingRoom({ meetingId }: Props) {
             A disponibilidade da partilha de ecrã e do áudio depende do navegador, do sistema operativo e das permissões do dispositivo.
             Em telemóveis, algumas opções podem não estar disponíveis; para apresentações longas, recomenda-se computador.
           </p>
+        </section>
+
+        <section className="rounded-2xl border border-indigo-300/20 bg-indigo-400/[0.06] p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-indigo-100">Conteúdo para a sala de espera</h2>
+              <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-400">O anfitrião pode reproduzir música ou vídeo. O conteúdo é publicado como áudio/vídeo da reunião; os participantes recebem a transmissão, não apenas o som local do anfitrião. Reproduzir e pausar no leitor controla a transmissão em direto.</p>
+            </div>
+            {mediaBroadcasting && <span className="rounded-full bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-200">A transmitir</span>}
+          </div>
+          {isModerator ? (
+            <div className="mt-3 space-y-3">
+              <input type="file" accept="audio/*,video/*" onChange={handleMediaFileChange} disabled={mediaBroadcasting || mediaBusy} aria-label="Escolher música ou vídeo para a sala de espera" className="block w-full text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white disabled:opacity-50" />
+              {mediaFileName && <p className="truncate text-xs text-sky-100" title={mediaFileName}>{mediaFileName}</p>}
+              {mediaUrl && mediaFileType === "video" && <video ref={mediaVideo} src={mediaUrl} controls playsInline onEnded={() => { if (mediaBroadcasting) void toggleMediaBroadcast(); }} className="max-h-64 w-full rounded-xl bg-black" />}
+              {mediaUrl && mediaFileType === "audio" && <audio ref={mediaAudio} src={mediaUrl} controls onEnded={() => { if (mediaBroadcasting) void toggleMediaBroadcast(); }} className="w-full" />}
+              <button type="button" onClick={() => void toggleMediaBroadcast()} disabled={!connected || !mediaUrl || mediaBusy} className={"w-full rounded-xl px-4 py-3 text-sm font-semibold disabled:opacity-40 " + (mediaBroadcasting ? "bg-rose-500/20 text-rose-100" : "bg-indigo-300 text-slate-950")}>
+                {mediaBusy ? "A preparar transmissão…" : mediaBroadcasting ? "Parar transmissão do conteúdo" : "Transmitir música/vídeo aos participantes"}
+              </button>
+            </div>
+          ) : (
+            <p className="mt-3 text-xs text-slate-400">O conteúdo multimédia partilhado pelo anfitrião aparecerá na área de apresentações. O teu microfone e a câmara começam desligados.</p>
+          )}
         </section>
 
         {isModerator && (
