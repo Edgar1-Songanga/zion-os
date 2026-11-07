@@ -91,3 +91,49 @@ create table public.profiles (
   avatar_url text,
   privacy jsonb not null default '{}'::jsonb
 );
+
+create table public.resa_conversations (
+  id uuid primary key,
+  created_by uuid not null references auth.users(id)
+);
+create table public.resa_conversation_members (
+  conversation_id uuid not null references public.resa_conversations(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  primary key (conversation_id, user_id)
+);
+create table public.resa_calls (
+  id uuid primary key default gen_random_uuid(),
+  conversation_id uuid not null references public.resa_conversations(id) on delete cascade,
+  initiator_id uuid not null references auth.users(id) on delete cascade,
+  kind text not null check (kind in ('audio','video')),
+  status text not null default 'ringing' check (status in ('ringing','active','ended','missed','declined')),
+  created_at timestamptz not null default now(),
+  answered_at timestamptz,
+  ended_at timestamptz
+);
+create table public.resa_call_participants (
+  call_id uuid not null references public.resa_calls(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  status text not null default 'ringing' check (status in ('ringing','joined','declined','left')),
+  joined_at timestamptz,
+  left_at timestamptz,
+  primary key (call_id,user_id)
+);
+create table public.resa_call_signals (
+  id bigserial primary key,
+  call_id uuid not null references public.resa_calls(id) on delete cascade,
+  sender_id uuid not null references auth.users(id) on delete cascade,
+  recipient_id uuid not null references auth.users(id) on delete cascade,
+  kind text not null check (kind in ('offer','answer','ice','renegotiate','hangup')),
+  payload jsonb not null,
+  created_at timestamptz not null default now()
+);
+alter table public.resa_calls enable row level security;
+alter table public.resa_call_participants enable row level security;
+alter table public.resa_call_signals enable row level security;
+grant usage on schema private to authenticated;
+grant usage on schema auth to authenticated;
+grant execute on function auth.uid() to authenticated;
+grant select on public.resa_conversation_members to authenticated;
+grant select,insert,update on public.resa_calls, public.resa_call_participants, public.resa_call_signals to authenticated;
+grant usage,select on sequence public.resa_call_signals_id_seq to authenticated;
