@@ -16,6 +16,7 @@ export default function GlobalResaCallAlerts() {
     const supabase = createClient();
     let disposed = false;
     let userId: string | null = null;
+    let alertPreferences: NotificationAlertPreferences = {};
     let channel: ReturnType<typeof supabase.channel> | null = null;
     const cleanups = new Map<string, () => void>();
     const pending = new Set<string>();
@@ -25,16 +26,15 @@ export default function GlobalResaCallAlerts() {
       if (disposed || !userId || call.initiator_id === userId || call.status !== "ringing" || cleanups.has(call.id) || pending.has(call.id)) return;
       pending.add(call.id);
       try {
-        let preferences: NotificationAlertPreferences = {};
-        try { preferences = await resaRequest<NotificationAlertPreferences>("/v1/notifications/preferences"); } catch { /* Use safe local defaults. */ }
         if (disposed || !pending.has(call.id)) return;
-        cleanups.set(call.id, playNotificationAlert("resa.call.incoming", preferences, true));
+        cleanups.set(call.id, playNotificationAlert("resa.call.incoming", alertPreferences, true));
       } finally { pending.delete(call.id); }
     };
 
     void supabase.auth.getUser().then(async ({ data, error }) => {
       if (disposed || error || !data.user?.id) return;
       userId = data.user.id;
+      try { alertPreferences = await resaRequest<NotificationAlertPreferences>("/v1/notifications/preferences"); } catch { /* Use safe local defaults. */ }
       channel = supabase.channel("zion-global-incoming-calls-" + userId)
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "resa_calls" }, (payload) => { void ring(payload.new as CallAlertRow); })
         .on("postgres_changes", { event: "UPDATE", schema: "public", table: "resa_calls" }, (payload) => {
