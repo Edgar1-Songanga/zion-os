@@ -9,6 +9,7 @@ export type WebRtcSessionOptions = {
   onPeerLeft?: (peerId: string) => void;
   onConnectionStateChange?: (peerId: string, state: RTCPeerConnectionState) => void;
   onScreenShareChange?: (peerId: string, enabled: boolean) => void;
+  onLocalScreenShareChange?: (enabled: boolean) => void;
 };
 
 export class WebRtcSession {
@@ -102,7 +103,13 @@ export class WebRtcSession {
       }
       await this.send({ type: "screen-share", peerId: this.options.peerId, targetPeerId: peerId, enabled: true });
     });
-    await Promise.all(replacements);
+    try {
+      await Promise.all(replacements);
+      this.options.onLocalScreenShareChange?.(true);
+    } catch (error) {
+      await this.stopScreenShare();
+      throw error;
+    }
 
     videoTrack.onended = () => { void this.stopScreenShare(); };
   }
