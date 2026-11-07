@@ -12,7 +12,8 @@ export default function CommunitiesPage() {
   const [items, setItems] = useState<Community[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [busyId, setBusyId] = useState<string | null>(null);\n  const busyRef = useRef(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const busyRef = useRef(false);
 
   async function load() {
     setLoading(true); setError(null);
