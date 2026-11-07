@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
 
 type Community = {
@@ -12,7 +12,7 @@ export default function CommunitiesPage() {
   const [items, setItems] = useState<Community[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);\n  const busyRef = useRef(false);
 
   async function load() {
     setLoading(true); setError(null);
@@ -23,7 +23,7 @@ export default function CommunitiesPage() {
   useEffect(() => { void load(); }, []);
 
   async function toggle(item: Community) {
-    if (busyId) return;
+    if (busyRef.current) return;\n    busyRef.current = true;
     const joining = item.membership_status !== "active";
     const previous = items;
     setBusyId(item.id);
@@ -41,7 +41,7 @@ export default function CommunitiesPage() {
       setItems(previous);
       setError(e instanceof Error ? e.message : "Não foi possível atualizar a participação.");
     } finally {
-      setBusyId(null);
+      busyRef.current = false;\n      setBusyId(null);
     }
   }
 
