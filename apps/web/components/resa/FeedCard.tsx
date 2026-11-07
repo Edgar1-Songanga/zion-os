@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import ResaIcon from "./core/ResaIcon";
 import { useTranslation } from "@/components/i18n";
@@ -31,8 +31,8 @@ type CommentItem = {
   created_at: string;
 };
 
-const typeMeta: Record<string, { labelKey: "post" | "prayer" | "bibleStudy" | "testimony" | "sermon"; icon: "sparkles" | "prayer" | "story" | "heart" }> = {
-  text: { labelKey: "post", icon: "sparkles" },
+const typeMeta: Record<string, { labelKey: "post" | "prayer" | "bibleStudy" | "testimony" | "sermon"; icon: "message" | "prayer" | "story" | "heart" }> = {
+  text: { labelKey: "post", icon: "message" },
   prayer: { labelKey: "prayer", icon: "prayer" },
   bible_study: { labelKey: "bibleStudy", icon: "story" },
   testimony: { labelKey: "testimony", icon: "heart" },
@@ -59,6 +59,11 @@ export default function FeedCard({ content }: { content: ResaContent }) {
   const [showComments, setShowComments] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [shareFeedback, setShareFeedback] = useState("");
+  const reactionBusyRef = useRef(false);
+  const saveBusyRef = useRef(false);
+  const commentBusyRef = useRef(false);
+  const repostBusyRef = useRef(false);
+  const commentsLoadedRef = useRef(false);
 
   const meta = typeMeta[content.type] ?? typeMeta.text;
   const shareTitle = content.title?.trim() || t("publicationOnResa");
@@ -124,62 +129,78 @@ export default function FeedCard({ content }: { content: ResaContent }) {
   }, [content.id, content.viewer_reacted, content.viewer_saved]);
 
   useEffect(() => {
-    if (!showComments) return;
-    void resaRequest<CommentItem[]>(`/v1/resa/content/${content.id}/comments`).then(setComments).catch(() => {});
+    if (!showComments || commentsLoadedRef.current) return;
+    commentsLoadedRef.current = true;
+    void resaRequest<CommentItem[]>("/v1/resa/content/" + content.id + "/comments")
+      .then(setComments)
+      .catch(() => { commentsLoadedRef.current = false; });
   }, [content.id, showComments]);
 
   async function toggleReaction() {
+    if (reactionBusyRef.current) return;
+    reactionBusyRef.current = true;
+    const previous = reaction;
+    const next = !previous;
+    setReaction(next);
     setActionFeedback(null);
     try {
-      if (reaction) {
-        await resaRequest(`/v1/resa/content/${content.id}/reactions`, { method: "DELETE" });
-        setReaction(false);
-        setActionFeedback("Gosto removido.");
-      } else {
-        await resaRequest(`/v1/resa/content/${content.id}/reactions`, {
-          method: "POST",
-          body: JSON.stringify({ reaction_type: "like" }),
-        });
-        setReaction(true);
-        setActionFeedback("Gostaste desta publicação.");
-      }
+      await resaRequest("/v1/resa/content/" + content.id + "/reactions", next
+        ? { method: "POST", body: JSON.stringify({ reaction_type: "like" }) }
+        : { method: "DELETE" });
+      setActionFeedback(next ? "Gostaste desta publicação." : "Gosto removido.");
     } catch (error) {
+      setReaction(previous);
       setActionFeedback(error instanceof Error ? error.message : "Não foi possível registar a reação.");
+    } finally {
+      reactionBusyRef.current = false;
     }
   }
 
   async function save() {
+    if (saveBusyRef.current) return;
+    saveBusyRef.current = true;
+    const previous = saved;
+    const next = !previous;
     setSaving(true);
+    setSaved(next);
     setActionFeedback(null);
     try {
-      await resaRequest(`/v1/resa/content/${content.id}/save`, { method: saved ? "DELETE" : "POST" });
-      setSaved(!saved);
-      setActionFeedback(saved ? "Publicação removida dos guardados." : "Publicação guardada.");
+      await resaRequest("/v1/resa/content/" + content.id + "/save", { method: next ? "POST" : "DELETE" });
+      setActionFeedback(next ? "Publicação guardada." : "Publicação removida dos guardados.");
     } catch (error) {
+      setSaved(previous);
       setActionFeedback(error instanceof Error ? error.message : "Não foi possível guardar a publicação.");
     } finally {
       setSaving(false);
+      saveBusyRef.current = false;
     }
   }
 
   async function submitComment() {
-    if (!comment.trim()) return;
+    const value = comment.trim();
+    if (!value || commentBusyRef.current) return;
+    commentBusyRef.current = true;
     setActionFeedback(null);
     try {
-      const created = await resaRequest<CommentItem>(`/v1/resa/content/${content.id}/comments`, {
+      const created = await resaRequest<CommentItem>("/v1/resa/content/" + content.id + "/comments", {
         method: "POST",
-        body: JSON.stringify({ body: comment.trim() }),
+        body: JSON.stringify({ body: value }),
       });
-      setComments((v) => [created, ...v]);
+      setComments((current) => [created, ...current]);
+      commentsLoadedRef.current = true;
       setComment("");
       setShowComments(true);
       setActionFeedback("Comentário publicado.");
     } catch (error) {
       setActionFeedback(error instanceof Error ? error.message : "Não foi possível publicar o comentário.");
+    } finally {
+      commentBusyRef.current = false;
     }
   }
 
   async function repost() {
+    if (repostBusyRef.current) return;
+    repostBusyRef.current = true;
     setReposting(true);
     setActionFeedback(null);
     try {
@@ -192,6 +213,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
       setActionFeedback(error instanceof Error ? error.message : "Não foi possível partilhar a publicação.");
     } finally {
       setReposting(false);
+      repostBusyRef.current = false;
     }
   }
 

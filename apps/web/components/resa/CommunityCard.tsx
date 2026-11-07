@@ -59,7 +59,7 @@ export default function CommunityCard() {
           >
             <div className="flex items-start gap-3">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-[#0C1A3D] group-hover:bg-[#0C1A3D] group-hover:text-white">
-                <ResaIcon name={item.type === "story" ? "story" : "sparkles"} size={17} />
+                <ResaIcon name={item.type === "story" ? "story" : "message"} size={17} />
               </span>
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-slate-700">

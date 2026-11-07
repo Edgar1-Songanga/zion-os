@@ -320,7 +320,7 @@ export default function MessagesPage() {
             onClick={() => { setNewOpen(true); setError(null); }}
             className="inline-flex items-center gap-2 rounded-2xl bg-[#0C1A3D] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#122858]"
           >
-            <ResaIcon name="sparkles" size={17} />
+            <ResaIcon name="message" size={17} />
             Nova conversa
           </button>
         </header>
