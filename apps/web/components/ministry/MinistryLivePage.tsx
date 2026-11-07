@@ -138,7 +138,7 @@ export default function MinistryLivePage() {
               Um catálogo inicial baseado no Manual da Igreja e nos recursos oficiais da Igreja Adventista. Escolha os ministérios da sua organização, consulte o perfil e acrescente outros quando necessário.
             </p>
             <div className="mt-7 max-w-xl">
-              <OrganizationSelector value={organizationId} onChange={(id, org) => { void load(id, org); }} />
+              <OrganizationSelector value={organizationId} preferredOrganizationName="Igreja Adventista do Sétimo Dia — Porto Seco" onChange={(id, org) => { void load(id, org); }} />
             </div>
             {organization && (
               <p className="mt-4 text-sm text-slate-300">
