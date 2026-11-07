@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { resaRequest } from "@/lib/resa/api";
 import { getMinistryCatalogEntry } from "@/components/ministry/ministry-catalog";
 
 type Destination = { id: string; name: string; department: string };
@@ -129,7 +130,11 @@ export default function ReportIntakePanel({
   const [ocrConfidence, setOcrConfidence] = useState<number | null>(null);
   const [selectedMinistryId, setSelectedMinistryId] = useState("");
   const [classificationConfidence, setClassificationConfidence] = useState(0);
-  const [classificationMethod, setClassificationMethod] = useState<"RULES" | "QR" | "MANUAL">("RULES");
+  const [classificationMethod, setClassificationMethod] = useState<"RULES" | "QR" | "MANUAL" | "AI">("RULES");
+  const [classificationReason, setClassificationReason] = useState("");
+  const [extractedFields, setExtractedFields] = useState<Record<string, unknown>>({});
+  const [allowAiAnalysis, setAllowAiAnalysis] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
   const [qrPayload, setQrPayload] = useState("");
   const [qrManual, setQrManual] = useState("");
   const [scanning, setScanning] = useState(false);
@@ -199,6 +204,7 @@ export default function ReportIntakePanel({
     setSelectedMinistryId(destination.id);
     setClassificationConfidence(1);
     setClassificationMethod("QR");
+    setClassificationReason("Departamento identificado através da referência QR validada.");
     setQrPayload(value.slice(0, 2048));
     setNotice("QR reconhecido. O relatório será encaminhado para " + destination.name + ".");
     setError(null);
@@ -279,6 +285,75 @@ export default function ReportIntakePanel({
     setSelectedMinistryId(value);
     setClassificationMethod("MANUAL");
     setClassificationConfidence(value ? 1 : 0);
+    setClassificationReason(value ? "Destino confirmado manualmente pelo utilizador." : "");
+  }
+
+  async function analyzeWithAi() {
+    if (!allowAiAnalysis || !organizationId || !ocrText.trim() || aiBusy) return;
+    setAiBusy(true);
+    setError(null);
+    try {
+      const departmentOptions = destinations.map((destination) => {
+        const catalog = getMinistryCatalogEntry(destination.department) ?? getMinistryCatalogEntry(destination.name);
+        return {
+          id: destination.id,
+          name: destination.name,
+          department: destination.department,
+          focus_areas: catalog?.focusAreas ?? [],
+        };
+      });
+      const prompt = [
+        "Classifica este relatório institucional para o departamento/ministério correto.",
+        "Usa exclusivamente a lista de destinos fornecida. Não inventes IDs nem destinos.",
+        "Analisa o conteúdo, objetivo, atividades, indicadores e assunto principal; não decidas apenas pelo título.",
+        "Extrai campos factuais úteis quando existirem, sem inferir valores em falta.",
+        "Responde APENAS com JSON válido neste formato: {\"destination_id\":\"id ou vazio\",\"confidence\":0.0,\"reason\":\"justificação curta\",\"document_title\":\"título\",\"document_date\":\"YYYY-MM-DD ou vazio\",\"report_type\":\"tipo ou vazio\",\"extracted_fields\":{}}.",
+        "Se o destino não for claro, usa destination_id vazio e confidence abaixo de 0.5.",
+        "DESTINOS: " + JSON.stringify(departmentOptions),
+        "TEXTO OCR (pode conter erros de reconhecimento): " + ocrText.slice(0, 7000),
+      ].join("\n\n");
+      const response = await resaRequest<{ content?: string }>("/v1/ai/chat", {
+        method: "POST",
+        body: JSON.stringify({ organizationId, prompt }),
+      });
+      const raw = response.content ?? "";
+      const json = raw.match(/\{[\s\S]*\}/)?.[0];
+      if (!json) throw new Error("A IA não devolveu uma classificação estruturada.");
+      const parsed = JSON.parse(json) as {
+        destination_id?: string;
+        confidence?: number;
+        reason?: string;
+        document_title?: string;
+        document_date?: string;
+        report_type?: string;
+        extracted_fields?: Record<string, unknown>;
+      };
+      const destination = destinations.find((item) =>
+        item.id === parsed.destination_id ||
+        normalize(item.name) === normalize(parsed.destination_id ?? "") ||
+        normalize(item.department) === normalize(parsed.destination_id ?? "")
+      );
+      if (!destination || Number(parsed.confidence ?? 0) < 0.5) {
+        setClassificationReason(String(parsed.reason ?? "A análise não encontrou um destino suficientemente seguro."));
+        setNotice("A IA não conseguiu escolher um departamento com confiança suficiente. Confirme manualmente.");
+        return;
+      }
+      const confidence = Math.max(0, Math.min(0.99, Number(parsed.confidence)));
+      setSelectedMinistryId(destination.id);
+      setClassificationConfidence(confidence);
+      setClassificationMethod("AI");
+      setClassificationReason(String(parsed.reason ?? "").slice(0, 1000));
+      const fields = parsed.extracted_fields && typeof parsed.extracted_fields === "object" && !Array.isArray(parsed.extracted_fields)
+        ? Object.fromEntries(Object.entries(parsed.extracted_fields).slice(0, 30))
+        : {};
+      setExtractedFields(fields);
+      if (parsed.document_title?.trim()) setTitle(parsed.document_title.trim().slice(0, 240));
+      setNotice("Análise inteligente concluída. A IA sugere " + destination.name + "; reveja os campos antes de enviar.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "A análise inteligente não está disponível. Pode continuar com a classificação local.");
+    } finally {
+      setAiBusy(false);
+    }
   }
 
   async function submitDocument() {
@@ -314,6 +389,8 @@ export default function ReportIntakePanel({
         classification_department: selectedDestination.department,
         classification_confidence: classificationConfidence,
         classification_method: classificationMethod,
+        classification_reason: classificationReason.slice(0, 1000) || null,
+        extracted_fields: extractedFields,
         submitted_by: authData.user.id,
       });
       if (insertError) throw new Error("O documento foi carregado, mas não foi registado: " + insertError.message);
@@ -324,6 +401,8 @@ export default function ReportIntakePanel({
       setSelectedMinistryId("");
       setClassificationConfidence(0);
       setClassificationMethod("RULES");
+      setClassificationReason("");
+      setExtractedFields({});
       setQrPayload("");
       setNotice("Relatório enviado para revisão de " + selectedDestination.name + ". O original ficou guardado em armazenamento privado.");
       await refreshRecent();
@@ -416,8 +495,22 @@ export default function ReportIntakePanel({
               {destinations.map((destination) => <option key={destination.id} value={destination.id}>{destination.name} · {destination.department}</option>)}
             </select>
           </label>
-          {selectedDestination && <p className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">Encaminhamento: <strong>{selectedDestination.name}</strong> · método {classificationMethod} · confiança {Math.round(classificationConfidence * 100)}%</p>}
+          {selectedDestination && <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
+            <p>Encaminhamento: <strong>{selectedDestination.name}</strong> · método {classificationMethod} · confiança {Math.round(classificationConfidence * 100)}%</p>
+            {classificationReason && <p className="mt-1">{classificationReason}</p>}
+          </div>}
         </div>
+      </div>
+
+      <div className="rounded-xl border border-violet-200 bg-violet-50/70 p-4">
+        <label className="flex items-start gap-2 text-xs leading-5 text-violet-950">
+          <input type="checkbox" checked={allowAiAnalysis} onChange={(event) => setAllowAiAnalysis(event.target.checked)} className="mt-0.5" />
+          <span><strong>Autorizar análise inteligente remota do texto OCR.</strong> Se ativada, apenas o texto reconhecido e a lista de departamentos serão enviados ao serviço de IA do ZION para classificar o relatório e extrair campos. A fotografia original não é enviada para esta análise. Não ative se o documento contiver informação que não deva ser processada pelo serviço de IA.</span>
+        </label>
+        <button type="button" onClick={() => void analyzeWithAi()} disabled={!allowAiAnalysis || !ocrText.trim() || aiBusy} className="mt-3 rounded-lg border border-violet-300 bg-white px-4 py-2 text-xs font-semibold text-violet-900 disabled:opacity-40">{aiBusy ? "A analisar conteúdo…" : "Analisar conteúdo com IA"}</button>
+        {Object.keys(extractedFields).length > 0 && <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {Object.entries(extractedFields).map(([key, value]) => <p key={key} className="rounded-lg bg-white p-2 text-xs text-slate-700"><strong>{key.replace(/_/g, " ")}:</strong> {typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? String(value) : JSON.stringify(value)}</p>)}
+        </div>}
       </div>
 
       <div className="grid gap-3 md:grid-cols-[1fr_2fr]">
