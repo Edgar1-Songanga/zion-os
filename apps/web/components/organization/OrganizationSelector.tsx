@@ -5,12 +5,19 @@ import { resaRequest } from "@/lib/resa/api";
 
 export type ZionOrganization = { id: string; name: string; organization_type: string; parent_id: string | null };
 
-export function OrganizationSelector({ value, onChange, allowedOrganizationTypes }: { value: string; onChange: (id: string, organization: ZionOrganization) => void; allowedOrganizationTypes?: string[] }) {
+export function OrganizationSelector({ value, onChange, allowedOrganizationTypes, preferredOrganizationName }: {
+  value: string;
+  onChange: (id: string, organization: ZionOrganization) => void;
+  allowedOrganizationTypes?: string[];
+  preferredOrganizationName?: string;
+}) {
   const [organizations, setOrganizations] = useState<ZionOrganization[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const onChangeRef = useRef(onChange);
+  const valueRef = useRef(value);
   onChangeRef.current = onChange;
+  valueRef.current = value;
 
   useEffect(() => {
     let active = true;
@@ -21,14 +28,21 @@ export function OrganizationSelector({ value, onChange, allowedOrganizationTypes
           ? items.filter((item) => allowedOrganizationTypes.includes(item.organization_type))
           : items;
         setOrganizations(eligible);
-        if (!value && eligible[0]) onChangeRef.current(eligible[0].id, eligible[0]);
+        if (!valueRef.current && eligible[0]) {
+          const preferredName = preferredOrganizationName?.trim().toLocaleLowerCase("pt");
+          const preferred = preferredName
+            ? eligible.find((item) => item.name.trim().toLocaleLowerCase("pt") === preferredName)
+            : undefined;
+          const initial = preferred ?? eligible[0];
+          onChangeRef.current(initial.id, initial);
+        }
       })
       .catch((reason: unknown) => {
         if (active) setError(reason instanceof Error ? reason.message : "Não foi possível carregar as organizações.");
       })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, []);
+  }, [allowedOrganizationTypes, preferredOrganizationName]);
 
   return (
     <label className="flex min-w-[260px] flex-col gap-1 text-xs font-medium text-slate-500">
