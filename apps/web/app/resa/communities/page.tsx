@@ -24,7 +24,8 @@ export default function CommunitiesPage() {
   useEffect(() => { void load(); }, []);
 
   async function toggle(item: Community) {
-    if (busyRef.current) return;\n    busyRef.current = true;
+    if (busyRef.current) return;
+    busyRef.current = true;
     const joining = item.membership_status !== "active";
     const previous = items;
     setBusyId(item.id);
@@ -42,7 +43,8 @@ export default function CommunitiesPage() {
       setItems(previous);
       setError(e instanceof Error ? e.message : "Não foi possível atualizar a participação.");
     } finally {
-      busyRef.current = false;\n      setBusyId(null);
+      busyRef.current = false;
+      setBusyId(null);
     }
   }
 
