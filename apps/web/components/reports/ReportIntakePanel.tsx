@@ -266,12 +266,16 @@ export default function ReportIntakePanel({
         setSelectedMinistryId(guess.destination.id);
         setClassificationConfidence(guess.confidence);
         setClassificationMethod("RULES");
+        setClassificationReason(guess.ambiguous
+          ? "A correspondência de conteúdo encontrou mais de um departamento próximo; é necessária confirmação."
+          : "Sugestão baseada na correspondência entre o conteúdo reconhecido e os temas do departamento.");
         setNotice(guess.ambiguous
           ? "Leitura concluída, mas existem departamentos próximos. Confirme o destino antes de enviar."
           : "Leitura concluída. O conteúdo sugere " + guess.destination.name + "; confirme antes de enviar.");
       } else {
         setSelectedMinistryId("");
         setClassificationConfidence(0);
+        setClassificationReason("A classificação local não encontrou evidência suficiente para encaminhar automaticamente.");
         setNotice("Texto extraído. Não foi possível identificar um destino com segurança; escolha o departamento manualmente.");
       }
       if (!text) setError("Não foi possível reconhecer texto nesta imagem. Tente outra fotografia com melhor iluminação e foco.");
