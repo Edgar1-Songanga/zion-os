@@ -20,7 +20,7 @@ alter table public.report_intake_documents
   check (
     (operational_data_domain is null and operational_record_id is null and attendance_session_id is null)
     or (operational_data_domain = 'STEWARDSHIP_PERIOD' and operational_record_id is not null and attendance_session_id is null)
-    or (operational_data_domain = 'SABBATH_SCHOOL_ATTENDANCE' and operational_record_id is null and attendance_session_id is not null)
+    or (operational_data_domain = 'SABBATH_SCHOOL_ATTENDANCE' and operational_record_id is null)
   );
 
 create or replace function public.review_report_intake_document(
@@ -82,6 +82,7 @@ begin
   -- teacher can review only a report for their own active class.
   if upper(trim(coalesce(v_document.report_type, ''))) = 'SABBATH_SCHOOL_ATTENDANCE' then
     if jsonb_typeof(v_fields) <> 'object'
+      or coalesce(jsonb_typeof(v_fields->'attendance_records'),'') <> 'array'
       or coalesce(v_fields->>'class_id','') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
       or coalesce(v_fields->>'attendance_date','') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
       or jsonb_typeof(v_fields->'attendance_records') <> 'array'
@@ -199,7 +200,7 @@ begin
       )
       returning id into v_operational_record_id;
     elsif upper(trim(coalesce(v_document.report_type, ''))) = 'SABBATH_SCHOOL_ATTENDANCE' then
-      if v_department <> 'sabbath_school' then
+      if v_department <> 'sabbath-school-personal-ministries' then
         raise exception 'SABBATH_SCHOOL_ATTENDANCE reports must be routed to the Sabbath School department' using errcode = '22023';
       end if;
 
