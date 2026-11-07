@@ -544,6 +544,32 @@ export default function ReportIntakePanel({
           <span><strong>Autorizar análise inteligente remota do texto OCR.</strong> Se ativada, apenas o texto reconhecido e a lista de departamentos serão enviados ao serviço de IA do ZION para classificar o relatório e extrair campos. A fotografia original não é enviada para esta análise. Não ative se o documento contiver informação que não deva ser processada pelo serviço de IA.</span>
         </label>
         <button type="button" onClick={() => void analyzeWithAi()} disabled={!allowAiAnalysis || !ocrText.trim() || aiBusy} className="mt-3 rounded-lg border border-violet-300 bg-white px-4 py-2 text-xs font-semibold text-violet-900 disabled:opacity-40">{aiBusy ? "A analisar conteúdo…" : "Analisar conteúdo com IA"}</button>
+        {reportType.trim().toUpperCase() === "STEWARDSHIP_PERIOD" && (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <p className="sm:col-span-2 text-xs font-semibold text-violet-950">Dados agregados do relatório de Mordomia — confirme os valores antes da aprovação.</p>
+            {[
+              ["period_start", "Início do período", "date"],
+              ["period_end", "Fim do período", "date"],
+              ["activities_count", "Atividades realizadas", "number"],
+              ["programs_completed_count", "Programas concluídos", "number"],
+              ["participants_count", "Participantes (mínimo 5, opcional)", "number"],
+              ["materials_distributed_count", "Materiais distribuídos", "number"],
+            ].map(([key, label, type]) => (
+              <label key={key} className="block text-xs font-medium text-slate-700">
+                {label}
+                <input
+                  type={type}
+                  min={type === "number" ? (key === "participants_count" ? 5 : 0) : undefined}
+                  max={type === "number" ? (key === "materials_distributed_count" || key === "participants_count" ? 100000 : 10000) : undefined}
+                  value={String(extractedFields[key] ?? "")}
+                  onChange={(event) => setExtractedFields((current) => ({ ...current, [key]: event.target.value }))}
+                  className="mt-1 w-full rounded-lg border border-violet-200 bg-white px-3 py-2 text-sm"
+                />
+              </label>
+            ))}
+            <p className="sm:col-span-2 text-[11px] leading-5 text-slate-600">Apenas totais agregados serão enviados ao registo operacional. Não inclua nomes, contactos, dízimos ou ofertas individuais.</p>
+          </div>
+        )}
         {Object.keys(extractedFields).length > 0 && <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {Object.entries(extractedFields).map(([key, value]) => <p key={key} className="rounded-lg bg-white p-2 text-xs text-slate-700"><strong>{key.replace(/_/g, " ")}:</strong> {typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? String(value) : JSON.stringify(value)}</p>)}
         </div>}
