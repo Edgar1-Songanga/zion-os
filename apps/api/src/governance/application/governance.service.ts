@@ -338,26 +338,31 @@ export class GovernanceService {
 
   async startMeeting(token: string, meetingId: string) {
     const a = await this.requireMeetingModerator(token, meetingId);
+    const current = (await this.db.get<any[]>('governance_meetings', token,
+      `?select=id,status& id=eq.${encodeURIComponent(meetingId)}&limit=1`.replace('& id=', '&id=')))[0];
+    if (!current) throw new BadRequestException('Meeting was not found');
+    if (current.status === 'ENDED') throw new BadRequestException('An ended meeting cannot be restarted');
+    if (current.status === 'LIVE') return current;
+    await this.openRoom(token, meetingId);
     const rows = await this.db.patch<any[]>('governance_meetings', token, {
       status: 'LIVE',
       started_at: new Date().toISOString(),
       host_user_id: a.id,
-    }, `?id=eq.${meetingId}`);
+    }, `?id=eq.${encodeURIComponent(meetingId)}`);
     const row = rows[0];
     if (!row) throw new BadRequestException('Meeting was not started');
-    await this.openRoom(token, meetingId);
     return row;
   }
 
   async endMeeting(token: string, meetingId: string) {
     await this.requireMeetingModerator(token, meetingId);
+    await this.closeRoom(token, meetingId);
     const rows = await this.db.patch<any[]>('governance_meetings', token, {
       status: 'ENDED',
       ended_at: new Date().toISOString(),
-    }, `?id=eq.${meetingId}`);
+    }, `?id=eq.${encodeURIComponent(meetingId)}`);
     const row = rows[0];
     if (!row) throw new BadRequestException('Meeting was not ended');
-    await this.closeRoom(token, meetingId);
     return row;
   }
 
