@@ -133,6 +133,8 @@ export default function ReportIntakePanel({
   const [classificationMethod, setClassificationMethod] = useState<"RULES" | "QR" | "MANUAL" | "AI">("RULES");
   const [classificationReason, setClassificationReason] = useState("");
   const [extractedFields, setExtractedFields] = useState<Record<string, unknown>>({});
+  const [documentDate, setDocumentDate] = useState("");
+  const [reportType, setReportType] = useState("");
   const [allowAiAnalysis, setAllowAiAnalysis] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
   const [qrPayload, setQrPayload] = useState("");
@@ -314,7 +316,7 @@ export default function ReportIntakePanel({
       ].join("\n\n");
       const response = await resaRequest<{ content?: string }>("/v1/ai/chat", {
         method: "POST",
-        body: JSON.stringify({ organizationId, prompt }),
+        body: JSON.stringify({ organizationId, prompt: prompt.slice(0, 11900) }),
       });
       const raw = response.content ?? "";
       const json = raw.match(/\{[\s\S]*\}/)?.[0];
@@ -347,6 +349,8 @@ export default function ReportIntakePanel({
         ? Object.fromEntries(Object.entries(parsed.extracted_fields).slice(0, 30))
         : {};
       setExtractedFields(fields);
+      setDocumentDate(/^\\d{4}-\\d{2}-\\d{2}$/.test(parsed.document_date ?? "") ? parsed.document_date! : "");
+      setReportType(String(parsed.report_type ?? "").slice(0, 100));
       if (parsed.document_title?.trim()) setTitle(parsed.document_title.trim().slice(0, 240));
       setNotice("Análise inteligente concluída. A IA sugere " + destination.name + "; reveja os campos antes de enviar.");
     } catch (cause) {
@@ -391,6 +395,8 @@ export default function ReportIntakePanel({
         classification_method: classificationMethod,
         classification_reason: classificationReason.slice(0, 1000) || null,
         extracted_fields: extractedFields,
+        document_date: documentDate || null,
+        report_type: reportType.trim().slice(0, 100) || null,
         submitted_by: authData.user.id,
       });
       if (insertError) throw new Error("O documento foi carregado, mas não foi registado: " + insertError.message);
@@ -403,6 +409,8 @@ export default function ReportIntakePanel({
       setClassificationMethod("RULES");
       setClassificationReason("");
       setExtractedFields({});
+      setDocumentDate("");
+      setReportType("");
       setQrPayload("");
       setNotice("Relatório enviado para revisão de " + selectedDestination.name + ". O original ficou guardado em armazenamento privado.");
       await refreshRecent();
@@ -514,9 +522,17 @@ export default function ReportIntakePanel({
       </div>
 
       <div className="grid gap-3 md:grid-cols-[1fr_2fr]">
-        <label className="block text-sm font-semibold text-slate-700">Título do relatório
-          <input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={240} placeholder="Título identificado ou introduza um" className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
-        </label>
+        <div className="space-y-3">
+          <label className="block text-sm font-semibold text-slate-700">Título do relatório
+            <input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={240} placeholder="Título identificado ou introduza um" className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+          </label>
+          <label className="block text-sm font-semibold text-slate-700">Tipo de relatório
+            <input value={reportType} onChange={(event) => setReportType(event.target.value)} maxLength={100} placeholder="Ex.: relatório mensal, atividade, inventário" className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+          </label>
+          <label className="block text-sm font-semibold text-slate-700">Data do documento
+            <input type="date" value={documentDate} onChange={(event) => setDocumentDate(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+          </label>
+        </div>
         <label className="block text-sm font-semibold text-slate-700">Texto extraído — confirme e corrija
           <textarea value={ocrText} onChange={(event) => setOcrText(event.target.value)} rows={5} maxLength={100000} placeholder="O texto reconhecido aparecerá aqui. Pode corrigir erros antes de enviar." className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm leading-6" />
         </label>
