@@ -84,6 +84,7 @@ export class LiveKitMeetingSession {
         });
       }
     } catch (error) {
+      this.mediaTracks = [];
       for (const track of tracks) {
         try { await this.room.localParticipant.unpublishTrack(track, false); } catch { /* Partial publication cleanup. */ }
         track.stop();
