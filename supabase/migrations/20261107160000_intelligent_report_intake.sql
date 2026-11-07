@@ -71,32 +71,6 @@ with check (
 );
 
 drop policy if exists report_intake_review_scoped on public.report_intake_documents;
-create policy report_intake_review_scoped on public.report_intake_documents
-for update to authenticated
-using (
-  private.has_org_permission(organization_id, 'organization.manage')
-  or (
-    ministry_id is not null
-    and exists (
-      select 1 from public.ministry_leaders l
-      where l.ministry_id = report_intake_documents.ministry_id
-        and l.user_id = (select auth.uid())
-        and l.verified = true
-    )
-  )
-)
-with check (
-  private.has_org_permission(organization_id, 'organization.manage')
-  or (
-    ministry_id is not null
-    and exists (
-      select 1 from public.ministry_leaders l
-      where l.ministry_id = report_intake_documents.ministry_id
-        and l.user_id = (select auth.uid())
-        and l.verified = true
-    )
-  )
-);
 
 -- Documents are stored privately under organization/ministry/uploader/object.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
@@ -121,14 +95,110 @@ using (
   and (
     (storage.foldername(name))[3] = (select auth.uid())::text
     or private.has_org_permission(((storage.foldername(name))[1])::uuid, 'organization.manage')
+    or exists (
+      select 1 from public.ministry_leaders l
+      where l.ministry_id = case
+        when (storage.foldername(name))[2] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}
+  )
+);
+
+drop policy if exists report_intake_storage_delete_own on storage.objects;
+create policy report_intake_storage_delete_own on storage.objects
+for delete to authenticated
+using (
+  bucket_id = 'report-intake-private'
+  and (storage.foldername(name))[3] = (select auth.uid())::text
+);
+
+-- The document is only linked to the department's official report register
+-- after an authorized reviewer approves it.
+create or replace function public.review_report_intake_document(
+  p_document_id uuid,
+  p_decision text,
+  p_review_notes text default null
+)
+returns public.report_intake_documents
+language plpgsql
+security definer
+set search_path = public, private
+as $$
+declare
+  v_document public.report_intake_documents;
+  v_report_id uuid;
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication required' using errcode = '42501';
+  end if;
+  if p_decision not in ('APPROVED','REJECTED') then
+    raise exception 'Decision must be APPROVED or REJECTED' using errcode = '22023';
+  end if;
+  if p_review_notes is not null and length(p_review_notes) > 4000 then
+    raise exception 'Review notes are too long' using errcode = '22023';
+  end if;
+
+  select * into v_document
+  from public.report_intake_documents
+  where id = p_document_id
+  for update;
+
+  if not found then
+    raise exception 'Report intake document not found' using errcode = 'P0002';
+  end if;
+  if v_document.status <> 'PENDING_REVIEW' then
+    raise exception 'Only pending documents can be reviewed' using errcode = '55000';
+  end if;
+
+  if not (
+    private.has_org_permission(v_document.organization_id, 'organization.manage')
     or (
-      (storage.foldername(name))[2] <> '_unassigned'
+      v_document.ministry_id is not null
       and exists (
         select 1 from public.ministry_leaders l
-        where l.ministry_id = ((storage.foldername(name))[2])::uuid
-          and l.user_id = (select auth.uid())
+        where l.ministry_id = v_document.ministry_id
+          and l.user_id = auth.uid()
           and l.verified = true
       )
+    )
+  ) then
+    raise exception 'Department reviewer permission required' using errcode = '42501';
+  end if;
+
+  if p_decision = 'APPROVED' then
+    if v_document.ministry_id is null or not exists (
+      select 1 from public.ministries m
+      where m.id = v_document.ministry_id
+        and m.organization_id = v_document.organization_id
+    ) then
+      raise exception 'A valid department destination is required before approval' using errcode = '22023';
+    end if;
+    insert into public.ministry_reports (ministry_id, title, status, submitted_by)
+    values (v_document.ministry_id, v_document.title, 'APPROVED', v_document.submitted_by)
+    returning id into v_report_id;
+  end if;
+
+  update public.report_intake_documents
+  set status = p_decision,
+      reviewed_by = auth.uid(),
+      reviewed_at = now(),
+      review_notes = nullif(trim(coalesce(p_review_notes, '')), ''),
+      ministry_report_id = coalesce(v_report_id, ministry_report_id),
+      updated_at = now()
+  where id = p_document_id
+  returning * into v_document;
+
+  return v_document;
+end;
+$$;
+
+grant execute on function public.review_report_intake_document(uuid,text,text) to authenticated;
+
+commit;
+
+        then ((storage.foldername(name))[2])::uuid
+        else null
+      end
+        and l.user_id = (select auth.uid())
+        and l.verified = true
     )
   )
 );
