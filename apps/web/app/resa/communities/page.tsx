@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
 
 type Community = {
@@ -13,6 +13,7 @@ export default function CommunitiesPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const busyRef = useRef(false);
 
   async function load() {
     setLoading(true); setError(null);
@@ -23,15 +24,28 @@ export default function CommunitiesPage() {
   useEffect(() => { void load(); }, []);
 
   async function toggle(item: Community) {
-    setBusyId(item.id); setError(null);
+    if (busyRef.current) return;
+    busyRef.current = true;
+    const joining = item.membership_status !== "active";
+    const previous = items;
+    setBusyId(item.id);
+    setError(null);
+    // Update the button immediately; roll back only if the server rejects it.
+    setItems((current) => current.map((community) => community.id === item.id
+      ? { ...community, membership_status: joining ? "active" : "left" }
+      : community));
     try {
-      const path = item.membership_status === "active"
-        ? `/v1/resa/communities/${item.id}/leave`
-        : `/v1/resa/communities/${item.id}/join`;
+      const path = joining
+        ? `/v1/resa/communities/${item.id}/join`
+        : `/v1/resa/communities/${item.id}/leave`;
       await resaRequest(path, { method: "POST" });
-      await load();
-    } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível atualizar a participação."); }
-    finally { setBusyId(null); }
+    } catch (e) {
+      setItems(previous);
+      setError(e instanceof Error ? e.message : "Não foi possível atualizar a participação.");
+    } finally {
+      busyRef.current = false;
+      setBusyId(null);
+    }
   }
 
   return (
@@ -56,7 +70,7 @@ export default function CommunitiesPage() {
               <p className="mt-4 min-h-12 text-sm leading-6 text-slate-600">{item.description || "Espaço comunitário da rede RESA."}</p>
               <div className="mt-6 flex items-center justify-between gap-3">
                 <span className="text-xs text-slate-400">{item.membership_role ? `Função · ${item.membership_role}` : "Participação aberta"}</span>
-                <button disabled={busyId === item.id} onClick={() => void toggle(item)} className="rounded-xl bg-[#0C1A3D] px-4 py-2.5 text-sm font-semibold text-white transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-60">
+                <button disabled={busyId !== null} onClick={() => void toggle(item)} className="rounded-xl bg-[#0C1A3D] px-4 py-2.5 text-sm font-semibold text-white transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-60">
                   {busyId === item.id ? "A atualizar…" : item.membership_status === "active" ? "Sair" : "Entrar"}
                 </button>
               </div>

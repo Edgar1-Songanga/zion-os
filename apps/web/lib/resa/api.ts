@@ -1,15 +1,32 @@
 import { createClient } from "@/lib/supabase/client";
 
-async function getAccessToken() {
+type AccessContext = Awaited<ReturnType<typeof readAccessContext>>;
+let accessContextInFlight: Promise<AccessContext> | null = null;
+
+async function readAccessContext() {
   const supabase = createClient();
   const { data, error } = await supabase.auth.getSession();
 
   if (error) throw new Error("Não foi possível validar a sessão RESA.");
 
-  let session = data.session;
+  const session = data.session;
   if (!session?.access_token) throw new Error("Sessão ZION não encontrada.");
 
   return { supabase, session };
+}
+
+async function getAccessContext(): Promise<AccessContext> {
+  // RESA opens several independent panels at once. Share the session lookup
+  // while it is in flight instead of making every panel read auth storage again.
+  if (!accessContextInFlight) {
+    accessContextInFlight = readAccessContext();
+  }
+  const current = accessContextInFlight;
+  try {
+    return await current;
+  } finally {
+    if (accessContextInFlight === current) accessContextInFlight = null;
+  }
 }
 
 export async function resaRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -30,12 +47,10 @@ export async function resaRequest<T>(path: string, init: RequestInit = {}): Prom
     }
   };
 
-  const { supabase, session } = await getAccessToken();
+  const { supabase, session } = await getAccessContext();
   let response = await request(session.access_token);
 
-  // A sessão pode ter sido renovada no SSR/Proxy enquanto o cliente
-  // ainda possui um access token antigo. Renova uma única vez e repete
-  // a operação para evitar falhas transitórias de autenticação.
+  // Refresh and retry once only when the server rejects the current token.
   if (response.status === 401) {
     const { data, error } = await supabase.auth.refreshSession();
     if (!error && data.session?.access_token) {
