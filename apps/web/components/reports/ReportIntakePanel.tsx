@@ -455,7 +455,7 @@ export default function ReportIntakePanel({
         const classId = String(extractedFields.class_id ?? "").trim();
         const attendanceDate = String(extractedFields.attendance_date ?? "").trim();
         if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(classId)) throw new Error("Selecione ou indique uma turma válida da Escola Sabatina.");
-        if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(attendanceDate)) throw new Error("Indique a data da presença no formato correto.");
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(attendanceDate)) throw new Error("Indique a data da presença no formato correto.");
         let parsedAttendance: unknown;
         try { parsedAttendance = JSON.parse(attendanceJson); } catch { throw new Error("A lista de presenças não contém JSON válido."); }
         if (!Array.isArray(parsedAttendance) || parsedAttendance.length < 1 || parsedAttendance.length > 1000) throw new Error("A lista deve conter entre 1 e 1000 membros.");
