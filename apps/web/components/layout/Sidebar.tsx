@@ -17,6 +17,7 @@ const nestedActiveRoutes = new Set([
   "/reports",
   "/ministry",
   "/youth",
+  "/resa",
 ]);
 
 function NavIcon({ index }: { index: number }) {
