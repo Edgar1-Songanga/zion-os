@@ -54,7 +54,7 @@ export class WebRtcSession {
 
   async startScreenShare(): Promise<void> {
     if (this.screenStream) return;
-    const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
     const track = stream.getVideoTracks()[0];
     if (!track) throw new Error("No screen video track was provided.");
 

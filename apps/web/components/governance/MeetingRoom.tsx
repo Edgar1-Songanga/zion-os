@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Track } from "livekit-client";
 import { createClient } from "@/lib/supabase/client";
 import { createMeetingRealtime } from "@/lib/governance/meeting-realtime";
 import { getMeetingIceConfig } from "@/lib/governance/ice";
@@ -24,6 +25,8 @@ export default function MeetingRoom({ meetingId }: Props) {
   const sessionRef = useRef<MeetingSession | null>(null);
   const realtimeRef = useRef<Awaited<ReturnType<typeof createMeetingRealtime>> | null>(null);
   const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
+  const [remoteScreenStreams, setRemoteScreenStreams] = useState<Record<string, MediaStream>>({});
+  const [remoteScreenSharing, setRemoteScreenSharing] = useState<Record<string, boolean>>({});
   const [mic, setMic] = useState(true);
   const [camera, setCamera] = useState(true);
   const [sharing, setSharing] = useState(false);
@@ -55,11 +58,29 @@ export default function MeetingRoom({ meetingId }: Props) {
         const media = await getMeetingMediaJoinConfig(meetingId);
         let meetingSession: MeetingSession;
         if (media.mode === "SFU") {
+          const updateTrack = (peerId: string, track: MediaStreamTrack, source: Track.Source, subscribed: boolean) => {
+            const isScreen = source === Track.Source.ScreenShare || source === Track.Source.ScreenShareAudio;
+            const setter = isScreen ? setRemoteScreenStreams : setRemoteStreams;
+            setter((current) => {
+              const nextStream = current[peerId] ?? new MediaStream();
+              if (subscribed) {
+                if (!nextStream.getTracks().some((item) => item.id === track.id)) nextStream.addTrack(track);
+              } else {
+                nextStream.removeTrack(track);
+              }
+              const next = { ...current };
+              if (nextStream.getTracks().length) next[peerId] = nextStream;
+              else delete next[peerId];
+              return next;
+            });
+          };
           const livekit = new LiveKitMeetingSession({
-            onRemoteStream: (peerId, stream) => setRemoteStreams((current) => ({ ...current, [peerId]: stream })),
-            onPeerLeft: (peerId) => setRemoteStreams((current) => {
-              const next = { ...current }; delete next[peerId]; return next;
-            }),
+            onRemoteTrack: updateTrack,
+            onPeerLeft: (peerId) => {
+              setRemoteStreams((current) => { const next = { ...current }; delete next[peerId]; return next; });
+              setRemoteScreenStreams((current) => { const next = { ...current }; delete next[peerId]; return next; });
+            },
+            onLocalScreenShareChange: (enabled) => setSharing(enabled),
             onConnectionStateChange: (state) => setStatus(`Ligação: ${state}`),
           });
           if (!media.joinUrl || !media.token) throw new Error("Configuração SFU incompleta.");
@@ -77,6 +98,7 @@ export default function MeetingRoom({ meetingId }: Props) {
             }),
             onConnectionStateChange: (_peerId, state) => setStatus(`Ligação: ${state}`),
             onScreenShareChange: (peerId, enabled) => {
+              setRemoteScreenSharing((current) => ({ ...current, [peerId]: enabled }));
               setStatus(enabled ? `Participante ${peerId.slice(0, 8)} está a partilhar o ecrã` : "Partilha de ecrã terminada");
             },
           });
@@ -188,10 +210,13 @@ export default function MeetingRoom({ meetingId }: Props) {
           <div className="relative aspect-video overflow-hidden rounded-2xl border border-white/10 bg-slate-900 shadow-2xl">
             <video ref={localVideo} autoPlay muted playsInline className="h-full w-full object-cover" />
             <span className="absolute bottom-3 left-3 rounded-lg bg-black/60 px-2.5 py-1 text-xs">Você</span>
-            {sharing && <span className="absolute right-3 top-3 rounded-lg bg-indigo-500/80 px-2.5 py-1 text-xs">A partilhar ecrã</span>}
+            {sharing && <span className="absolute right-3 top-3 rounded-lg bg-indigo-500/80 px-2.5 py-1 text-xs">A partilhar apresentação/ecrã</span>}
           </div>
+          {Object.entries(remoteScreenStreams).map(([peerId, stream]) => (
+            <RemoteVideo key={peerId + "-screen"} peerId={peerId} stream={stream} label="Apresentação partilhada" presentation />
+          ))}
           {Object.entries(remoteStreams).map(([peerId, stream]) => (
-            <RemoteVideo key={peerId} peerId={peerId} stream={stream} onRef={(node) => {
+            <RemoteVideo key={peerId} peerId={peerId} stream={stream} label={remoteScreenSharing[peerId] ? "A partilhar ecrã" : undefined} onRef={(node) => {
               if (node) { node.srcObject = stream; remoteVideos.current.set(peerId, node); }
               else remoteVideos.current.delete(peerId);
             }} />
@@ -206,9 +231,22 @@ export default function MeetingRoom({ meetingId }: Props) {
             {camera ? "Câmara ligada" : "Câmara desligada"}
           </button>
           <button onClick={() => void toggleScreenShare()} className="rounded-xl border border-white/10 bg-white/10 px-5 py-3 text-sm hover:bg-white/15">
-            {sharing ? "Parar partilha" : "Partilhar ecrã"}
+            {sharing ? "Parar partilha" : "Partilhar apresentação/ecrã"}
           </button>
         </div>
+
+        <section className="rounded-2xl border border-indigo-300/20 bg-indigo-400/[0.06] p-4">
+          <h2 className="text-sm font-semibold text-indigo-100">Apresentações e conteúdos</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-300">
+            Para apresentar PowerPoint, PDF, Google Slides ou Canva, abre o conteúdo noutra janela ou separador,
+            inicia a apresentação e escolhe essa janela/separador no seletor de partilha do navegador.
+            Quando disponível, ativa também a partilha de áudio do separador para incluir vídeos e som.
+          </p>
+          <p className="mt-2 text-xs leading-5 text-slate-500">
+            A disponibilidade da partilha de ecrã e do áudio depende do navegador, do sistema operativo e das permissões do dispositivo.
+            Em telemóveis, algumas opções podem não estar disponíveis; para apresentações longas, recomenda-se computador.
+          </p>
+        </section>
 
         {isModerator && (
           <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -238,11 +276,15 @@ export default function MeetingRoom({ meetingId }: Props) {
   );
 }
 
-function RemoteVideo({ peerId, stream, onRef }: { peerId: string; stream: MediaStream; onRef: (node: HTMLVideoElement | null) => void }) {
+function RemoteVideo({ peerId, stream, onRef, label, presentation = false }: { peerId: string; stream: MediaStream; onRef?: (node: HTMLVideoElement | null) => void; label?: string; presentation?: boolean }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.srcObject = stream;
+  }, [stream]);
   return (
-    <div className="relative aspect-video overflow-hidden rounded-2xl border border-white/10 bg-slate-900">
-      <video ref={onRef} autoPlay playsInline className="h-full w-full object-cover" />
-      <span className="absolute bottom-3 left-3 rounded-lg bg-black/60 px-2.5 py-1 text-xs">{peerId.slice(0, 8)}</span>
+    <div className={"relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900 " + (presentation ? "col-span-full aspect-video xl:col-span-2" : "aspect-video")}>
+      <video ref={(node) => { videoRef.current = node; onRef?.(node); }} autoPlay playsInline className={"h-full w-full " + (presentation ? "object-contain" : "object-cover")} />
+      <span className="absolute bottom-3 left-3 rounded-lg bg-black/70 px-2.5 py-1 text-xs">{label || ("Participante " + peerId.slice(0, 8))}</span>
     </div>
   );
 }

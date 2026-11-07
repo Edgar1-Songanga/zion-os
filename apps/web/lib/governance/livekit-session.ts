@@ -2,24 +2,33 @@ import { Room, RoomEvent, Track } from 'livekit-client';
 
 export class LiveKitMeetingSession {
   private readonly room = new Room();
-  private readonly onRemoteStream: (peerId: string, stream: MediaStream) => void;
+  private readonly onRemoteTrack: (peerId: string, track: MediaStreamTrack, source: Track.Source, subscribed: boolean) => void;
   private readonly onPeerLeft: (peerId: string) => void;
 
   constructor(input: {
-    onRemoteStream: (peerId: string, stream: MediaStream) => void;
+    onRemoteTrack: (peerId: string, track: MediaStreamTrack, source: Track.Source, subscribed: boolean) => void;
     onPeerLeft: (peerId: string) => void;
     onConnectionStateChange?: (state: string) => void;
+    onLocalScreenShareChange?: (enabled: boolean) => void;
   }) {
-    this.onRemoteStream = input.onRemoteStream;
+    this.onRemoteTrack = input.onRemoteTrack;
     this.onPeerLeft = input.onPeerLeft;
     this.room
-      .on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
+      .on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
         if (track.kind === Track.Kind.Audio || track.kind === Track.Kind.Video) {
-          this.onRemoteStream(participant.identity, new MediaStream([track.mediaStreamTrack]));
+          this.onRemoteTrack(participant.identity, track.mediaStreamTrack, publication.source, true);
         }
       })
-      .on(RoomEvent.TrackUnsubscribed, (_track, _publication, participant) => this.onPeerLeft(participant.identity))
+      .on(RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
+        this.onRemoteTrack(participant.identity, track.mediaStreamTrack, publication.source, false);
+      })
       .on(RoomEvent.ParticipantDisconnected, (participant) => this.onPeerLeft(participant.identity))
+      .on(RoomEvent.LocalTrackPublished, (publication) => {
+        if (publication.source === Track.Source.ScreenShare) input.onLocalScreenShareChange?.(true);
+      })
+      .on(RoomEvent.LocalTrackUnpublished, (publication) => {
+        if (publication.source === Track.Source.ScreenShare) input.onLocalScreenShareChange?.(false);
+      })
       .on(RoomEvent.ConnectionStateChanged, (state) => input.onConnectionStateChange?.(String(state)));
   }
 
@@ -45,7 +54,7 @@ export class LiveKitMeetingSession {
   }
 
   async startScreenShare() {
-    await this.room.localParticipant.setScreenShareEnabled(true);
+    await this.room.localParticipant.setScreenShareEnabled(true, { audio: true });
   }
 
   async stopScreenShare() {
