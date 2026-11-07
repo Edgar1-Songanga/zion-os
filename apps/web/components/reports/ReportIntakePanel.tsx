@@ -92,6 +92,10 @@ function parseQrPayload(value: string) {
       organizationId: String(parsed.organization_id ?? parsed.organizationId ?? ""),
       ministryId: String(parsed.ministry_id ?? parsed.ministryId ?? ""),
       department: String(parsed.department ?? ""),
+      title: String(parsed.title ?? parsed.report_title ?? ""),
+      reportType: String(parsed.report_type ?? parsed.reportType ?? ""),
+      documentDate: String(parsed.document_date ?? parsed.documentDate ?? ""),
+      fields: parsed.fields && typeof parsed.fields === "object" && !Array.isArray(parsed.fields) ? parsed.fields as Record<string, unknown> : {},
     };
   } catch {
     // QR may be a URL or a short ZION routing token.
@@ -102,6 +106,10 @@ function parseQrPayload(value: string) {
       organizationId: url.searchParams.get("organization_id") ?? url.searchParams.get("organizationId") ?? "",
       ministryId: url.searchParams.get("ministry_id") ?? url.searchParams.get("ministryId") ?? "",
       department: url.searchParams.get("department") ?? "",
+      title: url.searchParams.get("title") ?? "",
+      reportType: url.searchParams.get("report_type") ?? "",
+      documentDate: url.searchParams.get("document_date") ?? "",
+      fields: {},
     };
   } catch {
     const match = raw.match(/^zion-report:([0-9a-f-]{36})$/i);
@@ -206,7 +214,16 @@ export default function ReportIntakePanel({
     setSelectedMinistryId(destination.id);
     setClassificationConfidence(1);
     setClassificationMethod("QR");
-    setClassificationReason("Departamento identificado através da referência QR validada.");
+    setClassificationReason("Departamento e referência identificados através do QR validado.");
+    if (parsed.title.trim()) setTitle(parsed.title.trim().slice(0, 240));
+    if (parsed.reportType.trim()) setReportType(parsed.reportType.trim().slice(0, 100));
+    if (/^\\d{4}-\\d{2}-\\d{2}$/.test(parsed.documentDate)) setDocumentDate(parsed.documentDate);
+    if (Object.keys(parsed.fields).length) {
+      setExtractedFields(Object.fromEntries(Object.entries(parsed.fields).slice(0, 30).map(([key, fieldValue]) => [
+        key.slice(0, 80),
+        typeof fieldValue === "string" ? fieldValue.slice(0, 1000) : typeof fieldValue === "number" || typeof fieldValue === "boolean" || fieldValue === null ? fieldValue : JSON.stringify(fieldValue).slice(0, 1000),
+      ])));
+    }
     setQrPayload(value.slice(0, 2048));
     setNotice("QR reconhecido. O relatório será encaminhado para " + destination.name + ".");
     setError(null);
