@@ -215,7 +215,7 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
     const target = incoming;
     if (!target) return;
     try {
-      setError(null);
+      setError(null); setConnectionFailed(false);
       callRef.current = target; setCall(target);
       await joinMedia(target, target.kind);
       if (!userId.current) throw new Error("Sessão ZION não encontrada.");
