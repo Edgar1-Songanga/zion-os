@@ -27,10 +27,6 @@ export default function MeetingRoom({ meetingId }: Props) {
   const mediaVideo = useRef<HTMLVideoElement>(null);
   const mediaAudio = useRef<HTMLAudioElement>(null);
   const mediaObjectUrl = useRef<string | null>(null);
-  const micState = useRef(mic);
-  const cameraState = useRef(camera);
-  micState.current = mic;
-  cameraState.current = camera;
   const endedHandled = useRef(false);
   const remoteVideos = useRef(new Map<string, HTMLVideoElement>());
   const sessionRef = useRef<MeetingSession | null>(null);
@@ -55,6 +51,10 @@ export default function MeetingRoom({ meetingId }: Props) {
   const [mediaBusy, setMediaBusy] = useState(false);
   const [meetingActionBusy, setMeetingActionBusy] = useState(false);
   const [meetingNotice, setMeetingNotice] = useState<string | null>(null);
+  const micState = useRef(mic);
+  const cameraState = useRef(camera);
+  micState.current = mic;
+  cameraState.current = camera;
 
   const supabase = useMemo(() => createClient(), []);
 
