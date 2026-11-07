@@ -53,14 +53,15 @@ export function playNotificationAlert(type: string, preferences: NotificationAle
           const oscillator = audio.createOscillator();
           const gain = audio.createGain();
           oscillator.type = 'sine';
-          oscillator.frequency.value = type.includes('call') ? 880 : 660;
+          oscillator.frequency.setValueAtTime(type.includes('call') ? 480 : 560, audio.currentTime);
+          oscillator.frequency.setValueAtTime(type.includes('call') ? 580 : 680, audio.currentTime + 0.09);
           gain.gain.setValueAtTime(0.0001, audio.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.12, audio.currentTime + 0.025);
-          gain.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + 0.24);
+          gain.gain.exponentialRampToValueAtTime(0.035, audio.currentTime + 0.035);
+          gain.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + 0.22);
           oscillator.connect(gain);
           gain.connect(audio.destination);
           oscillator.start();
-          oscillator.stop(audio.currentTime + 0.25);
+          oscillator.stop(audio.currentTime + 0.23);
         } catch { /* Browser audio policy may require prior user interaction. */ }
       };
       if (audio.state === 'suspended') {
@@ -73,11 +74,11 @@ export function playNotificationAlert(type: string, preferences: NotificationAle
   };
   const vibrate = () => {
     if (stopped || settings.vibration_enabled === false || typeof navigator === 'undefined') return;
-    try { if ('vibrate' in navigator) navigator.vibrate(type.includes('call') ? [400, 120, 400, 120, 700] : [180, 80, 180]); } catch { /* Device support is optional. */ }
+    try { if ('vibrate' in navigator) navigator.vibrate(type.includes('call') ? [160, 120, 160] : [60]); } catch { /* Device support is optional. */ }
   };
   const alertOnce = () => { beep(); vibrate(); };
   alertOnce();
-  if (repeat && typeof window !== 'undefined') timer = window.setInterval(alertOnce, 1800);
+  if (repeat && typeof window !== 'undefined') timer = window.setInterval(alertOnce, 3500);
   return () => {
     stopped = true;
     if (timer !== undefined && typeof window !== 'undefined') window.clearInterval(timer);
