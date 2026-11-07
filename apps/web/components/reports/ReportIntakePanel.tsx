@@ -418,6 +418,7 @@ export default function ReportIntakePanel({
       setExtractedFields({});
       setDocumentDate("");
       setReportType("");
+      setAllowAiAnalysis(false);
       setQrPayload("");
       setNotice("Relatório enviado para revisão de " + selectedDestination.name + ". O original ficou guardado em armazenamento privado.");
       await refreshRecent();
@@ -480,6 +481,7 @@ export default function ReportIntakePanel({
                 return;
               }
               setFile(selected);
+              setAllowAiAnalysis(false);
               setOcrText("");
               setOcrConfidence(null);
               setError(null);
