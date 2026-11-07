@@ -49,3 +49,26 @@ export type MeetingMediaJoinConfig = {
 export function getMeetingMediaJoinConfig(meetingId: string) {
   return request<MeetingMediaJoinConfig>(meetingId, "media/join-config");
 }
+
+export type MeetingRoomState = { status: "READY" | "OPEN" | "CLOSED"; locked?: boolean };
+export type MeetingLifecycle = { meeting: { id: string; title: string; status: string; scheduled_at?: string } };
+
+export function getMeetingRoom(meetingId: string) {
+  return request<MeetingRoomState>(meetingId, "room");
+}
+
+export function openMeetingRoom(meetingId: string) {
+  return request(meetingId, "room/open", { method: "POST" });
+}
+
+export function startMeeting(meetingId: string) {
+  return request<MeetingLifecycle["meeting"]>(meetingId, "start", { method: "POST" });
+}
+
+export function endMeeting(meetingId: string) {
+  return request<MeetingLifecycle["meeting"]>(meetingId, "end", { method: "POST" });
+}
+
+export function getMeetingLifecycle(meetingId: string) {
+  return request<MeetingLifecycle>(meetingId, "assistant");
+}

@@ -2,6 +2,7 @@ import { Room, RoomEvent, Track } from 'livekit-client';
 
 export class LiveKitMeetingSession {
   private readonly room = new Room();
+  private mediaTracks: MediaStreamTrack[] = [];
   private readonly onRemoteTrack: (peerId: string, track: MediaStreamTrack, source: Track.Source, subscribed: boolean) => void;
   private readonly onPeerLeft: (peerId: string) => void;
 
@@ -24,10 +25,12 @@ export class LiveKitMeetingSession {
       })
       .on(RoomEvent.ParticipantDisconnected, (participant) => this.onPeerLeft(participant.identity))
       .on(RoomEvent.LocalTrackPublished, (publication) => {
-        if (publication.source === Track.Source.ScreenShare) input.onLocalScreenShareChange?.(true);
+        const isLobbyMedia = Boolean(publication.track && this.mediaTracks.includes(publication.track.mediaStreamTrack));
+        if (publication.source === Track.Source.ScreenShare && !isLobbyMedia) input.onLocalScreenShareChange?.(true);
       })
       .on(RoomEvent.LocalTrackUnpublished, (publication) => {
-        if (publication.source === Track.Source.ScreenShare) input.onLocalScreenShareChange?.(false);
+        const isLobbyMedia = Boolean(publication.track && this.mediaTracks.includes(publication.track.mediaStreamTrack));
+        if (publication.source === Track.Source.ScreenShare && !isLobbyMedia) input.onLocalScreenShareChange?.(false);
       })
       .on(RoomEvent.ConnectionStateChanged, (state) => input.onConnectionStateChange?.(String(state)));
   }
@@ -37,20 +40,23 @@ export class LiveKitMeetingSession {
   }
 
   async startLocalMedia(): Promise<MediaStream> {
-    await this.room.localParticipant.setMicrophoneEnabled(true);
-    await this.room.localParticipant.setCameraEnabled(true);
+    // Join the waiting room without requesting microphone or camera permissions.
+    return this.getLocalStream();
+  }
+
+  async setAudioEnabled(enabled: boolean) {
+    await this.room.localParticipant.setMicrophoneEnabled(enabled);
+  }
+
+  async setVideoEnabled(enabled: boolean) {
+    await this.room.localParticipant.setCameraEnabled(enabled);
+  }
+
+  getLocalStream(): MediaStream {
     const tracks = Array.from(this.room.localParticipant.trackPublications.values())
       .map((publication) => publication.track?.mediaStreamTrack)
       .filter((track): track is MediaStreamTrack => Boolean(track));
     return new MediaStream(tracks);
-  }
-
-  setAudioEnabled(enabled: boolean) {
-    void this.room.localParticipant.setMicrophoneEnabled(enabled);
-  }
-
-  setVideoEnabled(enabled: boolean) {
-    void this.room.localParticipant.setCameraEnabled(enabled);
   }
 
   async startScreenShare() {
@@ -61,7 +67,43 @@ export class LiveKitMeetingSession {
     await this.room.localParticipant.setScreenShareEnabled(false);
   }
 
+  async startMediaBroadcast(element: HTMLMediaElement) {
+    if (this.mediaTracks.length) throw new Error("Já existe um conteúdo multimédia em transmissão.");
+    await element.play();
+    const capturable = element as HTMLMediaElement & { captureStream?: () => MediaStream; mozCaptureStream?: () => MediaStream };
+    const stream = capturable.captureStream?.() ?? capturable.mozCaptureStream?.();
+    if (!stream) throw new Error("Este navegador não permite capturar o leitor. Use a partilha de separador/ecrã com áudio.");
+    const tracks = stream.getTracks().filter((track) => track.readyState === "live");
+    if (!tracks.length) throw new Error("O leitor ainda não disponibilizou faixas de áudio/vídeo.");
+    this.mediaTracks = tracks;
+    try {
+      for (const track of tracks) {
+        await this.room.localParticipant.publishTrack(track, {
+          name: "zion-meeting-lobby-" + track.kind,
+          source: track.kind === "video" ? Track.Source.ScreenShare : Track.Source.ScreenShareAudio,
+        });
+      }
+    } catch (error) {
+      this.mediaTracks = [];
+      for (const track of tracks) {
+        try { await this.room.localParticipant.unpublishTrack(track, false); } catch { /* Partial publication cleanup. */ }
+        track.stop();
+      }
+      throw error;
+    }
+  }
+
+  async stopMediaBroadcast() {
+    const tracks = this.mediaTracks;
+    this.mediaTracks = [];
+    for (const track of tracks) {
+      try { await this.room.localParticipant.unpublishTrack(track, false); } catch { /* Track may already be unpublished. */ }
+      track.stop();
+    }
+  }
+
   async close() {
+    await this.stopMediaBroadcast();
     this.room.disconnect();
   }
 }

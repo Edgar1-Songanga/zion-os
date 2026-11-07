@@ -18,6 +18,7 @@ export class WebRtcSession {
   private readonly options: WebRtcSessionOptions;
   private localStream: MediaStream | null = null;
   private screenStream: MediaStream | null = null;
+  private mediaBroadcastStream: MediaStream | null = null;
   private reconnecting = new Set<string>();
   private unsubscribeSignal: (() => void) | null = null;
 
@@ -28,12 +29,13 @@ export class WebRtcSession {
     });
   }
 
-  async startLocalMedia(constraints: MediaStreamConstraints = { audio: true, video: true }): Promise<MediaStream> {
-    this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
+  async startLocalMedia(): Promise<MediaStream> {
+    // Do not request devices merely to enter the waiting room.
+    this.localStream = new MediaStream();
     return this.localStream;
   }
 
-  getLocalStream(): MediaStream | null { return this.localStream; }
+  getLocalStream(): MediaStream { return this.localStream ?? new MediaStream(); }
   getScreenStream(): MediaStream | null { return this.screenStream; }
 
   async connectToPeer(peerId: string, initiator = true): Promise<void> {
@@ -44,12 +46,12 @@ export class WebRtcSession {
     await this.send({ type: "offer", peerId: this.options.peerId, targetPeerId: peerId, sdp: offer });
   }
 
-  setAudioEnabled(enabled: boolean): void {
-    this.localStream?.getAudioTracks().forEach((track) => { track.enabled = enabled; });
+  async setAudioEnabled(enabled: boolean): Promise<void> {
+    await this.setLocalTrackEnabled("audio", enabled);
   }
 
-  setVideoEnabled(enabled: boolean): void {
-    this.localStream?.getVideoTracks().forEach((track) => { track.enabled = enabled; });
+  async setVideoEnabled(enabled: boolean): Promise<void> {
+    await this.setLocalTrackEnabled("video", enabled);
   }
 
   async startScreenShare(): Promise<void> {
@@ -60,13 +62,56 @@ export class WebRtcSession {
 
     this.screenStream = stream;
     const replacements = [...this.peers.entries()].map(async ([peerId, peer]) => {
-      const sender = peer.getSenders().find((item) => item.track?.kind === "video");
+      const sender = peer.getTransceivers().find((item) => item.receiver.track.kind === "video")?.sender;
       if (sender) await sender.replaceTrack(track);
       await this.send({ type: "screen-share", peerId: this.options.peerId, targetPeerId: peerId, enabled: true });
     });
     await Promise.all(replacements);
 
     track.onended = () => { void this.stopScreenShare(); };
+  }
+
+  async startMediaBroadcast(element: HTMLMediaElement): Promise<void> {
+    if (this.mediaBroadcastStream) throw new Error("Já existe um conteúdo multimédia em transmissão.");
+    if (this.screenStream) throw new Error("Termine primeiro a partilha de ecrã.");
+    await element.play();
+    const capturable = element as HTMLMediaElement & { captureStream?: () => MediaStream; mozCaptureStream?: () => MediaStream };
+    const stream = capturable.captureStream?.() ?? capturable.mozCaptureStream?.();
+    if (!stream) throw new Error("Este navegador não permite capturar o leitor. Use a partilha de separador/ecrã com áudio.");
+    const tracks = stream.getTracks().filter((track) => track.readyState === "live");
+    if (!tracks.length) throw new Error("O leitor ainda não disponibilizou faixas de áudio/vídeo.");
+    this.mediaBroadcastStream = stream;
+    try {
+      for (const [peerId, peer] of this.peers.entries()) {
+        for (const mediaTrack of tracks) {
+          const sender = peer.getTransceivers().find((item) => item.receiver.track.kind === mediaTrack.kind)?.sender;
+          if (sender) await sender.replaceTrack(mediaTrack);
+        }
+        if (tracks.some((track) => track.kind === "video")) {
+          await this.send({ type: "screen-share", peerId: this.options.peerId, targetPeerId: peerId, enabled: true });
+        }
+      }
+    } catch (error) {
+      await this.stopMediaBroadcast();
+      throw error;
+    }
+  }
+
+  async stopMediaBroadcast(): Promise<void> {
+    const stream = this.mediaBroadcastStream;
+    if (!stream) return;
+    this.mediaBroadcastStream = null;
+    for (const [peerId, peer] of this.peers.entries()) {
+      for (const mediaTrack of stream.getTracks()) {
+        const sender = peer.getTransceivers().find((item) => item.receiver.track.kind === mediaTrack.kind)?.sender;
+        const original = this.localStream?.getTracks().find((track) => track.kind === mediaTrack.kind) ?? null;
+        if (sender) await sender.replaceTrack(original);
+      }
+      if (stream.getVideoTracks().length) {
+        await this.send({ type: "screen-share", peerId: this.options.peerId, targetPeerId: peerId, enabled: false });
+      }
+    }
+    stream.getTracks().forEach((track) => track.stop());
   }
 
   async stopScreenShare(): Promise<void> {
@@ -76,7 +121,7 @@ export class WebRtcSession {
 
     const cameraTrack = this.localStream?.getVideoTracks()[0] ?? null;
     const replacements = [...this.peers.entries()].map(async ([peerId, peer]) => {
-      const sender = peer.getSenders().find((item) => item.track?.kind === "video");
+      const sender = peer.getTransceivers().find((item) => item.receiver.track.kind === "video")?.sender;
       if (sender) await sender.replaceTrack(cameraTrack);
       await this.send({ type: "screen-share", peerId: this.options.peerId, targetPeerId: peerId, enabled: false });
     });
@@ -102,6 +147,7 @@ export class WebRtcSession {
     this.peers.clear();
     this.pendingCandidates.clear();
     this.streams.clear();
+    await this.stopMediaBroadcast();
     this.screenStream?.getTracks().forEach((track) => track.stop());
     this.screenStream = null;
     this.localStream?.getTracks().forEach((track) => track.stop());
@@ -110,12 +156,45 @@ export class WebRtcSession {
     this.unsubscribeSignal = null;
   }
 
+  private async setLocalTrackEnabled(kind: "audio" | "video", enabled: boolean): Promise<void> {
+    if (!this.localStream) this.localStream = new MediaStream();
+    let track = this.localStream.getTracks().find((item) => item.kind === kind);
+    if (!track && enabled) {
+      const captured = await navigator.mediaDevices.getUserMedia({
+        audio: kind === "audio",
+        video: kind === "video",
+      });
+      track = captured.getTracks().find((item) => item.kind === kind) ?? undefined;
+      if (!track) throw new Error("O dispositivo não disponibilizou a faixa solicitada.");
+      this.localStream.addTrack(track);
+    }
+    if (!track) return;
+    track.enabled = enabled;
+    if (enabled && !this.mediaBroadcastStream?.getTracks().some((item) => item.kind === kind)) {
+      await Promise.all([...this.peers.values()].map(async (peer) => {
+        const sender = peer.getTransceivers().find((item) => item.receiver.track.kind === kind)?.sender;
+        if (sender) await sender.replaceTrack(track);
+      }));
+    }
+  }
+
   private createPeer(peerId: string): RTCPeerConnection {
     const existing = this.peers.get(peerId);
     if (existing) return existing;
 
     const peer = new RTCPeerConnection({ iceServers: this.options.iceServers ?? [] });
-    this.localStream?.getTracks().forEach((track) => peer.addTrack(track, this.localStream as MediaStream));
+    peer.addTransceiver("audio", { direction: "sendrecv" });
+    peer.addTransceiver("video", { direction: "sendrecv" });
+    for (const transceiver of peer.getTransceivers()) {
+      const kind = transceiver.receiver.track.kind;
+      const mediaTrack = this.mediaBroadcastStream?.getTracks().find((candidate) => candidate.kind === kind);
+      const localTrack = this.localStream?.getTracks().find((candidate) => candidate.kind === kind);
+      const selectedTrack = mediaTrack ?? localTrack;
+      if (selectedTrack) void transceiver.sender.replaceTrack(selectedTrack);
+    }
+    if (this.mediaBroadcastStream?.getVideoTracks().length) {
+      void this.send({ type: "screen-share", peerId: this.options.peerId, targetPeerId: peerId, enabled: true });
+    }
 
     peer.onicecandidate = (event) => {
       if (!event.candidate) return;
@@ -123,8 +202,10 @@ export class WebRtcSession {
     };
 
     peer.ontrack = (event) => {
-      const [stream] = event.streams;
-      if (!stream) return;
+      const stream = event.streams[0] ?? this.streams.get(peerId) ?? new MediaStream();
+      if (!event.streams[0] && !stream.getTracks().some((track) => track.id === event.track.id)) {
+        stream.addTrack(event.track);
+      }
       this.streams.set(peerId, stream);
       this.options.onRemoteStream?.(peerId, stream);
     };
