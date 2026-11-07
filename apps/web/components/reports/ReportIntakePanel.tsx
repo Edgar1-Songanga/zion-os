@@ -6,6 +6,7 @@ import { resaRequest } from "@/lib/resa/api";
 import { getMinistryCatalogEntry } from "@/components/ministry/ministry-catalog";
 
 type Destination = { id: string; name: string; department: string };
+type SabbathClassOption = { id: string; name: string; ministry_id: string };
 type IntakeRow = {
   id: string;
   title: string;
@@ -17,6 +18,8 @@ type IntakeRow = {
   submitted_at: string;
   original_filename: string;
   review_notes?: string | null;
+  operational_data_domain?: string | null;
+  attendance_session_id?: string | null;
 };
 
 type OcrWorker = {
@@ -174,6 +177,8 @@ export default function ReportIntakePanel({
   const [classificationMethod, setClassificationMethod] = useState<"RULES" | "QR" | "MANUAL" | "AI">("RULES");
   const [classificationReason, setClassificationReason] = useState("");
   const [extractedFields, setExtractedFields] = useState<Record<string, unknown>>({});
+  const [attendanceJson, setAttendanceJson] = useState("[]");
+  const [sabbathClasses, setSabbathClasses] = useState<SabbathClassOption[]>([]);
   const [documentDate, setDocumentDate] = useState("");
   const [reportType, setReportType] = useState("");
   const [allowAiAnalysis, setAllowAiAnalysis] = useState(false);
@@ -194,7 +199,7 @@ export default function ReportIntakePanel({
     if (!organizationId) { setRecent([]); return; }
     const { data, error: queryError } = await supabase
       .from("report_intake_documents")
-      .select("id,title,ministry_id,classification_department,classification_confidence,classification_method,status,submitted_at,original_filename,review_notes")
+      .select("id,title,ministry_id,classification_department,classification_confidence,classification_method,status,submitted_at,original_filename,review_notes,operational_data_domain,attendance_session_id")
       .eq("organization_id", organizationId)
       .order("submitted_at", { ascending: false })
       .limit(30);
@@ -206,6 +211,17 @@ export default function ReportIntakePanel({
   }, [organizationId, supabase]);
 
   useEffect(() => { void refreshRecent(); }, [refreshRecent]);
+
+  useEffect(() => {
+    if (!organizationId) { setSabbathClasses([]); return; }
+    let cancelled = false;
+    void supabase.from("sabbath_school_classes").select("id,name,ministry_id")
+      .eq("organization_id", organizationId).eq("is_active", true).order("name", { ascending: true })
+      .then(({ data, error: queryError }) => {
+        if (!cancelled) setSabbathClasses(queryError ? [] : (data ?? []) as SabbathClassOption[]);
+      });
+    return () => { cancelled = true; };
+  }, [organizationId, supabase]);
 
   useEffect(() => {
     if (!file) { setPreviewUrl(""); return; }
@@ -252,10 +268,12 @@ export default function ReportIntakePanel({
     if (parsed.reportType.trim()) setReportType(parsed.reportType.trim().slice(0, 100));
     if (/^\\d{4}-\\d{2}-\\d{2}$/.test(parsed.documentDate)) setDocumentDate(parsed.documentDate);
     if (Object.keys(parsed.fields).length) {
-      setExtractedFields(Object.fromEntries(Object.entries(parsed.fields).slice(0, 30).map(([key, fieldValue]) => [
+      const qrFields = Object.fromEntries(Object.entries(parsed.fields).slice(0, 30).map(([key, fieldValue]) => [
         key.slice(0, 80),
-        typeof fieldValue === "string" ? fieldValue.slice(0, 1000) : typeof fieldValue === "number" || typeof fieldValue === "boolean" || fieldValue === null ? fieldValue : JSON.stringify(fieldValue).slice(0, 1000),
-      ])));
+        key === "attendance_records" && Array.isArray(fieldValue) ? fieldValue : typeof fieldValue === "string" ? fieldValue.slice(0, 1000) : typeof fieldValue === "number" || typeof fieldValue === "boolean" || fieldValue === null ? fieldValue : JSON.stringify(fieldValue).slice(0, 1000),
+      ]));
+      setExtractedFields(qrFields);
+      if (Array.isArray(qrFields.attendance_records)) setAttendanceJson(JSON.stringify(qrFields.attendance_records, null, 2));
     }
     setQrPayload(value.slice(0, 2048));
     setNotice("QR reconhecido. O relatório será encaminhado para " + destination.name + ".");
@@ -348,6 +366,10 @@ export default function ReportIntakePanel({
   }
 
   async function analyzeWithAi() {
+    if (reportType.trim().toUpperCase() === "SABBATH_SCHOOL_ATTENDANCE") {
+      setError("A lista de presenças não é enviada à IA. Use os QR codes dos membros e confirme manualmente cada estado.");
+      return;
+    }
     if (!allowAiAnalysis || !organizationId || !ocrText.trim() || aiBusy) return;
     setAiBusy(true);
     setError(null);
@@ -405,10 +427,11 @@ export default function ReportIntakePanel({
       const fields = parsed.extracted_fields && typeof parsed.extracted_fields === "object" && !Array.isArray(parsed.extracted_fields)
         ? Object.fromEntries(Object.entries(parsed.extracted_fields).slice(0, 30).map(([key, value]) => [
             key.slice(0, 80),
-            typeof value === "string" ? value.slice(0, 1000) : typeof value === "number" || typeof value === "boolean" || value === null ? value : JSON.stringify(value).slice(0, 1000),
+            key === "attendance_records" && Array.isArray(value) ? value : typeof value === "string" ? value.slice(0, 1000) : typeof value === "number" || typeof value === "boolean" || value === null ? value : JSON.stringify(value).slice(0, 1000),
           ]))
         : {};
       setExtractedFields(fields);
+      if (Array.isArray(fields.attendance_records)) setAttendanceJson(JSON.stringify(fields.attendance_records, null, 2));
       setDocumentDate(/^\\d{4}-\\d{2}-\\d{2}$/.test(parsed.document_date ?? "") ? parsed.document_date! : "");
       setReportType(String(parsed.report_type ?? "").slice(0, 100));
       if (parsed.document_title?.trim()) setTitle(parsed.document_title.trim().slice(0, 240));
@@ -427,6 +450,23 @@ export default function ReportIntakePanel({
     setNotice(null);
     let storagePath: string | null = null;
     try {
+      let fieldsToSave = extractedFields;
+      if (reportType.trim().toUpperCase() === "SABBATH_SCHOOL_ATTENDANCE") {
+        const classId = String(extractedFields.class_id ?? "").trim();
+        const attendanceDate = String(extractedFields.attendance_date ?? "").trim();
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(classId)) throw new Error("Selecione ou indique uma turma válida da Escola Sabatina.");
+        if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(attendanceDate)) throw new Error("Indique a data da presença no formato correto.");
+        let parsedAttendance: unknown;
+        try { parsedAttendance = JSON.parse(attendanceJson); } catch { throw new Error("A lista de presenças não contém JSON válido."); }
+        if (!Array.isArray(parsedAttendance) || parsedAttendance.length < 1 || parsedAttendance.length > 1000) throw new Error("A lista deve conter entre 1 e 1000 membros.");
+        const ids = new Set<string>();
+        for (const row of parsedAttendance as Array<{ member_record_id?: unknown; attendance_status?: unknown }>) {
+          const id = String(row?.member_record_id ?? "");
+          if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id) || ids.has(id) || !["PRESENT", "ABSENT", "EXCUSED"].includes(String(row?.attendance_status))) throw new Error("Cada linha deve ter um member_record_id único e estado PRESENT, ABSENT ou EXCUSED.");
+          ids.add(id);
+        }
+        fieldsToSave = { ...extractedFields, attendance_records: parsedAttendance };
+      }
       const { data: authData, error: authError } = await supabase.auth.getUser();
       if (authError || !authData.user) throw new Error("A sessão ZION não está disponível.");
       const extension = file.type === "image/jpeg" ? "jpg" : file.type === "image/png" ? "png" : "webp";
@@ -454,7 +494,7 @@ export default function ReportIntakePanel({
         classification_confidence: classificationConfidence,
         classification_method: classificationMethod,
         classification_reason: classificationReason.slice(0, 1000) || null,
-        extracted_fields: extractedFields,
+        extracted_fields: fieldsToSave,
         document_date: documentDate || null,
         report_type: reportType.trim().slice(0, 100) || null,
         submitted_by: authData.user.id,
@@ -469,6 +509,7 @@ export default function ReportIntakePanel({
       setClassificationMethod("RULES");
       setClassificationReason("");
       setExtractedFields({});
+      setAttendanceJson("[]");
       setDocumentDate("");
       setReportType("");
       setAllowAiAnalysis(false);
@@ -574,10 +615,31 @@ export default function ReportIntakePanel({
 
       <div className="rounded-xl border border-violet-200 bg-violet-50/70 p-4">
         <label className="flex items-start gap-2 text-xs leading-5 text-violet-950">
-          <input type="checkbox" checked={allowAiAnalysis} onChange={(event) => setAllowAiAnalysis(event.target.checked)} className="mt-0.5" />
+          <input type="checkbox" checked={allowAiAnalysis} disabled={reportType.trim().toUpperCase() === "SABBATH_SCHOOL_ATTENDANCE"} onChange={(event) => setAllowAiAnalysis(event.target.checked)} className="mt-0.5" />
           <span><strong>Autorizar análise inteligente remota do texto OCR.</strong> Se ativada, apenas o texto reconhecido e a lista de departamentos serão enviados ao serviço de IA do ZION para classificar o relatório e extrair campos. A fotografia original não é enviada para esta análise. Não ative se o documento contiver informação que não deva ser processada pelo serviço de IA.</span>
         </label>
         <button type="button" onClick={() => void analyzeWithAi()} disabled={!allowAiAnalysis || !ocrText.trim() || aiBusy} className="mt-3 rounded-lg border border-violet-300 bg-white px-4 py-2 text-xs font-semibold text-violet-900 disabled:opacity-40">{aiBusy ? "A analisar conteúdo…" : "Analisar conteúdo com IA"}</button>
+        {reportType.trim().toUpperCase() === "SABBATH_SCHOOL_ATTENDANCE" && (
+          <div className="mt-4 space-y-3 rounded-xl border border-sky-200 bg-sky-50 p-4">
+            <p className="text-xs font-semibold text-sky-950">Importação da Escola Sabatina — requer confirmação humana.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block text-xs font-medium text-slate-700">Turma autorizada
+                <input list="zion-sabbath-classes" value={String(extractedFields.class_id ?? "")} onChange={(event) => setExtractedFields((current) => ({ ...current, class_id: event.target.value }))} placeholder="Selecione ou cole o ID da turma" className="mt-1 w-full rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm" />
+                <datalist id="zion-sabbath-classes">{sabbathClasses.filter((item) => !selectedMinistryId || item.ministry_id === selectedMinistryId).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</datalist>
+              </label>
+              <label className="block text-xs font-medium text-slate-700">Data da presença
+                <input type="date" value={String(extractedFields.attendance_date ?? "")} onChange={(event) => setExtractedFields((current) => ({ ...current, attendance_date: event.target.value }))} className="mt-1 w-full rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm" />
+              </label>
+              <label className="block text-xs font-medium text-slate-700 sm:col-span-2">Referência da lição (opcional)
+                <input value={String(extractedFields.lesson_reference ?? "")} maxLength={160} onChange={(event) => setExtractedFields((current) => ({ ...current, lesson_reference: event.target.value }))} placeholder="Ex.: Lição 6" className="mt-1 w-full rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm" />
+              </label>
+            </div>
+            <label className="block text-xs font-medium text-slate-700">Lista confirmada por QR de membro (JSON)
+              <textarea value={attendanceJson} onChange={(event) => setAttendanceJson(event.target.value)} rows={6} spellCheck={false} className="mt-1 w-full rounded-lg border border-sky-200 bg-white px-3 py-2 font-mono text-xs" placeholder={'[{"member_record_id":"UUID","attendance_status":"PRESENT"}]'} />
+            </label>
+            <p className="text-[11px] leading-5 text-slate-600">Use o identificador interno do membro obtido pelo QR ZION. Não use nomes como identificadores nem deixe a IA inferir presenças. A aprovação exige correspondência completa com a lista ativa da turma; se já existir uma sessão nessa data, use o fluxo próprio de correção.</p>
+          </div>
+        )}
         {reportType.trim().toUpperCase() === "STEWARDSHIP_PERIOD" && (
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <p className="sm:col-span-2 text-xs font-semibold text-violet-950">Dados agregados do relatório de Mordomia — confirme os valores antes da aprovação.</p>
@@ -640,6 +702,7 @@ export default function ReportIntakePanel({
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-slate-800">{row.title}</p>
                   <p className="mt-1 text-xs text-slate-500">{destination?.name ?? row.classification_department ?? "Destino por atribuir"} · {row.original_filename} · {Math.round(Number(row.classification_confidence) * 100)}%</p>
+                  {row.operational_data_domain === "SABBATH_SCHOOL_ATTENDANCE" && <p className="mt-1 text-[11px] font-semibold text-emerald-700">Presenças registadas · sessão {row.attendance_session_id?.slice(0, 8)}</p>}
                   <p className="mt-1 text-[11px] text-slate-400">{new Intl.DateTimeFormat("pt-PT", { dateStyle: "medium", timeStyle: "short" }).format(new Date(row.submitted_at))}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
