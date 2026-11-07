@@ -307,7 +307,8 @@ export default function ReportIntakePanel({
     try {
       const engine = await loadOcrEngine();
       worker = await engine.createWorker("por+eng");
-      const ocrImage = await prepareOcrImage(file);\n      const result = await worker.recognize(ocrImage);
+      const ocrImage = await prepareOcrImage(file);
+      const result = await worker.recognize(ocrImage);
       const text = result.data.text.trim();
       setOcrText(text);
       setOcrConfidence(result.data.confidence / 100);
