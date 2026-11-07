@@ -81,6 +81,7 @@ export default function MessagesPage() {
   const [startingPersonId, setStartingPersonId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [realtimeConnected, setRealtimeConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
@@ -205,23 +206,40 @@ export default function MessagesPage() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (!selected) return;
+    if (!selected) {
+      setRealtimeConnected(false);
+      return;
+    }
     const supabase = createClient();
-    const channel = supabase.channel("resa-messages-" + selected).on("postgres_changes", { event: "INSERT", schema: "public", table: "resa_messages", filter: "conversation_id=eq." + selected }, (payload) => {
-      const incoming = payload.new as Message;
-      const participant = selectedConversationRef.current?.members?.find((member) => member.id === incoming.sender_id);
-      const hydrated: Message = {
-        ...incoming,
-        sender_name: participant?.display_name ?? (incoming.sender_id === currentUserIdRef.current ? "A tua conta" : "Membro RESA"),
-        sender_avatar_url: participant?.avatar_url ?? null,
-      };
-      setMessages((current) => mergeMessages(current, [hydrated]));
-      if (incoming.sender_id !== undefined && typeof window !== "undefined") {
-        try { window.dispatchEvent(new CustomEvent("resa-message-received")); } catch {}
-      }
-    }).subscribe();
-    return () => { void supabase.removeChannel(channel); };
-  }, [selected]);
+    let active = true;
+    const channel = supabase.channel("resa-messages-" + selected)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "resa_messages", filter: "conversation_id=eq." + selected }, (payload) => {
+        const incoming = payload.new as Message;
+        const participant = selectedConversationRef.current?.members?.find((member) => member.id === incoming.sender_id);
+        const hydrated: Message = {
+          ...incoming,
+          sender_name: participant?.display_name ?? (incoming.sender_id === currentUserIdRef.current ? "A tua conta" : "Membro RESA"),
+          sender_avatar_url: participant?.avatar_url ?? null,
+        };
+        setMessages((current) => mergeMessages(current, [hydrated]));
+        if (incoming.sender_id !== undefined && typeof window !== "undefined") {
+          try { window.dispatchEvent(new CustomEvent("resa-message-received")); } catch {}
+        }
+      })
+      .subscribe((status) => {
+        if (!active) return;
+        const connected = status === "SUBSCRIBED";
+        setRealtimeConnected(connected);
+        // Reconcile messages after every successful (re)subscription so messages
+        // sent while the device was offline are not missed.
+        if (connected) void loadMessages(selected);
+      });
+    return () => {
+      active = false;
+      setRealtimeConnected(false);
+      void supabase.removeChannel(channel);
+    };
+  }, [selected, loadMessages]);
 
   useEffect(() => {
     if (!selected) {
@@ -234,21 +252,21 @@ export default function MessagesPage() {
     setMessages([]);
     setReplyTo(null);
     void loadMessages(selected);
-    // Realtime INSERT events deliver new messages. Keep a slower fallback
-    // for mobile connections that temporarily lose the realtime channel.
+    // Realtime is the normal delivery path. Poll only while the channel is
+    // disconnected; focus/visibility refreshes also recover missed messages.
     const refresh = () => {
       if (document.visibilityState === "visible") void loadMessages(selected);
     };
-    const timer = window.setInterval(refresh, 30000);
+    const timer = realtimeConnected ? null : window.setInterval(refresh, 30000);
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", refresh);
     return () => {
-      window.clearInterval(timer);
+      if (timer !== null) window.clearInterval(timer);
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", refresh);
       messageRequestId.current += 1;
     };
-  }, [selected, loadMessages]);
+  }, [selected, loadMessages, realtimeConnected]);
 
   const latestMessageId = messages[messages.length - 1]?.id ?? null;
 
