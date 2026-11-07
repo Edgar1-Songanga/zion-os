@@ -38,6 +38,7 @@ export default function MeetingRoom({ meetingId }: Props) {
   const [camera, setCamera] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [status, setStatus] = useState("A preparar a sala…");
+  const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [participants, setParticipants] = useState<MeetingParticipant[]>([]);
   const [isModerator, setIsModerator] = useState(false);
