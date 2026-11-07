@@ -202,7 +202,6 @@ export default function NotificationBell() {
   }, [load, realtimeConnected]);
 
   useEffect(() => {
-    if (!open) return;
     let active = true;
     void resaRequest<NotificationAlertPreferences>("/v1/notifications/preferences")
       .then((preferences) => {
@@ -213,7 +212,7 @@ export default function NotificationBell() {
       })
       .catch(() => undefined);
     return () => { active = false; };
-  }, [open]);
+  }, []);
 
   async function changeSoundStyle(value: NonNullable<NotificationAlertPreferences["sound_style"]>) {
     const previous = soundStyleRef.current;
