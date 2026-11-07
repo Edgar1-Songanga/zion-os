@@ -51,30 +51,31 @@ export function playNotificationAlert(type: string, preferences: NotificationAle
       const playTone = () => {
         if (stopped || audio.state !== 'running') return;
         try {
-          const oscillator = audio.createOscillator();
-          const gain = audio.createGain();
           const style = settings.sound_style ?? 'soft';
           if (style === 'silent') return;
-          oscillator.type = style === 'classic' ? 'triangle' : 'sine';
           const call = type.includes('call');
           const tones = style === 'chime'
             ? (call ? [520, 660, 780] : [620, 740, 880])
             : style === 'classic'
               ? (call ? [440, 440] : [520, 520])
               : (call ? [480, 580] : [560, 680]);
-          const duration = style === 'classic' ? 0.11 : 0.09;
-          const volume = style === 'classic' ? 0.025 : 0.035;
-          gain.gain.setValueAtTime(0.0001, audio.currentTime);
-          gain.gain.exponentialRampToValueAtTime(volume, audio.currentTime + 0.035);
-          gain.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + duration * tones.length + 0.04);
-          oscillator.connect(gain);
-          gain.connect(audio.destination);
+          const noteDuration = style === 'classic' ? 0.085 : 0.095;
+          const noteGap = style === 'chime' ? 0.035 : 0.045;
+          const volume = style === 'classic' ? 0.022 : 0.03;
           tones.forEach((frequency, index) => {
-            const start = audio.currentTime + index * (duration + 0.025);
+            const start = audio.currentTime + index * (noteDuration + noteGap);
+            const oscillator = audio.createOscillator();
+            const gain = audio.createGain();
+            oscillator.type = style === 'classic' ? 'triangle' : 'sine';
             oscillator.frequency.setValueAtTime(frequency, start);
+            gain.gain.setValueAtTime(0.0001, start);
+            gain.gain.exponentialRampToValueAtTime(volume, start + 0.018);
+            gain.gain.exponentialRampToValueAtTime(0.0001, start + noteDuration);
+            oscillator.connect(gain);
+            gain.connect(audio.destination);
+            oscillator.start(start);
+            oscillator.stop(start + noteDuration + 0.01);
           });
-          oscillator.start();
-          oscillator.stop(audio.currentTime + duration * tones.length + 0.05);
         } catch { /* Browser audio policy may require prior user interaction. */ }
       };
       if (audio.state === 'suspended') {
