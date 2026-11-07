@@ -228,7 +228,7 @@ export default function ReportIntakePanel({
   }, [organizationId, supabase]);
 
   useEffect(() => {
-    if (reportType.trim().toUpperCase() !== "SABBATH_SCHOOL_ATTENDANCE" || !/^[0-9a-f-]{36}$/i.test(attendanceClassId)) {
+    if (reportType.trim().toUpperCase() !== "SABBATH_SCHOOL_ATTENDANCE" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(attendanceClassId)) {
       setAttendanceRoster([]);
       return;
     }
@@ -324,7 +324,7 @@ export default function ReportIntakePanel({
       } catch {
         try {
           const url = new URL(raw);
-          memberId = url.searchParams.get("member_record_id") ?? url.searchParams.get("memberRecordId") ?? "";
+          memberId = url.searchParams.get("member_record_id") ?? url.searchParams.get("memberRecordId") ?? url.searchParams.get("member_id") ?? "";
         } catch { /* Not a recognized member QR payload. */ }
       }
     }
@@ -658,7 +658,7 @@ export default function ReportIntakePanel({
             {scanning && <video ref={qrVideo} autoPlay playsInline muted className="mt-3 max-h-56 w-full rounded-lg bg-black object-cover" />}
             <div className="mt-3 flex gap-2">
               <input value={qrManual} onChange={(event) => setQrManual(event.target.value)} placeholder="Ou cole o conteúdo do QR" className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs" />
-              <button type="button" onClick={() => applyQr(qrManual)} disabled={!qrManual.trim()} className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-40">Ler</button>
+              <button type="button" onClick={() => reportType.trim().toUpperCase() === "SABBATH_SCHOOL_ATTENDANCE" ? applyAttendanceMemberQr(qrManual) : applyQr(qrManual)} disabled={!qrManual.trim()} className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-40">Ler</button>
             </div>
           </div>
 
@@ -753,7 +753,7 @@ export default function ReportIntakePanel({
             <input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={240} placeholder="Título identificado ou introduza um" className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
           </label>
           <label className="block text-sm font-semibold text-slate-700">Tipo de relatório
-            <input value={reportType} onChange={(event) => { setReportType(event.target.value); if (event.target.value.trim().toUpperCase() === "SABBATH_SCHOOL_ATTENDANCE") setAllowAiAnalysis(false); }} maxLength={100} placeholder="Ex.: relatório mensal, atividade, inventário" className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+            <input value={reportType} onChange={(event) => { setReportType(event.target.value); if (scanning) stopQrScanner(); if (event.target.value.trim().toUpperCase() === "SABBATH_SCHOOL_ATTENDANCE") setAllowAiAnalysis(false); }} maxLength={100} placeholder="Ex.: relatório mensal, atividade, inventário" className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
           </label>
           <label className="block text-sm font-semibold text-slate-700">Data do documento
             <input type="date" value={documentDate} onChange={(event) => setDocumentDate(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
