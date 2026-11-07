@@ -22,7 +22,7 @@ export default function ResaHero() {
 
           <div className="mt-5 flex items-end gap-4">
             <div className="flex h-14 w-14 items-center justify-center rounded-[20px] border border-white/10 bg-white/[0.07] shadow-inner shadow-white/5">
-              <ResaIcon name="sparkles" size={24} />
+              <ResaIcon name="message" size={24} />
             </div>
             <div>
               <p className="text-xs font-medium uppercase tracking-[0.24em] text-slate-400">{t("resaSocialExperience")}</p>
