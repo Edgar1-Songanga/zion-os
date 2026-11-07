@@ -144,6 +144,69 @@ begin
 end
 $test$;
 
+-- Server expiry runs once per minute and excludes calls predating activation.
+reset role;
+update private.resa_call_expiry_config
+set activated_at = clock_timestamp() - interval '5 minutes'
+where id = true;
+
+insert into public.resa_calls(id,conversation_id,initiator_id,kind,status,created_at) values
+ ('20000000-0000-4000-8000-000000000003','10000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001','audio','ringing',clock_timestamp() - interval '2 minutes'),
+ ('20000000-0000-4000-8000-000000000004','10000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001','audio','ringing',clock_timestamp() - interval '10 minutes');
+
+do $test$
+declare expired integer;
+begin
+  expired := private.expire_unanswered_resa_calls();
+  if expired <> 1 then
+    raise exception 'Expected exactly one eligible unanswered call to expire, got %', expired;
+  end if;
+  if not exists (
+    select 1 from public.resa_calls
+    where id='20000000-0000-4000-8000-000000000003'
+      and status='missed' and ended_at is not null
+  ) then
+    raise exception 'Eligible unanswered call was not marked missed';
+  end if;
+  if not exists (
+    select 1 from public.resa_calls
+    where id='20000000-0000-4000-8000-000000000004'
+      and status='ringing' and ended_at is null
+  ) then
+    raise exception 'Pre-activation historical call was modified';
+  end if;
+  if not exists (
+    select 1 from cron.job
+    where jobname='resa-expire-unanswered-calls'
+      and schedule='* * * * *'
+      and command='select private.expire_unanswered_resa_calls();'
+  ) then
+    raise exception 'Server expiry cron job is not scheduled every minute';
+  end if;
+end
+$test$;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000001',true);
+do $test$
+declare changed integer;
+begin
+  begin
+    update public.resa_calls
+    set status='active', answered_at=now()
+    where id='20000000-0000-4000-8000-000000000003';
+    get diagnostics changed = row_count;
+    if changed = 0 then raise exception 'Missed call unexpectedly hidden from its member'; end if;
+    raise exception 'Server-expired missed call was reopened';
+  exception when insufficient_privilege then null;
+  end;
+end
+$test$;
+
+reset role;
+
+-- Restore the authenticated role after the privileged scheduler assertions.
+set local role authenticated;
 -- An outsider cannot read call signaling addressed to them for a call they do not belong to.
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000003',true);
 do $test$

@@ -3,6 +3,32 @@
 create schema if not exists auth;
 create schema if not exists private;
 create schema if not exists extensions;
+create schema if not exists cron;
+create table cron.job (
+  jobid bigint generated always as identity primary key,
+  schedule text not null,
+  command text not null,
+  jobname text unique
+);
+create or replace function cron.schedule(job_name text, schedule text, command text)
+returns bigint language plpgsql
+as $cron$
+declare v_job_id bigint;
+begin
+  insert into cron.job(jobname, schedule, command)
+  values (job_name, schedule, command)
+  returning jobid into v_job_id;
+  return v_job_id;
+end;
+$cron$;
+create or replace function cron.unschedule(job_id bigint)
+returns boolean language plpgsql
+as $cron$
+begin
+  delete from cron.job where jobid = job_id;
+  return found;
+end;
+$cron$;
 create extension if not exists pgcrypto with schema extensions;
 
 do $roles$
