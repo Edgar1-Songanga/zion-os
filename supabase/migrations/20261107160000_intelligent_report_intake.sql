@@ -190,6 +190,7 @@ begin
 end;
 $$;
 
+revoke all on function public.review_report_intake_document(uuid,text,text) from public;
 grant execute on function public.review_report_intake_document(uuid,text,text) to authenticated;
 
 commit;
