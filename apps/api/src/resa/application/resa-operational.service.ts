@@ -89,8 +89,8 @@ export class ResaOperationalService {
       const membership = membershipByCommunity.get(community.id);
       return {
         ...community,
-        membership_status: membership?.status ?? 'not_member',
-        membership_role: membership?.role ?? null,
+        membership_status: community.created_by === actor.id ? 'owner' : membership?.status ?? 'not_member',
+        membership_role: community.created_by === actor.id ? 'owner' : membership?.role ?? null,
       };
     });
   }
