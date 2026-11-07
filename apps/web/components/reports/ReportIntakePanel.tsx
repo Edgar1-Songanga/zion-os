@@ -301,7 +301,7 @@ export default function ReportIntakePanel({
           id: destination.id,
           name: destination.name,
           department: destination.department,
-          focus_areas: catalog?.focusAreas ?? [],
+          focus_areas: (catalog?.focusAreas ?? []).slice(0, 5).map((value) => value.slice(0, 80)),
         };
       });
       const prompt = [
@@ -311,7 +311,7 @@ export default function ReportIntakePanel({
         "Extrai campos factuais úteis quando existirem, sem inferir valores em falta.",
         "Responde APENAS com JSON válido neste formato: {\"destination_id\":\"id ou vazio\",\"confidence\":0.0,\"reason\":\"justificação curta\",\"document_title\":\"título\",\"document_date\":\"YYYY-MM-DD ou vazio\",\"report_type\":\"tipo ou vazio\",\"extracted_fields\":{}}.",
         "Se o destino não for claro, usa destination_id vazio e confidence abaixo de 0.5.",
-        "DESTINOS: " + JSON.stringify(departmentOptions),
+        "DESTINOS: " + JSON.stringify(departmentOptions).slice(0, 3500),
         "TEXTO OCR (pode conter erros de reconhecimento): " + ocrText.slice(0, 7000),
       ].join("\n\n");
       const response = await resaRequest<{ content?: string }>("/v1/ai/chat", {
@@ -346,7 +346,10 @@ export default function ReportIntakePanel({
       setClassificationMethod("AI");
       setClassificationReason(String(parsed.reason ?? "").slice(0, 1000));
       const fields = parsed.extracted_fields && typeof parsed.extracted_fields === "object" && !Array.isArray(parsed.extracted_fields)
-        ? Object.fromEntries(Object.entries(parsed.extracted_fields).slice(0, 30))
+        ? Object.fromEntries(Object.entries(parsed.extracted_fields).slice(0, 30).map(([key, value]) => [
+            key.slice(0, 80),
+            typeof value === "string" ? value.slice(0, 1000) : typeof value === "number" || typeof value === "boolean" || value === null ? value : JSON.stringify(value).slice(0, 1000),
+          ]))
         : {};
       setExtractedFields(fields);
       setDocumentDate(/^\\d{4}-\\d{2}-\\d{2}$/.test(parsed.document_date ?? "") ? parsed.document_date! : "");
