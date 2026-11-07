@@ -7,7 +7,7 @@ import ResaIcon from "./core/ResaIcon";
 import { useTranslation } from "@/components/i18n";
 
 const types = [
-  { value: "text", labelKey: "post", icon: "sparkles" },
+  { value: "text", labelKey: "post", icon: "message" },
   { value: "prayer", labelKey: "prayer", icon: "prayer" },
   { value: "bible_study", labelKey: "bibleStudy", icon: "story" },
 ] as const;
