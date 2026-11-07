@@ -159,6 +159,7 @@ export default function MeetingRoom({ meetingId }: Props) {
 
         await realtime.trackPresence({ userId: authSession.user.id, mic: false, camera: false, sharing: false });
         await setSelfMeetingControl(meetingId, { mic_muted: true, camera_enabled: false });
+        setConnected(true);
         setStatus(media.mode === "SFU" ? "Sala de espera ligada via ZION SFU" : "Sala de espera ligada");
 
         const syncControls = async () => {
@@ -183,6 +184,7 @@ export default function MeetingRoom({ meetingId }: Props) {
         }, 8000);
       } catch (cause) {
         if (!active) return;
+        setConnected(false);
         setError(cause instanceof Error ? cause.message : "Não foi possível iniciar a reunião.");
         setStatus("Falha ao ligar");
       }
