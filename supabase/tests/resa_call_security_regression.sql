@@ -205,6 +205,8 @@ $test$;
 
 reset role;
 
+-- Restore the authenticated role after the privileged scheduler assertions.
+set local role authenticated;
 -- An outsider cannot read call signaling addressed to them for a call they do not belong to.
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000003',true);
 do $test$
