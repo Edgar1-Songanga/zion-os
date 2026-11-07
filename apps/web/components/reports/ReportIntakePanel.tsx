@@ -7,6 +7,7 @@ import { getMinistryCatalogEntry } from "@/components/ministry/ministry-catalog"
 
 type Destination = { id: string; name: string; department: string };
 type SabbathClassOption = { id: string; name: string; ministry_id: string };
+type SabbathRosterRow = { member_record_id: string; first_name: string; last_name: string; attendance_status: "" | "PRESENT" | "ABSENT" | "EXCUSED" };
 type IntakeRow = {
   id: string;
   title: string;
@@ -177,8 +178,9 @@ export default function ReportIntakePanel({
   const [classificationMethod, setClassificationMethod] = useState<"RULES" | "QR" | "MANUAL" | "AI">("RULES");
   const [classificationReason, setClassificationReason] = useState("");
   const [extractedFields, setExtractedFields] = useState<Record<string, unknown>>({});
-  const [attendanceJson, setAttendanceJson] = useState("[]");
   const [sabbathClasses, setSabbathClasses] = useState<SabbathClassOption[]>([]);
+  const [attendanceRoster, setAttendanceRoster] = useState<SabbathRosterRow[]>([]);
+  const lastScannedMemberQr = useRef("");
   const [documentDate, setDocumentDate] = useState("");
   const [reportType, setReportType] = useState("");
   const [allowAiAnalysis, setAllowAiAnalysis] = useState(false);
@@ -194,6 +196,8 @@ export default function ReportIntakePanel({
   const [reviewBusy, setReviewBusy] = useState<string | null>(null);
 
   const selectedDestination = destinations.find((item) => item.id === selectedMinistryId);
+  const attendanceClassId = String(extractedFields.class_id ?? "").trim();
+  const attendanceImportSignature = JSON.stringify(Array.isArray(extractedFields.attendance_records) ? extractedFields.attendance_records : []);
 
   const refreshRecent = useCallback(async () => {
     if (!organizationId) { setRecent([]); return; }
@@ -224,6 +228,32 @@ export default function ReportIntakePanel({
   }, [organizationId, supabase]);
 
   useEffect(() => {
+    if (reportType.trim().toUpperCase() !== "SABBATH_SCHOOL_ATTENDANCE" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(attendanceClassId)) {
+      setAttendanceRoster([]);
+      return;
+    }
+    let cancelled = false;
+    setAttendanceRoster([]);
+    void supabase.rpc("sabbath_school_class_roster", { p_class_id: attendanceClassId }).then(({ data, error: rosterError }) => {
+      if (cancelled) return;
+      if (rosterError) {
+        setAttendanceRoster([]);
+        setError("Não foi possível carregar a lista desta turma. Confirme a turma e as permissões do professor.");
+        return;
+      }
+      let imported: Array<{ member_record_id?: string; attendance_status?: string }> = [];
+      try { imported = JSON.parse(attendanceImportSignature) as typeof imported; } catch { imported = []; }
+      const statusByMember = new Map(imported.map((row) => [String(row.member_record_id ?? ""), row.attendance_status]));
+      setAttendanceRoster((data ?? []).map((row: { member_record_id: string; first_name: string; last_name: string }) => ({
+        ...row,
+        attendance_status: (["PRESENT", "ABSENT", "EXCUSED"].includes(String(statusByMember.get(row.member_record_id))) ? statusByMember.get(row.member_record_id) : "") as SabbathRosterRow["attendance_status"],
+      })));
+      setError(null);
+    });
+    return () => { cancelled = true; };
+  }, [attendanceClassId, attendanceImportSignature, reportType, supabase]);
+
+  useEffect(() => {
     if (!file) { setPreviewUrl(""); return; }
     const url = URL.createObjectURL(file);
     setPreviewUrl(url);
@@ -234,6 +264,7 @@ export default function ReportIntakePanel({
     if (qrFrame.current !== null) cancelAnimationFrame(qrFrame.current);
     qrFrame.current = null;
     qrStream.current?.getTracks().forEach((track) => track.stop());
+    lastScannedMemberQr.current = "";
     qrStream.current = null;
     if (qrVideo.current) qrVideo.current.srcObject = null;
     setScanning(false);
@@ -273,12 +304,44 @@ export default function ReportIntakePanel({
         key === "attendance_records" && Array.isArray(fieldValue) ? fieldValue : typeof fieldValue === "string" ? fieldValue.slice(0, 1000) : typeof fieldValue === "number" || typeof fieldValue === "boolean" || fieldValue === null ? fieldValue : JSON.stringify(fieldValue).slice(0, 1000),
       ]));
       setExtractedFields(qrFields);
-      if (Array.isArray(qrFields.attendance_records)) setAttendanceJson(JSON.stringify(qrFields.attendance_records, null, 2));
+
     }
     setQrPayload(value.slice(0, 2048));
     setNotice("QR reconhecido. O relatório será encaminhado para " + destination.name + ".");
     setError(null);
     stopQrScanner();
+  }
+
+  function applyAttendanceMemberQr(value: string) {
+    const raw = value.trim();
+    let memberId = "";
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raw)) {
+      memberId = raw;
+    } else {
+      try {
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        memberId = String(parsed.member_record_id ?? parsed.memberRecordId ?? parsed.member_id ?? "");
+      } catch {
+        try {
+          const url = new URL(raw);
+          memberId = url.searchParams.get("member_record_id") ?? url.searchParams.get("memberRecordId") ?? url.searchParams.get("member_id") ?? "";
+        } catch { /* Not a recognized member QR payload. */ }
+      }
+    }
+    if (!memberId) {
+      setError("Este QR não contém um identificador de membro ZION reconhecido.");
+      return;
+    }
+    const member = attendanceRoster.find((row) => row.member_record_id.toLowerCase() === memberId.toLowerCase());
+    if (!member) {
+      setError("O membro identificado não pertence à lista ativa desta turma.");
+      return;
+    }
+    setAttendanceRoster((current) => current.map((row) => row.member_record_id === member.member_record_id
+      ? { ...row, attendance_status: "PRESENT" }
+      : row));
+    setError(null);
+    setNotice(member.first_name + " " + member.last_name + " marcado como presente. Continue a leitura dos restantes QR codes.");
   }
 
   async function startQrScanner() {
@@ -303,7 +366,14 @@ export default function ReportIntakePanel({
         if (!qrVideo.current || !qrStream.current) return;
         try {
           const codes = await detector.detect(qrVideo.current);
-          if (codes[0]?.rawValue) { applyQr(codes[0].rawValue); return; }
+          const rawValue = codes[0]?.rawValue;
+          if (rawValue && reportType.trim().toUpperCase() === "SABBATH_SCHOOL_ATTENDANCE") {
+            if (rawValue !== lastScannedMemberQr.current) {
+              lastScannedMemberQr.current = rawValue;
+              applyAttendanceMemberQr(rawValue);
+            }
+          } else if (rawValue) { applyQr(rawValue); return; }
+          else { lastScannedMemberQr.current = ""; }
         } catch {
           // Continue scanning while the camera is active.
         }
@@ -425,13 +495,12 @@ export default function ReportIntakePanel({
       setClassificationMethod("AI");
       setClassificationReason(String(parsed.reason ?? "").slice(0, 1000));
       const fields = parsed.extracted_fields && typeof parsed.extracted_fields === "object" && !Array.isArray(parsed.extracted_fields)
-        ? Object.fromEntries(Object.entries(parsed.extracted_fields).slice(0, 30).map(([key, value]) => [
+        ? Object.fromEntries(Object.entries(parsed.extracted_fields).filter(([key]) => key !== "attendance_records").slice(0, 30).map(([key, value]) => [
             key.slice(0, 80),
             key === "attendance_records" && Array.isArray(value) ? value : typeof value === "string" ? value.slice(0, 1000) : typeof value === "number" || typeof value === "boolean" || value === null ? value : JSON.stringify(value).slice(0, 1000),
           ]))
         : {};
       setExtractedFields(fields);
-      if (Array.isArray(fields.attendance_records)) setAttendanceJson(JSON.stringify(fields.attendance_records, null, 2));
       setDocumentDate(/^\\d{4}-\\d{2}-\\d{2}$/.test(parsed.document_date ?? "") ? parsed.document_date! : "");
       setReportType(String(parsed.report_type ?? "").slice(0, 100));
       if (parsed.document_title?.trim()) setTitle(parsed.document_title.trim().slice(0, 240));
@@ -456,15 +525,9 @@ export default function ReportIntakePanel({
         const attendanceDate = String(extractedFields.attendance_date ?? "").trim();
         if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(classId)) throw new Error("Selecione ou indique uma turma válida da Escola Sabatina.");
         if (!/^\d{4}-\d{2}-\d{2}$/.test(attendanceDate)) throw new Error("Indique a data da presença no formato correto.");
-        let parsedAttendance: unknown;
-        try { parsedAttendance = JSON.parse(attendanceJson); } catch { throw new Error("A lista de presenças não contém JSON válido."); }
-        if (!Array.isArray(parsedAttendance) || parsedAttendance.length < 1 || parsedAttendance.length > 1000) throw new Error("A lista deve conter entre 1 e 1000 membros.");
-        const ids = new Set<string>();
-        for (const row of parsedAttendance as Array<{ member_record_id?: unknown; attendance_status?: unknown }>) {
-          const id = String(row?.member_record_id ?? "");
-          if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id) || ids.has(id) || !["PRESENT", "ABSENT", "EXCUSED"].includes(String(row?.attendance_status))) throw new Error("Cada linha deve ter um member_record_id único e estado PRESENT, ABSENT ou EXCUSED.");
-          ids.add(id);
-        }
+        if (attendanceRoster.length < 1 || attendanceRoster.some((row) => !row.attendance_status)) throw new Error("Marque o estado de todos os membros da turma antes de enviar o relatório.");
+        if (attendanceRoster.length > 1000) throw new Error("A turma excede o limite de 1000 membros para este registo.");
+        const parsedAttendance = attendanceRoster.map(({ member_record_id, attendance_status }) => ({ member_record_id, attendance_status }));
         fieldsToSave = { ...extractedFields, attendance_records: parsedAttendance };
       }
       const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -509,7 +572,6 @@ export default function ReportIntakePanel({
       setClassificationMethod("RULES");
       setClassificationReason("");
       setExtractedFields({});
-      setAttendanceJson("[]");
       setDocumentDate("");
       setReportType("");
       setAllowAiAnalysis(false);
@@ -591,12 +653,12 @@ export default function ReportIntakePanel({
           <div className="rounded-xl border border-slate-200 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div><h3 className="text-sm font-semibold text-slate-800">Leitura de QR Code</h3><p className="mt-1 text-xs text-slate-500">Identifica organização e departamento quando o QR contém uma referência ZION.</p></div>
-              <button type="button" onClick={() => scanning ? stopQrScanner() : void startQrScanner()} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">{scanning ? "Parar câmara" : "Abrir câmara QR"}</button>
+              <button type="button" onClick={() => scanning ? stopQrScanner() : void startQrScanner()} disabled={reportType.trim().toUpperCase() === "SABBATH_SCHOOL_ATTENDANCE" && attendanceRoster.length === 0} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-40">{scanning ? "Parar câmara" : reportType.trim().toUpperCase() === "SABBATH_SCHOOL_ATTENDANCE" ? "Ler QR de membro" : "Abrir câmara QR"}</button>
             </div>
             {scanning && <video ref={qrVideo} autoPlay playsInline muted className="mt-3 max-h-56 w-full rounded-lg bg-black object-cover" />}
             <div className="mt-3 flex gap-2">
               <input value={qrManual} onChange={(event) => setQrManual(event.target.value)} placeholder="Ou cole o conteúdo do QR" className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs" />
-              <button type="button" onClick={() => applyQr(qrManual)} disabled={!qrManual.trim()} className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-40">Ler</button>
+              <button type="button" onClick={() => reportType.trim().toUpperCase() === "SABBATH_SCHOOL_ATTENDANCE" ? applyAttendanceMemberQr(qrManual) : applyQr(qrManual)} disabled={!qrManual.trim()} className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-40">Ler</button>
             </div>
           </div>
 
@@ -634,10 +696,24 @@ export default function ReportIntakePanel({
                 <input value={String(extractedFields.lesson_reference ?? "")} maxLength={160} onChange={(event) => setExtractedFields((current) => ({ ...current, lesson_reference: event.target.value }))} placeholder="Ex.: Lição 6" className="mt-1 w-full rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm" />
               </label>
             </div>
-            <label className="block text-xs font-medium text-slate-700">Lista confirmada por QR de membro (JSON)
-              <textarea value={attendanceJson} onChange={(event) => setAttendanceJson(event.target.value)} rows={6} spellCheck={false} className="mt-1 w-full rounded-lg border border-sky-200 bg-white px-3 py-2 font-mono text-xs" placeholder={'[{"member_record_id":"UUID","attendance_status":"PRESENT"}]'} />
-            </label>
-            <p className="text-[11px] leading-5 text-slate-600">Use o identificador interno do membro obtido pelo QR ZION. Não use nomes como identificadores nem deixe a IA inferir presenças. A aprovação exige correspondência completa com a lista ativa da turma; se já existir uma sessão nessa data, use o fluxo próprio de correção.</p>
+            <div className="rounded-lg border border-sky-200 bg-white p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-slate-700">Lista ativa da turma · {attendanceRoster.filter((row) => row.attendance_status).length}/{attendanceRoster.length} confirmados</p>
+              </div>
+              {attendanceRoster.length === 0 ? <p className="mt-3 text-xs text-slate-500">Selecione uma turma autorizada para carregar a lista de membros.</p> : (
+                <div className="mt-3 max-h-72 space-y-2 overflow-y-auto">
+                  {attendanceRoster.map((member) => (
+                    <div key={member.member_record_id} className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                      <div className="min-w-0"><p className="truncate text-xs font-medium text-slate-800">{member.first_name} {member.last_name}</p><p className="text-[10px] text-slate-400">{member.member_record_id.slice(0, 8)}</p></div>
+                      <select value={member.attendance_status} onChange={(event) => setAttendanceRoster((current) => current.map((row) => row.member_record_id === member.member_record_id ? { ...row, attendance_status: event.target.value as SabbathRosterRow["attendance_status"] } : row))} className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs">
+                        <option value="">Por confirmar</option><option value="PRESENT">Presente</option><option value="ABSENT">Ausente</option><option value="EXCUSED">Justificado</option>
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <p className="text-[11px] leading-5 text-slate-600">A leitura individual de QR marca o membro como presente; confirme ou altere manualmente os restantes estados. A aprovação exige que toda a lista ativa esteja preenchida. Nomes não são enviados à IA nem usados para correspondência automática.</p>
           </div>
         )}
         {reportType.trim().toUpperCase() === "STEWARDSHIP_PERIOD" && (
@@ -677,7 +753,7 @@ export default function ReportIntakePanel({
             <input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={240} placeholder="Título identificado ou introduza um" className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
           </label>
           <label className="block text-sm font-semibold text-slate-700">Tipo de relatório
-            <input value={reportType} onChange={(event) => setReportType(event.target.value)} maxLength={100} placeholder="Ex.: relatório mensal, atividade, inventário" className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+            <input value={reportType} onChange={(event) => { setReportType(event.target.value); if (scanning) stopQrScanner(); if (event.target.value.trim().toUpperCase() === "SABBATH_SCHOOL_ATTENDANCE") setAllowAiAnalysis(false); }} maxLength={100} placeholder="Ex.: relatório mensal, atividade, inventário" className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
           </label>
           <label className="block text-sm font-semibold text-slate-700">Data do documento
             <input type="date" value={documentDate} onChange={(event) => setDocumentDate(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
