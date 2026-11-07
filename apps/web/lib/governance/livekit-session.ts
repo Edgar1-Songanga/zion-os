@@ -25,10 +25,12 @@ export class LiveKitMeetingSession {
       })
       .on(RoomEvent.ParticipantDisconnected, (participant) => this.onPeerLeft(participant.identity))
       .on(RoomEvent.LocalTrackPublished, (publication) => {
-        if (publication.source === Track.Source.ScreenShare) input.onLocalScreenShareChange?.(true);
+        const isLobbyMedia = Boolean(publication.track && this.mediaTracks.includes(publication.track.mediaStreamTrack));
+        if (publication.source === Track.Source.ScreenShare && !isLobbyMedia) input.onLocalScreenShareChange?.(true);
       })
       .on(RoomEvent.LocalTrackUnpublished, (publication) => {
-        if (publication.source === Track.Source.ScreenShare) input.onLocalScreenShareChange?.(false);
+        const isLobbyMedia = Boolean(publication.track && this.mediaTracks.includes(publication.track.mediaStreamTrack));
+        if (publication.source === Track.Source.ScreenShare && !isLobbyMedia) input.onLocalScreenShareChange?.(false);
       })
       .on(RoomEvent.ConnectionStateChanged, (state) => input.onConnectionStateChange?.(String(state)));
   }
@@ -73,6 +75,7 @@ export class LiveKitMeetingSession {
     if (!stream) throw new Error("Este navegador não permite capturar o leitor. Use a partilha de separador/ecrã com áudio.");
     const tracks = stream.getTracks().filter((track) => track.readyState === "live");
     if (!tracks.length) throw new Error("O leitor ainda não disponibilizou faixas de áudio/vídeo.");
+    this.mediaTracks = tracks;
     try {
       for (const track of tracks) {
         await this.room.localParticipant.publishTrack(track, {
@@ -80,7 +83,6 @@ export class LiveKitMeetingSession {
           source: track.kind === "video" ? Track.Source.ScreenShare : Track.Source.ScreenShareAudio,
         });
       }
-      this.mediaTracks = tracks;
     } catch (error) {
       for (const track of tracks) {
         try { await this.room.localParticipant.unpublishTrack(track, false); } catch { /* Partial publication cleanup. */ }
