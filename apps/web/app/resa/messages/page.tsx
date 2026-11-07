@@ -163,10 +163,19 @@ export default function MessagesPage() {
       currentUserIdRef.current = id;
     });
     void loadConversations();
-    const timer = window.setInterval(() => void loadConversations(), 10000);
+    // Realtime handles message changes. Reconcile conversation metadata less often,
+    // and refresh immediately when the tab becomes active again.
+    const refresh = () => {
+      if (document.visibilityState === "visible") void loadConversations(false);
+    };
+    const timer = window.setInterval(refresh, 30000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
     return () => {
       active = false;
       window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
       listener.subscription.unsubscribe();
     };
   }, [loadConversations]);
@@ -225,9 +234,18 @@ export default function MessagesPage() {
     setMessages([]);
     setReplyTo(null);
     void loadMessages(selected);
-    const timer = window.setInterval(() => void loadMessages(selected), 5000);
+    // Realtime INSERT events deliver new messages. Keep a slower fallback
+    // for mobile connections that temporarily lose the realtime channel.
+    const refresh = () => {
+      if (document.visibilityState === "visible") void loadMessages(selected);
+    };
+    const timer = window.setInterval(refresh, 30000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
     return () => {
       window.clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
       messageRequestId.current += 1;
     };
   }, [selected, loadMessages]);
