@@ -43,6 +43,7 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
   const recordingChunksRef = useRef<Blob[]>([]);
   const liveStartedAtRef = useRef<number | null>(null);
   const [connected, setConnected] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
   const [joinMode, setJoinMode] = useState<"video" | "audio" | "listen" | null>(null);
   const [joinPassword, setJoinPassword] = useState("");
   const [camera, setCamera] = useState(false);
@@ -227,6 +228,16 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
       }
     };
 
+    const loadMessageHistory = () => {
+      void resaRequest<PersistedLiveMessage[]>("/v1/resa/live/" + liveId + "/messages?limit=100")
+        .then((history) => {
+          if (mounted) setMessages(history.map((item) => ({ id: item.id, identity: item.sender_id, name: item.name, text: item.text, sentAt: Date.parse(item.sent_at) || Date.now() })));
+        })
+        .catch(() => {
+          if (mounted) setNotice("O chat está ligado, mas o histórico não pôde ser carregado. As novas mensagens continuam disponíveis.");
+        });
+    };
+
     room
       .on(RoomEvent.TrackSubscribed, attachRemote)
       .on(RoomEvent.TrackUnsubscribed, (track: any, _publication: any, participant: any) => {
@@ -245,16 +256,34 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
       .on(RoomEvent.Connected, () => {
         if (mounted) {
           setConnected(true);
+          setReconnecting(false);
           liveStartedAtRef.current = Date.now();
           setSelfIdentity(room.localParticipant.identity);
           syncParticipants(room);
-          void resaRequest<PersistedLiveMessage[]>("/v1/resa/live/" + liveId + "/messages?limit=100")
-            .then((history) => { if (mounted) setMessages(history.map((item) => ({ id: item.id, identity: item.sender_id, name: item.name, text: item.text, sentAt: Date.parse(item.sent_at) || Date.now() }))); })
-            .catch(() => { if (mounted) setNotice("O chat está ligado, mas o histórico não pôde ser carregado. As novas mensagens continuam disponíveis."); });
+          loadMessageHistory();
+        }
+      })
+      .on(RoomEvent.Reconnecting, () => {
+        if (mounted) {
+          setConnected(false);
+          setReconnecting(true);
+          setNotice("Ligação instável. A recuperar a transmissão…");
+        }
+      })
+      .on(RoomEvent.Reconnected, () => {
+        if (mounted) {
+          setConnected(true);
+          setReconnecting(false);
+          setNotice("Ligação recuperada. A sincronizar participantes e mensagens…");
+          syncParticipants(room);
+          loadMessageHistory();
         }
       })
       .on(RoomEvent.Disconnected, () => {
-        if (mounted) setConnected(false);
+        if (mounted) {
+          setConnected(false);
+          setReconnecting(false);
+        }
       });
 
     void (async () => {
@@ -876,7 +905,7 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
               </div>
               {liveReactions.length > 0 && <div aria-live="polite" className="pointer-events-none absolute inset-x-0 bottom-5 z-10 flex items-end justify-center gap-4">{liveReactions.slice(-5).map((reaction, index) => <span key={reaction.id} title={reaction.name} className="zion-live-reaction flex h-14 w-14 items-center justify-center rounded-full border border-white/20 bg-gradient-to-br from-white/20 to-sky-300/10 text-3xl shadow-[0_0_32px_rgba(125,211,252,0.28)] backdrop-blur" style={{ animationDelay: (index * 90) + "ms" }}>{reaction.emoji}</span>)}</div>}
               {camera && connected && <div className="absolute bottom-3 right-3 z-20 h-24 w-36 overflow-hidden rounded-xl border border-white/20 bg-slate-900 shadow-2xl sm:h-32 sm:w-48"><video ref={localVideoRef} autoPlay muted playsInline className="h-full w-full object-cover" /><span className="absolute bottom-1 left-1 rounded-md bg-black/65 px-2 py-1 text-[10px] font-semibold text-white">{roomRef.current?.localParticipant.name || "Tu"} · Tu</span></div>}
-              {!connected && <div className="absolute inset-0 flex items-center justify-center bg-black/60 p-6 text-center text-sm text-slate-300">{error || (starting ? "A preparar áudio e vídeo…" : "A ligação foi interrompida.")}</div>}
+              {!connected && <div className="absolute inset-0 flex items-center justify-center bg-black/60 p-6 text-center text-sm text-slate-300">{error || (reconnecting ? "A recuperar ligação…" : starting ? "A preparar áudio e vídeo…" : "A ligação foi interrompida.")}</div>}
             </div>
             {sharedScripture && <article aria-live="polite" className="rounded-2xl border border-amber-200/25 bg-gradient-to-br from-amber-100/[0.10] via-white/[0.035] to-transparent p-5 shadow-[0_18px_50px_rgba(0,0,0,0.18)]"><p className="text-[10px] font-bold uppercase tracking-[0.22em] text-amber-200/80">Leitura partilhada</p><h3 className="mt-2 text-lg font-semibold text-amber-50">{sharedScripture.title}</h3><p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-100">{sharedScripture.text}</p><p className="mt-3 text-[10px] text-slate-500">Partilhado por {sharedScripture.name}</p></article>}
             {connected && (isHost || isModerator) && <details className="group rounded-2xl border border-amber-200/20 bg-gradient-to-r from-amber-100/[0.06] to-white/[0.02] p-4"><summary className="cursor-pointer list-none text-sm font-semibold text-amber-100"><span className="mr-2 text-amber-300">✦</span>Partilhar texto bíblico ou mensagem <span className="float-right text-amber-200/70 transition group-open:rotate-180">⌄</span></summary><form onSubmit={(event) => void shareScripture(event)} className="mt-4 space-y-3"><input value={scriptureTitle} onChange={(event) => setScriptureTitle(event.target.value)} maxLength={120} placeholder="Referência ou título (ex.: Salmo 23)" className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-amber-200/40" /><textarea value={scriptureText} onChange={(event) => setScriptureText(event.target.value)} maxLength={5000} rows={3} placeholder="Escreve ou cola o texto que todos devem acompanhar…" className="w-full resize-y rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-amber-200/40" /><div className="flex items-center justify-between gap-3"><p className="text-[11px] leading-4 text-slate-500">Enviado em tempo real para todos os participantes.</p><button type="submit" disabled={!connected || !scriptureTitle.trim() || !scriptureText.trim()} className="rounded-xl bg-amber-200 px-4 py-2.5 text-xs font-bold text-[#07142c] transition hover:bg-amber-100 disabled:opacity-40">Partilhar no palco</button></div></form></details>}
