@@ -27,6 +27,10 @@ export default function MeetingRoom({ meetingId }: Props) {
   const mediaVideo = useRef<HTMLVideoElement>(null);
   const mediaAudio = useRef<HTMLAudioElement>(null);
   const mediaObjectUrl = useRef<string | null>(null);
+  const micState = useRef(mic);
+  const cameraState = useRef(camera);
+  micState.current = mic;
+  cameraState.current = camera;
   const endedHandled = useRef(false);
   const remoteVideos = useRef(new Map<string, HTMLVideoElement>());
   const sessionRef = useRef<MeetingSession | null>(null);
@@ -115,7 +119,16 @@ export default function MeetingRoom({ meetingId }: Props) {
               setRemoteStreams((current) => { const next = { ...current }; delete next[peerId]; return next; });
               setRemoteScreenStreams((current) => { const next = { ...current }; delete next[peerId]; return next; });
             },
-            onLocalScreenShareChange: (enabled) => setSharing(enabled),
+            onLocalScreenShareChange: (enabled) => {
+              setSharing(enabled);
+              void realtimeRef.current?.trackPresence({
+                userId: authSession.user.id,
+                mic: micState.current,
+                camera: cameraState.current,
+                sharing: enabled,
+              });
+              void setSelfMeetingControl(meetingId, { screen_sharing: enabled }).catch(() => {});
+            },
             onConnectionStateChange: (state) => setStatus(`Ligação: ${state}`),
           });
           if (!media.joinUrl || !media.token) throw new Error("Configuração SFU incompleta.");
@@ -132,6 +145,16 @@ export default function MeetingRoom({ meetingId }: Props) {
               const next = { ...current }; delete next[peerId]; return next;
             }),
             onConnectionStateChange: (_peerId, state) => setStatus(`Ligação: ${state}`),
+            onLocalScreenShareChange: (enabled) => {
+              setSharing(enabled);
+              void realtimeRef.current?.trackPresence({
+                userId: authSession.user.id,
+                mic: micState.current,
+                camera: cameraState.current,
+                sharing: enabled,
+              });
+              void setSelfMeetingControl(meetingId, { screen_sharing: enabled }).catch(() => {});
+            },
             onScreenShareChange: (peerId, enabled) => {
               setRemoteScreenSharing((current) => ({ ...current, [peerId]: enabled }));
               setStatus(enabled ? `Participante ${peerId.slice(0, 8)} está a partilhar o ecrã` : "Partilha de ecrã terminada");
@@ -253,8 +276,9 @@ export default function MeetingRoom({ meetingId }: Props) {
       } else {
         await sessionRef.current?.startScreenShare();
         setSharing(true);
-        void realtimeRef.current?.trackPresence({ mic, camera, sharing: true });
+        void realtimeRef.current?.trackPresence({ userId: currentUserId ?? "", mic, camera, sharing: true });
         void setSelfMeetingControl(meetingId, { screen_sharing: true });
+        setMeetingNotice("Partilha iniciada. Para incluir o som de um vídeo, selecione um separador do navegador e ative a opção de partilha de áudio, quando disponível.");
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Não foi possível partilhar o ecrã.");
