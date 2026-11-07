@@ -72,8 +72,9 @@ export class WebRtcSession {
     this.screenStream = stream;
     const displayAudioTrack = stream.getAudioTracks()[0] ?? null;
     if (displayAudioTrack && typeof AudioContext !== "undefined") {
+      let context: AudioContext | null = null;
       try {
-        const context = new AudioContext();
+        context = new AudioContext();
         await context.resume();
         const destination = context.createMediaStreamDestination();
         const displaySource = context.createMediaStreamSource(new MediaStream([displayAudioTrack]));
@@ -88,6 +89,10 @@ export class WebRtcSession {
         this.screenAudioDestination = destination;
         this.screenAudioTrack = destination.stream.getAudioTracks()[0] ?? null;
       } catch {
+        if (context) await context.close().catch(() => {});
+        this.screenAudioContext = null;
+        this.screenAudioDestination = null;
+        this.screenAudioMicTrackId = null;
         this.screenAudioTrack = displayAudioTrack;
       }
     } else {
