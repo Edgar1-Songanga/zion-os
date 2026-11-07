@@ -113,7 +113,7 @@ function parseQrPayload(value: string) {
     };
   } catch {
     const match = raw.match(/^zion-report:([0-9a-f-]{36})$/i);
-    return match ? { organizationId: "", ministryId: match[1], department: "" } : null;
+    return match ? { organizationId: "", ministryId: match[1], department: "", title: "", reportType: "", documentDate: "", fields: {} as Record<string, unknown> } : null;
   }
 }
 
