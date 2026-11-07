@@ -178,7 +178,6 @@ export default function NotificationBell() {
     const supabase = createClient();
     let channel: ReturnType<typeof supabase.channel> | null = null;
     let disposed = false;
-    const onVisibility = () => { if (document.visibilityState === "visible") void load(); };
     void supabase.auth.getUser().then(({ data, error }) => {
       if (disposed) return;
       if (error || !data.user) {
@@ -219,8 +218,6 @@ export default function NotificationBell() {
     return () => {
       disposed = true;
       mountedRef.current = false;
-      setRealtimeConnected(false);
-      document.removeEventListener("visibilitychange", onVisibility);
       if (channel) void supabase.removeChannel(channel);
     };
   }, [load]);
