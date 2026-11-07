@@ -51,7 +51,7 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
           void roomRef.current?.disconnect(true);
           roomRef.current = null;
           callRef.current = null;
-          setCall(null); setActive(false); setConnected(false); setReconnecting(false); setReconnecting(false);
+          setCall(null); setActive(false); setConnected(false); setReconnecting(false);
         }
         if (incoming?.id === next.id && ["ended", "declined", "missed"].includes(next.status)) setIncoming(null);
       }).subscribe();
@@ -211,7 +211,7 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
     const id = callRef.current?.id;
     await roomRef.current?.disconnect(true);
     roomRef.current = null; callRef.current = null;
-    setCall(null); setActive(false); setConnected(false);
+    setCall(null); setActive(false); setConnected(false); setReconnecting(false);
     if (id) {
       const { error: updateError } = await supabase.from("resa_calls")
         .update({ status: "ended", ended_at: new Date().toISOString() }).eq("id", id);
