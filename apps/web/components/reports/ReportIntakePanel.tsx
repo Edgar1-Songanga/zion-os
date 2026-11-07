@@ -83,7 +83,7 @@ async function prepareOcrImage(file: File): Promise<File> {
     context.drawImage(bitmap, 0, 0, width, height);
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.88));
     if (!blob) return file;
-    return new File([blob], file.name.replace(/\\.[^.]+$/, "") + ".ocr.jpg", {
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".ocr.jpg", {
       type: "image/jpeg",
       lastModified: file.lastModified,
     });
