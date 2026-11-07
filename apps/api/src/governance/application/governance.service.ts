@@ -339,7 +339,7 @@ export class GovernanceService {
   async startMeeting(token: string, meetingId: string) {
     const a = await this.requireMeetingModerator(token, meetingId);
     const current = (await this.db.get<any[]>('governance_meetings', token,
-      `?select=id,status& id=eq.${encodeURIComponent(meetingId)}&limit=1`.replace('& id=', '&id=')))[0];
+      `?select=*&id=eq.${encodeURIComponent(meetingId)}&limit=1`))[0];
     if (!current) throw new BadRequestException('Meeting was not found');
     if (current.status === 'ENDED') throw new BadRequestException('An ended meeting cannot be restarted');
     if (current.status === 'LIVE') return current;
