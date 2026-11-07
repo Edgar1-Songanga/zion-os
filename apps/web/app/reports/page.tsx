@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import { OrganizationSelector, type ZionOrganization } from "@/components/organization/OrganizationSelector";
+import ReportIntakePanel from "@/components/reports/ReportIntakePanel";
 
 type MinistryReportRow = { id: string; title: string; status: string; submitted_at?: string };
 type MinistryRow = {
@@ -146,6 +147,12 @@ export default function ReportsPage() {
         </section>
 
         {errors.length > 0 && <div role="alert" className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{errors.map((error) => <p key={error}>{error}</p>)}</div>}
+
+        <ReportIntakePanel
+          organizationId={organizationId}
+          destinations={ministries.map((ministry) => ({ id: ministry.id, name: ministry.name, department: ministry.department }))}
+          onSubmitted={() => { if (organizationId) void refresh(organizationId, true); }}
+        />
 
         <section>
           <div className="mb-4"><p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9B7A34]">Resumo executivo</p><h2 className="mt-2 text-2xl font-semibold tracking-tight">Indicadores dos registos existentes</h2></div>
