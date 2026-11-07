@@ -46,12 +46,19 @@ export class LiveKitMeetingSession {
     return new MediaStream(tracks);
   }
 
-  setAudioEnabled(enabled: boolean) {
-    void this.room.localParticipant.setMicrophoneEnabled(enabled);
+  async setAudioEnabled(enabled: boolean) {
+    await this.room.localParticipant.setMicrophoneEnabled(enabled);
   }
 
-  setVideoEnabled(enabled: boolean) {
-    void this.room.localParticipant.setCameraEnabled(enabled);
+  async setVideoEnabled(enabled: boolean) {
+    await this.room.localParticipant.setCameraEnabled(enabled);
+  }
+
+  getLocalStream(): MediaStream {
+    const tracks = Array.from(this.room.localParticipant.trackPublications.values())
+      .map((publication) => publication.track?.mediaStreamTrack)
+      .filter((track): track is MediaStreamTrack => Boolean(track));
+    return new MediaStream(tracks);
   }
 
   async startScreenShare() {
