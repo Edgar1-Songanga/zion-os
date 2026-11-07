@@ -69,6 +69,26 @@ describe('ResaOperationalService live permissions', () => {
     }));
   });
 
+  it.each(['followers', 'community'])('allows a viewer admitted by RLS to join a %s-only live', async (visibility) => {
+    actorId = 'authorized-viewer';
+    getSpy.mockResolvedValueOnce([{
+      id: LIVE_ID,
+      host_id: 'host-user',
+      status: 'live',
+      visibility,
+      community_id: visibility === 'community' ? '55555555-5555-4555-8555-555555555555' : null,
+    }] as never);
+
+    const config = await service.liveJoinConfig('session-token', LIVE_ID);
+
+    expect(config.isHost).toBe(false);
+    expect(config.role).toBe('viewer');
+    expect(media.createJoinConfig).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'authorized-viewer',
+      canPublish: true,
+    }));
+  });
+
   it('allows a non-host organization member to join an organization-scoped live returned by RLS', async () => {
     actorId = 'organization-member';
     getSpy.mockResolvedValueOnce([{
@@ -290,17 +310,23 @@ describe('ResaOperationalService live permissions', () => {
 
   it('does not expose chat messages for a private live to a non-host', async () => {
     actorId = 'uninvited-viewer';
-    getSpy.mockResolvedValueOnce([{
-      id: LIVE_ID,
-      host_id: 'host-user',
-      status: 'live',
-      visibility: 'private',
-    }] as never);
+    // With the caller JWT, RLS hides a private Live unless a valid access grant exists.
+    getSpy.mockResolvedValueOnce([] as never);
 
     await expect(service.listLiveChatMessages('session-token', LIVE_ID)).rejects.toBeInstanceOf(NotFoundException);
 
     expect(getSpy).toHaveBeenCalledTimes(1);
     expect(getSpy).not.toHaveBeenCalledWith('resa_live_chat_messages', expect.anything(), expect.anything());
+  });
+
+  it('requires a selected community for a community-only live', async () => {
+    await expect(service.createLiveSession('session-token', {
+      title: 'Estudo bíblico em comunidade',
+      visibility: 'community',
+    })).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(getSpy).not.toHaveBeenCalled();
+    expect(media.createRoom).not.toHaveBeenCalled();
   });
 
   it('requires an organization id when creating an organization-only live', async () => {
