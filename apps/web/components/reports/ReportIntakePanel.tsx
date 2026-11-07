@@ -61,6 +61,39 @@ function classifyDocument(text: string, destinations: Destination[]) {
   return { destination: first.destination, confidence, ambiguous: Boolean(second && margin < 1.25) };
 }
 
+async function prepareOcrImage(file: File): Promise<File> {
+  if (typeof createImageBitmap !== "function") return file;
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+  } catch {
+    return file;
+  }
+  try {
+    const maxDimension = 2200;
+    const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) return file;
+    context.filter = "grayscale(1) contrast(1.12)";
+    context.drawImage(bitmap, 0, 0, width, height);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.88));
+    if (!blob) return file;
+    return new File([blob], file.name.replace(/\\.[^.]+$/, "") + ".ocr.jpg", {
+      type: "image/jpeg",
+      lastModified: file.lastModified,
+    });
+  } catch {
+    return file;
+  } finally {
+    bitmap.close();
+  }
+}
+
 async function loadOcrEngine() {
   if (window.Tesseract) return window.Tesseract;
   await new Promise<void>((resolve, reject) => {
@@ -269,12 +302,12 @@ export default function ReportIntakePanel({
     if (!file || reading) return;
     setReading(true);
     setError(null);
-    setNotice("A preparar OCR no dispositivo. O ficheiro ainda não foi enviado.");
+    setNotice("A otimizar a imagem e preparar OCR no dispositivo. O original ainda não foi enviado.");
     let worker: OcrWorker | null = null;
     try {
       const engine = await loadOcrEngine();
       worker = await engine.createWorker("por+eng");
-      const result = await worker.recognize(file);
+      const ocrImage = await prepareOcrImage(file);\n      const result = await worker.recognize(ocrImage);
       const text = result.data.text.trim();
       setOcrText(text);
       setOcrConfidence(result.data.confidence / 100);
