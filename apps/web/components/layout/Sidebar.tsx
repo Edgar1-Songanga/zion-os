@@ -17,6 +17,7 @@ const nestedActiveRoutes = new Set([
   "/reports",
   "/ministry",
   "/youth",
+  "/resa",
 ]);
 
 function NavIcon({ index }: { index: number }) {
@@ -82,7 +83,6 @@ export default function Sidebar() {
     { title: t("spiritualExperience"), items: [
       { name: t("spiritualVision"), path: "/spiritual-experience" },
       { name: t("bibleEngine"), path: "/bible-engine" },
-      { name: t("prayer"), path: "/resa/prayer" },
       { name: t("devotion"), path: "/devotion" },
       { name: t("spiritualGrowth"), path: "/spiritual-growth" },
       { name: t("sabbathSchool"), path: "/sabbath-school" },
@@ -90,7 +90,6 @@ export default function Sidebar() {
       { name: t("ministry"), path: "/ministry" },
       { name: "Ministério Jovem", path: "/youth" },
       { name: t("spiritualChat"), path: "/spiritual-chat" },
-      { name: t("communities"), path: "/resa/communities" },
     ] },
     { title: t("organization"), items: organizationItems },
   ];

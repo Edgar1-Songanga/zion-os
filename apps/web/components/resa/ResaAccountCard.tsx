@@ -49,7 +49,7 @@ export default function ResaAccountCard() {
         </div>
         <div className="mt-6 flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
           <ResaIcon name="users" size={16} />
-          Ligado à rede global
+          {t("connectedGlobalNetwork")}
         </div>
       </div>
     </section>

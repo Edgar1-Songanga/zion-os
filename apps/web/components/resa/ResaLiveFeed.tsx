@@ -59,7 +59,7 @@ export default function ResaLiveFeed() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -169,7 +169,7 @@ export default function ResaLiveFeed() {
           <p className="font-semibold text-red-800">{t("wallUpdateError")}</p>
           <p className="mt-1 text-sm text-red-600">{error}</p>
           <button type="button" onClick={() => void load()} className="mt-4 rounded-xl bg-[#0C1A3D] px-4 py-2 text-sm font-semibold text-white">
-            Tentar novamente
+            {t("tryAgain")}
           </button>
         </div>
       )}
