@@ -33,13 +33,14 @@ export class NotificationService {
     return rows[0] ?? { user_id: actor.id, enabled: true, channels: ['in_app'], muted_types: [], quiet_start: null, quiet_end: null };
   }
 
-  async updatePreferences(token: string, input: { enabled?: unknown; channels?: unknown; muted_types?: unknown; quiet_start?: unknown; quiet_end?: unknown }) {
+  async updatePreferences(token: string, input: { enabled?: unknown; channels?: unknown; muted_types?: unknown; quiet_start?: unknown; quiet_end?: unknown; sound_style?: unknown }) {
     const actor = await this.identity.getCurrentUser(token);
     const body: Record<string, unknown> = { user_id: actor.id };
     if (input.enabled !== undefined) { if (typeof input.enabled !== 'boolean') throw new BadRequestException('enabled must be boolean'); body.enabled = input.enabled; }
     if (input.channels !== undefined) { if (!Array.isArray(input.channels) || input.channels.some((channel) => !['in_app', 'push', 'email'].includes(String(channel)))) throw new BadRequestException('channels is invalid'); body.channels = input.channels; }
     if (input.muted_types !== undefined) { if (!Array.isArray(input.muted_types)) throw new BadRequestException('muted_types is invalid'); body.muted_types = input.muted_types.map((type) => String(type).trim()).filter(Boolean).slice(0, 100); }
     for (const key of ['quiet_start', 'quiet_end'] as const) if (input[key] !== undefined) body[key] = input[key] || null;
+    if (input.sound_style !== undefined) { if (!['soft', 'chime', 'classic', 'silent'].includes(String(input.sound_style))) throw new BadRequestException('sound_style is invalid'); body.sound_style = input.sound_style; }
     const rows = await this.db.upsert<any[]>('notification_preferences', token, body, '?on_conflict=user_id');
     return rows[0];
   }

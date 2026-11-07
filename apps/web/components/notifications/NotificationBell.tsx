@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { resaRequest } from "@/lib/resa/api";
-import { playNotificationAlert } from "@/lib/notifications/notification-alerts";
+import { playNotificationAlert, type NotificationAlertPreferences } from "@/lib/notifications/notification-alerts";
 
 type NotificationItem = {
   id: string;
@@ -27,6 +27,9 @@ export default function NotificationBell() {
   const [pushMessage, setPushMessage] = useState("");
   const [loadError, setLoadError] = useState(false);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
+  const [soundStyle, setSoundStyle] = useState<NonNullable<NotificationAlertPreferences["sound_style"]>>("soft");
+  const [soundSaving, setSoundSaving] = useState(false);
+  const soundStyleRef = useRef<NonNullable<NotificationAlertPreferences["sound_style"]>>("soft");
   const loadingRef = useRef(false);
   const mountedRef = useRef(true);
   const pushPublicKey = process.env.NEXT_PUBLIC_RESA_VAPID_PUBLIC_KEY || "BEmbs-5tKPOjip3OfVkjD4VynTnbOTxGQkXohOT_3KTCF-vCRJzbpLrJubl1y6CowFavkTDf1gSIJdXqNK2CJP8";
@@ -156,7 +159,7 @@ export default function NotificationBell() {
           if (payload.eventType === "INSERT") {
             const next = payload.new as NotificationItem;
             setItems((current) => [next, ...current.filter((item) => item.id !== next.id)].slice(0, 20));
-            playNotificationAlert("notification", { vibration_enabled: false });
+            playNotificationAlert("notification", { sound_style: soundStyleRef.current, vibration_enabled: false });
           } else {
             void load();
           }
@@ -197,6 +200,39 @@ export default function NotificationBell() {
       window.removeEventListener("focus", refresh);
     };
   }, [load, realtimeConnected]);
+
+  useEffect(() => {
+    let active = true;
+    void resaRequest<NotificationAlertPreferences>("/v1/notifications/preferences")
+      .then((preferences) => {
+        if (!active) return;
+        const style = preferences.sound_style ?? "soft";
+        soundStyleRef.current = style;
+        setSoundStyle(style);
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
+  async function changeSoundStyle(value: NonNullable<NotificationAlertPreferences["sound_style"]>) {
+    const previous = soundStyleRef.current;
+    soundStyleRef.current = value;
+    setSoundStyle(value);
+    setSoundSaving(true);
+    try {
+      await resaRequest("/v1/notifications/preferences", {
+        method: "PATCH",
+        body: JSON.stringify({ sound_style: value }),
+      });
+      if (value !== "silent") playNotificationAlert("notification", { sound_style: value, vibration_enabled: false });
+    } catch {
+      soundStyleRef.current = previous;
+      setSoundStyle(previous);
+      setPushMessage("Não foi possível guardar a preferência de som.");
+    } finally {
+      setSoundSaving(false);
+    }
+  }
 
   const unread = items.filter((item) => !item.read_at).length;
 
@@ -287,6 +323,27 @@ export default function NotificationBell() {
                 <p className="text-[11px] text-[var(--zion-muted)]">{unread ? `${unread} por ler` : "Tudo em dia"}</p>
               </div>
               {unread > 0 && <button onClick={() => void markAllRead()} disabled={busy} className="text-xs font-semibold text-[var(--zion-primary)] hover:text-[var(--zion-primary-deep)]">Marcar todas como lidas</button>}
+            </div>
+            <div className="mt-3 rounded-xl border border-[var(--zion-border)] bg-white p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-[var(--zion-dark)]">Som das notificações</p>
+                  <p className="mt-1 text-[11px] text-[var(--zion-muted)]">Escolhe e ouve o estilo do alerta.</p>
+                </div>
+                <select
+                  aria-label="Tipo de som das notificações"
+                  value={soundStyle}
+                  disabled={soundSaving}
+                  onChange={(event) => void changeSoundStyle(event.target.value as NonNullable<NotificationAlertPreferences["sound_style"]>)}
+                  className="max-w-[145px] rounded-lg border border-[var(--zion-border)] bg-white px-2 py-2 text-xs text-[var(--zion-dark)] disabled:opacity-60"
+                >
+                  <option value="soft">Suave</option>
+                  <option value="chime">Sino</option>
+                  <option value="classic">Clássico</option>
+                  <option value="silent">Sem som</option>
+                </select>
+              </div>
+              {soundSaving && <p className="mt-2 text-[10px] text-[var(--zion-muted)]">A guardar preferência…</p>}
             </div>
             <div className="mt-3 rounded-xl border border-[var(--zion-border)] bg-slate-50 p-3">
               <div className="flex items-start justify-between gap-3">

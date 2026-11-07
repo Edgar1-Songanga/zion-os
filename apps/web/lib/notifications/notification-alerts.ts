@@ -1,6 +1,7 @@
 export type NotificationAlertPreferences = {
   enabled?: boolean;
   sound_enabled?: boolean;
+  sound_style?: 'soft' | 'chime' | 'classic' | 'silent';
   vibration_enabled?: boolean;
   muted_types?: string[];
   quiet_start?: string | null;
@@ -50,18 +51,31 @@ export function playNotificationAlert(type: string, preferences: NotificationAle
       const playTone = () => {
         if (stopped || audio.state !== 'running') return;
         try {
-          const oscillator = audio.createOscillator();
-          const gain = audio.createGain();
-          oscillator.type = 'sine';
-          oscillator.frequency.setValueAtTime(type.includes('call') ? 480 : 560, audio.currentTime);
-          oscillator.frequency.setValueAtTime(type.includes('call') ? 580 : 680, audio.currentTime + 0.09);
-          gain.gain.setValueAtTime(0.0001, audio.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.035, audio.currentTime + 0.035);
-          gain.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + 0.22);
-          oscillator.connect(gain);
-          gain.connect(audio.destination);
-          oscillator.start();
-          oscillator.stop(audio.currentTime + 0.23);
+          const style = settings.sound_style ?? 'soft';
+          if (style === 'silent') return;
+          const call = type.includes('call');
+          const tones = style === 'chime'
+            ? (call ? [520, 660, 780] : [620, 740, 880])
+            : style === 'classic'
+              ? (call ? [440, 440] : [520, 520])
+              : (call ? [480, 580] : [560, 680]);
+          const noteDuration = style === 'classic' ? 0.085 : 0.095;
+          const noteGap = style === 'chime' ? 0.035 : 0.045;
+          const volume = style === 'classic' ? 0.022 : 0.03;
+          tones.forEach((frequency, index) => {
+            const start = audio.currentTime + index * (noteDuration + noteGap);
+            const oscillator = audio.createOscillator();
+            const gain = audio.createGain();
+            oscillator.type = style === 'classic' ? 'triangle' : 'sine';
+            oscillator.frequency.setValueAtTime(frequency, start);
+            gain.gain.setValueAtTime(0.0001, start);
+            gain.gain.exponentialRampToValueAtTime(volume, start + 0.018);
+            gain.gain.exponentialRampToValueAtTime(0.0001, start + noteDuration);
+            oscillator.connect(gain);
+            gain.connect(audio.destination);
+            oscillator.start(start);
+            oscillator.stop(start + noteDuration + 0.01);
+          });
         } catch { /* Browser audio policy may require prior user interaction. */ }
       };
       if (audio.state === 'suspended') {
