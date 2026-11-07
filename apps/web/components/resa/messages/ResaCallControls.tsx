@@ -55,6 +55,7 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
           callTimeoutRef.current = null;
         }
         if (callRef.current?.id === next.id && ["ended", "declined", "missed"].includes(next.status)) {
+          if (next.status === "missed") setError("A chamada não foi atendida. Pode tentar novamente.");
           void roomRef.current?.disconnect(true);
           roomRef.current = null;
           callRef.current = null;
@@ -204,6 +205,10 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
       if (insertError) throw insertError;
       created = data as CallRow;
       callRef.current = created; setCall(created);
+      const { error: participantError } = await supabase.from("resa_call_participants")
+        .upsert({ call_id: created.id, user_id: userId.current, status: "joined", joined_at: new Date().toISOString() }, { onConflict: "call_id,user_id" });
+      if (participantError) throw participantError;
+      await joinMedia(created, kind);
       // A ringing call expires after 45 seconds unless the callee answers first.
       callTimeoutRef.current = window.setTimeout(() => {
         callTimeoutRef.current = null;
@@ -227,10 +232,6 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
           }
         })();
       }, 45_000);
-      const { error: participantError } = await supabase.from("resa_call_participants")
-        .upsert({ call_id: created.id, user_id: userId.current, status: "joined", joined_at: new Date().toISOString() }, { onConflict: "call_id,user_id" });
-      if (participantError) throw participantError;
-      await joinMedia(created, kind);
       setActive(true);
     } catch (reason) {
       if (created) {
