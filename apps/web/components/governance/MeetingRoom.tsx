@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { createMeetingRealtime } from "@/lib/governance/meeting-realtime";
 import { getMeetingIceConfig } from "@/lib/governance/ice";
 import { WebRtcSession } from "@/lib/governance/webrtc-session";
-import { getMeetingControls, getMeetingParticipants, getMeetingMediaJoinConfig, moderateMeetingParticipant, setSelfMeetingControl, type MeetingParticipant } from "@/lib/governance/meeting-api";
+import { getMeetingControls, getMeetingParticipants, getMeetingMediaJoinConfig, getMeetingRoom, openMeetingRoom, getMeetingLifecycle, startMeeting, endMeeting, moderateMeetingParticipant, setSelfMeetingControl, type MeetingParticipant } from "@/lib/governance/meeting-api";
 import { LiveKitMeetingSession } from "@/lib/governance/livekit-session";
 
 type Props = { meetingId: string };
@@ -16,11 +16,17 @@ type MeetingSession = {
   setVideoEnabled: (enabled: boolean) => void;
   startScreenShare: () => Promise<void>;
   stopScreenShare: () => Promise<void>;
+  startMediaBroadcast: (element: HTMLMediaElement) => Promise<void>;
+  stopMediaBroadcast: () => Promise<void>;
+  getLocalStream: () => MediaStream;
   close: () => Promise<void>;
 };
 
 export default function MeetingRoom({ meetingId }: Props) {
   const localVideo = useRef<HTMLVideoElement>(null);
+  const mediaVideo = useRef<HTMLVideoElement>(null);
+  const mediaAudio = useRef<HTMLAudioElement>(null);
+  const mediaObjectUrl = useRef<string | null>(null);
   const remoteVideos = useRef(new Map<string, HTMLVideoElement>());
   const sessionRef = useRef<MeetingSession | null>(null);
   const realtimeRef = useRef<Awaited<ReturnType<typeof createMeetingRealtime>> | null>(null);
@@ -35,12 +41,21 @@ export default function MeetingRoom({ meetingId }: Props) {
   const [participants, setParticipants] = useState<MeetingParticipant[]>([]);
   const [isModerator, setIsModerator] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [meetingStatus, setMeetingStatus] = useState("PLANNED");
+  const [mediaUrl, setMediaUrl] = useState("");
+  const [mediaFileType, setMediaFileType] = useState<"audio" | "video" | null>(null);
+  const [mediaFileName, setMediaFileName] = useState("");
+  const [mediaBroadcasting, setMediaBroadcasting] = useState(false);
+  const [mediaBusy, setMediaBusy] = useState(false);
+  const [meetingActionBusy, setMeetingActionBusy] = useState(false);
+  const [meetingNotice, setMeetingNotice] = useState<string | null>(null);
 
   const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     let active = true;
     let controlsTimer: number | undefined;
+    let lifecycleTimer: number | undefined;
     async function start() {
       try {
         const { data: { session: authSession } } = await supabase.auth.getSession();
@@ -49,7 +64,25 @@ export default function MeetingRoom({ meetingId }: Props) {
         setCurrentUserId(authSession.user.id);
         const participantRows = await getMeetingParticipants(meetingId);
         setParticipants(participantRows);
-        setIsModerator(participantRows.some((p) => p.user_id === authSession.user.id && ["HOST", "MODERATOR"].includes(p.participant_role) && ["INVITED", "ACCEPTED", "PRESENT"].includes(p.status)));
+        const moderator = participantRows.some((p) => p.user_id === authSession.user.id && ["HOST", "MODERATOR"].includes(p.participant_role) && ["INVITED", "ACCEPTED", "PRESENT"].includes(p.status));
+        setIsModerator(moderator);
+
+        let roomState = await getMeetingRoom(meetingId);
+        if (roomState.status === "READY" && moderator) {
+          setStatus("A abrir a sala de espera…");
+          await openMeetingRoom(meetingId);
+          roomState = await getMeetingRoom(meetingId);
+        }
+        while (active && roomState.status === "READY") {
+          setStatus("À espera do anfitrião abrir a sala de espera…");
+          await new Promise((resolve) => window.setTimeout(resolve, 2500));
+          if (!active) return;
+          roomState = await getMeetingRoom(meetingId);
+        }
+        if (!active) return;
+        if (roomState.status !== "OPEN") throw new Error("A sala desta reunião está encerrada.");
+        const lifecycle = await getMeetingLifecycle(meetingId);
+        setMeetingStatus(String(lifecycle.meeting?.status ?? "PLANNED"));
 
         const realtime = await createMeetingRealtime(meetingId);
         if (!active) { await realtime.unsubscribe(); return; }
@@ -117,11 +150,16 @@ export default function MeetingRoom({ meetingId }: Props) {
         }
         sessionRef.current = meetingSession;
 
-        const local = await meetingSession.startLocalMedia();
-        if (localVideo.current) localVideo.current.srcObject = local;
+        await meetingSession.startLocalMedia();
+        await meetingSession.setAudioEnabled(false);
+        await meetingSession.setVideoEnabled(false);
+        setMic(false);
+        setCamera(false);
+        if (localVideo.current) localVideo.current.srcObject = meetingSession.getLocalStream();
 
-        await realtime.trackPresence({ userId: authSession.user.id, mic: true, camera: true, sharing: false });
-        setStatus(media.mode === "SFU" ? "Sala ligada via ZION SFU" : "Sala ligada");
+        await realtime.trackPresence({ userId: authSession.user.id, mic: false, camera: false, sharing: false });
+        void setSelfMeetingControl(meetingId, { mic_muted: true, camera_enabled: false }).catch(() => {});
+        setStatus(media.mode === "SFU" ? "Sala de espera ligada via ZION SFU" : "Sala de espera ligada");
 
         const syncControls = async () => {
           const controls = await getMeetingControls(meetingId);
@@ -132,13 +170,17 @@ export default function MeetingRoom({ meetingId }: Props) {
             await sessionRef.current.close();
             return;
           }
-          sessionRef.current.setAudioEnabled(!mine.mic_muted);
-          sessionRef.current.setVideoEnabled(mine.camera_enabled);
+          await sessionRef.current.setAudioEnabled(!mine.mic_muted);
+          await sessionRef.current.setVideoEnabled(mine.camera_enabled);
           setMic(!mine.mic_muted);
           setCamera(mine.camera_enabled);
+          if (localVideo.current) localVideo.current.srcObject = sessionRef.current.getLocalStream();
         };
         await syncControls();
         controlsTimer = window.setInterval(() => { void syncControls(); }, 2000);
+        lifecycleTimer = window.setInterval(() => {
+          void getMeetingLifecycle(meetingId).then((value) => setMeetingStatus(String(value.meeting?.status ?? "PLANNED"))).catch(() => {});
+        }, 8000);
       } catch (cause) {
         if (!active) return;
         setError(cause instanceof Error ? cause.message : "Não foi possível iniciar a reunião.");
@@ -149,6 +191,7 @@ export default function MeetingRoom({ meetingId }: Props) {
     return () => {
       active = false;
       if (controlsTimer !== undefined) window.clearInterval(controlsTimer);
+      if (lifecycleTimer !== undefined) window.clearInterval(lifecycleTimer);
       void sessionRef.current?.close();
       sessionRef.current = null;
       void realtimeRef.current?.unsubscribe();
@@ -156,23 +199,29 @@ export default function MeetingRoom({ meetingId }: Props) {
     };
   }, [meetingId, supabase]);
 
-  function toggleMic() {
+  async function toggleMic() {
     const next = !mic;
-    sessionRef.current?.setAudioEnabled(next);
+    await sessionRef.current?.setAudioEnabled(next);
+    if (localVideo.current && sessionRef.current) localVideo.current.srcObject = sessionRef.current.getLocalStream();
     setMic(next);
     void realtimeRef.current?.trackPresence({ mic: next, camera, sharing });
     void setSelfMeetingControl(meetingId, { mic_muted: !next }).catch((cause) => setError(cause instanceof Error ? cause.message : "Falha ao guardar o microfone."));
   }
 
-  function toggleCamera() {
+  async function toggleCamera() {
     const next = !camera;
-    sessionRef.current?.setVideoEnabled(next);
+    await sessionRef.current?.setVideoEnabled(next);
+    if (localVideo.current && sessionRef.current) localVideo.current.srcObject = sessionRef.current.getLocalStream();
     setCamera(next);
     void realtimeRef.current?.trackPresence({ mic, camera: next, sharing });
     void setSelfMeetingControl(meetingId, { camera_enabled: next }).catch((cause) => setError(cause instanceof Error ? cause.message : "Falha ao guardar a câmara."));
   }
 
   async function toggleScreenShare() {
+    if (mediaBroadcasting) {
+      setError("Pare primeiro a transmissão do leitor antes de iniciar outra partilha.");
+      return;
+    }
     try {
       if (sharing) {
         await sessionRef.current?.stopScreenShare();
@@ -189,6 +238,99 @@ export default function MeetingRoom({ meetingId }: Props) {
       setError(cause instanceof Error ? cause.message : "Não foi possível partilhar o ecrã.");
     }
   }
+
+  function handleMediaFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("audio/") && !file.type.startsWith("video/")) {
+      setError("Escolha um ficheiro de áudio ou vídeo suportado.");
+      return;
+    }
+    if (file.size > 200 * 1024 * 1024) {
+      setError("O ficheiro excede o limite local de 200 MB.");
+      return;
+    }
+    if (mediaBroadcasting) {
+      setError("Pare a transmissão atual antes de trocar o ficheiro.");
+      return;
+    }
+    if (mediaObjectUrl.current) URL.revokeObjectURL(mediaObjectUrl.current);
+    const url = URL.createObjectURL(file);
+    mediaObjectUrl.current = url;
+    setMediaUrl(url);
+    setMediaFileType(file.type.startsWith("video/") ? "video" : "audio");
+    setMediaFileName(file.name);
+    setError(null);
+  }
+
+  async function toggleMediaBroadcast() {
+    if (!isModerator || !sessionRef.current) return;
+    if (mediaBroadcasting) {
+      setMediaBusy(true);
+      try {
+        await sessionRef.current.stopMediaBroadcast();
+        setMediaBroadcasting(false);
+        setMeetingNotice("A reprodução partilhada foi terminada.");
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "Não foi possível terminar a transmissão.");
+      } finally {
+        setMediaBusy(false);
+      }
+      return;
+    }
+    const element = mediaVideo.current ?? mediaAudio.current;
+    if (!element) return;
+    setMediaBusy(true);
+    setError(null);
+    try {
+      await sessionRef.current.startMediaBroadcast(element);
+      setMediaBroadcasting(true);
+      setMeetingNotice("Conteúdo a ser transmitido em direto para os participantes. A reprodução e a pausa são controladas pelo anfitrião.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível transmitir o conteúdo.");
+    } finally {
+      setMediaBusy(false);
+    }
+  }
+
+  async function beginOfficialMeeting() {
+    if (!isModerator || meetingActionBusy) return;
+    setMeetingActionBusy(true);
+    setError(null);
+    try {
+      const meeting = await startMeeting(meetingId);
+      setMeetingStatus(String(meeting.status ?? "LIVE"));
+      setMeetingNotice("A reunião foi iniciada oficialmente.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível iniciar a reunião.");
+    } finally {
+      setMeetingActionBusy(false);
+    }
+  }
+
+  async function finishOfficialMeeting() {
+    if (!isModerator || meetingActionBusy) return;
+    setMeetingActionBusy(true);
+    setError(null);
+    try {
+      if (mediaBroadcasting) {
+        await sessionRef.current?.stopMediaBroadcast();
+        setMediaBroadcasting(false);
+      }
+      const meeting = await endMeeting(meetingId);
+      setMeetingStatus(String(meeting.status ?? "ENDED"));
+      setMeetingNotice("A reunião foi encerrada.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível encerrar a reunião.");
+    } finally {
+      setMeetingActionBusy(false);
+    }
+  }
+
+  useEffect(() => () => {
+    if (mediaObjectUrl.current) URL.revokeObjectURL(mediaObjectUrl.current);
+  }, []);
 
   return (
     <main className="min-h-[calc(100vh-120px)] bg-slate-950 px-4 py-6 text-white md:px-8">
