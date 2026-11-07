@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Track } from "livekit-client";
 import { createClient } from "@/lib/supabase/client";
 import { createMeetingRealtime } from "@/lib/governance/meeting-realtime";
 import { getMeetingIceConfig } from "@/lib/governance/ice";
@@ -57,8 +58,8 @@ export default function MeetingRoom({ meetingId }: Props) {
         const media = await getMeetingMediaJoinConfig(meetingId);
         let meetingSession: MeetingSession;
         if (media.mode === "SFU") {
-          const updateTrack = (peerId: string, track: MediaStreamTrack, source: import("livekit-client").Track.Source, subscribed: boolean) => {
-            const isScreen = source === "screen_share" || source === "screen_share_audio";
+          const updateTrack = (peerId: string, track: MediaStreamTrack, source: Track.Source, subscribed: boolean) => {
+            const isScreen = source === Track.Source.ScreenShare || source === Track.Source.ScreenShareAudio;
             const setter = isScreen ? setRemoteScreenStreams : setRemoteStreams;
             setter((current) => {
               const nextStream = current[peerId] ?? new MediaStream();
