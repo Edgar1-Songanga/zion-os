@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import CreatePost from "@/components/resa/CreatePost";
 import { resaRequest } from "@/lib/resa/api";
 
@@ -39,6 +39,40 @@ export default function StoriesPage() {
   useEffect(() => { void load(); }, [load]);
 
   const activeStory = activeIndex === null ? null : items[activeIndex] ?? null;
+
+  const [storyInsights, setStoryInsights] = useState<{
+    is_author: boolean;
+    view_count?: number;
+    viewers?: Array<{ user_id: string; viewed_at: string; display_name: string; avatar_url: string | null }>;
+  } | null>(null);
+  const [viewsLoading, setViewsLoading] = useState(false);
+  const recordedStoryViews = useRef(new Set<string>());
+
+  useEffect(() => {
+    if (!activeStory?.id) {
+      setStoryInsights(null);
+      return;
+    }
+
+    let current = true;
+    const storyId = activeStory.id;
+    setViewsLoading(true);
+    setStoryInsights(null);
+
+    const recordView = recordedStoryViews.current.has(storyId)
+      ? Promise.resolve()
+      : resaRequest(`/v1/resa/stories/${storyId}/views`, { method: "POST" })
+          .then(() => { recordedStoryViews.current.add(storyId); })
+          .catch(() => { /* A failed view write must not block story playback. */ });
+
+    void recordView
+      .then(() => resaRequest<typeof storyInsights>(`/v1/resa/stories/${storyId}/views`))
+      .then(result => { if (current) setStoryInsights(result); })
+      .catch(() => { /* Insights are optional; never interrupt the story viewer. */ })
+      .finally(() => { if (current) setViewsLoading(false); });
+
+    return () => { current = false; };
+  }, [activeStory?.id]);
 
   function openStory(id: string) {
     const index = items.findIndex(item => item.id === id);
@@ -125,6 +159,21 @@ export default function StoriesPage() {
               <button type="button" onClick={() => moveStory(1)} aria-label="Story seguinte" className="absolute right-0 top-1/2 h-24 w-1/4 -translate-y-1/2 bg-transparent" />
             </div>
             {activeStory.media_url && activeStory.body && <div className="bg-slate-950 px-5 py-4 text-sm leading-6 text-slate-200">{activeStory.body}</div>}
+            {storyInsights?.is_author && <section className="max-h-36 shrink-0 overflow-y-auto border-t border-white/10 bg-slate-950 px-4 py-3">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold text-white/80">Visualizações</p>
+                <span className="text-xs tabular-nums text-white/65">{storyInsights.view_count ?? 0}</span>
+              </div>
+              {viewsLoading ? <p className="text-xs text-white/50">A atualizar…</p> :
+                storyInsights.viewers?.length ? <div className="space-y-2">
+                  {storyInsights.viewers.map(viewer => <div key={viewer.user_id} className="flex items-center gap-2">
+                    {viewer.avatar_url ? <img src={viewer.avatar_url} alt="" className="h-6 w-6 rounded-full object-cover" /> :
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/10 text-[10px]">{viewer.display_name.slice(0, 1).toUpperCase()}</span>}
+                    <span className="min-w-0 flex-1 truncate text-xs text-white/85">{viewer.display_name}</span>
+                    <span className="text-[10px] text-white/45">{new Date(viewer.viewed_at).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}</span>
+                  </div>)}
+                </div> : <p className="text-xs text-white/50">Ainda não há visualizações.</p>}
+            </section>}
             <div className="flex items-center justify-between border-t border-white/10 bg-slate-950 px-4 py-3">
               <button type="button" onClick={() => moveStory(-1)} disabled={activeIndex === 0} className="rounded-lg px-3 py-2 text-sm font-semibold text-white disabled:opacity-30">Anterior</button>
               <span className="text-xs text-white/55">{activeIndex + 1} / {items.length}</span>
