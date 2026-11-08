@@ -354,3 +354,4 @@ create policy resa_event_participants_owner on public.resa_event_participants
   with check (user_id = (select auth.uid()));
 grant select, insert, update on public.resa_events to authenticated;
 grant select, insert, update, delete on public.resa_event_participants to authenticated;
+grant select, insert, update, delete on public.resa_community_members to authenticated;
