@@ -21,7 +21,7 @@ as $
         and m.role in ('owner','moderator')
     )
   );
-$;
+$function$;
 revoke all on function private.resa_is_community_moderator(uuid,uuid) from public, anon;
 grant execute on function private.resa_is_community_moderator(uuid,uuid) to authenticated;
 
@@ -33,12 +33,12 @@ language sql
 stable
 security definer
 set search_path = pg_catalog, pg_temp
-as $
+as $function$
   select exists (
     select 1 from public.resa_event_participants p
     where p.event_id = p_event_id and p.user_id = auth.uid()
   );
-$;
+$function$;
 revoke all on function private.resa_is_event_participant(uuid) from public, anon;
 grant execute on function private.resa_is_event_participant(uuid) to authenticated;
 
