@@ -264,6 +264,7 @@ create table public.resa_community_members (
   joined_at timestamptz not null default now(),
   primary key (community_id, user_id)
 );
+alter table public.resa_community_members enable row level security;
 create table public.resa_contents (
   id uuid primary key,
   author_id uuid not null references auth.users(id) on delete cascade,
@@ -311,6 +312,14 @@ as $$
   );
 $$;
 grant execute on function private.resa_is_community_moderator(uuid,uuid) to authenticated;
+
+create policy resa_community_members_read
+on public.resa_community_members
+for select to authenticated
+using (
+  user_id = (select auth.uid())
+  or private.resa_is_community_moderator(community_id, (select auth.uid()))
+);
 
 create table public.resa_events (
   id uuid primary key,
