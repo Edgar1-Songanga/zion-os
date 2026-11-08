@@ -28,7 +28,7 @@ export class ResaSocialService {
     return rows[0];
   }
 
-  async feed(token: string, limit = 30, mode: 'for_you' | 'following' = 'for_you', before?: string) {
+  async feed(token: string, limit = 30, mode: 'for_you' | 'following' | 'latest' = 'for_you', before?: string) {
     const a = await this.actor(token);
     const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
     let cursorFilter = '';
@@ -100,11 +100,11 @@ export class ResaSocialService {
     const engagementByContent = new Map(engagements.map((row) => [row.content_id, row]));
     const saved = new Set(saves.map((row) => row.content_id));
     const reactedByViewer = new Set(viewerReactions.map((row) => row.content_id));
-    const feedMode = mode === 'following' ? 'following' : 'for_you';
+    const feedMode = mode;
     const eligibleContents = feedMode === 'following'
       ? contents.filter((item) => item.author_id === a.id || followed.has(item.author_id))
       : contents;
-    const ranked = this.recommendations.rank(eligibleContents
+    const preparedContents = eligibleContents
       .filter((item) => !hiddenAuthors.has(item.author_id))
       .map((item) => ({
         ...item,
@@ -122,14 +122,17 @@ export class ResaSocialService {
         feedback: hidden.get(item.id),
         contentType: item.type,
         ageHours: Math.max(0, (Date.now() - Date.parse(item.created_at)) / 3600000),
-      })));
+      }));
+    const ranked = feedMode === 'for_you'
+      ? this.recommendations.rank(preparedContents)
+      : preparedContents.map((item) => ({ ...item, score: 0 }));
     const visibleProfiles = authorIds.length
       ? await this.db.rpc<any[]>('resa_profiles_for_ids', token, { p_user_ids: authorIds })
       : [];
     const profilesById = new Map(visibleProfiles.map((profile) => [profile.id, profile]));
 
-    // "For you" uses the recommendation score; "following" stays chronological
-    // and is restricted to the viewer plus profiles they explicitly follow.
+    // "For you" is ranked; "following" is restricted to followed profiles;
+    // "latest" is global and chronological. Both chronological modes remain stable.
     const items = ranked.map((item) => {
       const profile = profilesById.get(item.author_id);
       const displayName = profile?.display_name?.trim()
