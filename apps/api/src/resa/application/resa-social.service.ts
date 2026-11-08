@@ -128,7 +128,7 @@ export class ResaSocialService {
   }
 
   async reels(token: string, limit = 30) {
-    await this.actor(token);
+    const viewer = await this.actor(token);
     const size = Math.min(Math.max(Number(limit) || 30, 1), 50);
     const rows = await this.db.get<any[]>(
       'resa_contents',
@@ -136,14 +136,22 @@ export class ResaSocialService {
       `?select=id,author_id,title,body,created_at,media_url,media_type,language,visibility&media_type=eq.video&visibility=eq.public&order=created_at.desc&limit=${size}`,
     );
     const authorIds = [...new Set(rows.map((row) => row.author_id).filter(Boolean))];
-    const profiles = authorIds.length
-      ? await this.db.rpc<any[]>('resa_profiles_for_ids', token, { p_user_ids: authorIds })
-      : [];
+    const contentIds = rows.map((row) => row.id).filter(Boolean);
+    const [profiles, reactions] = await Promise.all([
+      authorIds.length
+        ? this.db.rpc<any[]>('resa_profiles_for_ids', token, { p_user_ids: authorIds })
+        : Promise.resolve([]),
+      contentIds.length
+        ? this.db.get<any[]>('resa_reactions', token, `?select=content_id&user_id=eq.${viewer.id}&content_id=in.(${contentIds.join(',')})&limit=50`)
+        : Promise.resolve([]),
+    ]);
     const byId = new Map(profiles.map((profile) => [profile.id, profile]));
+    const reactedIds = new Set(reactions.map((reaction) => reaction.content_id));
     return rows.map((row) => {
       const profile = byId.get(row.author_id);
       return {
         ...row,
+        viewer_reacted: reactedIds.has(row.id),
         author_display_name: profile?.display_name?.trim()
           || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim()
           || 'Membro RESA',
