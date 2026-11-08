@@ -120,7 +120,7 @@ export default function ResaSocialNetwork({ userId }: { userId: string }) {
                 {social.followers.slice(0, 8).map((person) => (
                   <div key={person.id} className="group flex items-center gap-3 rounded-2xl border border-slate-100 p-3 transition hover:border-blue-100 hover:bg-blue-50/30">
                     <Avatar person={person} />
-                    <p className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">{nameOf(person)}</p>
+                    <Link href={"/resa/profile/" + encodeURIComponent(person.id)} className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800 hover:underline">{nameOf(person)}</Link>
                     <Link href={"/resa/messages?to=" + encodeURIComponent(person.id)} aria-label={`Enviar mensagem a ${nameOf(person)}`} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-[#0C1A3D] transition hover:border-blue-200 hover:bg-blue-50">Mensagem</Link>
                   </div>
                 ))}
