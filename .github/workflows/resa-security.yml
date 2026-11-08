@@ -15,6 +15,7 @@ on:
       - "supabase/tests/resa_user_blocking_regression.sql"
       - "supabase/tests/resa_engagement_aggregate_regression.sql"
       - "supabase/tests/resa_story_view_tracking_regression.sql"
+      - "supabase/tests/resa_account_muting_regression.sql"
       - "supabase/tests/resa_security_fixture.sql"
       - ".github/workflows/resa-security.yml"
   push:
@@ -25,6 +26,7 @@ on:
       - "supabase/tests/resa_security*"
       - "supabase/tests/resa_call_security*"
       - "supabase/tests/resa_story_view_tracking_regression.sql"
+      - "supabase/tests/resa_account_muting_regression.sql"
       - ".github/workflows/resa-security.yml"
 
 permissions:
@@ -135,6 +137,12 @@ jobs:
       - name: Verify private RESA Live recording metadata and storage ownership
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_live_recording_foundation_regression.sql
+      - name: Apply RESA account muting
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108190000_resa_account_muting.sql
+      - name: Verify private mute lists, self-mute prevention and follow preservation
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_account_muting_regression.sql
       - name: Stop disposable PostgreSQL
         if: always()
         run: docker rm -f zion-resa-security-postgres || true
