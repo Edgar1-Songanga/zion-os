@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { resaRequest } from "@/lib/resa/api";
 
 type Schedule = {
@@ -29,7 +29,7 @@ export default function CreatorStudioPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       setItems(await resaRequest<Schedule[]>("/v1/resa/creator/schedules"));
@@ -39,11 +39,11 @@ export default function CreatorStudioPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); }, [load]);
 
-  async function schedule(event: React.FormEvent<HTMLFormElement>) {
+  async function schedule(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!title.trim() && !body.trim()) {
       setError("Escreva um título ou o conteúdo da publicação.");
