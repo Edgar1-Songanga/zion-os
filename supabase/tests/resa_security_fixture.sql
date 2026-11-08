@@ -332,6 +332,7 @@ create table public.resa_contents (
   media_type text,
   media_url text,
   media_path text,
+  moderation_status text not null default 'active',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
