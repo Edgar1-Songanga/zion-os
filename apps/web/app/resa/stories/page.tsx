@@ -23,6 +23,9 @@ export default function StoriesPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const [showArchive, setShowArchive] = useState(false);
+  const [archiveItems, setArchiveItems] = useState<Story[]>([]);
+  const [archiveLoading, setArchiveLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -36,12 +39,25 @@ export default function StoriesPage() {
     }
   }, []);
 
+  const loadArchive = useCallback(async () => {
+    setArchiveLoading(true);
+    setError(null);
+    try {
+      setArchiveItems(await resaRequest<Story[]>("/v1/resa/stories/archive?limit=100"));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível carregar o arquivo de stories.");
+    } finally {
+      setArchiveLoading(false);
+    }
+  }, []);
+
   useEffect(() => { void load(); }, [load]);
 
-  const activeStory = activeIndex === null ? null : items[activeIndex] ?? null;
+  const displayItems = showArchive ? archiveItems : items;
+  const activeStory = activeIndex === null ? null : displayItems[activeIndex] ?? null;
 
   function openStory(id: string) {
-    const index = items.findIndex(item => item.id === id);
+    const index = displayItems.findIndex(item => item.id === id);
     if (index >= 0) setActiveIndex(index);
   }
 
@@ -49,7 +65,7 @@ export default function StoriesPage() {
     setActiveIndex(current => {
       if (current === null) return null;
       const next = current + direction;
-      if (next < 0 || next >= items.length) return null;
+      if (next < 0 || next >= displayItems.length) return null;
       return next;
     });
   }
@@ -77,14 +93,18 @@ export default function StoriesPage() {
           <div className="flex items-end justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">Últimas 24 horas</p>
-              <h2 className="mt-1 text-2xl font-semibold">Stories da comunidade</h2>
+              <h2 className="mt-1 text-2xl font-semibold">{showArchive ? "As minhas memórias" : "Stories da comunidade"}</h2>
             </div>
-            <button type="button" onClick={() => void load()} disabled={loading} className="rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2 text-sm font-semibold text-slate-200 disabled:opacity-50">Atualizar</button>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => { setShowArchive(false); setActiveIndex(null); }} aria-pressed={!showArchive} className="rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2 text-sm font-semibold text-slate-200">Ativas</button>
+              <button type="button" onClick={() => { setShowArchive(true); setActiveIndex(null); void loadArchive(); }} aria-pressed={showArchive} className="rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2 text-sm font-semibold text-slate-200">Arquivo pessoal</button>
+              <button type="button" onClick={() => showArchive ? void loadArchive() : void load()} disabled={loading || archiveLoading} className="rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2 text-sm font-semibold text-slate-200 disabled:opacity-50">Atualizar</button>
+            </div>
           </div>
 
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {loading ? Array.from({ length: 5 }).map((_, i) => <div key={i} className="aspect-[3/4] animate-pulse rounded-[1.5rem] bg-white/10" />) :
-              items.length ? items.map(item => (
+            {(showArchive ? archiveLoading : loading) ? Array.from({ length: 5 }).map((_, i) => <div key={i} className="aspect-[3/4] animate-pulse rounded-[1.5rem] bg-white/10" />) :
+              displayItems.length ? displayItems.map(item => (
                 <button key={item.id} type="button" onClick={() => openStory(item.id)} className="group relative aspect-[3/4] overflow-hidden rounded-[1.5rem] border border-white/10 bg-slate-900 text-left shadow-xl focus:outline-none focus:ring-2 focus:ring-blue-300">
                   {item.media_type === "image" && item.media_url ? <img src={item.media_url} alt="" className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105" /> :
                     item.media_type === "video" && item.media_url ? <video src={item.media_url} muted playsInline preload="metadata" className="absolute inset-0 h-full w-full object-cover" /> :
@@ -99,7 +119,7 @@ export default function StoriesPage() {
                     <p className="mt-2 text-[10px] text-white/65">{new Date(item.created_at).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })} · 24 h</p>
                   </div>
                 </button>
-              )) : <div className="col-span-full rounded-[1.5rem] border border-dashed border-white/15 p-12 text-center text-slate-300">Ainda não existem stories ativas. Crie a primeira story da comunidade.</div>}
+              )) : <div className="col-span-full rounded-[1.5rem] border border-dashed border-white/15 p-12 text-center text-slate-300">{showArchive ? "Ainda não tem memórias arquivadas." : "Ainda não existem stories ativas. Crie a primeira story da comunidade."}</div>}
           </div>
         </section>
       </div>
@@ -108,7 +128,7 @@ export default function StoriesPage() {
         <div role="dialog" aria-modal="true" aria-label="Visualizador de stories" className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-3 sm:p-6">
           <div className="relative flex h-[min(88vh,820px)] w-full max-w-[440px] flex-col overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950 shadow-2xl">
             <div className="absolute inset-x-4 top-4 z-20 flex gap-1.5">
-              {items.map((item, index) => <span key={item.id} className="h-1 flex-1 overflow-hidden rounded-full bg-white/25"><span className={"block h-full rounded-full " + (index <= activeIndex ? "bg-white" : "bg-transparent")} /></span>)}
+              {displayItems.map((item, index) => <span key={item.id} className="h-1 flex-1 overflow-hidden rounded-full bg-white/25"><span className={"block h-full rounded-full " + (index <= activeIndex ? "bg-white" : "bg-transparent")} /></span>)}
             </div>
             <div className="absolute inset-x-4 top-8 z-20 flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2.5">
@@ -127,8 +147,8 @@ export default function StoriesPage() {
             {activeStory.media_url && activeStory.body && <div className="bg-slate-950 px-5 py-4 text-sm leading-6 text-slate-200">{activeStory.body}</div>}
             <div className="flex items-center justify-between border-t border-white/10 bg-slate-950 px-4 py-3">
               <button type="button" onClick={() => moveStory(-1)} disabled={activeIndex === 0} className="rounded-lg px-3 py-2 text-sm font-semibold text-white disabled:opacity-30">Anterior</button>
-              <span className="text-xs text-white/55">{activeIndex + 1} / {items.length}</span>
-              <button type="button" onClick={() => moveStory(1)} disabled={activeIndex === items.length - 1} className="rounded-lg px-3 py-2 text-sm font-semibold text-white disabled:opacity-30">Seguinte</button>
+              <span className="text-xs text-white/55">{activeIndex + 1} / {displayItems.length}</span>
+              <button type="button" onClick={() => moveStory(1)} disabled={activeIndex === displayItems.length - 1} className="rounded-lg px-3 py-2 text-sm font-semibold text-white disabled:opacity-30">Seguinte</button>
             </div>
           </div>
         </div>
