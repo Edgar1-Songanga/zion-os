@@ -8,6 +8,17 @@ export class ResaSocialService {
   private readonly db = new SupabaseRestClient();
   constructor(private readonly identity: IdentityService, private readonly recommendations: ResaRecommendationService) {}
   private async actor(token: string) { return this.identity.getCurrentUser(token); }
+  private async mutedIds(token: string, userId: string): Promise<string[]> {
+    const rows = await this.db.get<any[]>(
+      'resa_user_mutes',
+      token,
+      `?select=muted_id&muter_id=eq.${encodeURIComponent(userId)}&order=created_at.desc&limit=1000`,
+    );
+    return [...new Set(rows.map((row) => row.muted_id).filter(Boolean))];
+  }
+  private mutedAuthorFilter(ids: string[]): string {
+    return ids.length ? `&author_id=not.in.(${ids.map((id) => encodeURIComponent(id)).join(',')})` : '';
+  }
   private clean(value: unknown, field: string, max = 10000) {
     if (typeof value !== 'string' || !value.trim()) throw new BadRequestException(`${field} is required`);
     const v = value.trim(); if (v.length > max) throw new BadRequestException(`${field} is too long`); return v;
@@ -31,6 +42,9 @@ export class ResaSocialService {
   async feed(token: string, limit = 30, mode: 'for_you' | 'following' | 'latest' = 'for_you', before?: string) {
     const a = await this.actor(token);
     const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
+    const mutedIds = await this.mutedIds(token, a.id);
+    const mutedSet = new Set(mutedIds);
+    const mutedFilter = this.mutedAuthorFilter(mutedIds);
     let cursorFilter = '';
     if (before) {
       const separator = before.indexOf('|');
@@ -51,10 +65,10 @@ export class ResaSocialService {
       ? await this.db.get<any[]>('resa_follows', token, `?select=followed_id&follower_id=eq.${a.id}&order=created_at.desc&limit=1000`)
       : null;
     const followedAuthorIds = followingRows
-      ? [...new Set([a.id, ...followingRows.map((row) => row.followed_id).filter(Boolean)])]
+      ? [...new Set([a.id, ...followingRows.map((row) => row.followed_id).filter((id) => Boolean(id) && !mutedSet.has(id))])]
       : [];
     const contentQuery = mode === 'following'
-      ? `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&type=neq.story&visibility=in.(public,followers,community,organization)&author_id=in.(${followedAuthorIds.join(',')})&order=created_at.desc,id.desc&limit=${size + 1}${cursorFilter}`
+      ? `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&type=neq.story&visibility=in.(public,followers,community,organization)&author_id=in.(${followedAuthorIds.join(',')})&order=created_at.desc,id.desc&limit=${size + 1}${cursorFilter}${mode === 'following' ? '' : mutedFilter}`
       : `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&type=neq.story&visibility=in.(public,followers,community,organization)&order=created_at.desc,id.desc&limit=${size + 1}${cursorFilter}`;
     const fetchedContents = await this.db.get<any[]>('resa_contents', token, contentQuery);
     const hasMore = fetchedContents.length > size;
@@ -156,10 +170,11 @@ export class ResaSocialService {
   async reels(token: string, limit = 30) {
     const viewer = await this.actor(token);
     const size = Math.min(Math.max(Number(limit) || 30, 1), 50);
+    const mutedIds = await this.mutedIds(token, viewer.id);
     const rows = await this.db.get<any[]>(
       'resa_contents',
       token,
-      `?select=id,author_id,title,body,created_at,media_url,media_type,language,visibility&type=neq.story&media_type=eq.video&visibility=in.(public,followers,community,organization)&order=created_at.desc&limit=${size}`,
+      `?select=id,author_id,title,body,created_at,media_url,media_type,language,visibility&type=neq.story&media_type=eq.video&visibility=in.(public,followers,community,organization)${this.mutedAuthorFilter(mutedIds)}&order=created_at.desc&limit=${size}`,
     );
     const authorIds = [...new Set(rows.map((row) => row.author_id).filter(Boolean))];
     const contentIds = rows.map((row) => row.id).filter(Boolean);
@@ -194,17 +209,19 @@ export class ResaSocialService {
   }
 
   async explore(token: string, query?: string, limit = 30) {
-    await this.actor(token); const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
+    const viewer = await this.actor(token); const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
+    const [mutedIds] = await Promise.all([this.mutedIds(token, viewer.id)]);
     const filter = query?.trim() ? `&or=(title.ilike.*${encodeURIComponent(query.trim())}*,body.ilike.*${encodeURIComponent(query.trim())}*)` : '';
-    return this.db.get('resa_contents', token, `?select=*&type=neq.story&visibility=in.(public,followers,community,organization)&order=created_at.desc&limit=${size}${filter}`);
+    return this.db.get('resa_contents', token, `?select=*&type=neq.story&visibility=in.(public,followers,community,organization)${this.mutedAuthorFilter(mutedIds)}&order=created_at.desc&limit=${size}${filter}`);
   }
   async stories(token: string, limit = 30) {
     const viewer = await this.actor(token);
     const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
+    const mutedIds = await this.mutedIds(token, viewer.id);
     const rows = await this.db.get<any[]>(
       'resa_contents',
       token,
-      `?select=id,author_id,title,body,created_at,media_type,media_url,media_path,visibility,language&type=eq.story&visibility=in.(public,followers,community,organization)&created_at=gte.${encodeURIComponent(new Date(Date.now() - 86400000).toISOString())}&order=created_at.desc&limit=${size}`,
+      `?select=id,author_id,title,body,created_at,media_type,media_url,media_path,visibility,language&type=eq.story&visibility=in.(public,followers,community,organization)${this.mutedAuthorFilter(mutedIds)}&created_at=gte.${encodeURIComponent(new Date(Date.now() - 86400000).toISOString())}&order=created_at.desc&limit=${size}`,
     );
     const authorIds = [...new Set(rows.map((row) => row.author_id).filter(Boolean))];
     const storyIds = rows.map((row) => row.id).filter(Boolean);
@@ -371,11 +388,12 @@ export class ResaSocialService {
     const rows = await this.db.rpc<any[]>('resa_public_profile', token, { p_user_id: id });
     const profile = rows?.[0];
     if (!profile) throw new NotFoundException('Profile not found');
-    const blocks = actor.id === id ? [] : await this.db.get<any[]>(
-      'resa_user_blocks', token,
-      `?select=blocked_id&blocker_id=eq.${actor.id}&blocked_id=eq.${id}&limit=1`,
-    );
+    const [blocks, mutes] = actor.id === id ? [[], []] : await Promise.all([
+      this.db.get<any[]>('resa_user_blocks', token, `?select=blocked_id&blocker_id=eq.${actor.id}&blocked_id=eq.${id}&limit=1`),
+      this.db.get<any[]>('resa_user_mutes', token, `?select=muted_id&muter_id=eq.${actor.id}&muted_id=eq.${id}&limit=1`),
+    ]);
     profile.viewer_has_blocked = blocks.length > 0;
+    profile.viewer_has_muted = mutes.length > 0;
     const contents = profile.private_locked ? [] : await this.db.get<any[]>('resa_contents', token, `?select=id,author_id,type,title,body,created_at,media_type,media_url,language&type=neq.story&author_id=eq.${encodeURIComponent(id)}&visibility=in.(public,followers,community,organization)&order=created_at.desc&limit=20`);
     return { profile, contents };
   }
@@ -422,6 +440,49 @@ export class ResaSocialService {
       user_id: block.blocked_id,
       blocked_at: block.created_at,
       profile: byId.get(block.blocked_id) ?? null,
+    }));
+  }
+
+  async muteProfile(token: string, userId: string) {
+    const actor = await this.actor(token);
+    const id = this.clean(userId, 'user_id', 80);
+    if (actor.id === id) throw new BadRequestException('You cannot mute your own profile');
+    const target = await this.db.get<any[]>('profiles', token, `?select=id&id=eq.${encodeURIComponent(id)}&limit=1`);
+    if (!target[0]) throw new NotFoundException('Profile not found');
+    await this.db.upsert('resa_user_mutes', token, {
+      muter_id: actor.id,
+      muted_id: id,
+    }, '?on_conflict=muter_id,muted_id');
+    return { muted: true };
+  }
+
+  async unmuteProfile(token: string, userId: string) {
+    const actor = await this.actor(token);
+    const id = this.clean(userId, 'user_id', 80);
+    await this.db.delete('resa_user_mutes', token, `?muter_id=eq.${actor.id}&muted_id=eq.${encodeURIComponent(id)}`);
+    return { muted: false };
+  }
+
+  async mutedProfiles(token: string) {
+    const actor = await this.actor(token);
+    const mutes = await this.db.get<any[]>(
+      'resa_user_mutes',
+      token,
+      `?select=muted_id,created_at&muter_id=eq.${actor.id}&order=created_at.desc&limit=1000`,
+    );
+    const ids = [...new Set(mutes.map((row) => row.muted_id).filter(Boolean))];
+    const profiles: any[] = [];
+    for (let offset = 0; offset < ids.length; offset += 200) {
+      const batch = await this.db.rpc<any[]>('resa_profiles_for_ids', token, {
+        p_user_ids: ids.slice(offset, offset + 200),
+      });
+      profiles.push(...batch);
+    }
+    const byId = new Map(profiles.map((profile) => [profile.id, profile]));
+    return mutes.map((mute) => ({
+      user_id: mute.muted_id,
+      muted_at: mute.created_at,
+      profile: byId.get(mute.muted_id) ?? null,
     }));
   }
 
