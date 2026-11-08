@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { resaRequest } from "@/lib/resa/api";
 
@@ -29,7 +29,7 @@ export default function ResaMemberProfile({ userId }: { userId: string }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const result = await resaRequest<Result>("/v1/resa/profiles/" + encodeURIComponent(userId));
@@ -40,9 +40,9 @@ export default function ResaMemberProfile({ userId }: { userId: string }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, [userId]);
 
-  useEffect(() => { void load(); }, [userId]);
+  useEffect(() => { void load(); }, [load]);
 
   async function toggleFollow() {
     if (!data || busy) return;
