@@ -66,6 +66,7 @@ export class DepartmentOperationsService {
       throw new BadRequestException('meeting_day must be between 0 (Sunday) and 6 (Saturday).');
     }
     if (input.teacher_user_id != null) this.assertUuid(input.teacher_user_id, 'teacher_user_id');
+    if (input.is_public !== undefined && typeof input.is_public !== 'boolean') throw new BadRequestException('is_public must be boolean.');
     const room = input.room_label == null ? null : this.text(input.room_label, 'room_label', 1, 120);
     const rows = await this.db.post<any[]>('sabbath_school_classes', token, {
       organization_id: organizationId,
