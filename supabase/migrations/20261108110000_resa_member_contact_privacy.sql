@@ -19,7 +19,7 @@ set privacy = coalesce(privacy, '{}'::jsonb) || jsonb_build_object(
   'message_policy', coalesce(privacy->>'message_policy', 'everyone'),
   'call_policy', coalesce(privacy->>'call_policy', 'everyone'),
   'group_invite_policy', coalesce(privacy->>'group_invite_policy', 'everyone'),
-  'follow_policy', coalesce(privacy->>'follow_policy', 'auto')
+  'follow_policy', case when privacy->>'follow_policy' = 'approval' then 'auto' else coalesce(privacy->>'follow_policy', 'auto') end
 )
 where privacy is null
    or not (privacy ? 'message_policy')
@@ -183,7 +183,7 @@ $function$;
 
 drop trigger if exists resa_direct_message_privacy_guard on public.resa_messages;
 create trigger resa_direct_message_privacy_guard
-before insert on public.resa_messages
+before insert or update on public.resa_messages
 for each row execute function private.resa_guard_direct_message_privacy();
 
 revoke all on function private.resa_guard_direct_message_privacy() from public, anon;
@@ -192,7 +192,7 @@ revoke all on function private.resa_guard_direct_message_privacy() from public, 
 create or replace function private.resa_public_profile_internal(p_user_id uuid)
 returns table(id uuid, display_name text, first_name text, last_name text, avatar_url text, bio text, country_code text, is_owner boolean, is_following boolean, message_allowed boolean, call_allowed boolean, group_invite_allowed boolean, follow_allowed boolean, private_locked boolean)
 language sql stable security definer
-set search_path = pg_catalog, public, auth, pg_temp
+set search_path = pg_catalog, pg_temp
 as $function$
   with viewer as (select auth.uid() as user_id), target as (
     select p.*, (p.id = viewer.user_id) as is_owner,
