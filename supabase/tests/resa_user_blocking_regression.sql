@@ -7,8 +7,8 @@ insert into auth.users(id,email) values
  ('95000000-0000-4000-8000-000000000002','resa-block-b@example.test')
 on conflict (id) do nothing;
 insert into public.profiles(id,display_name,privacy) values
- ('95000000-0000-4000-8000-000000000001','Blocker', '{}'::jsonb),
- ('95000000-0000-4000-8000-000000000002','Blocked', '{}'::jsonb)
+ ('95000000-0000-4000-8000-000000000001','Blocker', '{"profile_visibility":"public","bio_visibility":"public"}'::jsonb),
+ ('95000000-0000-4000-8000-000000000002','Blocked', '{"profile_visibility":"public","bio_visibility":"public"}'::jsonb)
 on conflict (id) do nothing;
 insert into public.resa_contents(id,author_id,type,title,body,visibility)
 values
@@ -27,6 +27,8 @@ values ('95000000-0000-4000-8000-000000000001','95000000-0000-4000-8000-00000000
 on conflict do nothing;
 
 do $test$
+declare
+  v_profile record;
 begin
   if private.resa_contact_allowed(auth.uid(),'95000000-0000-4000-8000-000000000002','message_policy') then
     raise exception 'Blocked profile still accepts direct messages';
@@ -45,6 +47,17 @@ begin
   end if;
   if (select count(*) from public.resa_user_blocks where blocker_id=auth.uid()) <> 1 then
     raise exception 'Blocker cannot see own block list';
+  end if;
+  select * into v_profile
+  from public.resa_public_profile('95000000-0000-4000-8000-000000000002'::uuid);
+  if not v_profile.private_locked or v_profile.display_name is not null then
+    raise exception 'Blocker can still discover the blocked member profile';
+  end if;
+  if exists (select 1 from public.resa_profiles_for_ids(array['95000000-0000-4000-8000-000000000002'::uuid])) then
+    raise exception 'Blocked member still appears in profile hydration/search results';
+  end if;
+  if exists (select 1 from public.resa_search_profiles('Blocked', 20) where id='95000000-0000-4000-8000-000000000002'::uuid) then
+    raise exception 'Blocked member still appears in profile search';
   end if;
   if (select count(*) from public.resa_follows
       where (follower_id='95000000-0000-4000-8000-000000000001' and followed_id='95000000-0000-4000-8000-000000000002')
@@ -82,6 +95,8 @@ reset role;
 select set_config('request.jwt.claim.sub','95000000-0000-4000-8000-000000000002',false);
 set role authenticated;
 do $test$
+declare
+  v_profile record;
 begin
   if private.resa_contact_allowed(auth.uid(),'95000000-0000-4000-8000-000000000001','message_policy') then
     raise exception 'Blocked member can still message the blocker';
@@ -91,6 +106,14 @@ begin
   end if;
   if (select count(*) from public.resa_user_blocks) <> 0 then
     raise exception 'Blocked member can see another user block list';
+  end if;
+  select * into v_profile
+  from public.resa_public_profile('95000000-0000-4000-8000-000000000001'::uuid);
+  if not v_profile.private_locked or v_profile.display_name is not null then
+    raise exception 'Blocked member can still discover the blocker profile';
+  end if;
+  if exists (select 1 from public.resa_profiles_for_ids(array['95000000-0000-4000-8000-000000000001'::uuid])) then
+    raise exception 'Blocker still appears in profile hydration/search results for blocked member';
   end if;
 end;
 $test$;
@@ -102,9 +125,16 @@ delete from public.resa_user_blocks
 where blocker_id=auth.uid()
   and blocked_id='95000000-0000-4000-8000-000000000002';
 do $test$
+declare
+  v_profile record;
 begin
   if not private.resa_contact_allowed(auth.uid(),'95000000-0000-4000-8000-000000000002','message_policy') then
     raise exception 'Unblocking did not restore the permitted contact policy';
+  end if;
+  select * into v_profile
+  from public.resa_public_profile('95000000-0000-4000-8000-000000000002'::uuid);
+  if v_profile.private_locked or v_profile.display_name <> 'Blocked' then
+    raise exception 'Unblocking did not restore permitted public profile visibility';
   end if;
 end;
 $test$;
