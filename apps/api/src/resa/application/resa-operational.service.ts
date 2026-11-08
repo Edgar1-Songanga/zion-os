@@ -539,11 +539,32 @@ export class ResaOperationalService {
     return this.media.createJoinConfig({ meetingId: id, providerRoomId: `zion-call-${id}`, userId: actor.id });
   }
 
+  private async enforceContactPreferences(token: string, actorId: string, targetIds: string[], policyField: 'message_policy' | 'group_invite_policy') {
+    const profiles = await this.db.get<any[]>('profiles', token, `?select=id,privacy&id=in.(${targetIds.join(',')})`);
+    const [targetFollowsActor, actorFollowsTarget] = await Promise.all([
+      this.db.get<any[]>('resa_follows', token, `?select=follower_id&follower_id=in.(${targetIds.join(',')})&followed_id=eq.${actorId}`),
+      this.db.get<any[]>('resa_follows', token, `?select=followed_id&follower_id=eq.${actorId}&followed_id=in.(${targetIds.join(',')})`),
+    ]);
+    const followers = new Set(targetFollowsActor.map((row) => row.follower_id));
+    const following = new Set(actorFollowsTarget.map((row) => row.followed_id));
+    const profileById = new Map(profiles.map((row) => [row.id, row]));
+    for (const targetId of targetIds) {
+      const policy = profileById.get(targetId)?.privacy?.[policyField] ?? 'everyone';
+      const allowed = policy === 'everyone'
+        || (policy === 'followers' && followers.has(targetId))
+        || (policy === 'following' && following.has(targetId));
+      if (!allowed) throw new ForbiddenException(policyField === 'message_policy'
+        ? 'Este membro não aceita mensagens deste perfil.'
+        : 'Este membro não aceita convites para grupos deste perfil.');
+    }
+  }
+
   async createConversation(token: string, memberIds: unknown[], title?: unknown) {
     const actor = await this.actor(token);
     if (!Array.isArray(memberIds) || memberIds.length < 1 || memberIds.length > 50) throw new BadRequestException('member_ids is invalid');
     const targetIds = [...new Set(memberIds.map((value) => this.id(value, 'member_id')).filter((id) => id !== actor.id))];
     if (!targetIds.length || targetIds.length > 49) throw new BadRequestException('A conversation requires one to forty-nine other members');
+    await this.enforceContactPreferences(token, actor.id, targetIds, targetIds.length === 1 ? 'message_policy' : 'group_invite_policy');
     const safeTitle = typeof title === 'string' ? title.trim().slice(0, 120) || null : null;
     const result = await this.db.rpc<any>('resa_create_conversation', token, {
       p_member_ids: targetIds,
