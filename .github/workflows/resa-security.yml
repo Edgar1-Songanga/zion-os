@@ -175,6 +175,12 @@ jobs:
       - name: Verify RESA account restriction enforcement and independent appeals
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_account_level_enforcement_regression.sql
+      - name: Apply RESA interaction audience enforcement
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108233000_resa_interaction_audience_enforcement.sql
+      - name: Verify RESA interaction audience isolation
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_interaction_audience_regression.sql
       - name: Stop disposable PostgreSQL
         if: always()
         run: docker rm -f zion-resa-security-postgres || true
