@@ -20,6 +20,7 @@ describe('ResaSocialService feeds', () => {
     service = new ResaSocialService(identity as never, new ResaRecommendationService());
     getSpy = jest.spyOn(SupabaseRestClient.prototype, 'get').mockImplementation(async (table: string) => {
       if (table === 'resa_follows') return follows as never;
+      if (table === 'profiles') return [{ id: FOLLOWED_ID, privacy: {} }] as never;
       if (table === 'resa_contents') return followedPosts as never;
       return [] as never;
     });
