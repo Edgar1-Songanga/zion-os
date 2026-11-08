@@ -631,11 +631,6 @@ export class ResaOperationalService {
     const id = this.id(conversationId, 'conversation_id');
     const membership = await this.db.get<any[]>('resa_conversation_members', token, `?select=conversation_id&conversation_id=eq.${id}&user_id=eq.${actor.id}&limit=1`);
     if (!membership.length) throw new NotFoundException('Conversation not found');
-    const conversation = await this.db.get<any[]>('resa_conversations', token, `?select=kind&id=eq.${id}&limit=1`);
-    if (conversation[0]?.kind === 'direct') {
-      const recipients = await this.db.get<any[]>('resa_conversation_members', token, `?select=user_id&conversation_id=eq.${id}&user_id=neq.${actor.id}`);
-      await this.enforceContactPreferences(token, actor.id, recipients.map((row) => row.user_id), 'message_policy');
-    }
     let parentId: string | null = null;
     if (parentMessageId) {
       parentId = this.id(parentMessageId, 'parent_message_id');
