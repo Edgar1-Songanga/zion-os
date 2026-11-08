@@ -25,8 +25,6 @@ as $folder$
   select (string_to_array(p_name, '/'))[1:greatest(array_length(string_to_array(p_name, '/'), 1) - 1, 0)]
 $folder$;
 alter table storage.objects enable row level security;
-grant usage on schema storage to authenticated;
-grant select on storage.objects to authenticated;
 create table cron.job (
   jobid bigint generated always as identity primary key,
   schedule text not null,
@@ -61,6 +59,9 @@ begin
   if not exists (select 1 from pg_roles where rolname = 'service_role') then create role service_role nologin; end if;
 end
 $roles$;
+
+grant usage on schema storage to authenticated;
+grant select on storage.objects to authenticated;
 
 create table auth.users (id uuid primary key, email text);
 create or replace function auth.uid()
