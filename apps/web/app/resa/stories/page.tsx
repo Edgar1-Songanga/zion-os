@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import CreatePost from "@/components/resa/CreatePost";
 import { resaRequest } from "@/lib/resa/api";
+
+type StoryComment = { id: string; author_id: string; body: string; created_at: string };
 
 type Story = {
   id: string;
@@ -23,6 +25,15 @@ export default function StoriesPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const [showArchive, setShowArchive] = useState(false);
+  const [archiveItems, setArchiveItems] = useState<Story[]>([]);
+  const [archiveLoading, setArchiveLoading] = useState(false);
+  const [storyComments, setStoryComments] = useState<StoryComment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [replyText, setReplyText] = useState("");
+  const [replySending, setReplySending] = useState(false);
+  const [reactedStoryIds, setReactedStoryIds] = useState<string[]>([]);
+  const [interactionError, setInteractionError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -36,9 +47,22 @@ export default function StoriesPage() {
     }
   }, []);
 
+  const loadArchive = useCallback(async () => {
+    setArchiveLoading(true);
+    setError(null);
+    try {
+      setArchiveItems(await resaRequest<Story[]>("/v1/resa/stories/archive?limit=100"));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível carregar o arquivo de stories.");
+    } finally {
+      setArchiveLoading(false);
+    }
+  }, []);
+
   useEffect(() => { void load(); }, [load]);
 
-  const activeStory = activeIndex === null ? null : items[activeIndex] ?? null;
+  const displayItems = showArchive ? archiveItems : items;
+  const activeStory = activeIndex === null ? null : displayItems[activeIndex] ?? null;
 
   const [storyInsights, setStoryInsights] = useState<{
     is_author: boolean;
@@ -49,33 +73,77 @@ export default function StoriesPage() {
   const recordedStoryViews = useRef(new Set<string>());
 
   useEffect(() => {
-    if (!activeStory?.id) {
+    if (!activeStory?.id || showArchive) {
       setStoryInsights(null);
       return;
     }
-
     let current = true;
     const storyId = activeStory.id;
     setViewsLoading(true);
     setStoryInsights(null);
-
     const recordView = recordedStoryViews.current.has(storyId)
       ? Promise.resolve()
       : resaRequest(`/v1/resa/stories/${storyId}/views`, { method: "POST" })
           .then(() => { recordedStoryViews.current.add(storyId); })
-          .catch(() => { /* A failed view write must not block story playback. */ });
-
+          .catch(() => { /* View tracking must never interrupt story playback. */ });
     void recordView
       .then(() => resaRequest<typeof storyInsights>(`/v1/resa/stories/${storyId}/views`))
       .then(result => { if (current) setStoryInsights(result); })
-      .catch(() => { /* Insights are optional; never interrupt the story viewer. */ })
+      .catch(() => { /* Insights are optional for story playback. */ })
       .finally(() => { if (current) setViewsLoading(false); });
-
     return () => { current = false; };
-  }, [activeStory?.id]);
+  }, [activeStory?.id, showArchive]);
 
+  useEffect(() => {
+    if (!activeStory?.id || showArchive) {
+      setStoryComments([]);
+      return;
+    }
+    let current = true;
+    setCommentsLoading(true);
+    setInteractionError(null);
+    resaRequest<StoryComment[]>(`/v1/resa/content/${activeStory.id}/comments?limit=30`)
+      .then(rows => { if (current) setStoryComments(rows); })
+      .catch(e => { if (current) setInteractionError(e instanceof Error ? e.message : "Não foi possível carregar as respostas."); })
+      .finally(() => { if (current) setCommentsLoading(false); });
+    return () => { current = false; };
+  }, [activeStory?.id, showArchive]);
+
+  async function sendStoryReply(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!activeStory || !replyText.trim() || replySending || showArchive) return;
+    setReplySending(true);
+    setInteractionError(null);
+    try {
+      await resaRequest(`/v1/resa/content/${activeStory.id}/comments`, {
+        method: "POST",
+        body: JSON.stringify({ body: replyText.trim() }),
+      });
+      setReplyText("");
+      const rows = await resaRequest<StoryComment[]>(`/v1/resa/content/${activeStory.id}/comments?limit=30`);
+      setStoryComments(rows);
+    } catch (e) {
+      setInteractionError(e instanceof Error ? e.message : "Não foi possível enviar a resposta.");
+    } finally {
+      setReplySending(false);
+    }
+  }
+
+  async function reactToStory() {
+    if (!activeStory || showArchive || reactedStoryIds.includes(activeStory.id)) return;
+    setInteractionError(null);
+    try {
+      await resaRequest(`/v1/resa/content/${activeStory.id}/reactions`, {
+        method: "POST",
+        body: JSON.stringify({ reaction_type: "like" }),
+      });
+      setReactedStoryIds(current => [...current, activeStory.id]);
+    } catch (e) {
+      setInteractionError(e instanceof Error ? e.message : "Não foi possível reagir à story.");
+    }
+  }
   function openStory(id: string) {
-    const index = items.findIndex(item => item.id === id);
+    const index = displayItems.findIndex(item => item.id === id);
     if (index >= 0) setActiveIndex(index);
   }
 
@@ -83,7 +151,7 @@ export default function StoriesPage() {
     setActiveIndex(current => {
       if (current === null) return null;
       const next = current + direction;
-      if (next < 0 || next >= items.length) return null;
+      if (next < 0 || next >= displayItems.length) return null;
       return next;
     });
   }
@@ -110,15 +178,19 @@ export default function StoriesPage() {
         <section className="mt-8">
           <div className="flex items-end justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">Últimas 24 horas</p>
-              <h2 className="mt-1 text-2xl font-semibold">Stories da comunidade</h2>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">{showArchive ? "Memórias arquivadas" : "Últimas 24 horas"}</p>
+              <h2 className="mt-1 text-2xl font-semibold">{showArchive ? "As minhas memórias" : "Stories da comunidade"}</h2>
             </div>
-            <button type="button" onClick={() => void load()} disabled={loading} className="rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2 text-sm font-semibold text-slate-200 disabled:opacity-50">Atualizar</button>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => { setShowArchive(false); setActiveIndex(null); }} aria-pressed={!showArchive} className="rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2 text-sm font-semibold text-slate-200">Ativas</button>
+              <button type="button" onClick={() => { setShowArchive(true); setActiveIndex(null); void loadArchive(); }} aria-pressed={showArchive} className="rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2 text-sm font-semibold text-slate-200">Arquivo pessoal</button>
+              <button type="button" onClick={() => showArchive ? void loadArchive() : void load()} disabled={loading || archiveLoading} className="rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2 text-sm font-semibold text-slate-200 disabled:opacity-50">Atualizar</button>
+            </div>
           </div>
 
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {loading ? Array.from({ length: 5 }).map((_, i) => <div key={i} className="aspect-[3/4] animate-pulse rounded-[1.5rem] bg-white/10" />) :
-              items.length ? items.map(item => (
+            {(showArchive ? archiveLoading : loading) ? Array.from({ length: 5 }).map((_, i) => <div key={i} className="aspect-[3/4] animate-pulse rounded-[1.5rem] bg-white/10" />) :
+              displayItems.length ? displayItems.map(item => (
                 <button key={item.id} type="button" onClick={() => openStory(item.id)} className="group relative aspect-[3/4] overflow-hidden rounded-[1.5rem] border border-white/10 bg-slate-900 text-left shadow-xl focus:outline-none focus:ring-2 focus:ring-blue-300">
                   {item.media_type === "image" && item.media_url ? <img src={item.media_url} alt="" className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105" /> :
                     item.media_type === "video" && item.media_url ? <video src={item.media_url} muted playsInline preload="metadata" className="absolute inset-0 h-full w-full object-cover" /> :
@@ -130,10 +202,10 @@ export default function StoriesPage() {
                   </div>
                   <div className="absolute inset-x-4 bottom-4">
                     <p className="line-clamp-4 text-sm font-medium leading-5 text-white">{item.title || item.body || "Story RESA"}</p>
-                    <p className="mt-2 text-[10px] text-white/65">{new Date(item.created_at).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })} · 24 h</p>
+                    <p className="mt-2 text-[10px] text-white/65">{new Date(item.created_at).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}{showArchive ? " · Arquivada" : " · 24 h"}</p>
                   </div>
                 </button>
-              )) : <div className="col-span-full rounded-[1.5rem] border border-dashed border-white/15 p-12 text-center text-slate-300">Ainda não existem stories ativas. Crie a primeira story da comunidade.</div>}
+              )) : <div className="col-span-full rounded-[1.5rem] border border-dashed border-white/15 p-12 text-center text-slate-300">{showArchive ? "Ainda não tem memórias arquivadas." : "Ainda não existem stories ativas. Crie a primeira story da comunidade."}</div>}
           </div>
         </section>
       </div>
@@ -142,7 +214,7 @@ export default function StoriesPage() {
         <div role="dialog" aria-modal="true" aria-label="Visualizador de stories" className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-3 sm:p-6">
           <div className="relative flex h-[min(88vh,820px)] w-full max-w-[440px] flex-col overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950 shadow-2xl">
             <div className="absolute inset-x-4 top-4 z-20 flex gap-1.5">
-              {items.map((item, index) => <span key={item.id} className="h-1 flex-1 overflow-hidden rounded-full bg-white/25"><span className={"block h-full rounded-full " + (index <= activeIndex ? "bg-white" : "bg-transparent")} /></span>)}
+              {displayItems.map((item, index) => <span key={item.id} className="h-1 flex-1 overflow-hidden rounded-full bg-white/25"><span className={"block h-full rounded-full " + (index <= activeIndex ? "bg-white" : "bg-transparent")} /></span>)}
             </div>
             <div className="absolute inset-x-4 top-8 z-20 flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2.5">
@@ -159,6 +231,7 @@ export default function StoriesPage() {
               <button type="button" onClick={() => moveStory(1)} aria-label="Story seguinte" className="absolute right-0 top-1/2 h-24 w-1/4 -translate-y-1/2 bg-transparent" />
             </div>
             {activeStory.media_url && activeStory.body && <div className="bg-slate-950 px-5 py-4 text-sm leading-6 text-slate-200">{activeStory.body}</div>}
+
             {storyInsights?.is_author && <section className="max-h-36 shrink-0 overflow-y-auto border-t border-white/10 bg-slate-950 px-4 py-3">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <p className="text-xs font-semibold text-white/80">Visualizações</p>
@@ -174,10 +247,28 @@ export default function StoriesPage() {
                   </div>)}
                 </div> : <p className="text-xs text-white/50">Ainda não há visualizações.</p>}
             </section>}
+            {!showArchive && <section className="max-h-52 shrink-0 overflow-y-auto border-t border-white/10 bg-slate-950 px-4 py-3">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold text-white/80">Respostas</p>
+                <button type="button" onClick={() => void reactToStory()} disabled={reactedStoryIds.includes(activeStory.id)} className="rounded-full border border-white/15 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">{reactedStoryIds.includes(activeStory.id) ? "Gostaste" : "Enviar gosto"}</button>
+              </div>
+              {interactionError && <p role="alert" className="mb-2 text-xs text-rose-300">{interactionError}</p>}
+              {commentsLoading ? <p className="text-xs text-white/50">A carregar respostas…</p> : storyComments.length ? <div className="space-y-2">
+                {storyComments.map(comment => <div key={comment.id} className="rounded-xl bg-white/[0.06] px-3 py-2">
+                  <p className="text-[10px] text-white/45">{new Date(comment.created_at).toLocaleString("pt-PT")}</p>
+                  <p className="whitespace-pre-wrap break-words text-xs leading-5 text-white/90">{comment.body}</p>
+                </div>)}
+              </div> : <p className="text-xs text-white/50">Ainda não há respostas. Seja o primeiro a responder.</p>}
+              <form onSubmit={sendStoryReply} className="mt-3 flex gap-2">
+                <input value={replyText} onChange={event => setReplyText(event.target.value)} maxLength={5000} placeholder="Escreva uma resposta…" aria-label="Resposta à story" className="min-w-0 flex-1 rounded-xl border border-white/15 bg-white/[0.07] px-3 py-2 text-xs text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                <button type="submit" disabled={!replyText.trim() || replySending} className="rounded-xl bg-blue-500 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">{replySending ? "…" : "Enviar"}</button>
+              </form>
+            </section>}
+            {showArchive && <p className="border-t border-white/10 bg-slate-950 px-4 py-3 text-center text-xs text-white/50">Story arquivada · respostas e reações estão encerradas</p>}
             <div className="flex items-center justify-between border-t border-white/10 bg-slate-950 px-4 py-3">
               <button type="button" onClick={() => moveStory(-1)} disabled={activeIndex === 0} className="rounded-lg px-3 py-2 text-sm font-semibold text-white disabled:opacity-30">Anterior</button>
-              <span className="text-xs text-white/55">{activeIndex + 1} / {items.length}</span>
-              <button type="button" onClick={() => moveStory(1)} disabled={activeIndex === items.length - 1} className="rounded-lg px-3 py-2 text-sm font-semibold text-white disabled:opacity-30">Seguinte</button>
+              <span className="text-xs text-white/55">{activeIndex + 1} / {displayItems.length}</span>
+              <button type="button" onClick={() => moveStory(1)} disabled={activeIndex === displayItems.length - 1} className="rounded-lg px-3 py-2 text-sm font-semibold text-white disabled:opacity-30">Seguinte</button>
             </div>
           </div>
         </div>
