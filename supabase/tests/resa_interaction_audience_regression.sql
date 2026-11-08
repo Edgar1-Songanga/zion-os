@@ -31,6 +31,20 @@ set role authenticated;
 do $test$
 begin
   begin
+    insert into public.resa_comments(content_id,author_id,body)
+    values ('96000000-0000-4000-8000-000000000011',auth.uid(),'Should not be allowed');
+    raise exception 'Audience bypass: outsider commented on followers-only content';
+  exception when insufficient_privilege then null;
+  end;
+
+  begin
+    insert into public.resa_reactions(content_id,user_id,reaction_type)
+    values ('96000000-0000-4000-8000-000000000011',auth.uid(),'like');
+    raise exception 'Audience bypass: outsider reacted to followers-only content';
+  exception when insufficient_privilege then null;
+  end;
+
+  begin
     insert into public.resa_shares(content_id,user_id,share_type)
     values ('96000000-0000-4000-8000-000000000011',auth.uid(),'repost');
     raise exception 'Audience bypass: outsider reposted followers-only content';
