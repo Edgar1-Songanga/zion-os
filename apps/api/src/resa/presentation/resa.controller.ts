@@ -11,6 +11,8 @@ export class ResaController {
   @Get('reels') reels(@Headers('authorization') a: string | undefined, @Query('limit') limit?: string) { return this.resa.reels(this.token(a), Number(limit) || 30); }
   @Get('explore') explore(@Headers('authorization') a: string | undefined, @Query('q') query?: string, @Query('limit') limit?: string) { return this.resa.explore(this.token(a), query, Number(limit) || 30); }
   @Get('stories') stories(@Headers('authorization') a: string | undefined, @Query('limit') limit?: string) { return this.resa.stories(this.token(a), Number(limit) || 30); }
+  @Post('stories/:storyId/views') recordStoryView(@Headers('authorization') a: string | undefined, @Param('storyId') id: string) { return this.resa.recordStoryView(this.token(a), id); }
+  @Get('stories/:storyId/views') storyViews(@Headers('authorization') a: string | undefined, @Param('storyId') id: string) { return this.resa.storyViews(this.token(a), id); }
   @Post('content') createContent(@Headers('authorization') a: string | undefined, @Body() b: any) { return this.resa.createContent(this.token(a), b); }
   @Get('content/:contentId/comments') comments(@Headers('authorization') a: string | undefined, @Param('contentId') id: string, @Query('limit') limit?: string, @Query('before') before?: string) { return this.resa.comments(this.token(a), id, Number(limit) || 50, before); }
   @Post('content/:contentId/comments') comment(@Headers('authorization') a: string | undefined, @Param('contentId') id: string, @Body() b: any) { return this.resa.comment(this.token(a), id, b); }
