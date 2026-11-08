@@ -9,22 +9,25 @@ stable
 security definer
 set search_path = pg_catalog, pg_temp
 as $
-  select exists (
-    select 1 from public.resa_communities c
-    where c.id = p_community_id and c.created_by = p_user_id
-  ) or exists (
-    select 1 from public.resa_community_members m
-    where m.community_id = p_community_id
-      and m.user_id = p_user_id
-      and m.status = 'active'
-      and m.role in ('owner','moderator')
+  select p_user_id = auth.uid() and (
+    exists (
+      select 1 from public.resa_communities c
+      where c.id = p_community_id and c.created_by = auth.uid()
+    ) or exists (
+      select 1 from public.resa_community_members m
+      where m.community_id = p_community_id
+        and m.user_id = auth.uid()
+        and m.status = 'active'
+        and m.role in ('owner','moderator')
+    )
   );
 $;
+revoke all on function private.resa_is_community_moderator(uuid,uuid) from public, anon;
 grant execute on function private.resa_is_community_moderator(uuid,uuid) to authenticated;
 
 -- Use a narrowly scoped SECURITY DEFINER helper for the existing invitation
 -- row. Referencing resa_event_participants from its own RLS policy would recurse.
-create or replace function private.resa_is_event_participant(p_event_id uuid, p_user_id uuid)
+create or replace function private.resa_is_event_participant(p_event_id uuid)
 returns boolean
 language sql
 stable
@@ -33,10 +36,11 @@ set search_path = pg_catalog, pg_temp
 as $
   select exists (
     select 1 from public.resa_event_participants p
-    where p.event_id = p_event_id and p.user_id = p_user_id
+    where p.event_id = p_event_id and p.user_id = auth.uid()
   );
 $;
-grant execute on function private.resa_is_event_participant(uuid,uuid) to authenticated;
+revoke all on function private.resa_is_event_participant(uuid) from public, anon;
+grant execute on function private.resa_is_event_participant(uuid) to authenticated;
 
 -- Public communities can be joined directly. Private and organization-scoped
 -- communities require an invitation or moderator action; a member cannot
@@ -69,7 +73,7 @@ using (
   private.resa_can_view_content(created_by, visibility, community_id, organization_id)
   or (
     visibility = 'private'
-    and private.resa_is_event_participant(resa_events.id, (select auth.uid()))
+    and private.resa_is_event_participant(resa_events.id)
   )
 );
 
@@ -128,7 +132,7 @@ with check (
         private.resa_can_view_content(e.created_by, e.visibility, e.community_id, e.organization_id)
         or (
           e.visibility = 'private'
-          and private.resa_is_event_participant(e.id, (select auth.uid()))
+          and private.resa_is_event_participant(e.id)
         )
       )
   )
