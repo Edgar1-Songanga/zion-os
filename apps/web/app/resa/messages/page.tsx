@@ -80,6 +80,7 @@ export default function MessagesPage() {
   const [loadingPeople, setLoadingPeople] = useState(false);
   const [startingPersonId, setStartingPersonId] = useState<string | null>(null);
   const [autoStartCallConversationId, setAutoStartCallConversationId] = useState<string | null>(null);
+  const [callOnlyConversationId, setCallOnlyConversationId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
@@ -97,6 +98,7 @@ export default function MessagesPage() {
 
   useEffect(() => {
     if (autoStartCallConversationId && selected && selected !== autoStartCallConversationId) setAutoStartCallConversationId(null);
+    if (callOnlyConversationId && selected && selected !== callOnlyConversationId) setCallOnlyConversationId(null);
   }, [autoStartCallConversationId, selected]);
 
   const selectedConversation = useMemo(
@@ -311,7 +313,12 @@ export default function MessagesPage() {
         method: "POST",
         body: JSON.stringify({ member_ids: [person.id], title: displayName, purpose }),
       });
-      if (purpose === 'call') setAutoStartCallConversationId(conversation.id);
+      if (purpose === 'call') {
+        setAutoStartCallConversationId(conversation.id);
+        setCallOnlyConversationId(conversation.id);
+      } else {
+        setCallOnlyConversationId(null);
+      }
       setQuery("");
       setPeople([]);
       // Select the new conversation immediately so the composer is available
@@ -471,7 +478,7 @@ export default function MessagesPage() {
 
             {selected && (
               <div className="border-t border-slate-100 bg-white p-4">
-                                {searchParams.get("call") === "audio" ? <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">Pedido de chamada iniciado. A caixa de mensagens está desativada neste modo.</p> : <>
+                                {selected === callOnlyConversationId ? <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">Pedido de chamada iniciado. A caixa de mensagens está desativada neste modo.</p> : <>
 {replyTo && <div className="mb-2 flex items-center justify-between rounded-xl bg-[#eef2f8] px-3 py-2 text-xs text-slate-600"><span className="truncate">A responder: {replyTo.body}</span><button onClick={() => setReplyTo(null)} className="font-semibold text-[#0C1A3D]">Cancelar</button></div>}
                 <div className="rounded-[22px] border border-slate-200 bg-white p-2 shadow-[0_8px_30px_rgba(12,26,61,0.06)] transition focus-within:border-[#9aa9c6] focus-within:shadow-[0_12px_34px_rgba(12,26,61,0.09)]">
                   <div className="flex items-end gap-2">
