@@ -40,11 +40,15 @@ const typeMeta: Record<string, { labelKey: "post" | "prayer" | "bibleStudy" | "t
 };
 
 function renderLinkedText(value: string) {
-  return value.split(/(https?:\/\/[^\s]+)/g).map((part, index) =>
-    /^https?:\/\//i.test(part)
-      ? <a key={index} href={part} target="_blank" rel="noreferrer" className="break-all text-sky-700 underline underline-offset-2 hover:text-sky-900">{part}</a>
-      : part,
-  );
+  return value.split(/(https?:\/\/[^\s]+|#[\p{L}\p{N}_-]{2,80})/gu).map((part, index) => {
+    if (/^https?:\/\//i.test(part)) {
+      return <a key={index} href={part} target="_blank" rel="noreferrer" className="break-all text-sky-700 underline underline-offset-2 hover:text-sky-900">{part}</a>;
+    }
+    if (part.startsWith("#")) {
+      return <Link key={index} href={"/resa/topics/" + encodeURIComponent(part.slice(1).toLowerCase())} className="font-semibold text-indigo-700 underline-offset-2 hover:underline">{part}</Link>;
+    }
+    return part;
+  });
 }
 
 export default function FeedCard({ content }: { content: ResaContent }) {

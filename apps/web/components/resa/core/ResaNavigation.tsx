@@ -17,6 +17,7 @@ type ProfilePreview = {
 const primaryNavigation = [
   ["Mural", "home", "/resa"],
   ["Explorar", "search", "/resa/explore"],
+  ["Reels", "story", "/resa/reels"],
   ["Comunidades", "users", "/resa/communities"],
   ["Lives", "live", "/resa/live"],
   ["Mensagens", "message", "/resa/messages"],

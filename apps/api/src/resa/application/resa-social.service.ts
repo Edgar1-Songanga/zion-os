@@ -127,6 +127,39 @@ export class ResaSocialService {
     }).slice(0, size);
   }
 
+  async reels(token: string, limit = 30) {
+    const viewer = await this.actor(token);
+    const size = Math.min(Math.max(Number(limit) || 30, 1), 50);
+    const rows = await this.db.get<any[]>(
+      'resa_contents',
+      token,
+      `?select=id,author_id,title,body,created_at,media_url,media_type,language,visibility&media_type=eq.video&visibility=eq.public&order=created_at.desc&limit=${size}`,
+    );
+    const authorIds = [...new Set(rows.map((row) => row.author_id).filter(Boolean))];
+    const contentIds = rows.map((row) => row.id).filter(Boolean);
+    const [profiles, reactions] = await Promise.all([
+      authorIds.length
+        ? this.db.rpc<any[]>('resa_profiles_for_ids', token, { p_user_ids: authorIds })
+        : Promise.resolve([]),
+      contentIds.length
+        ? this.db.get<any[]>('resa_reactions', token, `?select=content_id&user_id=eq.${viewer.id}&content_id=in.(${contentIds.join(',')})&limit=50`)
+        : Promise.resolve([]),
+    ]);
+    const byId = new Map(profiles.map((profile) => [profile.id, profile]));
+    const reactedIds = new Set(reactions.map((reaction) => reaction.content_id));
+    return rows.map((row) => {
+      const profile = byId.get(row.author_id);
+      return {
+        ...row,
+        viewer_reacted: reactedIds.has(row.id),
+        author_display_name: profile?.display_name?.trim()
+          || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim()
+          || 'Membro RESA',
+        author_avatar_url: profile?.avatar_url ?? null,
+      };
+    });
+  }
+
   async explore(token: string, query?: string, limit = 30) {
     await this.actor(token); const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
     const filter = query?.trim() ? `&or=(title.ilike.*${encodeURIComponent(query.trim())}*,body.ilike.*${encodeURIComponent(query.trim())}*)` : '';
@@ -187,8 +220,48 @@ export class ResaSocialService {
   }
   async follows(token: string, userId?: string) { const a = await this.actor(token); return this.db.get('resa_follows', token, `?select=*&follower_id=eq.${userId || a.id}&order=created_at.desc`); }
   async mention(token: string, contentId: string, mentionedUserId: string) { const a = await this.actor(token); const rows = await this.db.post<any[]>('resa_mentions', token, { content_id: contentId, mentioned_user_id: mentionedUserId, mentioned_by: a.id }); return rows[0]; }
-  async topic(token: string, name: string) { const normalized = this.clean(name, 'name', 80).toLowerCase().replace(/^#/, '').replace(/\s+/g, '-'); const rows = await this.db.upsert<any[]>('resa_topics', token, { name, normalized_name: normalized }, '?on_conflict=normalized_name'); return rows[0]; }
-  async attachTopic(token: string, contentId: string, topicId: string) { const rows = await this.db.post<any[]>('resa_content_topics', token, { content_id: contentId, topic_id: topicId }); return rows[0]; }
+  async topic(token: string, name: string) {
+    await this.actor(token);
+    const cleaned = this.clean(name, 'name', 80).replace(/^#/, '').trim();
+    if (!/^[\p{L}\p{N}_-]+$/u.test(cleaned)) throw new BadRequestException('Topic contains unsupported characters');
+    const normalized = cleaned.toLowerCase().replace(/-+/g, '-');
+    const rows = await this.db.upsert<any[]>('resa_topics', token, { name: cleaned, normalized_name: normalized }, '?on_conflict=normalized_name');
+    return rows[0];
+  }
+  async topicFeed(token: string, slug: string, limit = 50) {
+    await this.actor(token);
+    const normalized = this.clean(slug, 'slug', 80).replace(/^#/, '').toLowerCase();
+    const topics = await this.db.get<any[]>('resa_topics', token, `?select=id,name,normalized_name&normalized_name=eq.${encodeURIComponent(normalized)}&limit=1`);
+    if (!topics[0]) return { topic: null, contents: [] };
+    const size = Math.min(Math.max(Number(limit) || 50, 1), 100);
+    const links = await this.db.get<any[]>('resa_content_topics', token, `?select=content_id&topic_id=eq.${topics[0].id}&limit=1000`);
+    const ids = [...new Set(links.map((row) => row.content_id).filter(Boolean))];
+    if (!ids.length) return { topic: topics[0], contents: [] };
+    const contents = await this.db.get<any[]>('resa_contents', token, `?select=id,author_id,type,title,body,created_at,media_type,media_url,language&visibility=eq.public&id=in.(${ids.join(',')})&order=created_at.desc&limit=${size}`);
+    const authorIds = [...new Set(contents.map((item) => item.author_id).filter(Boolean))];
+    const profiles = authorIds.length
+      ? await this.db.rpc<any[]>('resa_profiles_for_ids', token, { p_user_ids: authorIds })
+      : [];
+    const profileMap = new Map(profiles.map((profile) => [profile.id, profile]));
+    const enriched = contents.map((item) => {
+      const profile = profileMap.get(item.author_id);
+      return {
+        ...item,
+        author_display_name: profile?.display_name?.trim()
+          || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim()
+          || 'Membro RESA',
+        author_avatar_url: profile?.avatar_url ?? null,
+      };
+    });
+    return { topic: topics[0], contents: enriched };
+  }
+  async attachTopic(token: string, contentId: string, topicId: string) {
+    const actor = await this.actor(token);
+    const owned = await this.db.get<any[]>('resa_contents', token, `?select=id&id=eq.${encodeURIComponent(contentId)}&author_id=eq.${actor.id}&limit=1`);
+    if (!owned[0]) throw new NotFoundException('Publication not found or not owned by this member');
+    const rows = await this.db.upsert<any[]>('resa_content_topics', token, { content_id: contentId, topic_id: topicId }, '?on_conflict=content_id,topic_id');
+    return rows[0];
+  }
   async save(token: string, contentId: string) { const a = await this.actor(token); const rows = await this.db.upsert<any[]>('resa_saves', token, { content_id: contentId, user_id: a.id }, '?on_conflict=content_id,user_id'); return rows[0]; }
   async unsave(token: string, contentId: string) { const a = await this.actor(token); await this.db.delete('resa_saves', token, `?content_id=eq.${contentId}&user_id=eq.${a.id}`); return { removed: true }; }
   async repost(token: string, contentId: string, quote = false, body?: string) { const a = await this.actor(token); if (quote) { const rows = await this.db.post<any[]>('resa_contents', token, { author_id: a.id, type: 'text', body: this.clean(body, 'body', 5000), visibility: 'public', language: 'pt', quoted_content_id: contentId }); return rows[0]; } const rows = await this.db.post<any[]>('resa_shares', token, { content_id: contentId, user_id: a.id, share_type: 'repost' }); return rows[0]; }
