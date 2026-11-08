@@ -223,7 +223,7 @@ export class ResaSocialService {
   async topic(token: string, name: string) {
     await this.actor(token);
     const cleaned = this.clean(name, 'name', 80).replace(/^#/, '').trim();
-    if (!/^[\\p{L}\\p{N}_-]+$/u.test(cleaned)) throw new BadRequestException('Topic contains unsupported characters');
+    if (!/^[\p{L}\p{N}_-]+$/u.test(cleaned)) throw new BadRequestException('Topic contains unsupported characters');
     const normalized = cleaned.toLowerCase().replace(/-+/g, '-');
     const rows = await this.db.upsert<any[]>('resa_topics', token, { name: cleaned, normalized_name: normalized }, '?on_conflict=normalized_name');
     return rows[0];
@@ -238,7 +238,22 @@ export class ResaSocialService {
     const ids = [...new Set(links.map((row) => row.content_id).filter(Boolean))];
     if (!ids.length) return { topic: topics[0], contents: [] };
     const contents = await this.db.get<any[]>('resa_contents', token, `?select=id,author_id,type,title,body,created_at,media_type,media_url,language&visibility=eq.public&id=in.(${ids.join(',')})&order=created_at.desc&limit=${size}`);
-    return { topic: topics[0], contents };
+    const authorIds = [...new Set(contents.map((item) => item.author_id).filter(Boolean))];
+    const profiles = authorIds.length
+      ? await this.db.rpc<any[]>('resa_profiles_for_ids', token, { p_user_ids: authorIds })
+      : [];
+    const profileMap = new Map(profiles.map((profile) => [profile.id, profile]));
+    const enriched = contents.map((item) => {
+      const profile = profileMap.get(item.author_id);
+      return {
+        ...item,
+        author_display_name: profile?.display_name?.trim()
+          || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim()
+          || 'Membro RESA',
+        author_avatar_url: profile?.avatar_url ?? null,
+      };
+    });
+    return { topic: topics[0], contents: enriched };
   }
   async attachTopic(token: string, contentId: string, topicId: string) {
     const actor = await this.actor(token);
