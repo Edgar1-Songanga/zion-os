@@ -23,6 +23,28 @@ export class ResaSocialService {
     if (typeof value !== 'string' || !value.trim()) throw new BadRequestException(`${field} is required`);
     const v = value.trim(); if (v.length > max) throw new BadRequestException(`${field} is too long`); return v;
   }
+  async contentMediaUrl(token: string, contentId: string) {
+    await this.actor(token);
+    const rows = await this.db.get<any[]>(
+      'resa_contents',
+      token,
+      `?select=id,author_id,media_type,media_url,media_path& id=eq.${encodeURIComponent(contentId)}&limit=1`.replace('& id=', '&id='),
+    );
+    const content = rows[0];
+    if (!content || !content.media_type) throw new NotFoundException('Media not found or not accessible');
+    if (typeof content.media_url === 'string' && content.media_url.trim()) {
+      return { url: content.media_url, expires_in: null, private: false };
+    }
+    const path = typeof content.media_path === 'string' ? content.media_path : '';
+    if (!path || path.startsWith('/') || path.includes('..') || path.includes('\\')
+      || !path.startsWith(`${content.author_id}/`)) {
+      throw new NotFoundException('Private media not found or not accessible');
+    }
+    const expiresIn = 300;
+    const url = await this.db.createSignedStorageUrl('resa-content-private', path, token, expiresIn);
+    return { url, expires_in: expiresIn, private: true };
+  }
+
   async listContent(token: string, limit = 30, before?: string) {
     await this.actor(token); const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
     const filter = before ? `&created_at=lt.${encodeURIComponent(before)}` : '';
