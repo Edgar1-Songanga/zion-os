@@ -7,8 +7,15 @@ type ProfilePrivacy = {
   bio_visibility: 'public' | 'community' | 'private';
   country_visibility: 'public' | 'community' | 'private';
   timezone_visibility: 'public' | 'community' | 'private';
+  message_policy: 'everyone' | 'followers' | 'following' | 'none';
+  call_policy: 'everyone' | 'followers' | 'following' | 'none';
+  group_invite_policy: 'everyone' | 'followers' | 'following' | 'none';
+  follow_policy: 'auto' | 'approval' | 'none';
 };
-const DEFAULT_PRIVACY: ProfilePrivacy = { profile_visibility: 'community', bio_visibility: 'community', country_visibility: 'community', timezone_visibility: 'private' };
+const DEFAULT_PRIVACY: ProfilePrivacy = {
+  profile_visibility: 'community', bio_visibility: 'community', country_visibility: 'community', timezone_visibility: 'private',
+  message_policy: 'everyone', call_policy: 'everyone', group_invite_policy: 'everyone', follow_policy: 'auto',
+};
 
 type Profile = {
   id: string;
@@ -135,6 +142,13 @@ export class ProfileService {
       const allowed = ['public', 'community', 'private'];
       for (const field of ['profile_visibility', 'bio_visibility', 'country_visibility', 'timezone_visibility'] as const) {
         if (privacy[field] !== undefined && !allowed.includes(privacy[field])) throw new UnauthorizedException(`Invalid privacy value for ${field}`);
+      }
+      const contactPolicies = ['everyone', 'followers', 'following', 'none'];
+      for (const field of ['message_policy', 'call_policy', 'group_invite_policy'] as const) {
+        if (privacy[field] !== undefined && !contactPolicies.includes(privacy[field])) throw new UnauthorizedException(`Invalid privacy value for ${field}`);
+      }
+      if (privacy.follow_policy !== undefined && !['auto', 'approval', 'none'].includes(privacy.follow_policy)) {
+        throw new UnauthorizedException('Invalid privacy value for follow_policy');
       }
       updates.privacy = { ...DEFAULT_PRIVACY, ...privacy };
     }
