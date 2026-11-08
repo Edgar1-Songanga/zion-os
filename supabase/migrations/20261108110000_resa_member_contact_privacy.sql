@@ -55,7 +55,7 @@ grant execute on function private.resa_contact_allowed(uuid,uuid,text) to authen
 -- operation as well as the API, so direct RPC calls cannot bypass profile choices.
 drop function if exists public.resa_create_conversation(uuid[], text);
 
-create or replace function public.resa_create_conversation(
+create or replace function private.resa_create_conversation_internal(
   p_member_ids uuid[],
   p_title text default null,
   p_contact_type text default 'message'
@@ -63,7 +63,7 @@ create or replace function public.resa_create_conversation(
 returns public.resa_conversations
 language plpgsql
 security definer
-set search_path = pg_catalog, public, pg_temp
+set search_path = pg_catalog, pg_temp
 as $function$
 declare
   v_actor uuid := (select auth.uid());
@@ -142,6 +142,19 @@ begin
 end;
 $function$;
 
+create or replace function public.resa_create_conversation(
+  p_member_ids uuid[],
+  p_title text default null,
+  p_contact_type text default 'message'
+)
+returns public.resa_conversations
+language sql security invoker
+set search_path = pg_catalog, private, pg_temp
+as $function$
+  select private.resa_create_conversation_internal(p_member_ids, p_title, p_contact_type);
+$function$;
+revoke all on function private.resa_create_conversation_internal(uuid[],text,text) from public, anon;
+grant execute on function private.resa_create_conversation_internal(uuid[],text,text) to authenticated;
 revoke all on function public.resa_create_conversation(uuid[], text, text) from public, anon;
 grant execute on function public.resa_create_conversation(uuid[], text, text) to authenticated;
 
