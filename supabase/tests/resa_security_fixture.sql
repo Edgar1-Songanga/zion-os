@@ -263,6 +263,9 @@ create table public.resa_contents (
   visibility text not null default 'public',
   organization_id uuid references public.organizations(id),
   community_id uuid references public.resa_communities(id),
+  media_type text,
+  media_url text,
+  media_path text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
