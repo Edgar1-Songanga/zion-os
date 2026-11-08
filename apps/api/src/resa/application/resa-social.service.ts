@@ -101,7 +101,7 @@ export class ResaSocialService {
       const separator = before.indexOf('|');
       const createdAt = separator >= 0 ? before.slice(0, separator) : '';
       const itemId = separator >= 0 ? before.slice(separator + 1) : '';
-      if (!Number.isFinite(Date.parse(createdAt)) || !/^\\d{4}-\\d{2}-\\d{2}T/.test(createdAt)
+      if (!Number.isFinite(Date.parse(createdAt)) || createdAt.length < 20 || createdAt[4] !== '-' || createdAt[7] !== '-' || createdAt[10] !== 'T'
         || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(itemId)) {
         throw new BadRequestException('Invalid feed cursor');
       }
