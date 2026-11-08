@@ -58,7 +58,10 @@ jobs:
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_call_security_regression.sql
       - name: Apply RESA member profile and contact privacy
         run: |
-          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108110000_resa_member_contact_privacy.sql
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108111206_resa_member_contact_privacy.sql
+      - name: Harden direct-message trigger search path
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108111500_harden_resa_message_trigger_search_path.sql
       - name: Verify profile, message, call, follow and group-invite privacy
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_member_privacy_regression.sql
