@@ -219,6 +219,29 @@ export class ResaSocialService {
       };
     });
   }
+  async archivedStories(token: string, limit = 60) {
+    const actor = await this.actor(token);
+    const size = Math.min(Math.max(Number(limit) || 60, 1), 100);
+    const cutoff = new Date(Date.now() - 86400000).toISOString();
+    // The archive is private to its owner. RLS also permits owners to read
+    // their own content regardless of audience visibility.
+    const rows = await this.db.get<any[]>(
+      'resa_contents',
+      token,
+      `?select=id,author_id,title,body,created_at,media_type,media_url,media_path,visibility,language&type=eq.story&author_id=eq.${encodeURIComponent(actor.id)}&created_at=lt.${encodeURIComponent(cutoff)}&order=created_at.desc&limit=${size}`,
+    );
+    const profiles = await this.db.rpc<any[]>('resa_profiles_for_ids', token, { p_user_ids: [actor.id] });
+    const profile = profiles[0];
+    const displayName = profile?.display_name?.trim()
+      || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim()
+      || 'Membro RESA';
+    return rows.map((row) => ({
+      ...row,
+      author_display_name: displayName,
+      author_avatar_url: profile?.avatar_url ?? null,
+    }));
+  }
+
   async createContent(token: string, input: any) {
     const a = await this.actor(token); const type = this.clean(input.type, 'type', 40); const visibility = input.visibility || 'public';
     if (!['public', 'followers', 'community', 'organization', 'private'].includes(visibility)) throw new BadRequestException('Invalid visibility');
