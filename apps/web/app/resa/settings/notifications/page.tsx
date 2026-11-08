@@ -155,6 +155,7 @@ export default function ResaNotificationSettingsPage() {
               <p className="mt-2 text-sm leading-6 text-[var(--zion-muted)]">Consulta as denúncias que apresentaste e acompanha as decisões da equipa de moderação.</p>
               <Link href="/resa/my-reports" className="mt-4 inline-flex rounded-xl border border-[var(--zion-border)] px-4 py-2 text-sm font-semibold text-[var(--zion-dark)]">As minhas denúncias</Link>
               <Link href="/resa/my-actions" className="ml-2 mt-4 inline-flex rounded-xl border border-[var(--zion-border)] px-4 py-2 text-sm font-semibold text-[var(--zion-dark)]">Medidas aplicadas à minha conta</Link>
+              <Link href="/resa/my-account-sanctions" className="ml-2 mt-4 inline-flex rounded-xl border border-[var(--zion-border)] px-4 py-2 text-sm font-semibold text-[var(--zion-dark)]">Restrições da minha conta</Link>
             </section>
 
             <div className="flex flex-wrap items-center justify-between gap-3">
