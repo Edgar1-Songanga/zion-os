@@ -31,6 +31,8 @@ export default function ResaMemberProfile({ userId }: { userId: string }) {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setData(null);
+    setError("");
     try {
       const result = await resaRequest<Result>("/v1/resa/profiles/" + encodeURIComponent(userId));
       setData(result);
