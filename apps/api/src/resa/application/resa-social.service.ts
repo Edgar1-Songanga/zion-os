@@ -224,13 +224,39 @@ export class ResaSocialService {
   }
   async unfollow(token: string, followedId: string) { const a = await this.actor(token); await this.db.delete('resa_follows', token, `?follower_id=eq.${a.id}&followed_id=eq.${followedId}`); return { removed: true }; }
   async publicProfile(token: string, userId: string) {
-    await this.actor(token);
+    const actor = await this.actor(token);
     const id = this.clean(userId, 'user_id', 80);
     const rows = await this.db.rpc<any[]>('resa_public_profile', token, { p_user_id: id });
     const profile = rows?.[0];
     if (!profile) throw new NotFoundException('Profile not found');
+    const blocks = actor.id === id ? [] : await this.db.get<any[]>(
+      'resa_user_blocks', token,
+      `?select=blocked_id&blocker_id=eq.${actor.id}&blocked_id=eq.${id}&limit=1`,
+    );
+    profile.viewer_has_blocked = blocks.length > 0;
     const contents = profile.private_locked ? [] : await this.db.get<any[]>('resa_contents', token, `?select=id,author_id,type,title,body,created_at,media_type,media_url,language&type=neq.story&author_id=eq.${encodeURIComponent(id)}&visibility=in.(public,followers,community,organization)&order=created_at.desc&limit=20`);
     return { profile, contents };
+  }
+
+  async blockProfile(token: string, userId: string) {
+    const actor = await this.actor(token);
+    const id = this.clean(userId, 'user_id', 80);
+    if (actor.id === id) throw new BadRequestException('You cannot block your own profile');
+    const target = await this.db.get<any[]>('profiles', token, `?select=id&id=eq.${id}&limit=1`);
+    if (!target[0]) throw new NotFoundException('Profile not found');
+    await this.db.upsert('resa_user_blocks', token, {
+      blocker_id: actor.id,
+      blocked_id: id,
+    }, '?on_conflict=blocker_id,blocked_id');
+    await this.db.delete('resa_follows', token, `?follower_id=eq.${actor.id}&followed_id=eq.${id}`);
+    return { blocked: true };
+  }
+
+  async unblockProfile(token: string, userId: string) {
+    const actor = await this.actor(token);
+    const id = this.clean(userId, 'user_id', 80);
+    await this.db.delete('resa_user_blocks', token, `?blocker_id=eq.${actor.id}&blocked_id=eq.${id}`);
+    return { blocked: false };
   }
 
   async social(token: string, userId?: string) {
