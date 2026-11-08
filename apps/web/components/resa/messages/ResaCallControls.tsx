@@ -9,7 +9,7 @@ type CallKind = "audio" | "video";
 type CallRow = { id: string; conversation_id: string; initiator_id: string; kind: CallKind; status: string };
 type JoinConfig = { mode: string; provider: string; roomId: string; joinUrl: string; token?: string };
 
-export default function ResaCallControls({ conversationId }: { conversationId: string }) {
+export default function ResaCallControls({ conversationId, autoStart = null }: { conversationId: string; autoStart?: CallKind | null }) {
   const supabase = useMemo(() => createClient(), []);
   const [call, setCall] = useState<CallRow | null>(null);
   const [incoming, setIncoming] = useState<CallRow | null>(null);
@@ -30,6 +30,7 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
   const ringAudioRef = useRef<AudioContext | null>(null);
   const ringTimerRef = useRef<number | null>(null);
   const callTimeoutRef = useRef<number | null>(null);
+  const autoStartRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -41,6 +42,12 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
     });
     return () => { mounted = false; };
   }, [supabase]);
+
+  useEffect(() => {
+    if (!ready || !autoStart || autoStartRef.current) return;
+    autoStartRef.current = true;
+    void start(autoStart);
+  }, [ready, autoStart, conversationId]);
 
   useEffect(() => {
     const channel = supabase.channel("resa-call-events-" + conversationId)
