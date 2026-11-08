@@ -73,6 +73,33 @@ describe('ResaSocialService feeds', () => {
     expect(result.following[0]).toMatchObject({ id: '33333333-3333-4333-8333-333333333333', display_name: 'Following profile' });
   });
 
+  it('builds profile suggestions from the social graph without an empty search query', async () => {
+    const candidateId = '44444444-4444-4444-8444-444444444444';
+    getSpy.mockImplementation(async (table: string, _token: string, query: string) => {
+      if (table !== 'resa_follows') return [] as never;
+      if (query.includes('follower_id=eq.' + ACTOR_ID)) {
+        return [{ followed_id: FOLLOWED_ID }] as never;
+      }
+      if (query.includes('follower_id=in.(' + FOLLOWED_ID + ')')) {
+        return [{ follower_id: FOLLOWED_ID, followed_id: candidateId }] as never;
+      }
+      return [] as never;
+    });
+    rpcSpy.mockResolvedValue([
+      { id: candidateId, display_name: 'Suggested profile' },
+    ] as never);
+
+    const result = await service.suggestions('session-token', 10);
+
+    expect(rpcSpy).toHaveBeenCalledWith('resa_profiles_for_ids', 'session-token', {
+      p_user_ids: [candidateId],
+    });
+    expect(rpcSpy).not.toHaveBeenCalledWith('resa_search_profiles', 'session-token', expect.anything());
+    expect(result).toMatchObject([
+      { id: candidateId, display_name: 'Suggested profile', relationship: 'suggested', mutual_follow_count: 1 },
+    ]);
+  });
+
   it('makes follow creation idempotent using the database composite key', async () => {
     const upsertSpy = jest.spyOn(SupabaseRestClient.prototype, 'upsert').mockResolvedValue([
       { follower_id: ACTOR_ID, followed_id: FOLLOWED_ID },
