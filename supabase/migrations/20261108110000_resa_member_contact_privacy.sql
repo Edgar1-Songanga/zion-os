@@ -65,25 +65,8 @@ begin
   end if;
 
   foreach v_target in array v_targets loop
-    if cardinality(v_targets) = 1 then
-      select coalesce(p.privacy->>'message_policy', 'everyone') into v_policy
-      from public.profiles p where p.id = v_target;
-    else
-      select coalesce(p.privacy->>'group_invite_policy', 'everyone') into v_policy
-      from public.profiles p where p.id = v_target;
-    end if;
-    v_policy := coalesce(v_policy, 'everyone');
-
-    if v_policy = 'none' then
+    if not public.resa_contact_allowed(v_actor, v_target, case when cardinality(v_targets) = 1 then 'message_policy' else 'group_invite_policy' end) then
       raise exception 'recipient does not accept this contact type' using errcode = '42501';
-    elsif v_policy = 'followers' and not exists (
-      select 1 from public.resa_follows f where f.follower_id = v_actor and f.followed_id = v_target
-    ) then
-      raise exception 'recipient only accepts contacts from followers' using errcode = '42501';
-    elsif v_policy = 'following' and not exists (
-      select 1 from public.resa_follows f where f.follower_id = v_target and f.followed_id = v_actor
-    ) then
-      raise exception 'recipient only accepts contacts from profiles they follow' using errcode = '42501';
     end if;
   end loop;
 
@@ -154,24 +137,8 @@ begin
       where m.conversation_id = new.conversation_id
         and m.user_id <> new.sender_id
     loop
-      select coalesce(p.privacy->>'message_policy', 'everyone')
-        into v_policy
-      from public.profiles p
-      where p.id = v_target;
-      v_policy := coalesce(v_policy, 'everyone');
-
-      if v_policy = 'none' then
+      if not public.resa_contact_allowed(new.sender_id, v_target, 'message_policy') then
         raise exception 'recipient does not accept direct messages' using errcode = '42501';
-      elsif v_policy = 'followers' and not exists (
-        select 1 from public.resa_follows f
-        where f.follower_id = new.sender_id and f.followed_id = v_target
-      ) then
-        raise exception 'recipient only accepts messages from followers' using errcode = '42501';
-      elsif v_policy = 'following' and not exists (
-        select 1 from public.resa_follows f
-        where f.follower_id = v_target and f.followed_id = new.sender_id
-      ) then
-        raise exception 'recipient only accepts messages from profiles they follow' using errcode = '42501';
       end if;
     end loop;
   end if;
@@ -201,26 +168,9 @@ with check (
   and not exists (
     select 1
     from public.resa_conversation_members recipient
-    join public.profiles p on p.id = recipient.user_id
     where recipient.conversation_id = resa_calls.conversation_id
       and recipient.user_id <> (select auth.uid())
-      and (
-        coalesce(p.privacy->>'call_policy', 'everyone') = 'none'
-        or (
-          coalesce(p.privacy->>'call_policy', 'everyone') = 'followers'
-          and not exists (
-            select 1 from public.resa_follows f
-            where f.follower_id = (select auth.uid()) and f.followed_id = recipient.user_id
-          )
-        )
-        or (
-          coalesce(p.privacy->>'call_policy', 'everyone') = 'following'
-          and not exists (
-            select 1 from public.resa_follows f
-            where f.follower_id = recipient.user_id and f.followed_id = (select auth.uid())
-          )
-        )
-      )
+      and not public.resa_contact_allowed((select auth.uid()), recipient.user_id, 'call_policy')
   )
 );
 
@@ -230,11 +180,7 @@ create policy resa_follows_owner_insert on public.resa_follows
 for insert to authenticated
 with check (
   follower_id = (select auth.uid())
-  and coalesce((
-    select p.privacy->>'follow_policy'
-    from public.profiles p
-    where p.id = resa_follows.followed_id
-  ), 'auto') <> 'none'
+  and public.resa_contact_allowed((select auth.uid()), followed_id, 'follow_policy')
 );
 
 commit;
