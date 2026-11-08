@@ -18,6 +18,7 @@ type Profile = {
   call_allowed: boolean;
   group_invite_allowed: boolean;
   follow_allowed: boolean;
+  private_locked?: boolean;
 };
 type Content = { id: string; title?: string | null; body?: string | null; media_type?: string | null; media_url?: string | null; created_at: string };
 type Result = { profile: Profile; contents: Content[] };
@@ -71,6 +72,7 @@ export default function ResaMemberProfile({ userId }: { userId: string }) {
           <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-2xl font-semibold text-[#0C1A3D]">{profile.avatar_url ? <img src={profile.avatar_url} alt={name} className="h-full w-full object-cover" /> : initials}</div>
           <div className="min-w-0 flex-1"><h1 className="text-2xl font-semibold tracking-tight text-[#0C1A3D]">{name}</h1>{profile.bio && <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">{profile.bio}</p>}{profile.country_code && <p className="mt-2 text-xs text-slate-400">{profile.country_code}</p>}</div>
         </div>
+        {profile.private_locked && <p className="mt-5 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">Este perfil é privado. Pode seguir este membro se ele aceitar novos seguidores; as publicações e os detalhes só serão apresentados depois de o seguir.</p>}
         {!profile.is_owner && <div className="mt-6 flex flex-wrap gap-2 border-t border-slate-100 pt-5">
           {profile.follow_allowed && <button type="button" disabled={busy} onClick={() => void toggleFollow()} className="rounded-xl bg-[#0C1A3D] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{busy ? "A atualizar…" : profile.is_following ? "A seguir" : "Seguir"}</button>}
           {profile.message_allowed && <Link href={"/resa/messages?to=" + encodeURIComponent(userId)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-[#0C1A3D] hover:bg-slate-50">Mensagem</Link>}
