@@ -237,12 +237,48 @@ export class ResaSocialService {
   async suggestions(token: string, limit = 12) {
     const actor = await this.actor(token);
     const size = Math.min(Math.max(Number(limit) || 12, 1), 30);
-    const [profiles, following] = await Promise.all([
-      this.db.rpc<any[]>('resa_search_profiles', token, { p_query: '', p_limit: Math.min(size + 10, 50) }),
-      this.db.get<any[]>('resa_follows', token, `?select=followed_id&follower_id=eq.${actor.id}`),
-    ]);
-    const followed = new Set(following.map((row) => row.followed_id));
-    return profiles.filter((profile) => profile.id !== actor.id && !followed.has(profile.id)).slice(0, size).map((profile) => ({ ...profile, relationship: 'suggested' }));
+    const following = await this.db.get<any[]>(
+      'resa_follows',
+      token,
+      `?select=followed_id&follower_id=eq.${actor.id}&order=created_at.desc&limit=1000`,
+    );
+    const followedIds = [...new Set(following.map((row) => row.followed_id).filter(Boolean))];
+    if (!followedIds.length) return [];
+
+    // Discover candidates through the viewer's existing social graph. Never use
+    // the profile-search RPC with an empty query as an unbounded directory.
+    const secondDegree = await this.db.get<any[]>(
+      'resa_follows',
+      token,
+      `?select=follower_id,followed_id&follower_id=in.(${followedIds.join(',')})&limit=2000`,
+    );
+    const mutualCounts = new Map<string, number>();
+    for (const row of secondDegree) {
+      const candidateId = row.followed_id;
+      if (!candidateId || candidateId === actor.id || followedIds.includes(candidateId)) continue;
+      mutualCounts.set(candidateId, (mutualCounts.get(candidateId) ?? 0) + 1);
+    }
+    const candidateIds = [...mutualCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 200)
+      .map(([id]) => id);
+    if (!candidateIds.length) return [];
+
+    // This RPC is the privacy boundary: it returns only profiles the viewer is
+    // allowed to discover under the current four-level visibility policy.
+    const profiles = await this.db.rpc<any[]>(
+      'resa_profiles_for_ids',
+      token,
+      { p_user_ids: candidateIds },
+    );
+    return profiles
+      .map((profile) => ({
+        ...profile,
+        relationship: 'suggested',
+        mutual_follow_count: mutualCounts.get(profile.id) ?? 0,
+      }))
+      .sort((a, b) => b.mutual_follow_count - a.mutual_follow_count)
+      .slice(0, size);
   }
   async follows(token: string, userId?: string) { const a = await this.actor(token); return this.db.get('resa_follows', token, `?select=*&follower_id=eq.${userId || a.id}&order=created_at.desc`); }
   async mention(token: string, contentId: string, mentionedUserId: string) { const a = await this.actor(token); const rows = await this.db.post<any[]>('resa_mentions', token, { content_id: contentId, mentioned_user_id: mentionedUserId, mentioned_by: a.id }); return rows[0]; }
