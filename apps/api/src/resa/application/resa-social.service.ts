@@ -369,6 +369,26 @@ export class ResaSocialService {
     return { blocked: false };
   }
 
+  async blockedProfiles(token: string) {
+    const actor = await this.actor(token);
+    const blocks = await this.db.get<any[]>(
+      'resa_user_blocks',
+      token,
+      `?select=blocked_id,created_at&blocker_id=eq.${actor.id}&order=created_at.desc&limit=500`,
+    );
+    const ids = [...new Set(blocks.map((row) => row.blocked_id).filter(Boolean))];
+    if (!ids.length) return [];
+    const profiles = await this.db.rpc<any[]>('resa_profiles_for_ids', token, {
+      p_user_ids: ids,
+    });
+    const byId = new Map(profiles.map((profile) => [profile.id, profile]));
+    return blocks.map((block) => ({
+      user_id: block.blocked_id,
+      blocked_at: block.created_at,
+      profile: byId.get(block.blocked_id) ?? null,
+    }));
+  }
+
   async social(token: string, userId?: string) {
     const actor = await this.actor(token);
     const targetId = userId || actor.id;
