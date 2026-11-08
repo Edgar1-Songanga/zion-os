@@ -144,12 +144,18 @@ jobs:
       - name: Apply mute-aware RESA profile search
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108190000_resa_mute_profile_search.sql
+      - name: Apply RESA global moderation permissions
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108191000_resa_global_moderation_permissions.sql
       - name: Verify RESA account mute isolation and notification suppression
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_user_mutes_regression.sql
       - name: Verify RESA notification preference enforcement
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_notification_preferences_regression.sql
+      - name: Verify global moderation queue and decision access
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_global_moderation_regression.sql
       - name: Stop disposable PostgreSQL
         if: always()
         run: docker rm -f zion-resa-security-postgres || true

@@ -568,4 +568,21 @@ describe('ResaOperationalService live permissions', () => {
       expect.stringContaining(`conversation_id=eq.${CONVERSATION_ID}`),
     );
   });
+
+  it('requires a decision note before resolving or dismissing a report', async () => {
+    await expect(service.moderateReport('session-token', LIVE_ID, 'resolved')).rejects.toBeInstanceOf(BadRequestException);
+    expect(patchSpy).not.toHaveBeenCalled();
+  });
+
+  it('records a review note with the moderator identity', async () => {
+    actorId = ACTOR_ID;
+    patchSpy.mockResolvedValueOnce([{
+      id: LIVE_ID, status: 'resolved', reviewed_by: ACTOR_ID, review_note: 'Reviewed and resolved',
+    }] as never);
+    const result = await service.moderateReport('session-token', LIVE_ID, 'resolved', 'Reviewed and resolved');
+    expect(patchSpy).toHaveBeenCalledWith('resa_moderation_reports', 'session-token', expect.objectContaining({
+      status: 'resolved', reviewed_by: ACTOR_ID, review_note: 'Reviewed and resolved',
+    }), `?id=eq.${LIVE_ID}`);
+    expect(result.review_note).toBe('Reviewed and resolved');
+  });
 });
