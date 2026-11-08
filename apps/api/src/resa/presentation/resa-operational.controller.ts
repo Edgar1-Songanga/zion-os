@@ -172,8 +172,8 @@ export class ResaOperationalController {
     return this.operational.moderationQueue(this.token(authorization), status || 'open', Number(limit) || 50);
   }
 
-  @Patch('moderation/reports/:reportId') moderateReport(@Headers('authorization') authorization: string | undefined, @Param('reportId') reportId: string, @Body() body: { status: 'reviewing' | 'resolved' | 'dismissed' }) {
-    return this.operational.moderateReport(this.token(authorization), reportId, body.status);
+  @Patch('moderation/reports/:reportId') moderateReport(@Headers('authorization') authorization: string | undefined, @Param('reportId') reportId: string, @Body() body: { status: 'reviewing' | 'resolved' | 'dismissed'; review_note?: string }) {
+    return this.operational.moderateReport(this.token(authorization), reportId, body.status, body.review_note);
   }
 
   @Get('search') search(@Headers('authorization') authorization: string | undefined, @Query('q') query: string, @Query('type') type?: string, @Query('limit') limit?: string) {
