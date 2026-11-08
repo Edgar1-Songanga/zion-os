@@ -53,9 +53,12 @@ grant execute on function private.resa_contact_allowed(uuid,uuid,text) to authen
 
 -- Contact and group-invite preferences are enforced inside the atomic database
 -- operation as well as the API, so direct RPC calls cannot bypass profile choices.
+drop function if exists public.resa_create_conversation(uuid[], text);
+
 create or replace function public.resa_create_conversation(
   p_member_ids uuid[],
-  p_title text default null
+  p_title text default null,
+  p_contact_type text default 'message'
 )
 returns public.resa_conversations
 language plpgsql
@@ -67,7 +70,7 @@ declare
   v_targets uuid[];
   v_target uuid;
   v_conversation public.resa_conversations%rowtype;
-  v_policy text;
+  v_policy_field text;
 begin
   if v_actor is null then
     raise exception 'authentication required' using errcode = '42501';
@@ -88,8 +91,16 @@ begin
     raise exception 'a conversation requires one to forty-nine other participants' using errcode = '22023';
   end if;
 
+  if cardinality(v_targets) = 1 then
+    if p_contact_type not in ('message','call') then raise exception 'invalid direct conversation purpose' using errcode = '22023'; end if;
+    v_policy_field := case when p_contact_type = 'call' then 'call_policy' else 'message_policy' end;
+  else
+    if p_contact_type <> 'message' then raise exception 'group conversations require message purpose' using errcode = '22023'; end if;
+    v_policy_field := 'group_invite_policy';
+  end if;
+
   foreach v_target in array v_targets loop
-    if not private.resa_contact_allowed(v_actor, v_target, case when cardinality(v_targets) = 1 then 'message_policy' else 'group_invite_policy' end) then
+    if not private.resa_contact_allowed(v_actor, v_target, v_policy_field) then
       raise exception 'recipient does not accept this contact type' using errcode = '42501';
     end if;
   end loop;
@@ -131,8 +142,8 @@ begin
 end;
 $function$;
 
-revoke all on function public.resa_create_conversation(uuid[], text) from public, anon;
-grant execute on function public.resa_create_conversation(uuid[], text) to authenticated;
+revoke all on function public.resa_create_conversation(uuid[], text, text) from public, anon;
+grant execute on function public.resa_create_conversation(uuid[], text, text) to authenticated;
 
 -- Enforce contact policy for messages in already-existing direct conversations.
 create or replace function private.resa_guard_direct_message_privacy()
