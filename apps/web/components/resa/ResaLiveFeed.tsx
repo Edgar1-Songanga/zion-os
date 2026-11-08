@@ -34,15 +34,21 @@ function newestFirst(items: ResaContent[]): ResaContent[] {
 export default function ResaLiveFeed() {
   const { t } = useTranslation();
   const [items, setItems] = useState<ResaContent[]>([]);
+  const [feedMode, setFeedMode] = useState<"for_you" | "following">("for_you");
+  const pendingModeRef = useRef<"for_you" | "following" | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlightRef = useRef(false);
   const deepLinkHandledRef = useRef<string | null>(null);
 
-  const load = useCallback(async (silent = false) => {
-    // Prevent slow connections from accumulating overlapping feed requests.
-    if (inFlightRef.current) return;
+  const load = useCallback(async (silent = false, requestedMode: "for_you" | "following" = feedMode) => {
+    // Keep at most one request active; if the user switches tabs mid-request,
+    // remember the latest mode and load it immediately after the current request.
+    if (inFlightRef.current) {
+      pendingModeRef.current = requestedMode;
+      return;
+    }
     inFlightRef.current = true;
 
     if (silent) setRefreshing(true);
@@ -50,16 +56,19 @@ export default function ResaLiveFeed() {
     setError(null);
 
     try {
-      const latest = await resaRequest<ResaContent[]>("/v1/resa/feed?limit=30");
-      setItems(newestFirst(latest));
+      const latest = await resaRequest<ResaContent[]>(`/v1/resa/feed?limit=30&mode=${requestedMode}`);
+      setItems(latest);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("feedLoadError"));
     } finally {
       inFlightRef.current = false;
       setLoading(false);
       setRefreshing(false);
+      const pendingMode = pendingModeRef.current;
+      pendingModeRef.current = null;
+      if (pendingMode && pendingMode !== requestedMode) void load(true, pendingMode);
     }
-  }, [t]);
+  }, [t, feedMode]);
 
   useEffect(() => {
     void load();
@@ -139,6 +148,10 @@ export default function ResaLiveFeed() {
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{t("now")}</p>
           <h2 className="mt-1 text-xl font-semibold tracking-tight text-[#0C1A3D]">{t("communityWall")}</h2>
+          <div className="mt-3 inline-flex rounded-xl border border-slate-200 bg-slate-100 p-1" role="group" aria-label="Tipo de feed">
+            <button type="button" aria-pressed={feedMode === "for_you"} onClick={() => setFeedMode("for_you")} className={`rounded-lg px-3 py-2 text-xs font-semibold transition ${feedMode === "for_you" ? "bg-white text-[#0C1A3D] shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>Para si</button>
+            <button type="button" aria-pressed={feedMode === "following"} onClick={() => setFeedMode("following")} className={`rounded-lg px-3 py-2 text-xs font-semibold transition ${feedMode === "following" ? "bg-white text-[#0C1A3D] shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>A seguir</button>
+          </div>
         </div>
         <button
           type="button"
