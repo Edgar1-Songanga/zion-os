@@ -100,6 +100,46 @@ describe('ResaSocialService feeds', () => {
     ]);
   });
 
+  it('creates scheduled content through the atomic publishing RPC', async () => {
+    rpcSpy.mockResolvedValue([{ id: 'schedule-1', status: 'scheduled' }] as never);
+
+    const result = await service.scheduleNew('session-token', {
+      title: 'Scheduled reflection',
+      body: 'A reflection prepared for later publication.',
+      type: 'text',
+      publish_visibility: 'public',
+      language: 'pt',
+      scheduled_for: '2099-01-01T10:00:00.000Z',
+    });
+
+    expect(rpcSpy).toHaveBeenCalledWith('resa_create_scheduled_content', 'session-token', {
+      p_title: 'Scheduled reflection',
+      p_body: 'A reflection prepared for later publication.',
+      p_type: 'text',
+      p_publish_visibility: 'public',
+      p_language: 'pt',
+      p_scheduled_for: '2099-01-01T10:00:00.000Z',
+    });
+    expect(result).toMatchObject({ id: 'schedule-1', status: 'scheduled' });
+  });
+
+  it('schedules existing content through the ownership-checking RPC', async () => {
+    rpcSpy.mockResolvedValue([{ id: 'schedule-2', status: 'scheduled' }] as never);
+
+    await service.schedule(
+      'session-token',
+      '55555555-5555-4555-8555-555555555555',
+      '2099-01-01T10:00:00.000Z',
+      'followers',
+    );
+
+    expect(rpcSpy).toHaveBeenCalledWith('resa_schedule_content', 'session-token', {
+      p_content_id: '55555555-5555-4555-8555-555555555555',
+      p_scheduled_for: '2099-01-01T10:00:00.000Z',
+      p_publish_visibility: 'followers',
+    });
+  });
+
   it('makes follow creation idempotent using the database composite key', async () => {
     const upsertSpy = jest.spyOn(SupabaseRestClient.prototype, 'upsert').mockResolvedValue([
       { follower_id: ACTOR_ID, followed_id: FOLLOWED_ID },
