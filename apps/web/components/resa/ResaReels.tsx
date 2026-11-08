@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { resaRequest } from "@/lib/resa/api";
+import { resolveResaMediaUrls } from "@/lib/resa/media";
 
 type Reel = {
   id: string;
@@ -11,7 +12,7 @@ type Reel = {
   author_avatar_url?: string | null;
   title?: string | null;
   body?: string | null;
-  media_url: string;
+  media_url?: string | null;
   created_at: string;
   viewer_reacted?: boolean;
   reaction_count?: number;
@@ -30,7 +31,15 @@ export default function ResaReels() {
   useEffect(() => {
     let active = true;
     resaRequest<Reel[]>("/v1/resa/reels?limit=30")
-      .then((data) => { if (active) { setItems(data); setLiked(Object.fromEntries(data.map((item) => [item.id, Boolean(item.viewer_reacted)]))); } })
+      .then(async (data) => {
+        const missingMediaIds = data.filter((item) => !item.media_url).map((item) => item.id);
+        const resolved = missingMediaIds.length ? await resolveResaMediaUrls(missingMediaIds) : {};
+        const hydrated = data.map((item) => ({ ...item, media_url: item.media_url || resolved[item.id] || null }));
+        if (active) {
+          setItems(hydrated);
+          setLiked(Object.fromEntries(hydrated.map((item) => [item.id, Boolean(item.viewer_reacted)])));
+        }
+      })
       .catch((e) => { if (active) setError(e instanceof Error ? e.message : "Não foi possível carregar os Reels."); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -85,7 +94,7 @@ export default function ResaReels() {
       {!loading && !error && items.length === 0 && <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center"><h2 className="text-lg font-semibold text-[#0C1A3D]">Ainda não há Reels públicos</h2><p className="mt-2 text-sm text-slate-500">Quando os membros publicarem vídeos com visibilidade pública, aparecerão aqui.</p></div>}
       {items.length > 0 && <section aria-label="Vídeos Reels" className="mx-auto h-[min(76vh,820px)] max-w-[460px] snap-y snap-mandatory space-y-4 overflow-y-auto rounded-[30px] scroll-smooth">
         {items.map((item) => <article key={item.id} className="relative h-[min(76vh,820px)] min-h-[520px] snap-start overflow-hidden rounded-[30px] bg-black shadow-xl">
-          <video ref={(node) => { if (node) videoRefs.current.set(item.id, node); else videoRefs.current.delete(item.id); }} src={item.media_url} controls playsInline muted loop preload="metadata" className="absolute inset-0 h-full w-full object-contain" aria-label={item.title || "Vídeo RESA"} />
+          {item.media_url && <video ref={(node) => { if (node) videoRefs.current.set(item.id, node); else videoRefs.current.delete(item.id); }} src={item.media_url} controls playsInline muted loop preload="metadata" className="absolute inset-0 h-full w-full object-contain" aria-label={item.title || "Vídeo RESA"} />}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent p-5 pt-24 text-white">
             <Link href={"/resa/profile/" + encodeURIComponent(item.author_id)} className="pointer-events-auto text-sm font-semibold underline-offset-2 hover:underline">{item.author_display_name || "Membro RESA"}</Link>
             {(item.title || item.body) && <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-sm leading-6">{item.title ? item.title + (item.body ? "\n" + item.body : "") : item.body}</p>}

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
+import { resolveResaMediaUrl } from "@/lib/resa/media";
 import ResaIcon from "./core/ResaIcon";
 import { useTranslation } from "@/components/i18n";
 
@@ -56,6 +57,7 @@ function renderLinkedText(value: string) {
 
 export default function FeedCard({ content }: { content: ResaContent }) {
   const { t, locale } = useTranslation();
+  const [mediaUrl, setMediaUrl] = useState<string | null>(content.media_url ?? null);
   const [reaction, setReaction] = useState(Boolean(content.viewer_reacted));
   const [saved, setSaved] = useState(Boolean(content.viewer_saved));
   const [reactionCount, setReactionCount] = useState(content.reaction_count ?? 0);
@@ -78,6 +80,17 @@ export default function FeedCard({ content }: { content: ResaContent }) {
   const commentBusyRef = useRef(false);
   const repostBusyRef = useRef(false);
   const commentsLoadedRef = useRef(false);
+
+  useEffect(() => {
+    let active = true;
+    setMediaUrl(content.media_url ?? null);
+    if (!content.media_url && content.media_type) {
+      void resolveResaMediaUrl(content.id).then((url) => {
+        if (active && url) setMediaUrl(url);
+      });
+    }
+    return () => { active = false; };
+  }, [content.id, content.media_url, content.media_type]);
 
   const meta = typeMeta[content.type] ?? typeMeta.text;
   const shareTitle = content.title?.trim() || t("publicationOnResa");
@@ -293,11 +306,11 @@ export default function FeedCard({ content }: { content: ResaContent }) {
         <div className="mt-6">
           {content.title && <h4 className="mb-2 text-lg font-semibold tracking-tight text-[#0C1A3D]">{content.title}</h4>}
           {content.body && <p className="whitespace-pre-wrap text-[15px] leading-7 text-slate-700">{renderLinkedText(content.body)}</p>}
-          {content.media_type === "image" && content.media_url && (
-            <img src={content.media_url} alt={content.title || t("publishedOnResa")} loading="lazy" className="mt-4 max-h-[620px] w-full rounded-2xl object-cover" />
+          {content.media_type === "image" && mediaUrl && (
+            <img src={mediaUrl} alt={content.title || t("publishedOnResa")} loading="lazy" className="mt-4 max-h-[620px] w-full rounded-2xl object-cover" />
           )}
-          {content.media_type === "video" && content.media_url && (
-            <video src={content.media_url} controls playsInline preload="metadata" className="mt-4 max-h-[620px] w-full rounded-2xl bg-slate-950" />
+          {content.media_type === "video" && mediaUrl && (
+            <video src={mediaUrl} controls playsInline preload="metadata" className="mt-4 max-h-[620px] w-full rounded-2xl bg-slate-950" />
           )}
         </div>
       </div>
