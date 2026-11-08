@@ -21,6 +21,9 @@ type ResaContent = {
   media_url?: string | null;
   viewer_reacted?: boolean;
   viewer_saved?: boolean;
+  reaction_count?: number;
+  comment_count?: number;
+  share_count?: number;
 };
 
 function newestFirst(items: ResaContent[]): ResaContent[] {

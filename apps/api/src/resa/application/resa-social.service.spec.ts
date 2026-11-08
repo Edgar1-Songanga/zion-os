@@ -24,10 +24,18 @@ describe('ResaSocialService feeds', () => {
       if (table === 'resa_contents') return followedPosts as never;
       return [] as never;
     });
-    rpcSpy = jest.spyOn(SupabaseRestClient.prototype, 'rpc').mockResolvedValue([
-      { id: ACTOR_ID, display_name: 'My profile' },
-      { id: FOLLOWED_ID, display_name: 'Followed profile' },
-    ] as never);
+    rpcSpy = jest.spyOn(SupabaseRestClient.prototype, 'rpc').mockImplementation(async (functionName: string) => {
+      if (functionName === 'resa_content_engagement_counts') {
+        return [
+          { content_id: 'post-new', reaction_count: 5, comment_count: 2, share_count: 1 },
+          { content_id: 'post-own', reaction_count: 3, comment_count: 0, share_count: 0 },
+        ] as never;
+      }
+      return [
+        { id: ACTOR_ID, display_name: 'My profile' },
+        { id: FOLLOWED_ID, display_name: 'Followed profile' },
+      ] as never;
+    });
   });
 
   afterEach(() => jest.restoreAllMocks());
@@ -117,6 +125,20 @@ describe('ResaSocialService feeds', () => {
     expect(result.every((item) => item.author_id === ACTOR_ID || item.author_id === FOLLOWED_ID)).toBe(true);
     expect(rpcSpy).toHaveBeenCalledWith('resa_profiles_for_ids', 'session-token', {
       p_user_ids: expect.arrayContaining([ACTOR_ID, FOLLOWED_ID]),
+    });
+  });
+
+  it('uses privacy-scoped aggregate engagement metrics for ranking and display', async () => {
+    const result = await service.feed('session-token', 30, 'following');
+
+    expect(rpcSpy).toHaveBeenCalledWith('resa_content_engagement_counts', 'session-token', {
+      p_content_ids: ['post-new', 'post-own'],
+    });
+    expect(result.find((item) => item.id === 'post-new')).toMatchObject({
+      reaction_count: 5,
+      comment_count: 2,
+      share_count: 1,
+      interactionCount: 8,
     });
   });
 
