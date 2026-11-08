@@ -545,8 +545,8 @@ export class ResaOperationalService {
       this.db.get<any[]>('resa_follows', token, `?select=follower_id&follower_id=in.(${targetIds.join(',')})&followed_id=eq.${actorId}`),
       this.db.get<any[]>('resa_follows', token, `?select=followed_id&follower_id=eq.${actorId}&followed_id=in.(${targetIds.join(',')})`),
     ]);
-    const followers = new Set(targetFollowsActor.map((row) => row.follower_id));
-    const following = new Set(actorFollowsTarget.map((row) => row.followed_id));
+    const followers = new Set(actorFollowsTarget.map((row) => row.followed_id));
+    const following = new Set(targetFollowsActor.map((row) => row.follower_id));
     const profileById = new Map(profiles.map((row) => [row.id, row]));
     for (const targetId of targetIds) {
       const policy = profileById.get(targetId)?.privacy?.[policyField] ?? 'everyone';
