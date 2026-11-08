@@ -94,14 +94,14 @@ as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$
 
 create or replace function private.has_org_permission(p_organization_id uuid, p_permission text)
 returns boolean language sql stable
-as $
+as $fixture$
   select nullif(current_setting('test.zion_manager_org', true), '') = p_organization_id::text
-$;
+$fixture$;
 create or replace function private.is_verified_zion_global_admin()
 returns boolean language sql stable
-as $
+as $fixture$
   select coalesce(current_setting('test.zion_global_admin', true), '') = 'true'
-$;
+$fixture$;
 
 create table public.resa_live_sessions (
   id uuid primary key,
