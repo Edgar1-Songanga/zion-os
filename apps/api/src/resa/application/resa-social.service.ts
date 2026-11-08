@@ -227,9 +227,13 @@ export class ResaSocialService {
       p_story_id: storyId,
     });
     const viewerIds = [...new Set(views.map((view) => view.viewer_id).filter(Boolean))];
-    const profiles = viewerIds.length
-      ? await this.db.rpc<any[]>('resa_profiles_for_ids', token, { p_user_ids: viewerIds })
-      : [];
+    const profiles: any[] = [];
+    for (let offset = 0; offset < viewerIds.length; offset += 200) {
+      const batch = await this.db.rpc<any[]>('resa_profiles_for_ids', token, {
+        p_user_ids: viewerIds.slice(offset, offset + 200),
+      });
+      profiles.push(...batch);
+    }
     const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
 
     return {
