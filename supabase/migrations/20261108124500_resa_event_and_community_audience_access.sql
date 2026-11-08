@@ -8,7 +8,7 @@ language sql
 stable
 security definer
 set search_path = pg_catalog, pg_temp
-as $
+as $function$
   select p_user_id = auth.uid() and (
     exists (
       select 1 from public.resa_communities c
