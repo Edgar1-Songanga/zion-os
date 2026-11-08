@@ -94,7 +94,7 @@ export default function ModerationPage() {
           <p className="mt-2 max-w-2xl text-sm leading-6 text-white/70">Rever denúncias, registar decisões e manter um histórico claro da análise. O acesso é limitado a moderadores autorizados.</p>
         </header>
 
-        <div className="flex flex-wrap justify-end gap-2"><Link href="/admin/moderation/appeals" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">Reapreciação de denúncias</Link><Link href="/admin/moderation/content-appeals" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">Recursos contra sanções</Link></div>
+        <div className="flex flex-wrap justify-end gap-2"><Link href="/admin/moderation/appeals" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">Reapreciação de denúncias</Link><Link href="/admin/moderation/content-appeals" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">Recursos contra sanções</Link><Link href="/admin/moderation/account-sanctions" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">Restrições de contas</Link></div>
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap gap-2">
