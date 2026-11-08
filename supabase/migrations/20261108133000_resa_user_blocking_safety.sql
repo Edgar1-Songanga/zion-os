@@ -27,6 +27,24 @@ create policy resa_user_blocks_delete_self
 on public.resa_user_blocks for delete to authenticated
 using (blocker_id = (select auth.uid()));
 
+create or replace function private.resa_cleanup_blocked_social_edges()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, pg_temp
+as $function$
+begin
+  delete from public.resa_follows f
+  where (f.follower_id = new.blocker_id and f.followed_id = new.blocked_id)
+     or (f.follower_id = new.blocked_id and f.followed_id = new.blocker_id);
+  return new;
+end;
+$function$;
+drop trigger if exists resa_user_blocks_cleanup_follows on public.resa_user_blocks;
+create trigger resa_user_blocks_cleanup_follows
+after insert on public.resa_user_blocks
+for each row execute function private.resa_cleanup_blocked_social_edges();
+
 create or replace function private.resa_is_blocked_by_or_blocking(p_target_id uuid)
 returns boolean
 language sql
