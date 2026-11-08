@@ -109,7 +109,7 @@ as $function$
     not target.is_owner and target.profile_allowed and private.resa_contact_allowed((select user_id from viewer), target.id, 'message_policy'),
     not target.is_owner and target.profile_allowed and private.resa_contact_allowed((select user_id from viewer), target.id, 'call_policy'),
     not target.is_owner and target.profile_allowed and private.resa_contact_allowed((select user_id from viewer), target.id, 'group_invite_policy'),
-    not target.is_owner and not target.is_following and private.resa_contact_allowed((select user_id from viewer), target.id, 'follow_policy'),
+    not target.is_owner and target.privacy->>'profile_visibility' is distinct from 'private' and not target.is_following and private.resa_contact_allowed((select user_id from viewer), target.id, 'follow_policy'),
     not target.profile_allowed
   from target;
 $function$;
