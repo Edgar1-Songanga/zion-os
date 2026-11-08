@@ -43,7 +43,7 @@ export class NotificationService {
       if (input[key] === undefined) continue;
       const value = input[key];
       if (value === null || value === '') { body[key] = null; continue; }
-      if (typeof value !== 'string' || !/^(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d)?$/.test(value)) {
+      if (typeof value !== 'string' || !/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(value)) {
         throw new BadRequestException(`${key} must use HH:MM format`);
       }
       body[key] = value;
