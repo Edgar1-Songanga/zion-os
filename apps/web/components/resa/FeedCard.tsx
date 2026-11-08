@@ -310,7 +310,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
           <ResaIcon name="repost" size={16} />
           {reposting ? t("reposting") : t("repost")}
         </button>
-        <button type="button" onClick={() => { setShowShare((v) => !v); setShareFeedback(""); }} className="inline-flex items-center gap-2 rounded-xl bg-[#0C1A3D] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md" aria-expanded={showShare}>
+        <button type="button" onClick={() => { setShowShare((v) => !v); setShowReport(false); setShareFeedback(""); }} className="inline-flex items-center gap-2 rounded-xl bg-[#0C1A3D] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md" aria-expanded={showShare}>
           <ResaIcon name="share" size={17} />
           Partilhar
         </button>
