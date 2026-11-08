@@ -209,23 +209,24 @@ set search_path = pg_catalog, pg_temp
 as $function$
   with viewer as (select auth.uid() as user_id), target as (
     select p.*, (p.id = viewer.user_id) as is_owner,
-      exists(select 1 from public.resa_follows f where f.follower_id = viewer.user_id and f.followed_id = p.id) as is_following
+      exists(select 1 from public.resa_follows f where f.follower_id = viewer.user_id and f.followed_id = p.id) as is_following,
+      (p.privacy->>'profile_visibility' = 'private' and p.id <> viewer.user_id and not exists(select 1 from public.resa_follows f where f.follower_id = viewer.user_id and f.followed_id = p.id)) as private_locked
     from public.profiles p cross join viewer
     where p.id = p_user_id and viewer.user_id is not null
   )
   select target.id,
-    case when target.privacy->>'profile_visibility' = 'private' and not target.is_owner and not target.is_following then null else target.display_name end,
-    case when target.privacy->>'profile_visibility' = 'private' and not target.is_owner and not target.is_following then null else target.first_name end,
-    case when target.privacy->>'profile_visibility' = 'private' and not target.is_owner and not target.is_following then null else target.last_name end,
-    case when target.privacy->>'profile_visibility' = 'private' and not target.is_owner and not target.is_following then null else target.avatar_url end,
-    case when target.is_owner or (target.privacy->>'profile_visibility' is distinct from 'private' and coalesce(target.privacy->>'bio_visibility','community') in ('public','community')) then target.bio end,
-    case when target.is_owner or (target.privacy->>'profile_visibility' is distinct from 'private' and coalesce(target.privacy->>'country_visibility','community') in ('public','community')) then target.country_code end,
+    case when target.private_locked then null else target.display_name end,
+    case when target.private_locked then null else target.first_name end,
+    case when target.private_locked then null else target.last_name end,
+    case when target.private_locked then null else target.avatar_url end,
+    case when target.is_owner or (not target.private_locked and coalesce(target.privacy->>'bio_visibility','community') in ('public','community')) then target.bio end,
+    case when target.is_owner or (not target.private_locked and coalesce(target.privacy->>'country_visibility','community') in ('public','community')) then target.country_code end,
     target.is_owner, target.is_following,
-    not target.is_owner and target.privacy->>'profile_visibility' is distinct from 'private' and private.resa_contact_allowed((select user_id from viewer), target.id, 'message_policy'),
+    not target.is_owner and not target.private_locked and private.resa_contact_allowed((select user_id from viewer), target.id, 'message_policy'),
     not target.is_owner and target.privacy->>'profile_visibility' is distinct from 'private' and private.resa_contact_allowed((select user_id from viewer), target.id, 'call_policy'),
     not target.is_owner and target.privacy->>'profile_visibility' is distinct from 'private' and private.resa_contact_allowed((select user_id from viewer), target.id, 'group_invite_policy'),
     not target.is_owner and not target.is_following and private.resa_contact_allowed((select user_id from viewer), target.id, 'follow_policy'),
-    target.privacy->>'profile_visibility' = 'private' and not target.is_owner and not target.is_following
+    target.private_locked
   from target;
 $function$;
 create or replace function public.resa_public_profile(p_user_id uuid)
