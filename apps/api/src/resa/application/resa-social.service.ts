@@ -219,7 +219,7 @@ export class ResaSocialService {
 
     const prepared = pageEntries
       .filter((item) => !hiddenAuthors.has(item.author_id) && hidden.get(item.id) !== 'report')
-      .filter((item) => mode !== 'following' || followed.has(item.is_repost ? item.reposted_by_id : item.author_id))
+      .filter((item) => mode !== 'following' || (item.is_repost ? followed.has(item.reposted_by_id) : item.author_id === actor.id || followed.has(item.author_id)))
       .map((item) => {
         const authorProfile = profileById.get(item.author_id);
         const reposterProfile = item.reposted_by_id ? profileById.get(item.reposted_by_id) : null;
