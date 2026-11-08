@@ -197,10 +197,10 @@ as $function$
     case when target.is_owner or (target.privacy->>'profile_visibility' is distinct from 'private' and coalesce(target.privacy->>'bio_visibility','community') in ('public','community')) then target.bio end,
     case when target.is_owner or (target.privacy->>'profile_visibility' is distinct from 'private' and coalesce(target.privacy->>'country_visibility','community') in ('public','community')) then target.country_code end,
     target.is_owner, target.is_following,
-    not target.is_owner and target.privacy->>'profile_visibility' is distinct from 'private' and public.resa_contact_allowed((select user_id from viewer), target.id, 'message_policy'),
-    not target.is_owner and target.privacy->>'profile_visibility' is distinct from 'private' and public.resa_contact_allowed((select user_id from viewer), target.id, 'call_policy'),
-    not target.is_owner and target.privacy->>'profile_visibility' is distinct from 'private' and public.resa_contact_allowed((select user_id from viewer), target.id, 'group_invite_policy'),
-    not target.is_owner and not target.is_following and public.resa_contact_allowed((select user_id from viewer), target.id, 'follow_policy'),
+    not target.is_owner and target.privacy->>'profile_visibility' is distinct from 'private' and private.resa_contact_allowed((select user_id from viewer), target.id, 'message_policy'),
+    not target.is_owner and target.privacy->>'profile_visibility' is distinct from 'private' and private.resa_contact_allowed((select user_id from viewer), target.id, 'call_policy'),
+    not target.is_owner and target.privacy->>'profile_visibility' is distinct from 'private' and private.resa_contact_allowed((select user_id from viewer), target.id, 'group_invite_policy'),
+    not target.is_owner and not target.is_following and private.resa_contact_allowed((select user_id from viewer), target.id, 'follow_policy'),
     target.privacy->>'profile_visibility' = 'private' and not target.is_owner and not target.is_following
   from target;
 $function$;
@@ -255,7 +255,7 @@ with check (
     from public.resa_conversation_members recipient
     where recipient.conversation_id = resa_calls.conversation_id
       and recipient.user_id <> (select auth.uid())
-      and not public.resa_contact_allowed((select auth.uid()), recipient.user_id, 'call_policy')
+      and not private.resa_contact_allowed((select auth.uid()), recipient.user_id, 'call_policy')
   )
 );
 
@@ -265,7 +265,7 @@ create policy resa_follows_owner_insert on public.resa_follows
 for insert to authenticated
 with check (
   follower_id = (select auth.uid())
-  and public.resa_contact_allowed((select auth.uid()), followed_id, 'follow_policy')
+  and private.resa_contact_allowed((select auth.uid()), followed_id, 'follow_policy')
 );
 
 commit;
