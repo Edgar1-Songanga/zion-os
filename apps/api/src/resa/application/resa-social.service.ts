@@ -188,6 +188,42 @@ export class ResaSocialService {
   async removeReaction(token: string, contentId: string) { const a = await this.actor(token); await this.db.delete('resa_reactions', token, `?content_id=eq.${contentId}&user_id=eq.${a.id}`); return { removed: true }; }
   async follow(token: string, followedId: string) { const a = await this.actor(token); if (a.id === followedId) throw new BadRequestException('You cannot follow yourself'); const rows = await this.db.upsert<any[]>('resa_follows', token, { follower_id: a.id, followed_id: followedId }, '?on_conflict=follower_id,followed_id'); return rows[0]; }
   async unfollow(token: string, followedId: string) { const a = await this.actor(token); await this.db.delete('resa_follows', token, `?follower_id=eq.${a.id}&followed_id=eq.${followedId}`); return { removed: true }; }
+  async publicProfile(token: string, userId: string) {
+    const actor = await this.actor(token);
+    const id = this.clean(userId, 'user_id', 80);
+    const rows = await this.db.get<any[]>('profiles', token, `?select=id,display_name,first_name,last_name,avatar_url,bio,country_code,locale,timezone,privacy&id=eq.${encodeURIComponent(id)}&limit=1`);
+    const profile = rows[0];
+    if (!profile) throw new NotFoundException('Profile not found');
+    const [viewerFollows, ownerFollows] = await Promise.all([
+      this.db.get<any[]>('resa_follows', token, `?select=followed_id&follower_id=eq.${actor.id}&followed_id=eq.${id}&limit=1`),
+      this.db.get<any[]>('resa_follows', token, `?select=follower_id&follower_id=eq.${id}&followed_id=eq.${actor.id}&limit=1`),
+    ]);
+    const isOwner = actor.id === id;
+    const isFollowing = viewerFollows.length > 0;
+    const isFollower = ownerFollows.length > 0;
+    const privacy = profile.privacy ?? {};
+    if (privacy.profile_visibility === 'private' && !isOwner && !isFollower) throw new NotFoundException('Profile not found');
+    const contents = await this.db.get<any[]>('resa_contents', token, `?select=id,author_id,type,title,body,created_at,media_type,media_url,language&author_id=eq.${encodeURIComponent(id)}&visibility=eq.public&order=created_at.desc&limit=20`);
+    return {
+      profile: {
+        id: profile.id,
+        display_name: profile.display_name,
+        first_name: privacy.profile_visibility === 'private' && !isOwner && !isFollower ? null : profile.first_name,
+        last_name: privacy.profile_visibility === 'private' && !isOwner && !isFollower ? null : profile.last_name,
+        avatar_url: profile.avatar_url,
+        bio: isOwner || privacy.bio_visibility === 'public' || (privacy.bio_visibility === 'community' && (isFollowing || isFollower)) ? profile.bio : null,
+        country_code: isOwner || privacy.country_visibility === 'public' || (privacy.country_visibility === 'community' && (isFollowing || isFollower)) ? profile.country_code : null,
+        is_owner: isOwner,
+        is_following: isFollowing,
+        message_allowed: isOwner ? false : ['everyone','followers','following'].includes(privacy.message_policy ?? 'everyone') && (privacy.message_policy !== 'followers' || isFollower) && (privacy.message_policy !== 'following' || isFollowing),
+        call_allowed: isOwner ? false : ['everyone','followers','following'].includes(privacy.call_policy ?? 'everyone') && (privacy.call_policy !== 'followers' || isFollower) && (privacy.call_policy !== 'following' || isFollowing),
+        group_invite_allowed: isOwner ? false : ['everyone','followers','following'].includes(privacy.group_invite_policy ?? 'everyone') && (privacy.group_invite_policy !== 'followers' || isFollower) && (privacy.group_invite_policy !== 'following' || isFollowing),
+        follow_allowed: !isOwner && privacy.follow_policy !== 'none',
+      },
+      contents,
+    };
+  }
+
   async social(token: string, userId?: string) {
     const actor = await this.actor(token);
     const targetId = userId || actor.id;
