@@ -43,7 +43,7 @@ export class ResaSocialService {
       : [];
     const contentQuery = mode === 'following'
       ? `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&visibility=in.(public,followers,community,organization)&author_id=in.(${followedAuthorIds.join(',')})&order=created_at.desc&limit=120`
-      : '?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&visibility=eq.public&order=created_at.desc&limit=120';
+      : '?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&visibility=in.(public,followers,community,organization)&order=created_at.desc&limit=120';
     const contents = await this.db.get<any[]>('resa_contents', token, contentQuery);
     const contentIds = contents.map((item) => item.id).filter(Boolean);
     const authorIds = [...new Set(contents.map((item) => item.author_id).filter(Boolean))];
