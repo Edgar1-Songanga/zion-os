@@ -6,6 +6,7 @@ on:
       - "supabase/migrations/*resa*"
       - "supabase/migrations/*department*"
       - "supabase/tests/resa_security*"
+      - "supabase/tests/resa_account_level_enforcement_regression.sql"
       - "supabase/tests/resa_call_security*"
       - "supabase/tests/resa_member_privacy_regression.sql"
       - "supabase/tests/resa_four_level_profile_visibility.sql"
@@ -168,6 +169,12 @@ jobs:
       - name: Verify RESA content sanctions, visibility and independent appeals
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_content_enforcement_appeals_regression.sql
+      - name: Apply RESA account-level sanctions and independent appeals
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108210000_resa_account_level_enforcement.sql
+      - name: Verify RESA account restriction enforcement and independent appeals
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_account_level_enforcement_regression.sql
       - name: Stop disposable PostgreSQL
         if: always()
         run: docker rm -f zion-resa-security-postgres || true
