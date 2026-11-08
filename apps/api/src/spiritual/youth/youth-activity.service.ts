@@ -37,6 +37,7 @@ export class YouthActivityService {
       throw new BadRequestException('ends_at must be equal to or later than starts_at.');
     }
     const location = this.optionalText(input.location, 'location', 240) ?? '';
+    if (input.is_public !== undefined && typeof input.is_public !== 'boolean') throw new BadRequestException('is_public must be boolean.');
     const leaderUserId = input.leader_user_id ? this.uuid(input.leader_user_id, 'leader_user_id') : null;
     if (leaderUserId) {
       await this.assertClubLeader(token, club.id, leaderUserId);
