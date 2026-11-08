@@ -293,6 +293,56 @@ create policy resa_contents_owner_update on public.resa_contents
   using (author_id = (select auth.uid()))
   with check (author_id = (select auth.uid()));
 grant select, insert, update, delete on public.resa_contents to authenticated;
+
+create table public.resa_comments (
+  id uuid primary key default gen_random_uuid(),
+  content_id uuid not null references public.resa_contents(id) on delete cascade,
+  author_id uuid not null references auth.users(id) on delete cascade,
+  parent_id uuid,
+  body text not null,
+  status text not null default 'active',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.resa_comments enable row level security;
+create policy resa_comments_read on public.resa_comments for select to authenticated
+  using (exists (select 1 from public.resa_contents c where c.id=content_id and (c.visibility='public' or c.author_id=(select auth.uid()))));
+create policy resa_comments_insert on public.resa_comments for insert to authenticated
+  with check (author_id=(select auth.uid()));
+create policy resa_comments_update on public.resa_comments for update to authenticated
+  using (author_id=(select auth.uid())) with check (author_id=(select auth.uid()));
+create policy resa_comments_delete on public.resa_comments for delete to authenticated
+  using (author_id=(select auth.uid()));
+
+create table public.resa_reactions (
+  content_id uuid not null references public.resa_contents(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  reaction_type text not null default 'like',
+  created_at timestamptz not null default now(),
+  primary key (content_id,user_id)
+);
+alter table public.resa_reactions enable row level security;
+create policy resa_reactions_owner_all on public.resa_reactions for all to authenticated
+  using (user_id=(select auth.uid())) with check (user_id=(select auth.uid()));
+
+create table public.resa_shares (
+  id uuid primary key default gen_random_uuid(),
+  content_id uuid not null references public.resa_contents(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  share_type text not null default 'repost',
+  created_at timestamptz not null default now()
+);
+alter table public.resa_shares enable row level security;
+create policy resa_shares_insert on public.resa_shares for insert to authenticated
+  with check (user_id=(select auth.uid()));
+create policy resa_shares_delete on public.resa_shares for delete to authenticated
+  using (user_id=(select auth.uid()));
+create policy resa_shares_read on public.resa_shares for select to authenticated
+  using ((select auth.uid()) is not null);
+
+grant select, insert, update, delete on public.resa_comments to authenticated;
+grant select, insert, update, delete on public.resa_reactions to authenticated;
+grant select, insert, update, delete on public.resa_shares to authenticated;
 grant usage on schema private to authenticated;
 grant execute on function private.is_org_member(uuid) to authenticated;
 
