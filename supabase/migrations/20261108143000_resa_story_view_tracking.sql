@@ -77,4 +77,22 @@ $function$;
 revoke all on function public.resa_record_story_view(uuid) from public, anon;
 grant execute on function public.resa_record_story_view(uuid) to authenticated;
 
+create or replace function public.resa_story_view_count(p_story_id uuid)
+returns bigint
+language sql
+stable
+security definer
+set search_path = pg_catalog, public, auth, pg_temp
+as $function$
+  select count(*)
+  from public.resa_story_views v
+  join public.resa_contents c on c.id = v.story_id
+  where v.story_id = p_story_id
+    and c.type = 'story'
+    and c.author_id = auth.uid();
+$function$;
+
+revoke all on function public.resa_story_view_count(uuid) from public, anon;
+grant execute on function public.resa_story_view_count(uuid) to authenticated;
+
 commit;
