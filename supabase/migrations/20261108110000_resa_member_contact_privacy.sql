@@ -153,6 +153,36 @@ for each row execute function public.resa_guard_direct_message_privacy();
 
 revoke all on function public.resa_guard_direct_message_privacy() from public, anon;
 
+-- Safe profile projection: authenticated callers receive only fields permitted by the owner's privacy choices.
+create or replace function public.resa_public_profile(p_user_id uuid)
+returns table(id uuid, display_name text, first_name text, last_name text, avatar_url text, bio text, country_code text, is_owner boolean, is_following boolean, message_allowed boolean, call_allowed boolean, group_invite_allowed boolean, follow_allowed boolean, private_locked boolean)
+language sql stable security definer
+set search_path = pg_catalog, public, auth, pg_temp
+as $function$
+  with viewer as (select auth.uid() as user_id), target as (
+    select p.*, (p.id = viewer.user_id) as is_owner,
+      exists(select 1 from public.resa_follows f where f.follower_id = viewer.user_id and f.followed_id = p.id) as is_following
+    from public.profiles p cross join viewer
+    where p.id = p_user_id and viewer.user_id is not null
+  )
+  select target.id,
+    case when target.privacy->>'profile_visibility' = 'private' and not target.is_owner and not target.is_following then null else target.display_name end,
+    case when target.privacy->>'profile_visibility' = 'private' and not target.is_owner and not target.is_following then null else target.first_name end,
+    case when target.privacy->>'profile_visibility' = 'private' and not target.is_owner and not target.is_following then null else target.last_name end,
+    case when target.privacy->>'profile_visibility' = 'private' and not target.is_owner and not target.is_following then null else target.avatar_url end,
+    case when target.is_owner or (target.privacy->>'profile_visibility' is distinct from 'private' and coalesce(target.privacy->>'bio_visibility','community') in ('public','community')) then target.bio end,
+    case when target.is_owner or (target.privacy->>'profile_visibility' is distinct from 'private' and coalesce(target.privacy->>'country_visibility','community') in ('public','community')) then target.country_code end,
+    target.is_owner, target.is_following,
+    not target.is_owner and target.privacy->>'profile_visibility' is distinct from 'private' and public.resa_contact_allowed((select user_id from viewer), target.id, 'message_policy'),
+    not target.is_owner and target.privacy->>'profile_visibility' is distinct from 'private' and public.resa_contact_allowed((select user_id from viewer), target.id, 'call_policy'),
+    not target.is_owner and target.privacy->>'profile_visibility' is distinct from 'private' and public.resa_contact_allowed((select user_id from viewer), target.id, 'group_invite_policy'),
+    not target.is_owner and not target.is_following and public.resa_contact_allowed((select user_id from viewer), target.id, 'follow_policy'),
+    target.privacy->>'profile_visibility' = 'private' and not target.is_owner and not target.is_following
+  from target;
+$function$;
+revoke all on function public.resa_public_profile(uuid) from public, anon;
+grant execute on function public.resa_public_profile(uuid) to authenticated;
+
 -- Calls are inserted directly by the authenticated call client, so enforce the
 -- recipient's call policy in RLS rather than relying on a hidden frontend button.
 drop policy if exists "resa_calls_member_insert" on public.resa_calls;
