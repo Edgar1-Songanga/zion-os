@@ -242,7 +242,7 @@ export class ResaSocialService {
   }
   async attachTopic(token: string, contentId: string, topicId: string) {
     const actor = await this.actor(token);
-    const owned = await this.db.get<any[]>('resa_contents', token, `?select=id& id=eq.${encodeURIComponent(contentId)}&author_id=eq.${actor.id}&limit=1`.replace('& id=', '&id='));
+    const owned = await this.db.get<any[]>('resa_contents', token, `?select=id&id=eq.${encodeURIComponent(contentId)}&author_id=eq.${actor.id}&limit=1`);
     if (!owned[0]) throw new NotFoundException('Publication not found or not owned by this member');
     const rows = await this.db.upsert<any[]>('resa_content_topics', token, { content_id: contentId, topic_id: topicId }, '?on_conflict=content_id,topic_id');
     return rows[0];
