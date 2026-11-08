@@ -63,6 +63,10 @@ export default function FeedCard({ content }: { content: ResaContent }) {
   const [showComments, setShowComments] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [shareFeedback, setShareFeedback] = useState("");
+  const [showReport, setShowReport] = useState(false);
+  const [reportReason, setReportReason] = useState("spam");
+  const [reportDetails, setReportDetails] = useState("");
+  const [reporting, setReporting] = useState(false);
   const reactionBusyRef = useRef(false);
   const saveBusyRef = useRef(false);
   const commentBusyRef = useRef(false);
@@ -202,6 +206,29 @@ export default function FeedCard({ content }: { content: ResaContent }) {
     }
   }
 
+  async function submitReport() {
+    if (reporting) return;
+    setReporting(true);
+    setActionFeedback(null);
+    try {
+      await resaRequest("/v1/resa/moderation/reports", {
+        method: "POST",
+        body: JSON.stringify({
+          content_id: content.id,
+          reason: reportReason,
+          details: reportDetails.trim() || undefined,
+        }),
+      });
+      setShowReport(false);
+      setReportDetails("");
+      setActionFeedback("Denúncia enviada à equipa de moderação para análise.");
+    } catch (error) {
+      setActionFeedback(error instanceof Error ? error.message : "Não foi possível enviar a denúncia.");
+    } finally {
+      setReporting(false);
+    }
+  }
+
   async function repost() {
     if (repostBusyRef.current) return;
     repostBusyRef.current = true;
@@ -287,6 +314,33 @@ export default function FeedCard({ content }: { content: ResaContent }) {
           <ResaIcon name="share" size={17} />
           Partilhar
         </button>
+        <button type="button" onClick={() => { setShowReport((v) => !v); setShowShare(false); }} className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium text-slate-500 transition hover:bg-white hover:text-red-700" aria-expanded={showReport}>
+          Denunciar
+        </button>
+
+        {showReport && (
+          <div className="absolute bottom-full right-4 z-30 mb-3 w-[min(380px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_20px_60px_rgba(15,23,42,0.16)]">
+            <h3 className="text-sm font-semibold text-[#0C1A3D]">Denunciar publicação</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-500">A denúncia é privada e será analisada pela equipa de moderação.</p>
+            <label className="mt-3 block text-xs font-semibold text-slate-600">Motivo
+              <select value={reportReason} onChange={(event) => setReportReason(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-normal text-slate-700">
+                <option value="spam">Spam ou fraude</option>
+                <option value="harassment">Assédio ou intimidação</option>
+                <option value="hate">Discurso de ódio</option>
+                <option value="sexual">Conteúdo sexual inadequado</option>
+                <option value="violence">Violência ou ameaça</option>
+                <option value="misinformation">Informação enganosa</option>
+                <option value="copyright">Violação de direitos de autor</option>
+                <option value="other">Outro motivo</option>
+              </select>
+            </label>
+            <textarea value={reportDetails} onChange={(event) => setReportDetails(event.target.value)} maxLength={1000} rows={3} placeholder="Contexto adicional (opcional)" className="mt-3 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+            <div className="mt-3 flex justify-end gap-2">
+              <button type="button" onClick={() => setShowReport(false)} className="rounded-xl px-3 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-50">Cancelar</button>
+              <button type="button" disabled={reporting} onClick={() => void submitReport()} className="rounded-xl bg-red-700 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">{reporting ? "A enviar…" : "Enviar denúncia"}</button>
+            </div>
+          </div>
+        )}
 
         {showShare && (
           <div className="absolute bottom-full right-4 z-20 mb-3 w-[min(360px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_20px_60px_rgba(15,23,42,0.16)]">
