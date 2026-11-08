@@ -9,7 +9,7 @@ type CallKind = "audio" | "video";
 type CallRow = { id: string; conversation_id: string; initiator_id: string; kind: CallKind; status: string };
 type JoinConfig = { mode: string; provider: string; roomId: string; joinUrl: string; token?: string };
 
-export default function ResaCallControls({ conversationId, autoStart = null }: { conversationId: string; autoStart?: CallKind | null }) {
+export default function ResaCallControls({ conversationId, autoStart = null, onAutoStartHandled }: { conversationId: string; autoStart?: CallKind | null; onAutoStartHandled?: () => void }) {
   const supabase = useMemo(() => createClient(), []);
   const [call, setCall] = useState<CallRow | null>(null);
   const [incoming, setIncoming] = useState<CallRow | null>(null);
@@ -32,6 +32,8 @@ export default function ResaCallControls({ conversationId, autoStart = null }: {
   const callTimeoutRef = useRef<number | null>(null);
   const autoStartConversationRef = useRef<string | null>(null);
   const startCallRef = useRef<(kind: CallKind) => void>(() => undefined);
+  const onAutoStartHandledRef = useRef(onAutoStartHandled);
+  onAutoStartHandledRef.current = onAutoStartHandled;
 
   useEffect(() => {
     let mounted = true;
@@ -48,6 +50,7 @@ export default function ResaCallControls({ conversationId, autoStart = null }: {
     if (!ready || !autoStart || autoStartConversationRef.current === conversationId) return;
     autoStartConversationRef.current = conversationId;
     startCallRef.current(autoStart);
+    onAutoStartHandledRef.current?.();
   }, [ready, autoStart, conversationId]);
 
   useEffect(() => {
