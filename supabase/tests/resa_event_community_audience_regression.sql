@@ -35,7 +35,7 @@ on conflict do nothing;
 
 insert into public.resa_community_members(community_id,user_id,role,status)
 values ('97000000-0000-4000-8000-000000000001','96000000-0000-4000-8000-000000000003','member','left')
-on conflict do update set status='left', role='member';
+on conflict (community_id,user_id) do update set status='left', role='member';
 
 insert into public.resa_events(id,created_by,title,starts_at,visibility,community_id,organization_id)
 values
