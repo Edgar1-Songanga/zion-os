@@ -63,6 +63,25 @@ with check (
   or private.resa_is_community_moderator(community_id, (select auth.uid()))
 );
 
+-- Members may leave their own membership, but cannot reactivate themselves or
+-- promote themselves by PATCHing an existing membership row.
+drop policy if exists resa_community_members_update on public.resa_community_members;
+create policy resa_community_members_update
+on public.resa_community_members
+for update to authenticated
+using (
+  user_id = (select auth.uid())
+  or private.resa_is_community_moderator(community_id, (select auth.uid()))
+)
+with check (
+  private.resa_is_community_moderator(community_id, (select auth.uid()))
+  or (
+    user_id = (select auth.uid())
+    and status = 'left'
+    and role = 'member'
+  )
+);
+
 -- Event visibility must follow the same audience contract as RESA content.
 -- Private events remain readable only to the creator and explicit participants.
 drop policy if exists resa_events_read on public.resa_events;
