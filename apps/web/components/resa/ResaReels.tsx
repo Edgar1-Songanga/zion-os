@@ -26,7 +26,7 @@ export default function ResaReels() {
   useEffect(() => {
     let active = true;
     resaRequest<Reel[]>("/v1/resa/reels?limit=30")
-      .then((data) => { if (active) setItems(data); })
+      .then((data) => { if (active) { setItems(data); setLiked(Object.fromEntries(data.map((item) => [item.id, Boolean(item.viewer_reacted)]))); } })
       .catch((e) => { if (active) setError(e instanceof Error ? e.message : "Não foi possível carregar os Reels."); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
