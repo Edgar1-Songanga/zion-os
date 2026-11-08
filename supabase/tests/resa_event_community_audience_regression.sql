@@ -128,6 +128,13 @@ begin
   if (select count(*) from public.resa_events where id='99000000-0000-4000-8000-000000000005') <> 1 then
     raise exception 'Invited participant cannot read private event';
   end if;
+  update public.resa_event_participants
+  set response = 'interested'
+  where event_id = '99000000-0000-4000-8000-000000000005'
+    and user_id = auth.uid();
+  if not found then
+    raise exception 'Invited participant cannot update their private event response';
+  end if;
 end;
 $test$;
 reset role;
