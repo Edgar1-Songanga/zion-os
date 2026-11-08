@@ -148,6 +148,31 @@ drop trigger if exists resa_account_guard_event_participants on public.resa_even
 create trigger resa_account_guard_event_participants before insert or update on public.resa_event_participants
 for each row execute function private.resa_enforce_account_action('interaction');
 
+-- Messaging, voice/video calls and live participation are interaction surfaces too.
+drop trigger if exists resa_account_guard_conversation_members on public.resa_conversation_members;
+create trigger resa_account_guard_conversation_members before insert or update on public.resa_conversation_members
+for each row execute function private.resa_enforce_account_action('interaction');
+
+drop trigger if exists resa_account_guard_calls on public.resa_calls;
+create trigger resa_account_guard_calls before insert or update on public.resa_calls
+for each row execute function private.resa_enforce_account_action('interaction');
+
+drop trigger if exists resa_account_guard_call_participants on public.resa_call_participants;
+create trigger resa_account_guard_call_participants before insert or update on public.resa_call_participants
+for each row execute function private.resa_enforce_account_action('interaction');
+
+drop trigger if exists resa_account_guard_call_signals on public.resa_call_signals;
+create trigger resa_account_guard_call_signals before insert or update on public.resa_call_signals
+for each row execute function private.resa_enforce_account_action('interaction');
+
+drop trigger if exists resa_account_guard_live_sessions on public.resa_live_sessions;
+create trigger resa_account_guard_live_sessions before insert or update on public.resa_live_sessions
+for each row execute function private.resa_enforce_account_action('publishing');
+
+drop trigger if exists resa_account_guard_live_access_grants on public.resa_live_access_grants;
+create trigger resa_account_guard_live_access_grants before insert or update on public.resa_live_access_grants
+for each row execute function private.resa_enforce_account_action('interaction');
+
 create or replace function private.resa_admin_create_account_sanction(
   p_target_user_id uuid,p_restriction_type text,p_reason text,p_expires_at timestamptz default null
 ) returns public.resa_account_sanctions
