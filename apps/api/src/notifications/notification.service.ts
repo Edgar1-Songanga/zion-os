@@ -29,8 +29,14 @@ export class NotificationService {
 
   async preferences(token: string) {
     const actor = await this.identity.getCurrentUser(token);
-    const rows = await this.db.get<any[]>('notification_preferences', token, `?select=*&user_id=eq.${actor.id}&limit=1`);
-    return rows[0] ?? { user_id: actor.id, enabled: true, channels: ['in_app'], muted_types: [], quiet_start: null, quiet_end: null, sound_enabled: true, vibration_enabled: true, sound_style: 'soft' };
+    const [rows, profiles] = await Promise.all([
+      this.db.get<any[]>('notification_preferences', token, `?select=*&user_id=eq.${actor.id}&limit=1`),
+      this.db.get<any[]>('profiles', token, `?select=timezone&id=eq.${actor.id}&limit=1`),
+    ]);
+    return {
+      ...(rows[0] ?? { user_id: actor.id, enabled: true, channels: ['in_app'], muted_types: [], quiet_start: null, quiet_end: null, sound_enabled: true, vibration_enabled: true, sound_style: 'soft' }),
+      timezone: profiles[0]?.timezone || 'UTC',
+    };
   }
 
   async updatePreferences(token: string, input: { enabled?: unknown; channels?: unknown; muted_types?: unknown; quiet_start?: unknown; quiet_end?: unknown; sound_style?: unknown; sound_enabled?: unknown; vibration_enabled?: unknown }) {
