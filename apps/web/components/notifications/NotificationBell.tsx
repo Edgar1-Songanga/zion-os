@@ -286,7 +286,7 @@ export default function NotificationBell() {
     if (value("live_id")) return "/resa/live?live=" + encodeURIComponent(value("live_id"));
     if (value("event_id")) return "/resa/events?event=" + encodeURIComponent(value("event_id"));
     if (value("prayer_id")) return "/resa/prayer?prayer=" + encodeURIComponent(value("prayer_id"));
-    if (item.type === "resa.follow" && value("actor_id")) return "/profile?user=" + encodeURIComponent(value("actor_id"));
+    if (item.type === "resa.follow" && value("actor_id")) return "/resa/profile/" + encodeURIComponent(value("actor_id"));
     if (item.type.startsWith("resa.message")) return "/resa/messages";
     if (item.type.startsWith("resa.")) return "/resa";
     return "/notifications";
