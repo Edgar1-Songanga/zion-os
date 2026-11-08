@@ -18,6 +18,8 @@ export class ResaController {
   @Delete('content/:contentId/reactions') removeReaction(@Headers('authorization') a: string | undefined, @Param('contentId') id: string) { return this.resa.removeReaction(this.token(a), id); }
   @Post('profiles/:userId/follow') follow(@Headers('authorization') a: string | undefined, @Param('userId') id: string) { return this.resa.follow(this.token(a), id); }
   @Delete('profiles/:userId/follow') unfollow(@Headers('authorization') a: string | undefined, @Param('userId') id: string) { return this.resa.unfollow(this.token(a), id); }
+  @Post('profiles/:userId/block') blockProfile(@Headers('authorization') a: string | undefined, @Param('userId') id: string) { return this.resa.blockProfile(this.token(a), id); }
+  @Delete('profiles/:userId/block') unblockProfile(@Headers('authorization') a: string | undefined, @Param('userId') id: string) { return this.resa.unblockProfile(this.token(a), id); }
   @Get('profiles/:userId/following') follows(@Headers('authorization') a: string | undefined, @Param('userId') id: string) { return this.resa.follows(this.token(a), id); }
   @Get('profiles/:userId') profile(@Headers('authorization') a: string | undefined, @Param('userId') id: string) { return this.resa.publicProfile(this.token(a), id); }
   @Get('profiles/:userId/social') social(@Headers('authorization') a: string | undefined, @Param('userId') id: string) { return this.resa.social(this.token(a), id); }
