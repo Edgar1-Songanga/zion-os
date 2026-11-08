@@ -26,6 +26,7 @@ export default function CreatorStudioPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [rescheduleTimes, setRescheduleTimes] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -81,13 +82,37 @@ export default function CreatorStudioPage() {
     }
   }
 
+  async function reschedule(id: string) {
+    const value = rescheduleTimes[id];
+    if (!value || new Date(value).getTime() <= Date.now()) {
+      setError("Escolha uma nova data e hora futuras.");
+      return;
+    }
+    setBusyId(id);
+    setError(null);
+    setNotice(null);
+    try {
+      await resaRequest("/v1/resa/creator/schedules", {
+        method: "POST",
+        body: JSON.stringify({ content_id: id, scheduled_for: new Date(value).toISOString() }),
+      });
+      setRescheduleTimes(current => ({ ...current, [id]: "" }));
+      setNotice("Rascunho reagendado. Continua privado até à nova hora definida.");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível reagendar o rascunho.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function cancel(id: string) {
     setBusyId(id);
     setError(null);
     setNotice(null);
     try {
       await resaRequest("/v1/resa/creator/schedules/" + id, { method: "DELETE" });
-      setNotice("Agendamento cancelado. O conteúdo permanece privado como rascunho.");
+      setNotice("Agendamento cancelado. O conteúdo permanece privado como rascunho e pode ser reagendado.");
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível cancelar o agendamento.");
@@ -126,8 +151,6 @@ export default function CreatorStudioPage() {
                 <select value={visibility} onChange={e => setVisibility(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm">
                   <option value="public">Público</option>
                   <option value="followers">Seguidores</option>
-                  <option value="community">Comunidade</option>
-                  <option value="organization">Organização</option>
                 </select>
               </label>
             </div>
@@ -164,6 +187,12 @@ export default function CreatorStudioPage() {
                       {item.failure_reason && <p className="mt-2 text-xs text-red-600">{item.failure_reason}</p>}
                     </div>
                     {item.status === "scheduled" && <button type="button" disabled={busyId === item.id} onClick={() => void cancel(item.id)} className="shrink-0 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:opacity-50">{busyId === item.id ? "A cancelar…" : "Cancelar"}</button>}
+                    {item.status === "cancelled" && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <input type="datetime-local" min={localDateTimeMinimum()} value={rescheduleTimes[item.id] || ""} onChange={e => setRescheduleTimes(current => ({ ...current, [item.id]: e.target.value }))} aria-label="Nova data e hora" className="min-w-0 rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                        <button type="button" disabled={busyId === item.id} onClick={() => void reschedule(item.id)} className="rounded-xl bg-[#0C1A3D] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{busyId === item.id ? "A guardar…" : "Reagendar"}</button>
+                      </div>
+                    )}
                   </div>
                 </article>
               )) : <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">Ainda não tem publicações agendadas.</div>}
