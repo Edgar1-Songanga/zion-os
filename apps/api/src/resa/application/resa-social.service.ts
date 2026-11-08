@@ -242,6 +242,60 @@ export class ResaSocialService {
     }));
   }
 
+  async recordStoryView(token: string, storyId: string) {
+    await this.actor(token);
+    const recorded = await this.db.rpc<boolean>('resa_record_story_view', token, {
+      p_story_id: storyId,
+    });
+    return { recorded: recorded === true };
+  }
+
+  async storyViews(token: string, storyId: string) {
+    const actor = await this.actor(token);
+    const stories = await this.db.get<any[]>(
+      'resa_contents',
+      token,
+      `?select=id,author_id,type&id=eq.${encodeURIComponent(storyId)}&type=eq.story&limit=1`,
+    );
+    const story = stories[0];
+    if (!story) throw new NotFoundException('Story not found');
+    if (story.author_id !== actor.id) return { is_author: false };
+
+    const views = await this.db.get<any[]>(
+      'resa_story_views',
+      token,
+      `?select=viewer_id,viewed_at&story_id=eq.${encodeURIComponent(storyId)}&order=viewed_at.desc&limit=1000`,
+    );
+    const viewCount = await this.db.rpc<number>('resa_story_view_count', token, {
+      p_story_id: storyId,
+    });
+    const viewerIds = [...new Set(views.map((view) => view.viewer_id).filter(Boolean))];
+    const profiles: any[] = [];
+    for (let offset = 0; offset < viewerIds.length; offset += 200) {
+      const batch = await this.db.rpc<any[]>('resa_profiles_for_ids', token, {
+        p_user_ids: viewerIds.slice(offset, offset + 200),
+      });
+      profiles.push(...batch);
+    }
+    const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
+
+    return {
+      is_author: true,
+      view_count: Number(viewCount ?? views.length),
+      viewers: views.map((view) => {
+        const profile = profilesById.get(view.viewer_id);
+        return {
+          user_id: view.viewer_id,
+          viewed_at: view.viewed_at,
+          display_name: profile?.display_name?.trim()
+            || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim()
+            || 'Membro RESA',
+          avatar_url: profile?.avatar_url ?? null,
+        };
+      }),
+    };
+  }
+
   async createContent(token: string, input: any) {
     const a = await this.actor(token); const type = this.clean(input.type, 'type', 40); const visibility = input.visibility || 'public';
     if (!['public', 'followers', 'community', 'organization', 'private'].includes(visibility)) throw new BadRequestException('Invalid visibility');
