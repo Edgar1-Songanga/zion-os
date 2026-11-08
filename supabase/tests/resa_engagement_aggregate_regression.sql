@@ -91,7 +91,7 @@ begin
   if exists (
     select 1 from public.resa_content_engagement_counts(array['94000000-0000-4000-8000-000000000011'::uuid])
   ) then
-    raise exception 'Blocked viewer received engagement aggregates for blocked author's content';
+    raise exception 'Blocked viewer received engagement aggregates for blocked author content';
   end if;
 end;
 $blocked$;
