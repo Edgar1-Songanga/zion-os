@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { resaRequest } from "@/lib/resa/api";
+import { resolveResaMediaUrls } from "@/lib/resa/media";
 
 type SearchType = "all" | "content" | "profile" | "topic" | "community" | "event";
 type Result = {
@@ -34,6 +35,19 @@ const filters: Array<{ value: SearchType; label: string }> = [
   { value: "community", label: "Comunidades" },
   { value: "event", label: "Eventos" },
 ];
+
+async function hydrateMedia(results: Result[]): Promise<Result[]> {
+  const contentIds = results
+    .filter((item) => (item.entity_type || "content") === "content" && !item.media_url && item.media_type)
+    .map((item) => item.entity_id || item.id);
+  if (!contentIds.length) return results;
+  const urls = await resolveResaMediaUrls(contentIds);
+  return results.map((item) => {
+    if ((item.entity_type || "content") !== "content" || item.media_url) return item;
+    const id = item.entity_id || item.id;
+    return { ...item, media_url: urls[id] || null };
+  });
+}
 
 function resultHref(item: Result) {
   const id = item.entity_id || item.id;
@@ -82,7 +96,8 @@ export default function ExplorePage() {
       const params = new URLSearchParams({ q: query, limit: "24" });
       if (selectedType !== "all") params.set("type", selectedType);
       const results = await resaRequest<Result[]>("/v1/resa/search?" + params.toString());
-      if (version === requestVersion.current) setItems(results);
+      const hydrated = await hydrateMedia(results);
+      if (version === requestVersion.current) setItems(hydrated);
     } catch (e) {
       if (version === requestVersion.current) setError(e instanceof Error ? e.message : "Não foi possível pesquisar.");
     } finally {
@@ -95,7 +110,9 @@ export default function ExplorePage() {
     void resaRequest<Result[]>("/v1/resa/explore")
       .then((data) => {
         if (active && requestVersion.current === 0) {
-          setItems(data.map((item) => ({ ...item, entity_type: "content", entity_id: item.id })));
+          void hydrateMedia(data.map((item) => ({ ...item, entity_type: "content", entity_id: item.id }))).then((hydrated) => {
+            if (active && requestVersion.current === 0) setItems(hydrated);
+          });
         }
       })
       .catch((e) => {
@@ -177,6 +194,8 @@ export default function ExplorePage() {
                     </div>
                     <h3 className="mt-4 line-clamp-2 text-lg font-semibold text-[#0C1A3D] group-hover:text-blue-800">{title}</h3>
                     {item.body && <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-600">{item.body}</p>}
+                    {type === "content" && item.media_type === "image" && item.media_url && <img src={item.media_url} alt={title} loading="lazy" className="mt-4 max-h-56 w-full rounded-2xl object-cover" />}
+                    {type === "content" && item.media_type === "video" && item.media_url && <video src={item.media_url} controls playsInline preload="none" className="mt-4 max-h-56 w-full rounded-2xl bg-black" />}
                     {type === "event" && item.starts_at && <p className="mt-3 text-xs font-medium text-slate-500">{new Date(item.starts_at).toLocaleString("pt-PT")}{item.location ? " · " + item.location : ""}</p>}
                     {type === "profile" && item.avatar_url && <img src={item.avatar_url} alt="" loading="lazy" className="mt-4 h-10 w-10 rounded-xl object-cover" />}
                     <p className="mt-5 text-xs font-semibold text-[#0C1A3D]">Abrir {type === "profile" ? "perfil" : type === "content" ? "publicação" : type === "topic" ? "tópico" : type === "community" ? "comunidades" : "eventos"} <span aria-hidden="true">→</span></p>
