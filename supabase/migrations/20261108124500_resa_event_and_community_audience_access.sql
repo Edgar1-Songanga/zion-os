@@ -22,6 +22,22 @@ as $
 $;
 grant execute on function private.resa_is_community_moderator(uuid,uuid) to authenticated;
 
+-- Use a narrowly scoped SECURITY DEFINER helper for the existing invitation
+-- row. Referencing resa_event_participants from its own RLS policy would recurse.
+create or replace function private.resa_is_event_participant(p_event_id uuid, p_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = pg_catalog, pg_temp
+as $
+  select exists (
+    select 1 from public.resa_event_participants p
+    where p.event_id = p_event_id and p.user_id = p_user_id
+  );
+$;
+grant execute on function private.resa_is_event_participant(uuid,uuid) to authenticated;
+
 -- Public communities can be joined directly. Private and organization-scoped
 -- communities require an invitation or moderator action; a member cannot
 -- self-insert into those spaces by calling the REST endpoint directly.
@@ -116,10 +132,7 @@ with check (
         private.resa_can_view_content(e.created_by, e.visibility, e.community_id, e.organization_id)
         or (
           e.visibility = 'private'
-          and exists (
-            select 1 from public.resa_event_participants p
-            where p.event_id = e.id and p.user_id = (select auth.uid())
-          )
+          and private.resa_is_event_participant(e.id, (select auth.uid()))
         )
       )
   )
