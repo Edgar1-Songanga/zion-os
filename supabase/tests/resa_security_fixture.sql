@@ -321,6 +321,18 @@ using (
   or private.resa_is_community_moderator(community_id, (select auth.uid()))
 );
 
+create policy resa_community_members_update
+on public.resa_community_members
+for update to authenticated
+using (
+  user_id = (select auth.uid())
+  or private.resa_is_community_moderator(community_id, (select auth.uid()))
+)
+with check (
+  user_id = (select auth.uid())
+  or private.resa_is_community_moderator(community_id, (select auth.uid()))
+);
+
 create table public.resa_events (
   id uuid primary key,
   created_by uuid not null references auth.users(id),
