@@ -58,6 +58,9 @@ begin
   select * into v_metrics
   from public.resa_content_engagement_counts(array['94000000-0000-4000-8000-000000000011'::uuid]);
 
+  if v_metrics.content_id is null then
+    raise exception 'Visible publication engagement aggregate was not returned';
+  end if;
   if v_metrics.reaction_count <> 2 or v_metrics.comment_count <> 2 or v_metrics.share_count <> 2 then
     raise exception 'Engagement aggregate counts are incorrect: reactions %, comments %, shares %',
       v_metrics.reaction_count, v_metrics.comment_count, v_metrics.share_count;
