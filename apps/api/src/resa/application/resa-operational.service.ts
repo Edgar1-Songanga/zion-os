@@ -747,12 +747,15 @@ export class ResaOperationalService {
     return this.db.get('resa_moderation_reports', token, `?select=*&status=eq.${status}&order=created_at.asc&limit=${size}`);
   }
 
-  async moderateReport(token: string, reportId: string, status: 'reviewing' | 'resolved' | 'dismissed') {
+  async moderateReport(token: string, reportId: string, status: 'reviewing' | 'resolved' | 'dismissed', reviewNote?: unknown) {
     const actor = await this.actor(token);
     if (!['reviewing', 'resolved', 'dismissed'].includes(status)) throw new BadRequestException('Invalid moderation action');
+    const note = typeof reviewNote === 'string' ? reviewNote.trim() : '';
+    if (note.length > 2000) throw new BadRequestException('review_note cannot exceed 2000 characters');
+    if (status !== 'reviewing' && !note) throw new BadRequestException('A review note is required for final moderation decisions');
     const id = this.id(reportId, 'report_id');
     const rows = await this.db.patch<any[]>('resa_moderation_reports', token, {
-      status, reviewed_by: actor.id, reviewed_at: new Date().toISOString(),
+      status, reviewed_by: actor.id, reviewed_at: new Date().toISOString(), review_note: note || null,
     }, `?id=eq.${id}`);
     if (!rows[0]) throw new NotFoundException('Moderation report was not found or access was denied');
     return rows[0];
