@@ -40,6 +40,82 @@ describe('ResaSocialService feeds', () => {
 
   afterEach(() => jest.restoreAllMocks());
 
+  it('mutes a profile without changing the follow relationship', async () => {
+    const upsertSpy = jest.spyOn(SupabaseRestClient.prototype, 'upsert').mockResolvedValue([{ muter_id: ACTOR_ID, muted_id: FOLLOWED_ID }] as never);
+    const deleteSpy = jest.spyOn(SupabaseRestClient.prototype, 'delete').mockResolvedValue([] as never);
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'profiles') return [{ id: FOLLOWED_ID }] as never;
+      return [] as never;
+    });
+
+    const result = await service.muteProfile('session-token', FOLLOWED_ID);
+
+    expect(upsertSpy).toHaveBeenCalledWith('resa_user_mutes', 'session-token', {
+      muter_id: ACTOR_ID,
+      muted_id: FOLLOWED_ID,
+    }, '?on_conflict=muter_id,muted_id');
+    expect(deleteSpy).not.toHaveBeenCalled();
+    expect(result).toEqual({ muted: true });
+  });
+
+  it('does not allow muting the current profile and supports unmuting', async () => {
+    await expect(service.muteProfile('session-token', ACTOR_ID)).rejects.toThrow('You cannot mute your own profile');
+    const deleteSpy = jest.spyOn(SupabaseRestClient.prototype, 'delete').mockResolvedValue([] as never);
+    const result = await service.unmuteProfile('session-token', FOLLOWED_ID);
+    expect(deleteSpy).toHaveBeenCalledWith(
+      'resa_user_mutes',
+      'session-token',
+      expect.stringContaining('muter_id=eq.' + ACTOR_ID),
+    );
+    expect(result).toEqual({ muted: false });
+  });
+
+  it('lists only the authenticated viewer muted profiles', async () => {
+    const mutedId = '33333333-3333-4333-8333-333333333333';
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_user_mutes') return [{
+        muted_id: mutedId,
+        created_at: '2026-11-08T12:00:00.000Z',
+      }] as never;
+      return [] as never;
+    });
+    rpcSpy.mockResolvedValueOnce([{
+      id: mutedId,
+      display_name: 'Muted profile',
+      avatar_url: null,
+    }] as never);
+
+    const result = await service.mutedProfiles('session-token');
+
+    expect(getSpy).toHaveBeenCalledWith(
+      'resa_user_mutes',
+      'session-token',
+      expect.stringContaining('muter_id=eq.' + ACTOR_ID),
+    );
+    expect(result).toEqual([{
+      user_id: mutedId,
+      muted_at: '2026-11-08T12:00:00.000Z',
+      profile: { id: mutedId, display_name: 'Muted profile', avatar_url: null },
+    }]);
+  });
+
+  it('excludes muted authors at the database query before feed pagination', async () => {
+    const mutedId = '33333333-3333-4333-8333-333333333333';
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_user_mutes') return [{ muted_id: mutedId }] as never;
+      if (table === 'resa_contents') return followedPosts as never;
+      return [] as never;
+    });
+
+    await service.feed('session-token', 30, 'latest');
+
+    expect(getSpy).toHaveBeenCalledWith(
+      'resa_contents',
+      'session-token',
+      expect.stringContaining('author_id=not.in.(' + mutedId + ')'),
+    );
+  });
+
   it('blocks a profile, persists the block and removes the viewer follow', async () => {
     const upsertSpy = jest.spyOn(SupabaseRestClient.prototype, 'upsert').mockResolvedValue([{ blocker_id: ACTOR_ID, blocked_id: FOLLOWED_ID }] as never);
     const deleteSpy = jest.spyOn(SupabaseRestClient.prototype, 'delete').mockResolvedValue([] as never);
