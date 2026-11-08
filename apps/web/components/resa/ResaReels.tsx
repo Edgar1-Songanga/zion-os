@@ -14,6 +14,9 @@ type Reel = {
   media_url: string;
   created_at: string;
   viewer_reacted?: boolean;
+  reaction_count?: number;
+  comment_count?: number;
+  share_count?: number;
 };
 
 export default function ResaReels() {
@@ -54,12 +57,18 @@ export default function ResaReels() {
     const next = !liked[id];
     setBusy(id);
     setLiked((current) => ({ ...current, [id]: next }));
+    setItems((current) => current.map((item) => item.id === id
+      ? { ...item, reaction_count: Math.max(0, (item.reaction_count ?? 0) + (next ? 1 : -1)) }
+      : item));
     try {
       await resaRequest(`/v1/resa/content/${id}/reactions`, next
         ? { method: "POST", body: JSON.stringify({ reaction_type: "like" }) }
         : { method: "DELETE" });
     } catch {
       setLiked((current) => ({ ...current, [id]: !next }));
+      setItems((current) => current.map((item) => item.id === id
+        ? { ...item, reaction_count: Math.max(0, (item.reaction_count ?? 0) + (next ? -1 : 1)) }
+        : item));
     } finally {
       setBusy(null);
     }
@@ -83,7 +92,7 @@ export default function ResaReels() {
             <p className="mt-2 text-xs text-white/65">{new Date(item.created_at).toLocaleDateString("pt-PT")}</p>
           </div>
           <div className="absolute bottom-5 right-4 flex flex-col gap-3">
-            <button type="button" onClick={() => void toggleLike(item.id)} disabled={busy === item.id} aria-label={liked[item.id] ? "Retirar gosto" : "Gostar"} className={`flex h-12 w-12 items-center justify-center rounded-full border border-white/25 bg-black/45 text-xl text-white backdrop-blur transition hover:bg-black/70 ${liked[item.id] ? "text-rose-400" : ""}`}>{liked[item.id] ? "♥" : "♡"}</button>
+            <button type="button" onClick={() => void toggleLike(item.id)} disabled={busy === item.id} aria-label={liked[item.id] ? "Retirar gosto" : "Gostar"} className={`flex h-12 w-12 flex-col items-center justify-center rounded-full border border-white/25 bg-black/45 text-xl leading-none text-white backdrop-blur transition hover:bg-black/70 ${liked[item.id] ? "text-rose-400" : ""}`}><span>{liked[item.id] ? "♥" : "♡"}</span><span className="mt-1 text-[10px] font-semibold tabular-nums text-white">{item.reaction_count ?? 0}</span></button>
             <Link href={`/resa?post=${encodeURIComponent(item.id)}`} aria-label="Abrir publicação" className="flex h-12 w-12 items-center justify-center rounded-full border border-white/25 bg-black/45 text-sm text-white backdrop-blur">↗</Link>
           </div>
         </article>)}
