@@ -52,7 +52,7 @@ export class ResaSocialService {
     // entire feedback history and saved-content list on every refresh.
     const contentFilter = contentIds.length ? `in.(${contentIds.join(',')})` : null;
     const authorFilter = authorIds.length ? `in.(${authorIds.join(',')})` : null;
-    const [follows, feedback, reactions, saves, viewerReactions] = await Promise.all([
+    const [follows, feedback, engagements, saves, viewerReactions] = await Promise.all([
       followingRows
         ? Promise.resolve(followingRows)
         : authorFilter
@@ -62,7 +62,7 @@ export class ResaSocialService {
         ? this.db.get<any[]>( 'resa_feed_feedback', token, `?select=content_id,feedback&user_id=eq.${a.id}&content_id=${contentFilter}&limit=120`)
         : Promise.resolve([]),
       contentFilter
-        ? this.db.get<any[]>( 'resa_reactions', token, `?select=content_id&content_id=${contentFilter}&limit=1000`)
+        ? this.db.rpc<any[]>('resa_content_engagement_counts', token, { p_content_ids: contentIds })
         : Promise.resolve([]),
       contentFilter
         ? this.db.get<any[]>( 'resa_saves', token, `?select=content_id&user_id=eq.${a.id}&content_id=${contentFilter}&limit=120`)
@@ -79,10 +79,7 @@ export class ResaSocialService {
         .filter((item) => hidden.get(item.id) === 'hide_author')
         .map((item) => item.author_id),
     );
-    const reactionCounts = reactions.reduce<Record<string, number>>((counts, row) => {
-      counts[row.content_id] = (counts[row.content_id] ?? 0) + 1;
-      return counts;
-    }, {});
+    const engagementByContent = new Map(engagements.map((row) => [row.content_id, row]));
     const saved = new Set(saves.map((row) => row.content_id));
     const reactedByViewer = new Set(viewerReactions.map((row) => row.content_id));
     const feedMode = mode === 'following' ? 'following' : 'for_you';
@@ -94,7 +91,13 @@ export class ResaSocialService {
       .map((item) => ({
         ...item,
         followedAuthor: followed.has(item.author_id),
-        interactionCount: reactionCounts[item.id] ?? 0,
+        reaction_count: Number(engagementByContent.get(item.id)?.reaction_count ?? 0),
+        comment_count: Number(engagementByContent.get(item.id)?.comment_count ?? 0),
+        share_count: Number(engagementByContent.get(item.id)?.share_count ?? 0),
+        interactionCount:
+          Number(engagementByContent.get(item.id)?.reaction_count ?? 0)
+          + Number(engagementByContent.get(item.id)?.comment_count ?? 0)
+          + Number(engagementByContent.get(item.id)?.share_count ?? 0),
         saved: saved.has(item.id),
         viewer_saved: saved.has(item.id),
         viewer_reacted: reactedByViewer.has(item.id),
@@ -137,21 +140,28 @@ export class ResaSocialService {
     );
     const authorIds = [...new Set(rows.map((row) => row.author_id).filter(Boolean))];
     const contentIds = rows.map((row) => row.id).filter(Boolean);
-    const [profiles, reactions] = await Promise.all([
+    const [profiles, viewerReactions, engagements] = await Promise.all([
       authorIds.length
         ? this.db.rpc<any[]>('resa_profiles_for_ids', token, { p_user_ids: authorIds })
         : Promise.resolve([]),
       contentIds.length
         ? this.db.get<any[]>('resa_reactions', token, `?select=content_id&user_id=eq.${viewer.id}&content_id=in.(${contentIds.join(',')})&limit=50`)
         : Promise.resolve([]),
+      contentIds.length
+        ? this.db.rpc<any[]>('resa_content_engagement_counts', token, { p_content_ids: contentIds })
+        : Promise.resolve([]),
     ]);
     const byId = new Map(profiles.map((profile) => [profile.id, profile]));
-    const reactedIds = new Set(reactions.map((reaction) => reaction.content_id));
+    const reactedIds = new Set(viewerReactions.map((reaction) => reaction.content_id));
+    const engagementByContent = new Map(engagements.map((row) => [row.content_id, row]));
     return rows.map((row) => {
       const profile = byId.get(row.author_id);
       return {
         ...row,
         viewer_reacted: reactedIds.has(row.id),
+        reaction_count: Number(engagementByContent.get(row.id)?.reaction_count ?? 0),
+        comment_count: Number(engagementByContent.get(row.id)?.comment_count ?? 0),
+        share_count: Number(engagementByContent.get(row.id)?.share_count ?? 0),
         author_display_name: profile?.display_name?.trim()
           || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim()
           || 'Membro RESA',
