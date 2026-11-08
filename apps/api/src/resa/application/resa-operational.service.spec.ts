@@ -1,4 +1,4 @@
-import { BadGatewayException, BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ResaOperationalService } from './resa-operational.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 
@@ -383,6 +383,94 @@ describe('ResaOperationalService live permissions', () => {
       expect.stringContaining('host_id=eq.host-user'),
     );
     expect(result.status).toBe('ended');
+  });
+
+  it('creates a public event with validated dates and an HTTPS meeting link', async () => {
+    const postSpy = jest.spyOn(SupabaseRestClient.prototype, 'post').mockResolvedValue([{ id: LIVE_ID }] as never);
+    const result = await service.createEvent('session-token', {
+      title: 'Encontro da comunidade',
+      description: 'Uma reunião de comunhão.',
+      starts_at: '2099-01-01T10:00:00.000Z',
+      ends_at: '2099-01-01T11:00:00.000Z',
+      meeting_url: 'https://meet.example.test/event',
+      visibility: 'public',
+    });
+
+    expect(postSpy).toHaveBeenCalledWith('resa_events', 'session-token', expect.objectContaining({
+      visibility: 'public',
+      meeting_url: 'https://meet.example.test/event',
+      created_by: actorId,
+    }));
+    expect(result.id).toBe(LIVE_ID);
+  });
+
+  it('requires an active community membership before creating a community event', async () => {
+    const communityId = '77777777-7777-4777-8777-777777777777';
+    getSpy
+      .mockResolvedValueOnce([{ id: communityId, created_by: 'other-owner', status: 'active' }] as never)
+      .mockResolvedValueOnce([{ status: 'active' }] as never);
+    const postSpy = jest.spyOn(SupabaseRestClient.prototype, 'post').mockResolvedValue([{ id: LIVE_ID }] as never);
+
+    await service.createEvent('session-token', {
+      title: 'Encontro do pequeno grupo',
+      starts_at: '2099-01-01T10:00:00.000Z',
+      visibility: 'community',
+      community_id: communityId,
+    });
+
+    expect(getSpy).toHaveBeenNthCalledWith(2, 'resa_community_members', 'session-token', expect.stringContaining('status=eq.active'));
+    expect(postSpy).toHaveBeenCalledWith('resa_events', 'session-token', expect.objectContaining({
+      visibility: 'community',
+      community_id: communityId,
+    }));
+  });
+
+  it('rejects a non-member attempting to create a community event', async () => {
+    const communityId = '77777777-7777-4777-8777-777777777777';
+    getSpy
+      .mockResolvedValueOnce([{ id: communityId, created_by: 'other-owner', status: 'active' }] as never)
+      .mockResolvedValueOnce([] as never);
+
+    await expect(service.createEvent('session-token', {
+      title: 'Evento sem autorização',
+      starts_at: '2099-01-01T10:00:00.000Z',
+      visibility: 'community',
+      community_id: communityId,
+    })).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('rejects insecure meeting URLs and private events without invitation management', async () => {
+    await expect(service.createEvent('session-token', {
+      title: 'Link inseguro',
+      starts_at: '2099-01-01T10:00:00.000Z',
+      meeting_url: 'http://meet.example.test/event',
+    })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.createEvent('session-token', {
+      title: 'Evento privado',
+      starts_at: '2099-01-01T10:00:00.000Z',
+      visibility: 'private',
+    })).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('does not allow self-joining a private community', async () => {
+    const communityId = '88888888-8888-4888-8888-888888888888';
+    getSpy.mockResolvedValueOnce([{ id: communityId, created_by: 'other-owner', status: 'active', visibility: 'private' }] as never);
+    const upsertSpy = jest.spyOn(SupabaseRestClient.prototype, 'upsert');
+
+    await expect(service.joinCommunity('session-token', communityId)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(upsertSpy).not.toHaveBeenCalled();
+  });
+
+  it('cancels only an event owned by the current creator', async () => {
+    patchSpy.mockResolvedValueOnce([{ id: LIVE_ID, status: 'cancelled' }] as never);
+    const result = await service.cancelEvent('session-token', LIVE_ID);
+    expect(patchSpy).toHaveBeenCalledWith(
+      'resa_events',
+      'session-token',
+      { status: 'cancelled' },
+      expect.stringContaining('created_by=eq.' + actorId),
+    );
+    expect(result.status).toBe('cancelled');
   });
 
   it('creates a conversation through one atomic RPC and deduplicates participant ids', async () => {
