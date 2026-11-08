@@ -121,11 +121,48 @@ describe('ResaSocialService feeds', () => {
       'session-token',
       expect.stringContaining(`author_id=in.(${ACTOR_ID},${FOLLOWED_ID})`),
     );
-    expect(result.map((item) => item.id)).toEqual(['post-new', 'post-own']);
-    expect(result.every((item) => item.author_id === ACTOR_ID || item.author_id === FOLLOWED_ID)).toBe(true);
+    expect(result.items.map((item) => item.id)).toEqual(['post-new', 'post-own']);
+    expect(result.items.every((item) => item.author_id === ACTOR_ID || item.author_id === FOLLOWED_ID)).toBe(true);
     expect(rpcSpy).toHaveBeenCalledWith('resa_profiles_for_ids', 'session-token', {
       p_user_ids: expect.arrayContaining([ACTOR_ID, FOLLOWED_ID]),
     });
+  });
+
+  it('paginates the feed with a stable created_at and id cursor', async () => {
+    const firstId = '33333333-3333-4333-8333-333333333333';
+    const secondId = '44444444-4444-4444-8444-444444444444';
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_follows') return follows as never;
+      if (table === 'resa_contents') return [
+        { ...followedPosts[0], id: firstId },
+        { ...followedPosts[1], id: secondId },
+      ] as never;
+      return [] as never;
+    });
+
+    const result = await service.feed('session-token', 1, 'following');
+
+    expect(result.items).toHaveLength(1);
+    expect(result.has_more).toBe(true);
+    expect(result.next_cursor).toBe(`2026-11-08T11:00:00.000Z|${firstId}`);
+    expect(getSpy).toHaveBeenCalledWith(
+      'resa_contents',
+      'session-token',
+      expect.stringContaining('order=created_at.desc,id.desc&limit=2'),
+    );
+
+    await service.feed('session-token', 1, 'following', result.next_cursor ?? undefined);
+    expect(getSpy).toHaveBeenCalledWith(
+      'resa_contents',
+      'session-token',
+      expect.stringContaining('created_at.lt.2026-11-08T11%3A00%3A00.000Z'),
+    );
+  });
+
+  it('rejects malformed feed cursors before querying content', async () => {
+    await expect(service.feed('session-token', 30, 'for_you', 'not-a-valid-cursor'))
+      .rejects.toThrow('Invalid feed cursor');
+    expect(getSpy).not.toHaveBeenCalledWith('resa_contents', 'session-token', expect.any(String));
   });
 
   it('uses privacy-scoped aggregate engagement metrics for ranking and display', async () => {
@@ -134,7 +171,7 @@ describe('ResaSocialService feeds', () => {
     expect(rpcSpy).toHaveBeenCalledWith('resa_content_engagement_counts', 'session-token', {
       p_content_ids: ['post-new', 'post-own'],
     });
-    expect(result.find((item) => item.id === 'post-new')).toMatchObject({
+    expect(result.items.find((item) => item.id === 'post-new')).toMatchObject({
       reaction_count: 5,
       comment_count: 2,
       share_count: 1,

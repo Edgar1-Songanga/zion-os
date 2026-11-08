@@ -8,6 +8,8 @@ import { resaRequest } from "@/lib/resa/api";
 import { createClient } from "@/lib/supabase/client";
 import { useTranslation } from "@/components/i18n";
 
+type FeedPage = { items: ResaContent[]; next_cursor: string | null; has_more: boolean };
+
 type ResaContent = {
   id: string;
   author_id: string;
@@ -41,8 +43,11 @@ export default function ResaLiveFeed() {
   const pendingModeRef = useRef<"for_you" | "following" | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlightRef = useRef(false);
+  const loadingMoreRef = useRef(false);
   const deepLinkHandledRef = useRef<string | null>(null);
 
   const load = useCallback(async (silent = false, requestedMode: "for_you" | "following" = feedMode) => {
@@ -59,8 +64,9 @@ export default function ResaLiveFeed() {
     setError(null);
 
     try {
-      const latest = await resaRequest<ResaContent[]>(`/v1/resa/feed?limit=30&mode=${requestedMode}`);
-      setItems(latest);
+      const latest = await resaRequest<FeedPage>(`/v1/resa/feed?limit=30&mode=${requestedMode}`);
+      setItems(latest.items);
+      setNextCursor(latest.next_cursor);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("feedLoadError"));
     } finally {
@@ -72,6 +78,33 @@ export default function ResaLiveFeed() {
       if (pendingMode && pendingMode !== requestedMode) void load(true, pendingMode);
     }
   }, [t, feedMode]);
+
+  const loadMore = useCallback(async () => {
+    if (!nextCursor || inFlightRef.current || loadingMoreRef.current) return;
+    loadingMoreRef.current = true;
+    inFlightRef.current = true;
+    setLoadingMore(true);
+    setError(null);
+    try {
+      const page = await resaRequest<FeedPage>(
+        `/v1/resa/feed?limit=30&mode=${feedMode}&before=${encodeURIComponent(nextCursor)}`,
+      );
+      setItems((current) => {
+        const known = new Set(current.map((item) => item.id));
+        return [...current, ...page.items.filter((item) => !known.has(item.id))];
+      });
+      setNextCursor(page.next_cursor);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("feedLoadError"));
+    } finally {
+      loadingMoreRef.current = false;
+      inFlightRef.current = false;
+      setLoadingMore(false);
+      const pendingMode = pendingModeRef.current;
+      pendingModeRef.current = null;
+      if (pendingMode && pendingMode !== feedMode) void load(true, pendingMode);
+    }
+  }, [feedMode, nextCursor, t, load]);
 
   useEffect(() => {
     void load();
@@ -201,6 +234,19 @@ export default function ResaLiveFeed() {
       )}
 
       {!loading && !error && items.map((item) => <FeedCard key={item.id} content={item} />)}
+
+      {!loading && !error && nextCursor && (
+        <div className="flex justify-center pb-4">
+          <button
+            type="button"
+            onClick={() => void loadMore()}
+            disabled={loadingMore}
+            className="rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-[#0C1A3D] shadow-sm transition hover:border-slate-300 disabled:cursor-wait disabled:opacity-60"
+          >
+            {loadingMore ? "A carregar…" : "Carregar mais publicações"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
