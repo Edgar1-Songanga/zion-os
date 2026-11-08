@@ -20,6 +20,7 @@ type Profile = {
   follow_allowed: boolean;
   private_locked?: boolean;
   viewer_has_blocked?: boolean;
+  viewer_has_muted?: boolean;
 };
 type Content = { id: string; title?: string | null; body?: string | null; media_type?: string | null; media_url?: string | null; created_at: string };
 type Result = { profile: Profile; contents: Content[] };
@@ -60,6 +61,22 @@ export default function ResaMemberProfile({ userId }: { userId: string }) {
     }
   }
 
+  async function toggleMute() {
+    if (!data || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await resaRequest("/v1/resa/profiles/" + encodeURIComponent(userId) + "/mute", {
+        method: data.profile.viewer_has_muted ? "DELETE" : "POST",
+      });
+      await load();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível atualizar o silenciamento.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function toggleBlock() {
     if (!data || busy) return;
     if (!data.profile.viewer_has_blocked && !window.confirm("Bloquear este membro? Deixará de ver as suas publicações e as interações entre as duas contas serão impedidas.")) return;
@@ -86,7 +103,7 @@ export default function ResaMemberProfile({ userId }: { userId: string }) {
 
   return (
     <main className="mx-auto max-w-3xl space-y-5 p-3 pb-10 sm:p-6">
-      <div className="flex items-center justify-between"><Link href="/resa" className="text-sm font-semibold text-slate-600 hover:text-[#0C1A3D]">← Voltar ao RESA</Link>{profile.is_owner && <div className="flex items-center gap-3"><Link href="/resa/blocked" className="text-sm font-semibold text-slate-600 hover:text-[#0C1A3D]">Contas bloqueadas</Link><Link href="/profile" className="text-sm font-semibold text-blue-700 hover:underline">Editar perfil</Link></div>}</div>
+      <div className="flex items-center justify-between"><Link href="/resa" className="text-sm font-semibold text-slate-600 hover:text-[#0C1A3D]">← Voltar ao RESA</Link>{profile.is_owner && <div className="flex items-center gap-3"><Link href="/resa/blocked" className="text-sm font-semibold text-slate-600 hover:text-[#0C1A3D]">Bloqueadas</Link><Link href="/resa/muted" className="text-sm font-semibold text-slate-600 hover:text-[#0C1A3D]">Silenciadas</Link><Link href="/profile" className="text-sm font-semibold text-blue-700 hover:underline">Editar perfil</Link></div>}</div>
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
           <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-2xl font-semibold text-[#0C1A3D]">{profile.avatar_url ? <img src={profile.avatar_url} alt={name} className="h-full w-full object-cover" /> : initials}</div>
@@ -98,6 +115,7 @@ export default function ResaMemberProfile({ userId }: { userId: string }) {
           {!profile.viewer_has_blocked && profile.message_allowed && <Link href={"/resa/messages?to=" + encodeURIComponent(userId)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-[#0C1A3D] hover:bg-slate-50">Mensagem</Link>}
           {!profile.viewer_has_blocked && profile.call_allowed && <Link href={"/resa/messages?to=" + encodeURIComponent(userId) + "&call=audio"} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-[#0C1A3D] hover:bg-slate-50">Ligar</Link>}
           {profile.viewer_has_blocked && <p className="w-full rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">Bloqueaste este membro. As publicações e interações entre as duas contas estão limitadas.</p>}
+          {!profile.viewer_has_blocked && <button type="button" disabled={busy} onClick={() => void toggleMute()} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{busy ? "A atualizar…" : profile.viewer_has_muted ? "Reativar publicações" : "Silenciar"}</button>}
           <button type="button" disabled={busy} onClick={() => void toggleBlock()} className={profile.viewer_has_blocked ? "rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50" : "rounded-xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"}>{busy ? "A atualizar…" : profile.viewer_has_blocked ? "Desbloquear" : "Bloquear"}</button>
         </div>}
         {error && <p role="alert" className="mt-4 text-sm text-red-700">{error}</p>}
