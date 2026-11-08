@@ -47,6 +47,41 @@ describe('ResaSocialService feeds', () => {
     });
   });
 
+  it('queries all non-private audiences in the For You feed and relies on RLS for access', async () => {
+    await service.feed('session-token', 30, 'for_you');
+    expect(getSpy).toHaveBeenCalledWith(
+      'resa_contents',
+      'session-token',
+      expect.stringContaining('visibility=in.(public,followers,community,organization)'),
+    );
+  });
+
+  it('persists community audience references when creating community content', async () => {
+    const postSpy = jest.spyOn(SupabaseRestClient.prototype, 'post').mockResolvedValue([
+      { id: 'community-post' },
+    ] as never);
+
+    await service.createContent('session-token', {
+      type: 'text',
+      body: 'Community-only update',
+      visibility: 'community',
+      community_id: '66666666-6666-4666-8666-666666666666',
+    });
+
+    expect(postSpy).toHaveBeenCalledWith('resa_contents', 'session-token', expect.objectContaining({
+      visibility: 'community',
+      community_id: '66666666-6666-4666-8666-666666666666',
+    }));
+  });
+
+  it('rejects community content without a target community', async () => {
+    await expect(service.createContent('session-token', {
+      type: 'text',
+      body: 'Missing community target',
+      visibility: 'community',
+    })).rejects.toThrow('community_id is required for community-only content');
+  });
+
   it('hydrates follower and following lists by their actual profile IDs', async () => {
     getSpy.mockImplementation(async (table: string, _token: string, query: string) => {
       if (table !== 'resa_follows') return [] as never;
