@@ -76,7 +76,7 @@ export default function ResaMemberProfile({ userId }: { userId: string }) {
         {!profile.is_owner && <div className="mt-6 flex flex-wrap gap-2 border-t border-slate-100 pt-5">
           {profile.follow_allowed && <button type="button" disabled={busy} onClick={() => void toggleFollow()} className="rounded-xl bg-[#0C1A3D] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{busy ? "A atualizar…" : profile.is_following ? "A seguir" : "Seguir"}</button>}
           {profile.message_allowed && <Link href={"/resa/messages?to=" + encodeURIComponent(userId)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-[#0C1A3D] hover:bg-slate-50">Mensagem</Link>}
-          {profile.call_allowed && <Link href={"/resa/messages?to=" + encodeURIComponent(userId)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-[#0C1A3D] hover:bg-slate-50">Abrir conversa para ligar</Link>}
+          {profile.call_allowed && <Link href={"/resa/messages?to=" + encodeURIComponent(userId) + "&call=audio"} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-[#0C1A3D] hover:bg-slate-50">Ligar</Link>}
           {!profile.message_allowed && !profile.call_allowed && <p className="text-sm text-slate-500">Este membro limitou as opções de contacto.</p>}
         </div>}
         {error && <p role="alert" className="mt-4 text-sm text-red-700">{error}</p>}
