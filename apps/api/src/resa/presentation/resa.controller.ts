@@ -11,6 +11,7 @@ export class ResaController {
   @Get('reels') reels(@Headers('authorization') a: string | undefined, @Query('limit') limit?: string) { return this.resa.reels(this.token(a), Number(limit) || 30); }
   @Get('explore') explore(@Headers('authorization') a: string | undefined, @Query('q') query?: string, @Query('limit') limit?: string) { return this.resa.explore(this.token(a), query, Number(limit) || 30); }
   @Get('stories') stories(@Headers('authorization') a: string | undefined, @Query('limit') limit?: string) { return this.resa.stories(this.token(a), Number(limit) || 30); }
+  @Get('stories/archive') archivedStories(@Headers('authorization') a: string | undefined, @Query('limit') limit?: string) { return this.resa.archivedStories(this.token(a), Number(limit) || 60); }
   @Post('content') createContent(@Headers('authorization') a: string | undefined, @Body() b: any) { return this.resa.createContent(this.token(a), b); }
   @Get('content/:contentId/comments') comments(@Headers('authorization') a: string | undefined, @Param('contentId') id: string, @Query('limit') limit?: string, @Query('before') before?: string) { return this.resa.comments(this.token(a), id, Number(limit) || 50, before); }
   @Post('content/:contentId/comments') comment(@Headers('authorization') a: string | undefined, @Param('contentId') id: string, @Body() b: any) { return this.resa.comment(this.token(a), id, b); }
