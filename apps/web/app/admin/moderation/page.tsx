@@ -28,6 +28,7 @@ export default function ModerationPage() {
   const [reports, setReports] = useState<Report[]>([]);
   const [status, setStatus] = useState("open");
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [actionReasons, setActionReasons] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -66,6 +67,22 @@ export default function ModerationPage() {
     } finally {
       setBusyId(null);
     }
+  }
+
+  async function applyContentAction(report: Report, actionType: "content_removed" | "formal_warning") {
+    if (!report.content_id || busyId) return;
+    const reason = (actionReasons[report.id] ?? "").trim();
+    if (reason.length < 10) { setError("A fundamentação da medida deve ter pelo menos 10 caracteres."); return; }
+    setBusyId(report.id); setError(""); setNotice("");
+    try {
+      await resaRequest(`/v1/resa/moderation/content/${encodeURIComponent(report.content_id)}/actions`, {
+        method: "POST", body: JSON.stringify({ action_type: actionType, reason }),
+      });
+      setNotice(actionType === "content_removed" ? "Publicação removida. O autor pode consultar e contestar a medida no seu histórico." : "Advertência formal registada.");
+      await load();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível aplicar a medida.");
+    } finally { setBusyId(null); }
   }
 
   return (
@@ -111,6 +128,14 @@ export default function ModerationPage() {
                   <p className="text-sm leading-6 text-slate-700">{report.details || "O denunciante não acrescentou detalhes."}</p>
                 </div>
                 {report.review_note && <div className="mt-3 rounded-xl border border-slate-200 p-4"><p className="text-xs font-semibold uppercase text-slate-400">Nota da decisão anterior</p><p className="mt-2 text-sm text-slate-700">{report.review_note}</p></div>}
+                {report.content_id && (report.status === "open" || report.status === "reviewing") && <div className="mt-4 space-y-3 rounded-xl border border-amber-100 bg-amber-50/40 p-4">
+                  <p className="text-xs font-semibold uppercase text-slate-600">Medidas sobre a publicação</p>
+                  <textarea aria-label="Fundamentação da medida" value={actionReasons[report.id] ?? ""} onChange={(event) => setActionReasons((current) => ({ ...current, [report.id]: event.target.value }))} maxLength={2000} rows={2} placeholder="Descreve a regra violada e a razão proporcional da medida." className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm" />
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" disabled={busyId !== null || (actionReasons[report.id] ?? "").trim().length < 10} onClick={() => void applyContentAction(report, "content_removed")} className="rounded-xl bg-rose-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">Remover publicação</button>
+                    <button type="button" disabled={busyId !== null || (actionReasons[report.id] ?? "").trim().length < 10} onClick={() => void applyContentAction(report, "formal_warning")} className="rounded-xl border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-900 disabled:opacity-40">Emitir advertência</button>
+                  </div>
+                </div>}
                 {status === "open" || status === "reviewing" ? (
                   <div className="mt-4 space-y-3">
                     <label className="block text-xs font-semibold text-slate-600" htmlFor={`review-${report.id}`}>Nota de análise / decisão</label>
