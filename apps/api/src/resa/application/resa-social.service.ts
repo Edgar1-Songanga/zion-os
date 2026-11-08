@@ -220,8 +220,33 @@ export class ResaSocialService {
   }
   async follows(token: string, userId?: string) { const a = await this.actor(token); return this.db.get('resa_follows', token, `?select=*&follower_id=eq.${userId || a.id}&order=created_at.desc`); }
   async mention(token: string, contentId: string, mentionedUserId: string) { const a = await this.actor(token); const rows = await this.db.post<any[]>('resa_mentions', token, { content_id: contentId, mentioned_user_id: mentionedUserId, mentioned_by: a.id }); return rows[0]; }
-  async topic(token: string, name: string) { const normalized = this.clean(name, 'name', 80).toLowerCase().replace(/^#/, '').replace(/\s+/g, '-'); const rows = await this.db.upsert<any[]>('resa_topics', token, { name, normalized_name: normalized }, '?on_conflict=normalized_name'); return rows[0]; }
-  async attachTopic(token: string, contentId: string, topicId: string) { const rows = await this.db.post<any[]>('resa_content_topics', token, { content_id: contentId, topic_id: topicId }); return rows[0]; }
+  async topic(token: string, name: string) {
+    await this.actor(token);
+    const cleaned = this.clean(name, 'name', 80).replace(/^#/, '').trim();
+    if (!/^[\\p{L}\\p{N}_-]+$/u.test(cleaned)) throw new BadRequestException('Topic contains unsupported characters');
+    const normalized = cleaned.toLowerCase().replace(/-+/g, '-');
+    const rows = await this.db.upsert<any[]>('resa_topics', token, { name: cleaned, normalized_name: normalized }, '?on_conflict=normalized_name');
+    return rows[0];
+  }
+  async topicFeed(token: string, slug: string, limit = 50) {
+    await this.actor(token);
+    const normalized = this.clean(slug, 'slug', 80).replace(/^#/, '').toLowerCase();
+    const topics = await this.db.get<any[]>('resa_topics', token, `?select=id,name,normalized_name&normalized_name=eq.${encodeURIComponent(normalized)}&limit=1`);
+    if (!topics[0]) return { topic: null, contents: [] };
+    const size = Math.min(Math.max(Number(limit) || 50, 1), 100);
+    const links = await this.db.get<any[]>('resa_content_topics', token, `?select=content_id&topic_id=eq.${topics[0].id}&limit=1000`);
+    const ids = [...new Set(links.map((row) => row.content_id).filter(Boolean))];
+    if (!ids.length) return { topic: topics[0], contents: [] };
+    const contents = await this.db.get<any[]>('resa_contents', token, `?select=id,author_id,type,title,body,created_at,media_type,media_url,language&visibility=eq.public&id=in.(${ids.join(',')})&order=created_at.desc&limit=${size}`);
+    return { topic: topics[0], contents };
+  }
+  async attachTopic(token: string, contentId: string, topicId: string) {
+    const actor = await this.actor(token);
+    const owned = await this.db.get<any[]>('resa_contents', token, `?select=id& id=eq.${encodeURIComponent(contentId)}&author_id=eq.${actor.id}&limit=1`.replace('& id=', '&id='));
+    if (!owned[0]) throw new NotFoundException('Publication not found or not owned by this member');
+    const rows = await this.db.upsert<any[]>('resa_content_topics', token, { content_id: contentId, topic_id: topicId }, '?on_conflict=content_id,topic_id');
+    return rows[0];
+  }
   async save(token: string, contentId: string) { const a = await this.actor(token); const rows = await this.db.upsert<any[]>('resa_saves', token, { content_id: contentId, user_id: a.id }, '?on_conflict=content_id,user_id'); return rows[0]; }
   async unsave(token: string, contentId: string) { const a = await this.actor(token); await this.db.delete('resa_saves', token, `?content_id=eq.${contentId}&user_id=eq.${a.id}`); return { removed: true }; }
   async repost(token: string, contentId: string, quote = false, body?: string) { const a = await this.actor(token); if (quote) { const rows = await this.db.post<any[]>('resa_contents', token, { author_id: a.id, type: 'text', body: this.clean(body, 'body', 5000), visibility: 'public', language: 'pt', quoted_content_id: contentId }); return rows[0]; } const rows = await this.db.post<any[]>('resa_shares', token, { content_id: contentId, user_id: a.id, share_type: 'repost' }); return rows[0]; }
