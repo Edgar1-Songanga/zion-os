@@ -119,8 +119,10 @@ begin
      and nullif(btrim(coalesce(p_body, '')), '') is null then
     raise exception 'title or body is required' using errcode = '22023';
   end if;
-  if coalesce(p_publish_visibility, 'public') not in ('public','followers','community','organization') then
-    raise exception 'Invalid publish visibility' using errcode = '22023';
+  -- The current Creator Studio form has no community/organization selector.
+  -- Do not create audience-scoped posts without a concrete target.
+  if coalesce(p_publish_visibility, 'public') not in ('public','followers') then
+    raise exception 'New scheduled posts must target public or followers audiences' using errcode = '22023';
   end if;
 
   insert into public.resa_contents
