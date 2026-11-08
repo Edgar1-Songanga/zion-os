@@ -39,6 +39,10 @@ export default function CreatePost({ onPublished }: { onPublished?: () => void }
 
   function selectMedia(file?: File) {
     if (!file) return;
+    if (visibility !== "public") {
+      setError("Para proteger a privacidade, imagens e vídeos só podem ser publicados publicamente enquanto a entrega privada de media não estiver ativa.");
+      return;
+    }
     if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
       setError(t("compatibleMedia"));
       return;
@@ -53,6 +57,10 @@ export default function CreatePost({ onPublished }: { onPublished?: () => void }
 
   async function publish() {
     if ((!body.trim() && !media) || saving) return;
+    if (media && visibility !== "public") {
+      setError("Imagens e vídeos só podem ser publicados publicamente neste momento.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -251,7 +259,7 @@ export default function CreatePost({ onPublished }: { onPublished?: () => void }
               className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-[#0C1A3D]/30"
             >
               <option value="public">Todos</option>
-              <option value="followers">Apenas seguidores</option>
+              <option value="followers" disabled={Boolean(media)}>Apenas seguidores (sem media)</option>
             </select>
           </label>
         </div>

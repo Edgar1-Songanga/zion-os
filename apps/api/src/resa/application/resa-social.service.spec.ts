@@ -82,6 +82,21 @@ describe('ResaSocialService feeds', () => {
     })).rejects.toThrow('community_id is required for community-only content');
   });
 
+  it('rejects follower-only media while the media bucket is public', async () => {
+    const postSpy = jest.spyOn(SupabaseRestClient.prototype, 'post');
+
+    await expect(service.createContent('session-token', {
+      type: 'text',
+      body: 'Private media post',
+      visibility: 'followers',
+      media_type: 'image',
+      media_url: 'https://example.test/public-image.jpg',
+      media_path: ACTOR_ID + '/private-image.jpg',
+    })).rejects.toThrow('Media attachments currently require public visibility');
+
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+
   it('hydrates follower and following lists by their actual profile IDs', async () => {
     getSpy.mockImplementation(async (table: string, _token: string, query: string) => {
       if (table !== 'resa_follows') return [] as never;
