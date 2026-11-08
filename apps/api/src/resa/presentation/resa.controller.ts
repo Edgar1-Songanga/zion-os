@@ -24,6 +24,9 @@ export class ResaController {
   @Post('profiles/:userId/block') blockProfile(@Headers('authorization') a: string | undefined, @Param('userId') id: string) { return this.resa.blockProfile(this.token(a), id); }
   @Delete('profiles/:userId/block') unblockProfile(@Headers('authorization') a: string | undefined, @Param('userId') id: string) { return this.resa.unblockProfile(this.token(a), id); }
   @Get('profiles/blocked') blockedProfiles(@Headers('authorization') a: string | undefined) { return this.resa.blockedProfiles(this.token(a)); }
+  @Post('profiles/:userId/mute') muteProfile(@Headers('authorization') a: string | undefined, @Param('userId') id: string) { return this.resa.muteProfile(this.token(a), id); }
+  @Delete('profiles/:userId/mute') unmuteProfile(@Headers('authorization') a: string | undefined, @Param('userId') id: string) { return this.resa.unmuteProfile(this.token(a), id); }
+  @Get('profiles/muted') mutedProfiles(@Headers('authorization') a: string | undefined) { return this.resa.mutedProfiles(this.token(a)); }
   @Get('profiles/:userId/following') follows(@Headers('authorization') a: string | undefined, @Param('userId') id: string) { return this.resa.follows(this.token(a), id); }
   @Get('profiles/:userId') profile(@Headers('authorization') a: string | undefined, @Param('userId') id: string) { return this.resa.publicProfile(this.token(a), id); }
   @Get('profiles/:userId/social') social(@Headers('authorization') a: string | undefined, @Param('userId') id: string) { return this.resa.social(this.token(a), id); }
