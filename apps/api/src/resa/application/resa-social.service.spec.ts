@@ -32,6 +32,50 @@ describe('ResaSocialService feeds', () => {
 
   afterEach(() => jest.restoreAllMocks());
 
+  it('blocks a profile, persists the block and removes the viewer follow', async () => {
+    const upsertSpy = jest.spyOn(SupabaseRestClient.prototype, 'upsert').mockResolvedValue([{ blocker_id: ACTOR_ID, blocked_id: FOLLOWED_ID }] as never);
+    const deleteSpy = jest.spyOn(SupabaseRestClient.prototype, 'delete').mockResolvedValue([] as never);
+
+    const result = await service.blockProfile('session-token', FOLLOWED_ID);
+
+    expect(getSpy).toHaveBeenCalledWith('profiles', 'session-token', expect.stringContaining('id=eq.' + FOLLOWED_ID));
+    expect(upsertSpy).toHaveBeenCalledWith('resa_user_blocks', 'session-token', {
+      blocker_id: ACTOR_ID,
+      blocked_id: FOLLOWED_ID,
+    }, '?on_conflict=blocker_id,blocked_id');
+    expect(deleteSpy).toHaveBeenCalledWith('resa_follows', 'session-token', expect.stringContaining('follower_id=eq.' + ACTOR_ID));
+    expect(result).toEqual({ blocked: true });
+  });
+
+  it('does not allow blocking the current profile and supports unblocking', async () => {
+    await expect(service.blockProfile('session-token', ACTOR_ID)).rejects.toThrow('You cannot block your own profile');
+    const deleteSpy = jest.spyOn(SupabaseRestClient.prototype, 'delete').mockResolvedValue([] as never);
+    const result = await service.unblockProfile('session-token', FOLLOWED_ID);
+    expect(deleteSpy).toHaveBeenCalledWith(
+      'resa_user_blocks',
+      'session-token',
+      expect.stringContaining('blocker_id=eq.' + ACTOR_ID),
+    );
+    expect(result).toEqual({ blocked: false });
+  });
+
+  it('hydrates whether the viewer has blocked the profile owner', async () => {
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'profiles') return [{ id: FOLLOWED_ID, privacy: {} }] as never;
+      if (table === 'resa_user_blocks') return [{ blocked_id: FOLLOWED_ID }] as never;
+      return [] as never;
+    });
+    rpcSpy.mockResolvedValueOnce([{
+      id: FOLLOWED_ID,
+      display_name: 'Followed profile',
+      private_locked: false,
+    }] as never);
+
+    const result = await service.publicProfile('session-token', FOLLOWED_ID);
+
+    expect(result.profile.viewer_has_blocked).toBe(true);
+  });
+
   it('hydrates story authors and keeps stories in their own 24-hour surface', async () => {
     getSpy.mockImplementation(async (table: string) => {
       if (table === 'resa_contents') return [{
