@@ -40,6 +40,51 @@ describe('ResaOperationalService live permissions', () => {
 
   afterEach(() => jest.restoreAllMocks());
 
+  it('searches profiles through the privacy-aware profile RPC and excludes the viewer', async () => {
+    const rpcSpy = jest.spyOn(SupabaseRestClient.prototype, 'rpc').mockResolvedValueOnce([
+      { id: actorId, display_name: 'My profile' },
+      { id: TARGET_ID, display_name: 'Ana Costa', bio: 'Community member' },
+    ] as never);
+
+    const results = await service.search('session-token', 'Ana', 'profile');
+
+    expect(rpcSpy).toHaveBeenCalledWith('resa_search_profiles', 'session-token', {
+      p_query: 'Ana',
+      p_limit: 30,
+    });
+    expect(results).toEqual([
+      expect.objectContaining({
+        id: TARGET_ID,
+        entity_type: 'profile',
+        entity_id: TARGET_ID,
+        title: 'Ana Costa',
+        body: 'Community member',
+      }),
+    ]);
+  });
+
+  it('unifies content, profile, topic, community and event discovery', async () => {
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_contents') return [{ id: LIVE_ID, title: 'Community post', body: 'A shared reflection' }] as never;
+      if (table === 'resa_topics') return [{ id: CONVERSATION_ID, name: 'Hope', normalized_name: 'hope' }] as never;
+      if (table === 'resa_communities') return [{ id: TARGET_ID, name: 'Hope Community', description: 'A place to grow' }] as never;
+      if (table === 'resa_events') return [{ id: ACTOR_ID, title: 'Hope gathering', description: 'Meet together' }] as never;
+      return [] as never;
+    });
+    jest.spyOn(SupabaseRestClient.prototype, 'rpc').mockResolvedValueOnce([
+      { id: '55555555-5555-4555-8555-555555555555', display_name: 'Hope Member' },
+    ] as never);
+
+    const results = await service.search('session-token', 'hope');
+
+    expect(results.map((item) => item.entity_type)).toEqual(
+      expect.arrayContaining(['content', 'profile', 'topic', 'community', 'event']),
+    );
+    expect(getSpy).toHaveBeenCalledTimes(4);
+    expect(getSpy).toHaveBeenCalledWith('resa_contents', 'session-token', expect.stringContaining('type=neq.story'));
+    expect(getSpy).toHaveBeenCalledWith('resa_communities', 'session-token', expect.stringContaining('status=eq.active'));
+  });
+
   it('issues publishing permission to the host only', async () => {
     getSpy.mockResolvedValueOnce([{ id: LIVE_ID, host_id: actorId, status: 'live', visibility: 'public' }] as never);
 
