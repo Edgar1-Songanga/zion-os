@@ -25,7 +25,6 @@ on public.resa_user_mutes for insert to authenticated
 with check (
   (select auth.uid()) is not null
   and muter_id = (select auth.uid())
-  and muter_id <> muted_id
 );
 
 drop policy if exists resa_user_mutes_delete_self on public.resa_user_mutes;
