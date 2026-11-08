@@ -19,6 +19,7 @@ export default function CreatePost({ onPublished }: { onPublished?: () => void }
   const { t } = useTranslation();
   const [body, setBody] = useState("");
   const [type, setType] = useState<"text" | "prayer" | "bible_study">("text");
+  const [visibility, setVisibility] = useState<"public" | "followers">("public");
   const [media, setMedia] = useState<File | null>(null);
   const [preview, setPreview] = useState("");
   const [saving, setSaving] = useState(false);
@@ -174,7 +175,7 @@ export default function CreatePost({ onPublished }: { onPublished?: () => void }
         body: JSON.stringify({
           type,
           body: body.trim() || null,
-          visibility: "public",
+          visibility,
           language: "pt",
           ...(mediaPayload ?? {}),
         }),
@@ -198,6 +199,7 @@ export default function CreatePost({ onPublished }: { onPublished?: () => void }
 
       setBody("");
       setType("text");
+      setVisibility("public");
       setMedia(null);
       onPublished?.();
     } catch (e) {
@@ -239,6 +241,20 @@ export default function CreatePost({ onPublished }: { onPublished?: () => void }
             <video src={preview} controls playsInline className="max-h-[420px] w-full" />
           </div>
         )}
+
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+            <span>Quem pode ver esta publicação</span>
+            <select
+              value={visibility}
+              onChange={(e) => setVisibility(e.target.value as "public" | "followers")}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-[#0C1A3D]/30"
+            >
+              <option value="public">Todos</option>
+              <option value="followers">Apenas seguidores</option>
+            </select>
+          </label>
+        </div>
 
         <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap gap-2">

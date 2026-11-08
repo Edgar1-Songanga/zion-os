@@ -215,3 +215,68 @@ grant execute on function auth.uid() to authenticated;
 grant select, insert on public.resa_conversation_members to authenticated;
 grant select,insert,update on public.resa_calls, public.resa_call_participants, public.resa_call_signals to authenticated;
 grant usage,select on sequence public.resa_call_signals_id_seq to authenticated;
+
+
+-- Minimal audience-visibility fixture used by RESA content RLS regressions.
+create table public.organization_memberships (
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  status text not null default 'ACTIVE',
+  primary key (organization_id, user_id)
+);
+create or replace function private.is_org_member(target_org uuid)
+returns boolean language sql stable security definer
+set search_path = pg_catalog, public
+as $$
+  select exists (
+    select 1 from public.organization_memberships m
+    where m.organization_id = target_org
+      and m.user_id = auth.uid()
+      and m.status = 'ACTIVE'
+  );
+$$;
+
+create table public.resa_communities (
+  id uuid primary key,
+  organization_id uuid references public.organizations(id),
+  created_by uuid not null references auth.users(id),
+  name text not null,
+  slug text not null unique,
+  description text,
+  visibility text not null default 'public',
+  status text not null default 'active'
+);
+create table public.resa_community_members (
+  community_id uuid not null references public.resa_communities(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  role text not null default 'member',
+  status text not null default 'active',
+  joined_at timestamptz not null default now(),
+  primary key (community_id, user_id)
+);
+create table public.resa_contents (
+  id uuid primary key,
+  author_id uuid not null references auth.users(id) on delete cascade,
+  type text not null,
+  title text,
+  body text,
+  visibility text not null default 'public',
+  organization_id uuid references public.organizations(id),
+  community_id uuid references public.resa_communities(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.resa_contents enable row level security;
+create policy resa_contents_public_read on public.resa_contents
+  for select to authenticated
+  using (visibility = 'public' or author_id = (select auth.uid()));
+create policy resa_contents_owner_insert on public.resa_contents
+  for insert to authenticated
+  with check (author_id = (select auth.uid()));
+create policy resa_contents_owner_update on public.resa_contents
+  for update to authenticated
+  using (author_id = (select auth.uid()))
+  with check (author_id = (select auth.uid()));
+grant select, insert, update, delete on public.resa_contents to authenticated;
+grant usage on schema private to authenticated;
+grant execute on function private.is_org_member(uuid) to authenticated;

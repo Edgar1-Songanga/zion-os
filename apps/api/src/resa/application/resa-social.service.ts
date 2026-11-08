@@ -42,8 +42,8 @@ export class ResaSocialService {
       ? [...new Set([a.id, ...followingRows.map((row) => row.followed_id).filter(Boolean)])]
       : [];
     const contentQuery = mode === 'following'
-      ? `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&visibility=eq.public&author_id=in.(${followedAuthorIds.join(',')})&order=created_at.desc&limit=120`
-      : '?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&visibility=eq.public&order=created_at.desc&limit=120';
+      ? `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&visibility=in.(public,followers,community,organization)&author_id=in.(${followedAuthorIds.join(',')})&order=created_at.desc&limit=120`
+      : '?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&visibility=in.(public,followers,community,organization)&order=created_at.desc&limit=120';
     const contents = await this.db.get<any[]>('resa_contents', token, contentQuery);
     const contentIds = contents.map((item) => item.id).filter(Boolean);
     const authorIds = [...new Set(contents.map((item) => item.author_id).filter(Boolean))];
@@ -133,7 +133,7 @@ export class ResaSocialService {
     const rows = await this.db.get<any[]>(
       'resa_contents',
       token,
-      `?select=id,author_id,title,body,created_at,media_url,media_type,language,visibility&media_type=eq.video&visibility=eq.public&order=created_at.desc&limit=${size}`,
+      `?select=id,author_id,title,body,created_at,media_url,media_type,language,visibility&media_type=eq.video&visibility=in.(public,followers,community,organization)&order=created_at.desc&limit=${size}`,
     );
     const authorIds = [...new Set(rows.map((row) => row.author_id).filter(Boolean))];
     const contentIds = rows.map((row) => row.id).filter(Boolean);
@@ -163,20 +163,24 @@ export class ResaSocialService {
   async explore(token: string, query?: string, limit = 30) {
     await this.actor(token); const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
     const filter = query?.trim() ? `&or=(title.ilike.*${encodeURIComponent(query.trim())}*,body.ilike.*${encodeURIComponent(query.trim())}*)` : '';
-    return this.db.get('resa_contents', token, `?select=*&visibility=eq.public&order=created_at.desc&limit=${size}${filter}`);
+    return this.db.get('resa_contents', token, `?select=*&visibility=in.(public,followers,community,organization)&order=created_at.desc&limit=${size}${filter}`);
   }
   async stories(token: string, limit = 30) {
     await this.actor(token); const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
-    return this.db.get('resa_contents', token, `?select=*&type=eq.story&visibility=eq.public&created_at=gte.${encodeURIComponent(new Date(Date.now() - 86400000).toISOString())}&order=created_at.desc&limit=${size}`);
+    return this.db.get('resa_contents', token, `?select=*&type=eq.story&visibility=in.(public,followers,community,organization)&created_at=gte.${encodeURIComponent(new Date(Date.now() - 86400000).toISOString())}&order=created_at.desc&limit=${size}`);
   }
   async createContent(token: string, input: any) {
     const a = await this.actor(token); const type = this.clean(input.type, 'type', 40); const visibility = input.visibility || 'public';
     if (!['public', 'followers', 'community', 'organization', 'private'].includes(visibility)) throw new BadRequestException('Invalid visibility');
+    const communityId = typeof input.community_id === 'string' && input.community_id.trim() ? input.community_id.trim() : null;
+    const organizationId = typeof input.organization_id === 'string' && input.organization_id.trim() ? input.organization_id.trim() : null;
+    if (visibility === 'community' && !communityId) throw new BadRequestException('community_id is required for community-only content');
+    if (visibility === 'organization' && !organizationId) throw new BadRequestException('organization_id is required for organization-only content');
     const mediaType = input.media_type === 'image' || input.media_type === 'video' ? input.media_type : null;
     const mediaUrl = typeof input.media_url === 'string' && input.media_url.trim() ? input.media_url.trim() : null;
     const mediaPath = typeof input.media_path === 'string' && input.media_path.trim() ? input.media_path.trim() : null;
     if (mediaType && !mediaUrl) throw new BadRequestException('media_url is required when media_type is provided');
-    const body = { author_id: a.id, type, title: typeof input.title === 'string' ? input.title.trim() || null : null, body: typeof input.body === 'string' ? input.body.trim() || null : null, visibility, language: typeof input.language === 'string' && input.language.trim() ? input.language.trim() : 'pt', organization_id: input.organization_id ?? null, ministry_id: input.ministry_id ?? null, scripture_references: Array.isArray(input.scripture_references) ? input.scripture_references.slice(0, 50) : [], media_type: mediaType, media_url: mediaUrl, media_path: mediaPath };
+    const body = { author_id: a.id, type, title: typeof input.title === 'string' ? input.title.trim() || null : null, body: typeof input.body === 'string' ? input.body.trim() || null : null, visibility, language: typeof input.language === 'string' && input.language.trim() ? input.language.trim() : 'pt', organization_id: organizationId, community_id: communityId, ministry_id: input.ministry_id ?? null, scripture_references: Array.isArray(input.scripture_references) ? input.scripture_references.slice(0, 50) : [], media_type: mediaType, media_url: mediaUrl, media_path: mediaPath };
     if (!body.body && !body.title) throw new BadRequestException('title or body is required');
     const rows = await this.db.post<any[]>('resa_contents', token, body); return rows[0];
   }
@@ -202,7 +206,7 @@ export class ResaSocialService {
     const rows = await this.db.rpc<any[]>('resa_public_profile', token, { p_user_id: id });
     const profile = rows?.[0];
     if (!profile) throw new NotFoundException('Profile not found');
-    const contents = profile.private_locked ? [] : await this.db.get<any[]>('resa_contents', token, `?select=id,author_id,type,title,body,created_at,media_type,media_url,language&author_id=eq.${encodeURIComponent(id)}&visibility=eq.public&order=created_at.desc&limit=20`);
+    const contents = profile.private_locked ? [] : await this.db.get<any[]>('resa_contents', token, `?select=id,author_id,type,title,body,created_at,media_type,media_url,language&author_id=eq.${encodeURIComponent(id)}&visibility=in.(public,followers,community,organization)&order=created_at.desc&limit=20`);
     return { profile, contents };
   }
 
