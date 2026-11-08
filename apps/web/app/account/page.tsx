@@ -27,7 +27,10 @@ export default function AccountPage() {
   const [mfaQr, setMfaQr] = useState("");
   const [mfaSecret, setMfaSecret] = useState("");
   const [mfaCode, setMfaCode] = useState("");
-  const [privacy, setPrivacy] = useState({ profile_visibility: "community", bio_visibility: "community", country_visibility: "community", timezone_visibility: "private" });
+  const [privacy, setPrivacy] = useState({
+    profile_visibility: "community", bio_visibility: "community", country_visibility: "community", timezone_visibility: "private",
+    message_policy: "everyone", call_policy: "everyone", group_invite_policy: "everyone", follow_policy: "auto",
+  });
 
   const loadMfa = async () => {
     setMfaLoading(true);
@@ -207,7 +210,11 @@ export default function AccountPage() {
 
         <section className="rounded-2xl border border-[var(--zion-border)] bg-white p-6 shadow-[var(--zion-shadow-sm)] sm:p-7">
           <div className="border-b border-[var(--zion-border)] pb-5"><h2 className="text-xl font-semibold tracking-tight text-[var(--zion-dark)]">Privacidade</h2><p className="mt-1 text-sm text-[var(--zion-muted)]">Defina quem pode ver os seus dados de perfil.</p></div>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">{([["profile_visibility","Perfil"],["bio_visibility","Biografia"],["country_visibility","País"],["timezone_visibility","Fuso horário"]] as const).map(([key,label]) => <label key={key} className="rounded-xl border border-[var(--zion-border)] bg-[var(--zion-light)] p-4"><span className="block text-sm font-semibold text-[var(--zion-dark)]">{label}</span><select value={privacy[key]} onChange={(e)=>setPrivacy(p=>({...p,[key]:e.target.value}))} className="mt-2 w-full rounded-lg border border-[var(--zion-border)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--zion-sky)]">{<option value="public">Público</option>}<option value="community">Membros ZION</option><option value="private">Privado</option></select></label>)}</div>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            {([["profile_visibility","Quem pode ver o perfil"],["bio_visibility","Quem pode ver a biografia"],["country_visibility","Quem pode ver o país"],["timezone_visibility","Quem pode ver o fuso horário"]] as const).map(([key,label]) => <label key={key} className="rounded-xl border border-[var(--zion-border)] bg-[var(--zion-light)] p-4"><span className="block text-sm font-semibold text-[var(--zion-dark)]">{label}</span><select value={privacy[key]} onChange={(e)=>setPrivacy(p=>({...p,[key]:e.target.value}))} className="mt-2 w-full rounded-lg border border-[var(--zion-border)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--zion-sky)]"><option value="public">Público</option><option value="community">Membros ZION</option><option value="private">Privado</option></select></label>)}
+            {([["message_policy","Quem pode enviar mensagens"],["call_policy","Quem pode iniciar chamadas"],["group_invite_policy","Quem pode convidar para grupos"]] as const).map(([key,label]) => <label key={key} className="rounded-xl border border-[var(--zion-border)] bg-[var(--zion-light)] p-4"><span className="block text-sm font-semibold text-[var(--zion-dark)]">{label}</span><select value={privacy[key]} onChange={(e)=>setPrivacy(p=>({...p,[key]:e.target.value}))} className="mt-2 w-full rounded-lg border border-[var(--zion-border)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--zion-sky)]"><option value="everyone">Todos os membros</option><option value="followers">Apenas seguidores</option><option value="following">Pessoas que sigo</option><option value="none">Ninguém</option></select></label>)}
+            <label className="rounded-xl border border-[var(--zion-border)] bg-[var(--zion-light)] p-4"><span className="block text-sm font-semibold text-[var(--zion-dark)]">Pedidos para seguir</span><select value={privacy.follow_policy} onChange={(e)=>setPrivacy(p=>({...p,follow_policy:e.target.value}))} className="mt-2 w-full rounded-lg border border-[var(--zion-border)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--zion-sky)]"><option value="auto">Aceitar automaticamente</option><option value="approval">Aprovar manualmente</option><option value="none">Não permitir novos seguidores</option></select></label>
+          </div>
           <button type="button" onClick={updatePrivacy} disabled={mfaBusy} className="mt-5 rounded-xl bg-[var(--zion-primary)] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--zion-primary-deep)] disabled:opacity-50">Guardar privacidade</button>
         </section>
 
