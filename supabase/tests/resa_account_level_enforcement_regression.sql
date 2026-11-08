@@ -7,6 +7,10 @@ insert into auth.users(id,email) values
  ('98300000-0000-4000-8000-000000000003','resa-sanction-admin-two@example.test')
 on conflict (id) do nothing;
 
+-- Fixture setup runs as the first administrator so the new account guard has an authenticated actor.
+select set_config('request.jwt.claim.sub','98300000-0000-4000-8000-000000000001',false);
+select set_config('test.zion_global_admin','true',false);
+
 insert into public.resa_conversations(id,created_by,kind)
 values ('98300000-0000-4000-8000-000000000010','98300000-0000-4000-8000-000000000001','direct')
 on conflict (id) do nothing;
