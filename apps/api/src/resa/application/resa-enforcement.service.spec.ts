@@ -53,4 +53,30 @@ describe('ResaEnforcementService',()=>{
       p_appeal_id:APPEAL,p_status:'overturned',p_decision_note:'A remoção foi excessiva após análise independente.',
     });
   });
+
+  it('creates an account restriction through the global-admin RPC',async()=>{
+    await service.createAccountSanction('token',{target_user_id:CONTENT,restriction_type:'publishing',reason:'Violações repetidas das regras da comunidade.',expires_at:'2027-01-01T00:00:00.000Z'});
+    expect(rpcSpy).toHaveBeenCalledWith('resa_admin_create_account_sanction','token',{
+      p_target_user_id:CONTENT,p_restriction_type:'publishing',p_reason:'Violações repetidas das regras da comunidade.',p_expires_at:'2027-01-01T00:00:00.000Z',
+    });
+  });
+
+  it('rejects an invalid account restriction before database access',async()=>{
+    await expect(service.createAccountSanction('token',{target_user_id:CONTENT,restriction_type:'ban_everything',reason:'Violação comprovada das regras.'})).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('submits account-sanction appeals through the protected RPC',async()=>{
+    await service.submitAccountSanctionAppeal('token',ACTION,{reason:'A restrição foi aplicada sem análise de contexto.'});
+    expect(rpcSpy).toHaveBeenCalledWith('resa_submit_account_sanction_appeal','token',{
+      p_sanction_id:ACTION,p_reason:'A restrição foi aplicada sem análise de contexto.',p_details:null,
+    });
+  });
+
+  it('requires a reasoned independent decision for account-sanction appeals',async()=>{
+    await expect(service.decideAccountSanctionAppeal('token',APPEAL,'overturned','')).rejects.toBeInstanceOf(BadRequestException);
+    await service.decideAccountSanctionAppeal('token',APPEAL,'overturned','A revisão independente identificou erro na sanção.');
+    expect(rpcSpy).toHaveBeenCalledWith('resa_admin_decide_account_sanction_appeal','token',{
+      p_appeal_id:APPEAL,p_status:'overturned',p_decision_note:'A revisão independente identificou erro na sanção.',
+    });
+  });
 });
