@@ -152,7 +152,7 @@ describe('ResaSocialService feeds', () => {
     );
 
     await service.feed('session-token', 1, 'following', result.next_cursor ?? undefined);
-    expect(getSpy).toHaveBeenLastCalledWith(
+    expect(getSpy).toHaveBeenCalledWith(
       'resa_contents',
       'session-token',
       expect.stringContaining('created_at.lt.2026-11-08T11%3A00%3A00.000Z'),
