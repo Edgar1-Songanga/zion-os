@@ -148,7 +148,7 @@ export default function StoriesPage() {
         <section className="mt-8">
           <div className="flex items-end justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">Últimas 24 horas</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">{showArchive ? "Memórias arquivadas" : "Últimas 24 horas"}</p>
               <h2 className="mt-1 text-2xl font-semibold">{showArchive ? "As minhas memórias" : "Stories da comunidade"}</h2>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -172,7 +172,7 @@ export default function StoriesPage() {
                   </div>
                   <div className="absolute inset-x-4 bottom-4">
                     <p className="line-clamp-4 text-sm font-medium leading-5 text-white">{item.title || item.body || "Story RESA"}</p>
-                    <p className="mt-2 text-[10px] text-white/65">{new Date(item.created_at).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })} · 24 h</p>
+                    <p className="mt-2 text-[10px] text-white/65">{new Date(item.created_at).toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" })}{showArchive ? " · Arquivada" : " · 24 h"}</p>
                   </div>
                 </button>
               )) : <div className="col-span-full rounded-[1.5rem] border border-dashed border-white/15 p-12 text-center text-slate-300">{showArchive ? "Ainda não tem memórias arquivadas." : "Ainda não existem stories ativas. Crie a primeira story da comunidade."}</div>}
