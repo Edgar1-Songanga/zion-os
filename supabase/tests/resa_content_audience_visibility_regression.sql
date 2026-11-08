@@ -104,4 +104,16 @@ end;
 $test$;
 reset role;
 
+
+select set_config('request.jwt.claim.sub','91000000-0000-4000-8000-000000000005',false);
+set role authenticated;
+do $test$
+begin
+  if (select count(*) from public.resa_contents where id='93000000-0000-4000-8000-000000000005') <> 1 then
+    raise exception 'Active organization member could not read organization content';
+  end if;
+end;
+$test$;
+reset role;
+
 rollback;
