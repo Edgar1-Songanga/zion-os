@@ -99,6 +99,14 @@ begin
   if not v_profile.private_locked or v_profile.display_name is not null or not v_profile.follow_allowed then
     raise exception 'private profile projection exposed fields or hid permitted follow action';
   end if;
+
+  insert into public.resa_follows(follower_id,followed_id)
+  values (auth.uid(),'10000000-0000-4000-8000-000000000006'::uuid);
+  select * into v_profile
+  from public.resa_public_profile('10000000-0000-4000-8000-000000000006'::uuid);
+  if v_profile.private_locked or v_profile.display_name is null then
+    raise exception 'following an unlocked private profile did not reveal permitted profile fields';
+  end if;
 end;
 $test$;
 
