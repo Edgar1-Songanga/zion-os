@@ -8,7 +8,7 @@ create or replace function private.resa_guard_content_moderation_status()
 returns trigger
 language plpgsql
 set search_path = ''
-as $
+as $guard$
 begin
   if new.moderation_status is distinct from old.moderation_status
      and not private.is_verified_zion_global_admin()
@@ -17,7 +17,7 @@ begin
   end if;
   return new;
 end;
-$;
+$guard$;
 
 drop trigger if exists resa_guard_content_moderation_status on public.resa_contents;
 create trigger resa_guard_content_moderation_status
