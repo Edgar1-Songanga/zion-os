@@ -88,6 +88,9 @@ jobs:
       - name: Apply community membership reactivation hardening
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108130500_resa_community_membership_reactivation_hardening.sql
+      - name: Apply private community member visibility
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108131000_resa_private_community_member_visibility.sql
       - name: Verify event and community access boundaries
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_event_community_audience_regression.sql
