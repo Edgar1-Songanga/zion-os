@@ -60,4 +60,43 @@ with check (
   and private.resa_can_publish_content(created_by, visibility, community_id, organization_id)
 );
 
+-- A participant must already be allowed to see an event before responding.
+-- This prevents guessing a private event UUID and becoming a participant to
+-- bypass the event's audience policy.
+drop policy if exists resa_event_participants_owner on public.resa_event_participants;
+create policy resa_event_participants_read_self
+on public.resa_event_participants
+for select to authenticated
+using (user_id = (select auth.uid()));
+
+create policy resa_event_participants_insert_visible
+on public.resa_event_participants
+for insert to authenticated
+with check (
+  user_id = (select auth.uid())
+  and exists (
+    select 1 from public.resa_events e
+    where e.id = event_id
+      and private.resa_can_view_content(e.created_by, e.visibility, e.community_id, e.organization_id)
+  )
+);
+
+create policy resa_event_participants_update_visible
+on public.resa_event_participants
+for update to authenticated
+using (user_id = (select auth.uid()))
+with check (
+  user_id = (select auth.uid())
+  and exists (
+    select 1 from public.resa_events e
+    where e.id = event_id
+      and private.resa_can_view_content(e.created_by, e.visibility, e.community_id, e.organization_id)
+  )
+);
+
+create policy resa_event_participants_delete_self
+on public.resa_event_participants
+for delete to authenticated
+using (user_id = (select auth.uid()));
+
 commit;
