@@ -573,13 +573,13 @@ export class ResaSocialService {
     return rows[0];
   }
   async topicFeed(token: string, slug: string, limit = 50) {
-    await this.actor(token);
+    const viewer = await this.actor(token);
     const normalized = this.clean(slug, 'slug', 80).replace(/^#/, '').toLowerCase();
     const topics = await this.db.get<any[]>('resa_topics', token, `?select=id,name,normalized_name&normalized_name=eq.${encodeURIComponent(normalized)}&limit=1`);
     if (!topics[0]) return { topic: null, contents: [] };
     const size = Math.min(Math.max(Number(limit) || 50, 1), 100);
     const links = await this.db.get<any[]>('resa_content_topics', token, `?select=content_id&topic_id=eq.${topics[0].id}&limit=1000`);
-    const mutedIds = await this.mutedIds(token, (await this.actor(token)).id);
+    const mutedIds = await this.mutedIds(token, viewer.id);
     const ids = [...new Set(links.map((row) => row.content_id).filter(Boolean))];
     if (!ids.length) return { topic: topics[0], contents: [] };
     const contents = await this.db.get<any[]>('resa_contents', token, `?select=id,author_id,type,title,body,created_at,media_type,media_url,language&visibility=eq.public&id=in.(${ids.join(',')})${this.mutedAuthorFilter(mutedIds)}&order=created_at.desc&limit=${size}`);
