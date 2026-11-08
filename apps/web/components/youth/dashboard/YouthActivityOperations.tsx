@@ -143,7 +143,8 @@ export default function YouthActivityOperations() {
       starts_at: toDateTimeLocal(activity.starts_at),
       ends_at: activity.ends_at ? toDateTimeLocal(activity.ends_at) : "",
       location: activity.location ?? "",
-      leader_user_id: activity.leader_user_id ?? "",\n      is_public: activity.is_public === true,
+      leader_user_id: activity.leader_user_id ?? "",
+      is_public: activity.is_public === true,
     });
     setError(null); setMessage(null);
   }
@@ -293,7 +294,8 @@ export default function YouthActivityOperations() {
               </div>
               <label className="block text-sm font-medium text-slate-700">Local<input maxLength={240} value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2" /></label>
               <label className="block text-sm font-medium text-slate-700">Responsável designado<select value={form.leader_user_id} onChange={(event) => setForm({ ...form, leader_user_id: event.target.value })} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2"><option value="">A definir</option>{activeMembers.filter((member) => clubLeaderIds.includes(member.userId) && profiles[member.userId]).map((member) => <option key={member.userId} value={member.userId}>{personName(profiles[member.userId])}</option>)}</select></label>
-              <label className="block text-sm font-medium text-slate-700">Descrição<textarea rows={3} maxLength={4000} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2" /></label>\n              <label className="flex items-start gap-2 text-xs leading-5 text-slate-600"><input type="checkbox" checked={form.is_public} onChange={(event) => setForm({ ...form, is_public: event.target.checked })} className="mt-1" />Publicar no RESA para toda a comunidade acompanhar esta atividade</label>
+              <label className="block text-sm font-medium text-slate-700">Descrição<textarea rows={3} maxLength={4000} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2" /></label>
+              <label className="flex items-start gap-2 text-xs leading-5 text-slate-600"><input type="checkbox" checked={form.is_public} onChange={(event) => setForm({ ...form, is_public: event.target.checked })} className="mt-1" />Publicar no RESA para toda a comunidade acompanhar esta atividade</label>
               <div className="flex flex-wrap gap-2"><button type="submit" disabled={saving} className="rounded-xl bg-[#0C1A3D] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving ? "A guardar…" : editingActivityId ? "Guardar alterações" : "Registar atividade"}</button>{editingActivityId && <button type="button" disabled={saving} onClick={cancelActivityEdit} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600">Cancelar edição</button>}</div>
             </form>
           </div>
