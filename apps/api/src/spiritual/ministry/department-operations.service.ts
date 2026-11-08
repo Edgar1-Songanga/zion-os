@@ -47,12 +47,17 @@ export class DepartmentOperationsService {
     this.assertUuid(organizationId, 'organizationId');
     await this.purge(token, organizationId, 'SABBATH_SCHOOL_ATTENDANCE');
     return this.db.get<any[]>('sabbath_school_classes', token,
-      `?select=id,name,meeting_day,meeting_time,room_label,is_active,created_at&organization_id=eq.${organizationId}&order=name.asc`);
+      `?select=id,name,meeting_day,meeting_time,room_label,is_active,is_public,created_at&organization_id=eq.${organizationId}&order=name.asc`);
+  }
+
+  async listPublicClasses(token: string) {
+    return this.db.get<any[]>('sabbath_school_classes', token,
+      '?select=id,name,meeting_day,meeting_time,room_label,organization_id&is_active=eq.true&is_public=eq.true&order=name.asc&limit=100');
   }
 
   async createClass(token: string, organizationId: string, input: {
     ministry_id: string; name: string; meeting_day?: number | null; meeting_time?: string | null;
-    room_label?: string | null; teacher_user_id?: string | null;
+    room_label?: string | null; teacher_user_id?: string | null; is_public?: boolean;
   }) {
     this.assertUuid(organizationId, 'organizationId');
     this.assertUuid(input?.ministry_id, 'ministry_id');
@@ -70,6 +75,7 @@ export class DepartmentOperationsService {
       meeting_time: this.optionalTime(input.meeting_time),
       room_label: room,
       teacher_user_id: input.teacher_user_id ?? null,
+      is_public: input.is_public === true,
       created_by: await this.currentUserId(token),
     });
     if (!rows[0]) throw new BadRequestException('Class was not created.');
@@ -94,6 +100,10 @@ export class DepartmentOperationsService {
     if (input.is_active !== undefined) {
       if (typeof input.is_active !== 'boolean') throw new BadRequestException('is_active must be boolean.');
       body.is_active = input.is_active;
+    }
+    if (input.is_public !== undefined) {
+      if (typeof input.is_public !== 'boolean') throw new BadRequestException('is_public must be boolean.');
+      body.is_public = input.is_public;
     }
     if (!Object.keys(body).length) throw new BadRequestException('Provide at least one supported class field.');
     body.updated_at = new Date().toISOString();
