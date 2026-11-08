@@ -79,6 +79,8 @@ export default function MessagesPage() {
   const [newOpen, setNewOpen] = useState(false);
   const [loadingPeople, setLoadingPeople] = useState(false);
   const [startingPersonId, setStartingPersonId] = useState<string | null>(null);
+  const [autoStartCallConversationId, setAutoStartCallConversationId] = useState<string | null>(null);
+  const [callOnlyConversationId, setCallOnlyConversationId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
@@ -93,6 +95,11 @@ export default function MessagesPage() {
   const startedTarget = useRef<string | null>(null);
   const startedConversation = useRef<string | null>(null);
   const startedInvite = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (autoStartCallConversationId && selected && selected !== autoStartCallConversationId) setAutoStartCallConversationId(null);
+    if (callOnlyConversationId && selected && selected !== callOnlyConversationId) setCallOnlyConversationId(null);
+  }, [autoStartCallConversationId, callOnlyConversationId, selected]);
 
   const selectedConversation = useMemo(
     () => items.find((item) => item.id === selected) ?? null,
@@ -185,7 +192,7 @@ export default function MessagesPage() {
     const target = searchParams.get("to");
     if (!target || startedTarget.current === target) return;
     startedTarget.current = target;
-    void startConversation({ id: target, title: "Conversa direta" });
+    void startConversation({ id: target, title: "Conversa direta" }, searchParams.get("call") === "audio" ? "call" : "message");
   }, [searchParams]);
 
   useEffect(() => {
@@ -296,7 +303,7 @@ export default function MessagesPage() {
     }
   }
 
-  async function startConversation(person: SearchResult) {
+  async function startConversation(person: SearchResult, purpose: 'message' | 'call' = 'message') {
     if (startingPersonId === person.id) return;
     setError(null);
     setStartingPersonId(person.id);
@@ -304,8 +311,14 @@ export default function MessagesPage() {
       const displayName = person.display_name || person.title || [person.first_name, person.last_name].filter(Boolean).join(" ") || person.email || "Conversa direta";
       const conversation = await resaRequest<Conversation>("/v1/resa/conversations", {
         method: "POST",
-        body: JSON.stringify({ member_ids: [person.id], title: displayName }),
+        body: JSON.stringify({ member_ids: [person.id], title: displayName, purpose }),
       });
+      if (purpose === 'call') {
+        setAutoStartCallConversationId(conversation.id);
+        setCallOnlyConversationId(conversation.id);
+      } else {
+        setCallOnlyConversationId(null);
+      }
       setQuery("");
       setPeople([]);
       // Select the new conversation immediately so the composer is available
@@ -416,7 +429,7 @@ export default function MessagesPage() {
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef2f8] text-[#0C1A3D]"><ResaIcon name="message" size={18} /></div>
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-[#0C1A3D]">{selectedConversation?.title || "Selecione uma conversa"}</p>
-                <div className="flex items-center justify-between gap-3"><p className="text-xs text-slate-400">{selectedConversation ? "Mensagens privadas" : "Escolha uma conversa para começar"}</p>{selectedConversation && <ResaCallControls conversationId={selectedConversation.id} />}</div>
+                <div className="flex items-center justify-between gap-3"><p className="text-xs text-slate-400">{selectedConversation ? "Mensagens privadas" : "Escolha uma conversa para começar"}</p>{selectedConversation && <ResaCallControls conversationId={selectedConversation.id} autoStart={autoStartCallConversationId === selectedConversation.id ? "audio" : null} onAutoStartHandled={() => setAutoStartCallConversationId(null)} />}</div>
               </div>
             </div>
 
@@ -465,7 +478,8 @@ export default function MessagesPage() {
 
             {selected && (
               <div className="border-t border-slate-100 bg-white p-4">
-                {replyTo && <div className="mb-2 flex items-center justify-between rounded-xl bg-[#eef2f8] px-3 py-2 text-xs text-slate-600"><span className="truncate">A responder: {replyTo.body}</span><button onClick={() => setReplyTo(null)} className="font-semibold text-[#0C1A3D]">Cancelar</button></div>}
+                                {selected === callOnlyConversationId ? <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">Pedido de chamada iniciado. A caixa de mensagens está desativada neste modo.</p> : <>
+{replyTo && <div className="mb-2 flex items-center justify-between rounded-xl bg-[#eef2f8] px-3 py-2 text-xs text-slate-600"><span className="truncate">A responder: {replyTo.body}</span><button onClick={() => setReplyTo(null)} className="font-semibold text-[#0C1A3D]">Cancelar</button></div>}
                 <div className="rounded-[22px] border border-slate-200 bg-white p-2 shadow-[0_8px_30px_rgba(12,26,61,0.06)] transition focus-within:border-[#9aa9c6] focus-within:shadow-[0_12px_34px_rgba(12,26,61,0.09)]">
                   <div className="flex items-end gap-2">
                   <textarea
@@ -486,7 +500,7 @@ export default function MessagesPage() {
                     <span>Enter envia · Shift + Enter cria uma nova linha</span>
                     <span>{body.length}/10000</span>
                   </div>
-                </div>
+                </div></>}
               </div>
             )}
           </section>

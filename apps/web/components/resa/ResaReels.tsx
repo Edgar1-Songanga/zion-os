@@ -78,7 +78,7 @@ export default function ResaReels() {
         {items.map((item) => <article key={item.id} className="relative h-[min(76vh,820px)] min-h-[520px] snap-start overflow-hidden rounded-[30px] bg-black shadow-xl">
           <video ref={(node) => { if (node) videoRefs.current.set(item.id, node); else videoRefs.current.delete(item.id); }} src={item.media_url} controls playsInline muted loop preload="metadata" className="absolute inset-0 h-full w-full object-contain" aria-label={item.title || "Vídeo RESA"} />
           <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent p-5 pt-24 text-white">
-            <p className="text-sm font-semibold">{item.author_display_name || "Membro RESA"}</p>
+            <Link href={"/resa/profile/" + encodeURIComponent(item.author_id)} className="pointer-events-auto text-sm font-semibold underline-offset-2 hover:underline">{item.author_display_name || "Membro RESA"}</Link>
             {(item.title || item.body) && <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-sm leading-6">{item.title ? item.title + (item.body ? "\n" + item.body : "") : item.body}</p>}
             <p className="mt-2 text-xs text-white/65">{new Date(item.created_at).toLocaleDateString("pt-PT")}</p>
           </div>

@@ -120,7 +120,7 @@ export default function ResaSocialNetwork({ userId }: { userId: string }) {
                 {social.followers.slice(0, 8).map((person) => (
                   <div key={person.id} className="group flex items-center gap-3 rounded-2xl border border-slate-100 p-3 transition hover:border-blue-100 hover:bg-blue-50/30">
                     <Avatar person={person} />
-                    <p className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">{nameOf(person)}</p>
+                    <Link href={"/resa/profile/" + encodeURIComponent(person.id)} className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800 hover:underline">{nameOf(person)}</Link>
                     <Link href={"/resa/messages?to=" + encodeURIComponent(person.id)} aria-label={`Enviar mensagem a ${nameOf(person)}`} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-[#0C1A3D] transition hover:border-blue-200 hover:bg-blue-50">Mensagem</Link>
                   </div>
                 ))}
@@ -134,7 +134,7 @@ export default function ResaSocialNetwork({ userId }: { userId: string }) {
                 {social.following.slice(0, 8).map((person) => (
                   <div key={person.id} className="flex items-center gap-3 rounded-2xl border border-slate-100 p-3 transition hover:border-blue-100 hover:bg-blue-50/30">
                     <Avatar person={person} />
-                    <p className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">{nameOf(person)}</p>
+                    <Link href={"/resa/profile/" + encodeURIComponent(person.id)} className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800 hover:underline">{nameOf(person)}</Link>
                     <button type="button" onClick={() => void toggleFollow(person.id, true)} disabled={busyId === person.id} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-red-200 hover:text-red-700 disabled:opacity-50">{busyId === person.id ? "A atualizar…" : "A seguir"}</button>
                   </div>
                 ))}
@@ -154,7 +154,7 @@ export default function ResaSocialNetwork({ userId }: { userId: string }) {
           {suggestions.map((person) => (
             <div key={person.id} className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 transition hover:border-blue-100 hover:shadow-sm">
               <Avatar person={person} size="h-12 w-12" />
-              <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-[#0C1A3D]">{nameOf(person)}</p><p className="mt-0.5 text-xs text-slate-500">Sugestão para a sua rede</p></div>
+              <div className="min-w-0 flex-1"><Link href={"/resa/profile/" + encodeURIComponent(person.id)} className="block truncate text-sm font-semibold text-[#0C1A3D] hover:underline">{nameOf(person)}</Link><p className="mt-0.5 text-xs text-slate-500">Sugestão para a sua rede</p></div>
               <button type="button" onClick={() => void toggleFollow(person.id, false)} disabled={busyId === person.id} className="rounded-xl bg-[#0C1A3D] px-3.5 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50">{busyId === person.id ? "A atualizar…" : "＋ Seguir"}</button>
             </div>
           ))}

@@ -9,7 +9,7 @@ type CallKind = "audio" | "video";
 type CallRow = { id: string; conversation_id: string; initiator_id: string; kind: CallKind; status: string };
 type JoinConfig = { mode: string; provider: string; roomId: string; joinUrl: string; token?: string };
 
-export default function ResaCallControls({ conversationId }: { conversationId: string }) {
+export default function ResaCallControls({ conversationId, autoStart = null, onAutoStartHandled }: { conversationId: string; autoStart?: CallKind | null; onAutoStartHandled?: () => void }) {
   const supabase = useMemo(() => createClient(), []);
   const [call, setCall] = useState<CallRow | null>(null);
   const [incoming, setIncoming] = useState<CallRow | null>(null);
@@ -30,6 +30,10 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
   const ringAudioRef = useRef<AudioContext | null>(null);
   const ringTimerRef = useRef<number | null>(null);
   const callTimeoutRef = useRef<number | null>(null);
+  const autoStartConversationRef = useRef<string | null>(null);
+  const startCallRef = useRef<(kind: CallKind) => void>(() => undefined);
+  const onAutoStartHandledRef = useRef(onAutoStartHandled);
+  onAutoStartHandledRef.current = onAutoStartHandled;
 
   useEffect(() => {
     let mounted = true;
@@ -41,6 +45,13 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
     });
     return () => { mounted = false; };
   }, [supabase]);
+
+  useEffect(() => {
+    if (!ready || !autoStart || autoStartConversationRef.current === conversationId) return;
+    autoStartConversationRef.current = conversationId;
+    startCallRef.current(autoStart);
+    onAutoStartHandledRef.current?.();
+  }, [ready, autoStart, conversationId]);
 
   useEffect(() => {
     const channel = supabase.channel("resa-call-events-" + conversationId)
@@ -257,6 +268,8 @@ export default function ResaCallControls({ conversationId }: { conversationId: s
       setError(reason instanceof Error ? reason.message : "Não foi possível iniciar a chamada.");
     }
   }
+
+  startCallRef.current = (kind) => { void start(kind); };
 
   async function accept() {
     const target = incoming;

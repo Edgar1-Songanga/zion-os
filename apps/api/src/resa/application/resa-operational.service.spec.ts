@@ -396,11 +396,23 @@ describe('ResaOperationalService live permissions', () => {
     expect(rpcSpy).toHaveBeenCalledWith('resa_create_conversation', 'session-token', {
       p_member_ids: [TARGET_ID],
       p_title: 'Direct chat',
+      p_contact_type: 'message',
     });
     expect(getSpy).not.toHaveBeenCalled();
     expect(result.id).toBe(CONVERSATION_ID);
   });
 
+  it('creates a call-only conversation using call privacy instead of message privacy', async () => {
+    actorId = ACTOR_ID;
+    const rpcSpy = jest.spyOn(SupabaseRestClient.prototype, 'rpc').mockResolvedValue({ id: CONVERSATION_ID, kind: 'direct' } as never);
+    const result = await service.createConversation('session-token', [TARGET_ID], 'Call', 'call');
+    expect(rpcSpy).toHaveBeenCalledWith('resa_create_conversation', 'session-token', {
+      p_member_ids: [TARGET_ID],
+      p_title: 'Call',
+      p_contact_type: 'call',
+    });
+    expect(result.id).toBe(CONVERSATION_ID);
+  });
   it('rejects creating a conversation with no other participant', async () => {
     actorId = ACTOR_ID;
     const rpcSpy = jest.spyOn(SupabaseRestClient.prototype, 'rpc').mockResolvedValue(null as never);

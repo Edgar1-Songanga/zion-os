@@ -539,15 +539,18 @@ export class ResaOperationalService {
     return this.media.createJoinConfig({ meetingId: id, providerRoomId: `zion-call-${id}`, userId: actor.id });
   }
 
-  async createConversation(token: string, memberIds: unknown[], title?: unknown) {
+  async createConversation(token: string, memberIds: unknown[], title?: unknown, purpose: 'message' | 'call' = 'message') {
     const actor = await this.actor(token);
     if (!Array.isArray(memberIds) || memberIds.length < 1 || memberIds.length > 50) throw new BadRequestException('member_ids is invalid');
     const targetIds = [...new Set(memberIds.map((value) => this.id(value, 'member_id')).filter((id) => id !== actor.id))];
     if (!targetIds.length || targetIds.length > 49) throw new BadRequestException('A conversation requires one to forty-nine other members');
+    if (!['message', 'call'].includes(purpose)) throw new BadRequestException('purpose is invalid');
+    if (targetIds.length > 1 && purpose !== 'message') throw new BadRequestException('Group conversations require message purpose');
     const safeTitle = typeof title === 'string' ? title.trim().slice(0, 120) || null : null;
     const result = await this.db.rpc<any>('resa_create_conversation', token, {
       p_member_ids: targetIds,
       p_title: safeTitle,
+      p_contact_type: purpose,
     });
     const conversation = Array.isArray(result) ? result[0] : result;
     if (!conversation?.id) throw new Error('Conversation could not be created');

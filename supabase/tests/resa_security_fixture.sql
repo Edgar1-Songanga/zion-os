@@ -115,18 +115,50 @@ create table public.profiles (
   first_name text,
   last_name text,
   avatar_url text,
+  bio text,
+  country_code text,
   privacy jsonb not null default '{}'::jsonb
 );
 
 create table public.resa_conversations (
-  id uuid primary key,
-  created_by uuid not null references auth.users(id)
+  id uuid primary key default gen_random_uuid(),
+  created_by uuid not null references auth.users(id),
+  kind text not null default 'direct',
+  title text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 create table public.resa_conversation_members (
   conversation_id uuid not null references public.resa_conversations(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
+  role text not null default 'member',
   primary key (conversation_id, user_id)
 );
+create table public.resa_follows (
+  follower_id uuid not null references auth.users(id) on delete cascade,
+  followed_id uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (follower_id, followed_id),
+  check (follower_id <> followed_id)
+);
+alter table public.resa_follows enable row level security;
+create policy resa_follows_authenticated_read on public.resa_follows for select to authenticated using (true);
+create policy resa_follows_owner_delete on public.resa_follows for delete to authenticated using (follower_id = (select auth.uid()));
+grant select, insert, delete on public.resa_follows to authenticated;
+
+create table public.resa_messages (
+  id uuid primary key default gen_random_uuid(),
+  conversation_id uuid not null references public.resa_conversations(id) on delete cascade,
+  sender_id uuid not null references auth.users(id) on delete cascade,
+  body text not null,
+  created_at timestamptz not null default now()
+);
+alter table public.resa_messages enable row level security;
+create policy resa_messages_member on public.resa_messages for all to authenticated
+using (exists(select 1 from public.resa_conversation_members m where m.conversation_id = resa_messages.conversation_id and m.user_id = (select auth.uid())))
+with check (sender_id = (select auth.uid()) and exists(select 1 from public.resa_conversation_members m where m.conversation_id = resa_messages.conversation_id and m.user_id = (select auth.uid())));
+grant select, insert, update, delete on public.resa_messages to authenticated;
+
 create table public.resa_calls (
   id uuid primary key default gen_random_uuid(),
   conversation_id uuid not null references public.resa_conversations(id) on delete cascade,
@@ -180,6 +212,6 @@ using (
 grant usage on schema private to authenticated;
 grant usage on schema auth to authenticated;
 grant execute on function auth.uid() to authenticated;
-grant select on public.resa_conversation_members to authenticated;
+grant select, insert on public.resa_conversation_members to authenticated;
 grant select,insert,update on public.resa_calls, public.resa_call_participants, public.resa_call_signals to authenticated;
 grant usage,select on sequence public.resa_call_signals_id_seq to authenticated;

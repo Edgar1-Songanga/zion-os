@@ -136,8 +136,8 @@ export class ResaOperationalController {
     return this.operational.listConversations(this.token(authorization));
   }
 
-  @Post('conversations') createConversation(@Headers('authorization') authorization: string | undefined, @Body() body: { member_ids?: unknown[]; title?: unknown }) {
-    return this.operational.createConversation(this.token(authorization), body.member_ids ?? [], body.title);
+  @Post('conversations') createConversation(@Headers('authorization') authorization: string | undefined, @Body() body: { member_ids?: unknown[]; title?: unknown; purpose?: 'message' | 'call' }) {
+    return this.operational.createConversation(this.token(authorization), body.member_ids ?? [], body.title, body.purpose ?? 'message');
   }
 
   @Get('conversations/:conversationId/messages') messages(@Headers('authorization') authorization: string | undefined, @Param('conversationId') conversationId: string, @Query('limit') limit?: string) {
