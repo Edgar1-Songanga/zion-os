@@ -31,6 +31,7 @@ export default function ResaCallControls({ conversationId, autoStart = null }: {
   const ringTimerRef = useRef<number | null>(null);
   const callTimeoutRef = useRef<number | null>(null);
   const autoStartRef = useRef(false);
+  const startCallRef = useRef<(kind: CallKind) => void>(() => undefined);
 
   useEffect(() => {
     let mounted = true;
@@ -46,7 +47,7 @@ export default function ResaCallControls({ conversationId, autoStart = null }: {
   useEffect(() => {
     if (!ready || !autoStart || autoStartRef.current) return;
     autoStartRef.current = true;
-    void start(autoStart);
+    startCallRef.current(autoStart);
   }, [ready, autoStart, conversationId]);
 
   useEffect(() => {
@@ -264,6 +265,8 @@ export default function ResaCallControls({ conversationId, autoStart = null }: {
       setError(reason instanceof Error ? reason.message : "Não foi possível iniciar a chamada.");
     }
   }
+
+  startCallRef.current = (kind) => { void start(kind); };
 
   async function accept() {
     const target = incoming;
