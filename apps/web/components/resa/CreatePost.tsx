@@ -182,8 +182,9 @@ export default function CreatePost({ onPublished }: { onPublished?: () => void }
 
       // Persist hashtag discovery links after the canonical publication exists.
       // A topic indexing failure must not turn a successful publication into a failed post.
-      const hashtags = [...new Set((body.match(/(?:^|\\s)#([\\p{L}\\p{N}_-]{2,80})/gu) ?? [])
-        .map((match) => match.trim().replace(/^#/, "").toLowerCase()))];
+      const hashtags = [...new Set(
+        Array.from(body.matchAll(/(?:^|\s)#([\p{L}\p{N}_-]{2,80})/gu), (match) => match[1].toLowerCase()),
+      )];
       await Promise.allSettled(hashtags.map(async (name) => {
         const topic = await resaRequest<{ id: string }>("/v1/resa/topics", {
           method: "POST",
