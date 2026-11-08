@@ -150,6 +150,12 @@ export default function ResaNotificationSettingsPage() {
               <p className="mt-2 text-sm leading-6 text-[var(--zion-muted)]">A ativação é feita por dispositivo no sino de notificações. O navegador tem de conceder permissão e o dispositivo tem de possuir uma subscrição válida.</p>
             </section>
 
+            <section className="rounded-2xl border border-[var(--zion-border)] bg-white p-5 shadow-[var(--zion-shadow-sm)] sm:p-6">
+              <h2 className="text-base font-semibold text-[var(--zion-dark)]">Transparência e segurança</h2>
+              <p className="mt-2 text-sm leading-6 text-[var(--zion-muted)]">Consulta as denúncias que apresentaste e acompanha as decisões da equipa de moderação.</p>
+              <Link href="/resa/my-reports" className="mt-4 inline-flex rounded-xl border border-[var(--zion-border)] px-4 py-2 text-sm font-semibold text-[var(--zion-dark)]">As minhas denúncias</Link>
+            </section>
+
             <div className="flex flex-wrap items-center justify-between gap-3">
               <Link href="/resa" className="rounded-xl border border-[var(--zion-border)] bg-white px-5 py-3 text-sm font-semibold text-[var(--zion-dark)]">Voltar ao RESA</Link>
               <button type="button" onClick={() => void save()} disabled={saving} className="rounded-xl bg-[var(--zion-primary)] px-6 py-3 text-sm font-semibold text-white disabled:opacity-50">{saving ? "A guardar…" : "Guardar preferências"}</button>

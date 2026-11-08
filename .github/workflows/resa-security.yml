@@ -156,6 +156,12 @@ jobs:
       - name: Verify global moderation queue and decision access
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_global_moderation_regression.sql
+      - name: Apply RESA report outcome appeals
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108192000_resa_moderation_report_appeals.sql
+      - name: Verify RESA report appeal ownership and second-reviewer isolation
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_moderation_appeals_regression.sql
       - name: Stop disposable PostgreSQL
         if: always()
         run: docker rm -f zion-resa-security-postgres || true

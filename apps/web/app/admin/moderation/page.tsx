@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
 
@@ -75,6 +76,8 @@ export default function ModerationPage() {
           <h1 className="mt-2 text-2xl font-semibold sm:text-3xl">Moderação da comunidade</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-white/70">Rever denúncias, registar decisões e manter um histórico claro da análise. O acesso é limitado a moderadores autorizados.</p>
         </header>
+
+        <div className="flex justify-end"><Link href="/admin/moderation/appeals" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">Fila de reapreciações</Link></div>
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap gap-2">
