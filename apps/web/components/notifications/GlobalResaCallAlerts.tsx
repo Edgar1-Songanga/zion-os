@@ -28,7 +28,7 @@ export default function GlobalResaCallAlerts() {
         let preferences: NotificationAlertPreferences = {};
         try { preferences = await resaRequest<NotificationAlertPreferences>("/v1/notifications/preferences"); } catch { /* Use safe local defaults. */ }
         if (disposed || !pending.has(call.id)) return;
-        cleanups.set(call.id, playNotificationAlert("resa.call.incoming", preferences, true));
+        cleanups.set(call.id, playNotificationAlert(call.kind === "video" ? "resa.call.video" : "resa.call.audio", preferences, true));
       } finally { pending.delete(call.id); }
     };
 
