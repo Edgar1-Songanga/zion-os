@@ -4,6 +4,28 @@ alter table public.resa_contents
   add column if not exists moderation_status text not null default 'active'
   check (moderation_status in ('active','removed'));
 
+create or replace function private.resa_guard_content_moderation_status()
+returns trigger
+language plpgsql
+set search_path = ''
+as $
+begin
+  if new.moderation_status is distinct from old.moderation_status
+     and not private.is_verified_zion_global_admin()
+     and not (old.organization_id is not null and private.has_org_permission(old.organization_id,'resa.moderate')) then
+    raise exception 'Only authorized moderation may change content moderation status';
+  end if;
+  return new;
+end;
+$;
+
+drop trigger if exists resa_guard_content_moderation_status on public.resa_contents;
+create trigger resa_guard_content_moderation_status
+before update of moderation_status on public.resa_contents
+for each row execute function private.resa_guard_content_moderation_status();
+
+revoke all on function private.resa_guard_content_moderation_status() from public, anon, authenticated;
+
 create table if not exists public.resa_moderation_actions (
   id uuid primary key default gen_random_uuid(),
   content_id uuid not null references public.resa_contents(id) on delete cascade,
