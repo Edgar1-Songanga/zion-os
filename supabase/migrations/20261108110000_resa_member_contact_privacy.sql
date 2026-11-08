@@ -31,7 +31,7 @@ grant usage on schema private to authenticated;
 
 create or replace function private.resa_contact_allowed(p_actor_id uuid, p_target_id uuid, p_policy_field text)
 returns boolean language plpgsql stable security definer
-set search_path = pg_catalog, public, auth, pg_temp
+set search_path = pg_catalog, pg_temp
 as $function$
 declare v_policy text;
 begin
@@ -135,7 +135,7 @@ revoke all on function public.resa_create_conversation(uuid[], text) from public
 grant execute on function public.resa_create_conversation(uuid[], text) to authenticated;
 
 -- Enforce contact policy for messages in already-existing direct conversations.
-create or replace function public.resa_guard_direct_message_privacy()
+create or replace function private.resa_guard_direct_message_privacy()
 returns trigger
 language plpgsql
 security definer
@@ -173,9 +173,9 @@ $function$;
 drop trigger if exists resa_direct_message_privacy_guard on public.resa_messages;
 create trigger resa_direct_message_privacy_guard
 before insert on public.resa_messages
-for each row execute function public.resa_guard_direct_message_privacy();
+for each row execute function private.resa_guard_direct_message_privacy();
 
-revoke all on function public.resa_guard_direct_message_privacy() from public, anon;
+revoke all on function private.resa_guard_direct_message_privacy() from public, anon;
 
 -- Safe profile projection: authenticated callers receive only fields permitted by the owner's privacy choices.
 create or replace function private.resa_public_profile_internal(p_user_id uuid)
@@ -215,6 +215,28 @@ revoke all on function private.resa_public_profile_internal(uuid) from public, a
 grant execute on function private.resa_public_profile_internal(uuid) to authenticated;
 revoke all on function public.resa_public_profile(uuid) from public, anon;
 grant execute on function public.resa_public_profile(uuid) to authenticated;
+
+-- Group owners can add members directly, so enforce each recipient's group-invite preference on every membership insert.
+create or replace function private.resa_guard_group_invite_privacy()
+returns trigger language plpgsql security definer
+set search_path = pg_catalog, pg_temp
+as $function$
+declare v_kind text;
+begin
+  if auth.uid() is null then raise exception 'authentication required' using errcode = '42501'; end if;
+  if new.user_id <> auth.uid() then
+    select c.kind into v_kind from public.resa_conversations c where c.id = new.conversation_id;
+    if v_kind = 'group' and not private.resa_contact_allowed(auth.uid(), new.user_id, 'group_invite_policy') then
+      raise exception 'recipient does not accept group invitations' using errcode = '42501';
+    end if;
+  end if;
+  return new;
+end;
+$function$;
+drop trigger if exists resa_group_invite_privacy_guard on public.resa_conversation_members;
+create trigger resa_group_invite_privacy_guard before insert on public.resa_conversation_members
+for each row execute function private.resa_guard_group_invite_privacy();
+revoke all on function private.resa_guard_group_invite_privacy() from public, anon;
 
 -- Calls are inserted directly by the authenticated call client, so enforce the
 -- recipient's call policy in RLS rather than relying on a hidden frontend button.
