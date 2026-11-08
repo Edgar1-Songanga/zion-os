@@ -54,11 +54,12 @@ export class ResaSocialService {
       ? [...new Set([a.id, ...followingRows.map((row) => row.followed_id).filter(Boolean)])]
       : [];
     const contentQuery = mode === 'following'
-      ? `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&type=neq.story&visibility=in.(public,followers,community,organization)&author_id=in.(${followedAuthorIds.join(',')})&order=created_at.desc,id.desc&limit=${size}${cursorFilter}`
-      : `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&type=neq.story&visibility=in.(public,followers,community,organization)&order=created_at.desc,id.desc&limit=${size}${cursorFilter}`;
-    const contents = await this.db.get<any[]>('resa_contents', token, contentQuery);
+      ? `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&type=neq.story&visibility=in.(public,followers,community,organization)&author_id=in.(${followedAuthorIds.join(',')})&order=created_at.desc,id.desc&limit=${size + 1}${cursorFilter}`
+      : `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&type=neq.story&visibility=in.(public,followers,community,organization)&order=created_at.desc,id.desc&limit=${size + 1}${cursorFilter}`;
+    const fetchedContents = await this.db.get<any[]>('resa_contents', token, contentQuery);
+    const hasMore = fetchedContents.length > size;
+    const contents = fetchedContents.slice(0, size);
     const lastChronologicalItem = contents[contents.length - 1];
-    const hasMore = contents.length === size;
     const nextCursor = hasMore && lastChronologicalItem
       ? `${lastChronologicalItem.created_at}|${lastChronologicalItem.id}`
       : null;
