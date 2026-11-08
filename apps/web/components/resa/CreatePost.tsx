@@ -10,15 +10,16 @@ const types = [
   { value: "text", labelKey: "post", icon: "message" },
   { value: "prayer", labelKey: "prayer", icon: "prayer" },
   { value: "bible_study", labelKey: "bibleStudy", icon: "story" },
+  { value: "story", labelKey: "post", icon: "story" },
 ] as const;
 
 const mediaAccept = "image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime";
 const MAX_MEDIA_SIZE = 50 * 1024 * 1024;
 
-export default function CreatePost({ onPublished }: { onPublished?: () => void }) {
+export default function CreatePost({ onPublished, initialType = "text" }: { onPublished?: () => void; initialType?: "text" | "prayer" | "bible_study" | "story" }) {
   const { t } = useTranslation();
   const [body, setBody] = useState("");
-  const [type, setType] = useState<"text" | "prayer" | "bible_study">("text");
+  const [type, setType] = useState<"text" | "prayer" | "bible_study" | "story">(initialType);
   const [visibility, setVisibility] = useState<"public" | "followers">("public");
   const [media, setMedia] = useState<File | null>(null);
   const [preview, setPreview] = useState("");
@@ -206,7 +207,7 @@ export default function CreatePost({ onPublished }: { onPublished?: () => void }
       }));
 
       setBody("");
-      setType("text");
+      setType(initialType);
       setVisibility("public");
       setMedia(null);
       onPublished?.();
@@ -272,7 +273,7 @@ export default function CreatePost({ onPublished }: { onPublished?: () => void }
                 <button key={item.value} type="button" onClick={() => setType(item.value)}
                   className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-medium transition ${active ? "border-[#0C1A3D] bg-[#0C1A3D] text-white shadow-sm" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"}`}>
                   <ResaIcon name={item.icon} size={15} />
-                  {t(item.labelKey as Parameters<typeof t>[0])}
+                  {item.value === "story" ? "Story" : t(item.labelKey as Parameters<typeof t>[0])}
                 </button>
               );
             })}
