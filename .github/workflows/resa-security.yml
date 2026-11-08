@@ -162,6 +162,12 @@ jobs:
       - name: Verify RESA report appeal ownership and second-reviewer isolation
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_moderation_appeals_regression.sql
+      - name: Apply RESA content sanctions and author appeals
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108200000_resa_content_enforcement_appeals.sql
+      - name: Verify RESA content sanctions, visibility and independent appeals
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_content_enforcement_appeals_regression.sql
       - name: Stop disposable PostgreSQL
         if: always()
         run: docker rm -f zion-resa-security-postgres || true
