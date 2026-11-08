@@ -45,6 +45,38 @@ export class ResaSocialService {
     return { url, expires_in: expiresIn, private: true };
   }
 
+  async contentMediaUrls(token: string, contentIds: unknown) {
+    await this.actor(token);
+    if (!Array.isArray(contentIds) || contentIds.length > 50) {
+      throw new BadRequestException('content_ids must be an array with at most 50 IDs');
+    }
+    const ids = [...new Set(contentIds)];
+    if (ids.some((id) => typeof id !== 'string'
+      || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))) {
+      throw new BadRequestException('content_ids contains an invalid ID');
+    }
+    if (!ids.length) return { items: [] };
+    const rows = await this.db.get<any[]>(
+      'resa_contents',
+      token,
+      `?select=id,author_id,media_type,media_url,media_path&id=in.(${ids.join(',')})&limit=50`,
+    );
+    const items = await Promise.all(rows.filter((row) => row.media_type).map(async (content) => {
+      if (typeof content.media_url === 'string' && content.media_url.trim()) {
+        return { content_id: content.id, url: content.media_url, expires_in: null, private: false };
+      }
+      const path = typeof content.media_path === 'string' ? content.media_path : '';
+      if (!path || path.startsWith('/') || path.includes('..') || path.includes('\\\\')
+        || !path.startsWith(`${content.author_id}/`)) {
+        return null;
+      }
+      const expiresIn = 300;
+      const url = await this.db.createSignedStorageUrl('resa-content-private', path, token, expiresIn);
+      return { content_id: content.id, url, expires_in: expiresIn, private: true };
+    }));
+    return { items: items.filter(Boolean) };
+  }
+
   async listContent(token: string, limit = 30, before?: string) {
     await this.actor(token); const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
     const filter = before ? `&created_at=lt.${encodeURIComponent(before)}` : '';
