@@ -113,6 +113,71 @@ describe('ResaSocialService feeds', () => {
     ]);
   });
 
+  it('records story views through the deduplicating database function', async () => {
+    rpcSpy.mockResolvedValueOnce(true as never);
+
+    const result = await service.recordStoryView('session-token', 'story-1');
+
+    expect(rpcSpy).toHaveBeenCalledWith('resa_record_story_view', 'session-token', {
+      p_story_id: 'story-1',
+    });
+    expect(result).toEqual({ recorded: true });
+  });
+
+  it('returns story viewers only to the authenticated story author', async () => {
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_contents') return [{
+        id: 'story-1',
+        author_id: ACTOR_ID,
+        type: 'story',
+      }] as never;
+      if (table === 'resa_story_views') return [{
+        viewer_id: FOLLOWED_ID,
+        viewed_at: '2026-11-08T12:00:00.000Z',
+      }] as never;
+      return [] as never;
+    });
+    rpcSpy.mockResolvedValueOnce([{
+      id: FOLLOWED_ID,
+      display_name: 'Viewer profile',
+      avatar_url: 'https://example.test/viewer.jpg',
+    }] as never);
+
+    const result = await service.storyViews('session-token', 'story-1');
+
+    expect(getSpy).toHaveBeenCalledWith(
+      'resa_story_views',
+      'session-token',
+      expect.stringContaining('story_id=eq.story-1'),
+    );
+    expect(result).toMatchObject({
+      is_author: true,
+      view_count: 1,
+      viewers: [{
+        user_id: FOLLOWED_ID,
+        display_name: 'Viewer profile',
+        avatar_url: 'https://example.test/viewer.jpg',
+      }],
+    });
+  });
+
+  it('does not expose story viewer data to anyone except the author', async () => {
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_contents') return [{
+        id: 'story-1',
+        author_id: FOLLOWED_ID,
+        type: 'story',
+      }] as never;
+      return [] as never;
+    });
+
+    const result = await service.storyViews('session-token', 'story-1');
+
+    expect(result).toEqual({ is_author: false });
+    expect(getSpy).not.toHaveBeenCalledWith('resa_story_views', expect.anything(), expect.anything());
+    expect(rpcSpy).not.toHaveBeenCalledWith('resa_profiles_for_ids', expect.anything(), expect.anything());
+  });
+
   it('loads Following from followed authors instead of the global newest-post window', async () => {
     const result = await service.feed('session-token', 30, 'following');
 
