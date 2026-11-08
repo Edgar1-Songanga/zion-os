@@ -195,7 +195,7 @@ describe('ResaSocialService feeds', () => {
     expect(profileCalls).toHaveLength(2);
     expect(profileCalls[0][2].p_user_ids).toHaveLength(200);
     expect(profileCalls[1][2].p_user_ids).toHaveLength(1);
-    expect(result.viewers?.[200]).toMatchObject({
+    expect((result as any).viewers?.[200]).toMatchObject({
       user_id: 'viewer-200',
       display_name: 'Profile viewer-200',
     });
