@@ -493,8 +493,7 @@ export default function MessagesPage() {
                     <span>Enter envia · Shift + Enter cria uma nova linha</span>
                     <span>{body.length}/10000</span>
                   </div>
-                </>}
-                </div>
+                </div></>}
               </div>
             )}
           </section>
