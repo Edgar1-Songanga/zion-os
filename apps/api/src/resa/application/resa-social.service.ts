@@ -47,15 +47,26 @@ export class ResaSocialService {
     // The Following feed must query the followed authors directly. Filtering only
     // the global newest 120 posts would silently omit followed creators whenever
     // unrelated accounts publish more frequently.
-    const followingRows = mode === 'following'
-      ? await this.db.get<any[]>('resa_follows', token, `?select=followed_id&follower_id=eq.${a.id}&order=created_at.desc&limit=1000`)
-      : null;
+    const [followingRows, muteRows] = await Promise.all([
+      mode === 'following'
+        ? this.db.get<any[]>('resa_follows', token, `?select=followed_id&follower_id=eq.${a.id}&order=created_at.desc&limit=1000`)
+        : Promise.resolve(null),
+      this.db.get<any[]>('resa_user_mutes', token, `?select=muted_id&muter_id=eq.${a.id}&limit=1000`),
+    ]);
+    const mutedAuthorIds = [...new Set(muteRows.map((row) => row.muted_id).filter(Boolean))];
+    const mutedAuthorSet = new Set(mutedAuthorIds);
     const followedAuthorIds = followingRows
       ? [...new Set([a.id, ...followingRows.map((row) => row.followed_id).filter(Boolean)])]
+        .filter((id) => !mutedAuthorSet.has(id))
       : [];
+    // Following mode already constrains author_id with an IN clause; do not
+    // duplicate that query parameter with a second NOT IN clause.
+    const mutedAuthorFilter = mode !== 'following' && mutedAuthorIds.length
+      ? `&author_id=not.in.(${mutedAuthorIds.join(',')})`
+      : '';
     const contentQuery = mode === 'following'
-      ? `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&type=neq.story&visibility=in.(public,followers,community,organization)&author_id=in.(${followedAuthorIds.join(',')})&order=created_at.desc,id.desc&limit=${size + 1}${cursorFilter}`
-      : `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&type=neq.story&visibility=in.(public,followers,community,organization)&order=created_at.desc,id.desc&limit=${size + 1}${cursorFilter}`;
+      ? `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&type=neq.story&visibility=in.(public,followers,community,organization)&author_id=in.(${followedAuthorIds.join(',')})&order=created_at.desc,id.desc&limit=${size + 1}${cursorFilter}${mutedAuthorFilter}`
+      : `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&type=neq.story&visibility=in.(public,followers,community,organization)&order=created_at.desc,id.desc&limit=${size + 1}${cursorFilter}${mutedAuthorFilter}`;
     const fetchedContents = await this.db.get<any[]>('resa_contents', token, contentQuery);
     const hasMore = fetchedContents.length > size;
     const contents = fetchedContents.slice(0, size);
@@ -371,11 +382,12 @@ export class ResaSocialService {
     const rows = await this.db.rpc<any[]>('resa_public_profile', token, { p_user_id: id });
     const profile = rows?.[0];
     if (!profile) throw new NotFoundException('Profile not found');
-    const blocks = actor.id === id ? [] : await this.db.get<any[]>(
-      'resa_user_blocks', token,
-      `?select=blocked_id&blocker_id=eq.${actor.id}&blocked_id=eq.${id}&limit=1`,
-    );
+    const [blocks, mutes] = actor.id === id ? [[], []] : await Promise.all([
+      this.db.get<any[]>('resa_user_blocks', token, `?select=blocked_id&blocker_id=eq.${actor.id}&blocked_id=eq.${id}&limit=1`),
+      this.db.get<any[]>('resa_user_mutes', token, `?select=muted_id&muter_id=eq.${actor.id}&muted_id=eq.${id}&limit=1`),
+    ]);
     profile.viewer_has_blocked = blocks.length > 0;
+    profile.viewer_has_muted = mutes.length > 0;
     const contents = profile.private_locked ? [] : await this.db.get<any[]>('resa_contents', token, `?select=id,author_id,type,title,body,created_at,media_type,media_url,language&type=neq.story&author_id=eq.${encodeURIComponent(id)}&visibility=in.(public,followers,community,organization)&order=created_at.desc&limit=20`);
     return { profile, contents };
   }
@@ -422,6 +434,49 @@ export class ResaSocialService {
       user_id: block.blocked_id,
       blocked_at: block.created_at,
       profile: byId.get(block.blocked_id) ?? null,
+    }));
+  }
+
+  async muteProfile(token: string, userId: string) {
+    const actor = await this.actor(token);
+    const id = this.clean(userId, 'user_id', 80);
+    if (actor.id === id) throw new BadRequestException('You cannot mute your own profile');
+    const target = await this.db.get<any[]>('profiles', token, `?select=id&id=eq.${id}&limit=1`);
+    if (!target[0]) throw new NotFoundException('Profile not found');
+    await this.db.upsert('resa_user_mutes', token, {
+      muter_id: actor.id,
+      muted_id: id,
+    }, '?on_conflict=muter_id,muted_id');
+    return { muted: true };
+  }
+
+  async unmuteProfile(token: string, userId: string) {
+    const actor = await this.actor(token);
+    const id = this.clean(userId, 'user_id', 80);
+    await this.db.delete('resa_user_mutes', token, `?muter_id=eq.${actor.id}&muted_id=eq.${id}`);
+    return { muted: false };
+  }
+
+  async mutedProfiles(token: string) {
+    const actor = await this.actor(token);
+    const mutes = await this.db.get<any[]>(
+      'resa_user_mutes',
+      token,
+      `?select=muted_id,created_at&muter_id=eq.${actor.id}&order=created_at.desc&limit=500`,
+    );
+    const ids = [...new Set(mutes.map((row) => row.muted_id).filter(Boolean))];
+    if (!ids.length) return [];
+    const profiles: any[] = [];
+    for (let offset = 0; offset < ids.length; offset += 200) {
+      profiles.push(...await this.db.rpc<any[]>('resa_profiles_for_ids', token, {
+        p_user_ids: ids.slice(offset, offset + 200),
+      }));
+    }
+    const byId = new Map(profiles.map((profile) => [profile.id, profile]));
+    return mutes.map((mute) => ({
+      user_id: mute.muted_id,
+      muted_at: mute.created_at,
+      profile: byId.get(mute.muted_id) ?? null,
     }));
   }
 

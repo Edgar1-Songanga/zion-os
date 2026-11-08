@@ -696,7 +696,14 @@ export class ResaOperationalService {
   async listNotifications(token: string, limit = 30) {
     const actor = await this.actor(token);
     const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
-    return this.db.get('notifications', token, `?select=*&user_id=eq.${actor.id}&order=created_at.desc&limit=${size}`);
+    const [notifications, mutes] = await Promise.all([
+      this.db.get<any[]>('notifications', token, `?select=*&user_id=eq.${actor.id}&order=created_at.desc&limit=${Math.min(size * 3, 300)}`),
+      this.db.get<any[]>('resa_user_mutes', token, `?select=muted_id&muter_id=eq.${actor.id}&limit=1000`),
+    ]);
+    const mutedIds = new Set(mutes.map((row) => row.muted_id));
+    return notifications
+      .filter((notification) => !notification.data?.actor_id || !mutedIds.has(notification.data.actor_id))
+      .slice(0, size);
   }
 
   async markNotificationRead(token: string, notificationId: string) {

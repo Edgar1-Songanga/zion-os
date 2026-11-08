@@ -135,6 +135,12 @@ jobs:
       - name: Verify private RESA Live recording metadata and storage ownership
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_live_recording_foundation_regression.sql
+      - name: Apply RESA account mute controls
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108183000_resa_user_mutes.sql
+      - name: Verify RESA account mute isolation and notification suppression
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_user_mutes_regression.sql
       - name: Stop disposable PostgreSQL
         if: always()
         run: docker rm -f zion-resa-security-postgres || true
