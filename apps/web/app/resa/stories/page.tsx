@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import CreatePost from "@/components/resa/CreatePost";
 import { resaRequest } from "@/lib/resa/api";
 
-type StoryComment = { id: string; author_id: string; body: string; created_at: string };
+type StoryComment = { id: string; author_id: string; body: string; created_at: string; author_display_name?: string; author_avatar_url?: string | null };
 
 type Story = {
   id: string;
@@ -18,6 +18,7 @@ type Story = {
   author_display_name?: string | null;
   author_avatar_url?: string | null;
   visibility: string;
+  viewer_reacted?: boolean;
 };
 
 export default function StoriesPage() {
@@ -39,7 +40,9 @@ export default function StoriesPage() {
     setLoading(true);
     setError(null);
     try {
-      setItems(await resaRequest<Story[]>("/v1/resa/stories?limit=60"));
+      const stories = await resaRequest<Story[]>("/v1/resa/stories?limit=60");
+      setItems(stories);
+      setReactedStoryIds(stories.filter(story => story.viewer_reacted).map(story => story.id));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível carregar as stories.");
     } finally {
@@ -254,9 +257,17 @@ export default function StoriesPage() {
               </div>
               {interactionError && <p role="alert" className="mb-2 text-xs text-rose-300">{interactionError}</p>}
               {commentsLoading ? <p className="text-xs text-white/50">A carregar respostas…</p> : storyComments.length ? <div className="space-y-2">
-                {storyComments.map(comment => <div key={comment.id} className="rounded-xl bg-white/[0.06] px-3 py-2">
-                  <p className="text-[10px] text-white/45">{new Date(comment.created_at).toLocaleString("pt-PT")}</p>
-                  <p className="whitespace-pre-wrap break-words text-xs leading-5 text-white/90">{comment.body}</p>
+                {storyComments.map(comment => <div key={comment.id} className="flex items-start gap-2 rounded-xl bg-white/[0.06] px-3 py-2">
+                  {comment.author_avatar_url
+                    ? <img src={comment.author_avatar_url} alt="" className="mt-0.5 h-7 w-7 shrink-0 rounded-full object-cover" />
+                    : <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-[10px] font-semibold">{(comment.author_display_name || "M").slice(0, 1).toUpperCase()}</span>}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                      <p className="truncate text-xs font-semibold text-white/90">{comment.author_display_name || "Membro RESA"}</p>
+                      <p className="text-[10px] text-white/45">{new Date(comment.created_at).toLocaleString("pt-PT")}</p>
+                    </div>
+                    <p className="whitespace-pre-wrap break-words text-xs leading-5 text-white/90">{comment.body}</p>
+                  </div>
                 </div>)}
               </div> : <p className="text-xs text-white/50">Ainda não há respostas. Seja o primeiro a responder.</p>}
               <form onSubmit={sendStoryReply} className="mt-3 flex gap-2">
