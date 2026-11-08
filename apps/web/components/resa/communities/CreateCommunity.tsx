@@ -3,8 +3,59 @@
 import { useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
 
-export default function CreateCommunity() {
-  const [name,setName]=useState(""); const [type,setType]=useState("church"); const [description,setDescription]=useState(""); const [status,setStatus]=useState<"idle"|"saving"|"success"|"error">("idle"); const [message,setMessage]=useState("");
-  async function createCommunity(){if(name.trim().length<2){setStatus("error");setMessage("Defina o nome da comunidade.");return;}setStatus("saving");setMessage("");const slug=name.trim().toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");try{await resaRequest("/v1/resa/communities",{method:"POST",body:JSON.stringify({name:name.trim(),slug,description:description.trim()||null,visibility:"public"})});setStatus("success");setMessage("Comunidade criada.");setName("");setDescription("");}catch(e){setStatus("error");setMessage(e instanceof Error?e.message:"Não foi possível criar a comunidade.");}}
-  return <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.08)] sm:p-8"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">RESA · Comunidades</p><h2 className="mt-2 text-2xl font-semibold text-[#0C1A3D]">Criar comunidade</h2><div className="mt-6 grid gap-4"><input value={name} onChange={e=>setName(e.target.value)} placeholder="Nome da comunidade" className="rounded-2xl border border-slate-200 px-4 py-3"/><select value={type} onChange={e=>setType(e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3"><option value="church">Igreja Local</option><option value="department">Departamento</option><option value="ministry">Ministério</option><option value="small-group">Pequeno Grupo</option><option value="interest">Comunidade de Interesse</option></select><textarea value={description} onChange={e=>setDescription(e.target.value)} placeholder="Descrição da comunidade" rows={5} className="rounded-2xl border border-slate-200 px-4 py-3"/></div>{message&&<p role={status==="error"?"alert":"status"} className={`mt-4 rounded-2xl p-3 text-sm ${status==="error"?"bg-red-50 text-red-700":"bg-emerald-50 text-emerald-700"}`}>{message}</p>}<button disabled={status==="saving"} onClick={()=>void createCommunity()} className="mt-5 rounded-2xl bg-[#0C1A3D] px-6 py-3 text-sm font-semibold text-white disabled:opacity-60">{status==="saving"?"A criar…":"Criar comunidade"}</button></section>;
+export default function CreateCommunity({ onCreated }: { onCreated?: () => void }) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+
+  async function createCommunity() {
+    const cleanName = name.trim();
+    if (cleanName.length < 2) {
+      setError(true);
+      setMessage("Defina um nome com pelo menos dois caracteres.");
+      return;
+    }
+    setSaving(true);
+    setMessage(null);
+    setError(false);
+    const baseSlug = cleanName.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "comunidade";
+    const slug = baseSlug + "-" + crypto.randomUUID().slice(0, 8);
+    try {
+      await resaRequest("/v1/resa/communities", {
+        method: "POST",
+        body: JSON.stringify({
+          name: cleanName,
+          slug,
+          description: description.trim() || null,
+          visibility: "public",
+        }),
+      });
+      setName("");
+      setDescription("");
+      setMessage("Comunidade criada e disponível na rede RESA.");
+      onCreated?.();
+    } catch (e) {
+      setError(true);
+      setMessage(e instanceof Error ? e.message : "Não foi possível criar a comunidade.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_18px_50px_rgba(15,23,42,0.08)] sm:p-8">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">RESA · Comunidades</p>
+      <h2 className="mt-2 text-2xl font-semibold text-[#0C1A3D]">Criar comunidade</h2>
+      <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Crie um espaço público para reunir pessoas em torno de uma igreja, ministério, pequeno grupo ou interesse comum.</p>
+      <div className="mt-6 grid gap-4">
+        <input value={name} onChange={e => setName(e.target.value)} maxLength={120} placeholder="Nome da comunidade" className="rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-[#0C1A3D]/40" />
+        <textarea value={description} onChange={e => setDescription(e.target.value)} maxLength={2000} placeholder="Descreva o propósito desta comunidade" rows={4} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-[#0C1A3D]/40" />
+      </div>
+      {message && <p role={error ? "alert" : "status"} className={error ? "mt-4 rounded-2xl bg-red-50 p-3 text-sm text-red-700" : "mt-4 rounded-2xl bg-emerald-50 p-3 text-sm text-emerald-700"}>{message}</p>}
+      <button disabled={saving} onClick={() => void createCommunity()} className="mt-5 rounded-2xl bg-[#0C1A3D] px-6 py-3 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-60">{saving ? "A criar…" : "Criar comunidade"}</button>
+    </section>
+  );
 }

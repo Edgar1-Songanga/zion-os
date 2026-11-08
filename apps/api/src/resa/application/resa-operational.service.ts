@@ -1,11 +1,10 @@
-import { BadGatewayException, BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { IdentityService } from '../../identity/application/identity.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 import { MEDIA_PROVIDER } from '../../media/media.module';
 import type { MediaProvider } from '../../media/application/media-provider';
 
 const COMMUNITY_VISIBILITY = ['public', 'private', 'organization'] as const;
-const EVENT_VISIBILITY = ['public', 'followers', 'community', 'organization', 'private'] as const;
 const REPORT_REASONS = ['spam', 'harassment', 'hate', 'sexual', 'violence', 'misinformation', 'copyright', 'other'] as const;
 
 @Injectable()
@@ -112,8 +111,18 @@ export class ResaOperationalService {
 
   async joinCommunity(token: string, communityId: string) {
     const actor = await this.actor(token);
+    const id = this.id(communityId, 'community_id');
+    const communities = await this.db.get<any[]>(
+      'resa_communities', token,
+      `?select=id,created_by,status,visibility&id=eq.${id}&limit=1`,
+    );
+    const community = communities[0];
+    if (!community || community.status !== 'active') throw new NotFoundException('Comunidade não encontrada.');
+    if (community.visibility !== 'public' && community.created_by !== actor.id) {
+      throw new ForbiddenException('Esta comunidade exige convite ou aprovação de um moderador.');
+    }
     const rows = await this.db.upsert<any[]>('resa_community_members', token, {
-      community_id: this.id(communityId, 'community_id'), user_id: actor.id, status: 'active', role: 'member',
+      community_id: id, user_id: actor.id, status: 'active', role: 'member',
     }, '?on_conflict=community_id,user_id');
     return rows[0];
   }
@@ -142,6 +151,7 @@ export class ResaOperationalService {
     const responseByEvent = new Map(responses.map((item) => [item.event_id, item.response]));
     return events.map((event) => ({
       ...event,
+      is_creator: event.created_by === actor.id,
       my_response: responseByEvent.get(event.id) ?? null,
     }));
   }
@@ -149,11 +159,38 @@ export class ResaOperationalService {
   async createEvent(token: string, input: { title: unknown; description?: unknown; starts_at: unknown; ends_at?: unknown; location?: unknown; meeting_url?: unknown; visibility?: unknown; community_id?: unknown; organization_id?: unknown }) {
     const actor = await this.actor(token);
     const visibility = input.visibility ?? 'public';
-    if (!EVENT_VISIBILITY.includes(visibility as never)) throw new BadRequestException('Invalid event visibility');
+    if (!['public', 'followers', 'community', 'organization'].includes(visibility as string)) {
+      throw new BadRequestException('Private events are unavailable until invite management is enabled.');
+    }
+    const communityId = input.community_id ? this.id(input.community_id, 'community_id') : null;
+    const organizationId = input.organization_id ? this.id(input.organization_id, 'organization_id') : null;
+    if (visibility === 'community' && !communityId) throw new BadRequestException('Selecione uma comunidade.');
+    if (visibility === 'organization' && !organizationId) throw new BadRequestException('Selecione uma organização.');
+    if (communityId && visibility !== 'community') throw new BadRequestException('community_id only applies to community events');
+    if (organizationId && visibility !== 'organization') throw new BadRequestException('organization_id only applies to organization events');
+    if (communityId) {
+      const communities = await this.db.get<any[]>('resa_communities', token, `?select=id,created_by,status&id=eq.${communityId}&limit=1`);
+      const community = communities[0];
+      if (!community || community.status !== 'active') throw new NotFoundException('Comunidade não encontrada.');
+      if (community.created_by !== actor.id) {
+        const memberships = await this.db.get<any[]>('resa_community_members', token, `?select=status&community_id=eq.${communityId}&user_id=eq.${actor.id}&status=eq.active&limit=1`);
+        if (!memberships.length) throw new ForbiddenException('Tem de ser membro ativo da comunidade para criar o evento.');
+      }
+    }
+    if (organizationId) {
+      const memberships = await this.db.get<any[]>('organization_memberships', token, `?select=organization_id&organization_id=eq.${organizationId}&user_id=eq.${actor.id}&status=eq.ACTIVE&limit=1`);
+      if (!memberships.length) throw new ForbiddenException('Não pertence à organização selecionada.');
+    }
     const startsAt = this.text(input.starts_at, 'starts_at', 1, 80);
-    if (Number.isNaN(Date.parse(startsAt))) throw new BadRequestException('starts_at is invalid');
+    if (Number.isNaN(Date.parse(startsAt)) || Date.parse(startsAt) <= Date.now()) throw new BadRequestException('starts_at must be a future date');
     const endsAt = input.ends_at ? this.text(input.ends_at, 'ends_at', 1, 80) : null;
     if (endsAt && (Number.isNaN(Date.parse(endsAt)) || Date.parse(endsAt) <= Date.parse(startsAt))) throw new BadRequestException('ends_at must be after starts_at');
+    const meetingUrl = typeof input.meeting_url === 'string' && input.meeting_url.trim() ? input.meeting_url.trim() : null;
+    if (meetingUrl) {
+      let parsed: URL;
+      try { parsed = new URL(meetingUrl); } catch { throw new BadRequestException('meeting_url must be a valid HTTPS URL'); }
+      if (parsed.protocol !== 'https:') throw new BadRequestException('meeting_url must use HTTPS');
+    }
     const rows = await this.db.post<any[]>('resa_events', token, {
       created_by: actor.id,
       title: this.text(input.title, 'title', 2, 160),
@@ -161,11 +198,22 @@ export class ResaOperationalService {
       starts_at: new Date(startsAt).toISOString(),
       ends_at: endsAt ? new Date(endsAt).toISOString() : null,
       location: typeof input.location === 'string' ? input.location.trim() || null : null,
-      meeting_url: typeof input.meeting_url === 'string' ? input.meeting_url.trim() || null : null,
+      meeting_url: meetingUrl,
       visibility,
-      community_id: input.community_id ? this.id(input.community_id, 'community_id') : null,
-      organization_id: input.organization_id ? this.id(input.organization_id, 'organization_id') : null,
+      community_id: communityId,
+      organization_id: organizationId,
     });
+    return rows[0];
+  }
+
+  async cancelEvent(token: string, eventId: string) {
+    const actor = await this.actor(token);
+    const id = this.id(eventId, 'event_id');
+    const rows = await this.db.patch<any[]>(
+      'resa_events', token, { status: 'cancelled' },
+      `?id=eq.${id}&created_by=eq.${actor.id}&status=neq.cancelled`,
+    );
+    if (!rows[0]) throw new NotFoundException('Evento não encontrado ou não pode ser cancelado.');
     return rows[0];
   }
 
