@@ -67,6 +67,38 @@ describe('ResaSocialService feeds', () => {
     expect(result).toEqual({ blocked: false });
   });
 
+  it('lists only profiles blocked by the authenticated viewer', async () => {
+    const blockedId = '33333333-3333-4333-8333-333333333333';
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_user_blocks') return [{
+        blocked_id: blockedId,
+        created_at: '2026-11-08T12:00:00.000Z',
+      }] as never;
+      return [] as never;
+    });
+    rpcSpy.mockResolvedValueOnce([{
+      id: blockedId,
+      display_name: 'Blocked profile',
+      avatar_url: null,
+    }] as never);
+
+    const result = await service.blockedProfiles('session-token');
+
+    expect(getSpy).toHaveBeenCalledWith(
+      'resa_user_blocks',
+      'session-token',
+      expect.stringContaining('blocker_id=eq.' + ACTOR_ID),
+    );
+    expect(rpcSpy).toHaveBeenCalledWith('resa_profiles_for_ids', 'session-token', {
+      p_user_ids: [blockedId],
+    });
+    expect(result).toEqual([{
+      user_id: blockedId,
+      blocked_at: '2026-11-08T12:00:00.000Z',
+      profile: { id: blockedId, display_name: 'Blocked profile', avatar_url: null },
+    }]);
+  });
+
   it('hydrates whether the viewer has blocked the profile owner', async () => {
     getSpy.mockImplementation(async (table: string) => {
       if (table === 'profiles') return [{ id: FOLLOWED_ID, privacy: {} }] as never;
