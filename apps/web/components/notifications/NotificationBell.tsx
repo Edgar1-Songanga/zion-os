@@ -220,16 +220,26 @@ export default function NotificationBell() {
   useEffect(() => {
     let active = true;
     void resaRequest<NotificationAlertPreferences>("/v1/notifications/preferences")
-      .then((preferences) => {
+      .then(async (preferences) => {
         if (!active) return;
         const style = preferences.sound_style ?? "soft";
         alertPreferencesRef.current = { ...preferences, sound_style: style };
         soundStyleRef.current = style;
         setSoundStyle(style);
+        // Existing browser subscriptions represent prior explicit consent. Keep
+        // their server-side push channel preference in sync after this upgrade.
+        if (pushEnabled && !(preferences.channels ?? []).includes("push")) {
+          const channels = [...new Set([...(preferences.channels ?? ["in_app"]), "push"])];
+          const updated = await resaRequest<NotificationAlertPreferences>("/v1/notifications/preferences", {
+            method: "PATCH",
+            body: JSON.stringify({ channels }),
+          });
+          if (active) alertPreferencesRef.current = { ...alertPreferencesRef.current, ...updated, channels };
+        }
       })
       .catch(() => undefined);
     return () => { active = false; };
-  }, []);
+  }, [pushEnabled]);
 
   async function changeSoundStyle(value: NonNullable<NotificationAlertPreferences["sound_style"]>) {
     const previous = soundStyleRef.current;
@@ -242,7 +252,7 @@ export default function NotificationBell() {
         method: "PATCH",
         body: JSON.stringify({ sound_style: value }),
       });
-      if (value !== "silent") playNotificationAlert("notification", { sound_style: value, vibration_enabled: false });
+      if (value !== "silent") playNotificationAlert("notification", alertPreferencesRef.current);
     } catch {
       soundStyleRef.current = previous;
       alertPreferencesRef.current = { ...alertPreferencesRef.current, sound_style: previous };
