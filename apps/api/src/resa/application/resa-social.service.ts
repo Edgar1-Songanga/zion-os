@@ -105,7 +105,7 @@ export class ResaSocialService {
       ? contents.filter((item) => item.author_id === a.id || followed.has(item.author_id))
       : contents;
     const preparedContents = eligibleContents
-      .filter((item) => !hiddenAuthors.has(item.author_id))
+      .filter((item) => !hiddenAuthors.has(item.author_id) && hidden.get(item.id) !== 'report')
       .map((item) => ({
         ...item,
         followedAuthor: followed.has(item.author_id),
