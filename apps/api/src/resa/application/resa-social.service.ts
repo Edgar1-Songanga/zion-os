@@ -42,8 +42,8 @@ export class ResaSocialService {
       ? [...new Set([a.id, ...followingRows.map((row) => row.followed_id).filter(Boolean)])]
       : [];
     const contentQuery = mode === 'following'
-      ? `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&visibility=in.(public,followers,community,organization)&author_id=in.(${followedAuthorIds.join(',')})&order=created_at.desc&limit=120`
-      : '?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&visibility=in.(public,followers,community,organization)&order=created_at.desc&limit=120';
+      ? `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&type=neq.story&visibility=in.(public,followers,community,organization)&author_id=in.(${followedAuthorIds.join(',')})&order=created_at.desc&limit=120`
+      : '?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&type=neq.story&visibility=in.(public,followers,community,organization)&order=created_at.desc&limit=120';
     const contents = await this.db.get<any[]>('resa_contents', token, contentQuery);
     const contentIds = contents.map((item) => item.id).filter(Boolean);
     const authorIds = [...new Set(contents.map((item) => item.author_id).filter(Boolean))];
@@ -133,7 +133,7 @@ export class ResaSocialService {
     const rows = await this.db.get<any[]>(
       'resa_contents',
       token,
-      `?select=id,author_id,title,body,created_at,media_url,media_type,language,visibility&media_type=eq.video&visibility=in.(public,followers,community,organization)&order=created_at.desc&limit=${size}`,
+      `?select=id,author_id,title,body,created_at,media_url,media_type,language,visibility&type=neq.story&media_type=eq.video&visibility=in.(public,followers,community,organization)&order=created_at.desc&limit=${size}`,
     );
     const authorIds = [...new Set(rows.map((row) => row.author_id).filter(Boolean))];
     const contentIds = rows.map((row) => row.id).filter(Boolean);
@@ -163,11 +163,31 @@ export class ResaSocialService {
   async explore(token: string, query?: string, limit = 30) {
     await this.actor(token); const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
     const filter = query?.trim() ? `&or=(title.ilike.*${encodeURIComponent(query.trim())}*,body.ilike.*${encodeURIComponent(query.trim())}*)` : '';
-    return this.db.get('resa_contents', token, `?select=*&visibility=in.(public,followers,community,organization)&order=created_at.desc&limit=${size}${filter}`);
+    return this.db.get('resa_contents', token, `?select=*&type=neq.story&visibility=in.(public,followers,community,organization)&order=created_at.desc&limit=${size}${filter}`);
   }
   async stories(token: string, limit = 30) {
-    await this.actor(token); const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
-    return this.db.get('resa_contents', token, `?select=*&type=eq.story&visibility=in.(public,followers,community,organization)&created_at=gte.${encodeURIComponent(new Date(Date.now() - 86400000).toISOString())}&order=created_at.desc&limit=${size}`);
+    await this.actor(token);
+    const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
+    const rows = await this.db.get<any[]>(
+      'resa_contents',
+      token,
+      `?select=id,author_id,title,body,created_at,media_type,media_url,media_path,visibility,language&type=eq.story&visibility=in.(public,followers,community,organization)&created_at=gte.${encodeURIComponent(new Date(Date.now() - 86400000).toISOString())}&order=created_at.desc&limit=${size}`,
+    );
+    const authorIds = [...new Set(rows.map((row) => row.author_id).filter(Boolean))];
+    const profiles = authorIds.length
+      ? await this.db.rpc<any[]>('resa_profiles_for_ids', token, { p_user_ids: authorIds })
+      : [];
+    const byId = new Map(profiles.map((profile) => [profile.id, profile]));
+    return rows.map((row) => {
+      const profile = byId.get(row.author_id);
+      return {
+        ...row,
+        author_display_name: profile?.display_name?.trim()
+          || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim()
+          || 'Membro RESA',
+        author_avatar_url: profile?.avatar_url ?? null,
+      };
+    });
   }
   async createContent(token: string, input: any) {
     const a = await this.actor(token); const type = this.clean(input.type, 'type', 40); const visibility = input.visibility || 'public';
@@ -209,7 +229,7 @@ export class ResaSocialService {
     const rows = await this.db.rpc<any[]>('resa_public_profile', token, { p_user_id: id });
     const profile = rows?.[0];
     if (!profile) throw new NotFoundException('Profile not found');
-    const contents = profile.private_locked ? [] : await this.db.get<any[]>('resa_contents', token, `?select=id,author_id,type,title,body,created_at,media_type,media_url,language&author_id=eq.${encodeURIComponent(id)}&visibility=in.(public,followers,community,organization)&order=created_at.desc&limit=20`);
+    const contents = profile.private_locked ? [] : await this.db.get<any[]>('resa_contents', token, `?select=id,author_id,type,title,body,created_at,media_type,media_url,language&type=neq.story&author_id=eq.${encodeURIComponent(id)}&visibility=in.(public,followers,community,organization)&order=created_at.desc&limit=20`);
     return { profile, contents };
   }
 
