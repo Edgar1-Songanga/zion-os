@@ -171,6 +171,58 @@ describe('ResaSocialService feeds', () => {
     ]);
   });
 
+  it('returns whether the current viewer has reacted to each active story', async () => {
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_contents') return [{
+        id: 'story-reacted',
+        author_id: FOLLOWED_ID,
+        type: 'story',
+        created_at: '2026-11-08T11:00:00.000Z',
+      }] as never;
+      if (table === 'resa_reactions') return [{ content_id: 'story-reacted' }] as never;
+      return [] as never;
+    });
+    rpcSpy.mockResolvedValue([{ id: FOLLOWED_ID, display_name: 'Followed profile' }] as never);
+
+    const result = await service.stories('session-token', 30);
+
+    expect(getSpy).toHaveBeenCalledWith(
+      'resa_reactions',
+      'session-token',
+      expect.stringContaining('user_id=eq.' + ACTOR_ID),
+    );
+    expect(result).toMatchObject([{ id: 'story-reacted', viewer_reacted: true }]);
+  });
+
+  it('hydrates comment authors without exposing unrelated profile data', async () => {
+    const comment = {
+      id: 'comment-1',
+      author_id: FOLLOWED_ID,
+      body: 'A thoughtful reply',
+      created_at: '2026-11-08T11:00:00.000Z',
+    };
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_comments') return [comment] as never;
+      return [] as never;
+    });
+    rpcSpy.mockResolvedValue([{
+      id: FOLLOWED_ID,
+      display_name: 'Comment author',
+      avatar_url: 'https://example.test/comment-author.jpg',
+    }] as never);
+
+    const result = await service.comments('session-token', 'story-1', 30);
+
+    expect(rpcSpy).toHaveBeenCalledWith('resa_profiles_for_ids', 'session-token', {
+      p_user_ids: [FOLLOWED_ID],
+    });
+    expect(result).toMatchObject([{
+      id: 'comment-1',
+      author_display_name: 'Comment author',
+      author_avatar_url: 'https://example.test/comment-author.jpg',
+    }]);
+  });
+
   it('lists only the authenticated author stories older than 24 hours in the archive', async () => {
     getSpy.mockImplementation(async (table: string, _token: string, query: string) => {
       if (table === 'resa_contents') return [{

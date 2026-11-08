@@ -199,7 +199,7 @@ export class ResaSocialService {
     return this.db.get('resa_contents', token, `?select=*&type=neq.story&visibility=in.(public,followers,community,organization)&order=created_at.desc&limit=${size}${filter}`);
   }
   async stories(token: string, limit = 30) {
-    await this.actor(token);
+    const viewer = await this.actor(token);
     const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
     const rows = await this.db.get<any[]>(
       'resa_contents',
@@ -207,14 +207,22 @@ export class ResaSocialService {
       `?select=id,author_id,title,body,created_at,media_type,media_url,media_path,visibility,language&type=eq.story&visibility=in.(public,followers,community,organization)&created_at=gte.${encodeURIComponent(new Date(Date.now() - 86400000).toISOString())}&order=created_at.desc&limit=${size}`,
     );
     const authorIds = [...new Set(rows.map((row) => row.author_id).filter(Boolean))];
-    const profiles = authorIds.length
-      ? await this.db.rpc<any[]>('resa_profiles_for_ids', token, { p_user_ids: authorIds })
-      : [];
+    const storyIds = rows.map((row) => row.id).filter(Boolean);
+    const [profiles, reactions] = await Promise.all([
+      authorIds.length
+        ? this.db.rpc<any[]>('resa_profiles_for_ids', token, { p_user_ids: authorIds })
+        : Promise.resolve([]),
+      storyIds.length
+        ? this.db.get<any[]>('resa_reactions', token, `?select=content_id&user_id=eq.${viewer.id}&content_id=in.(${storyIds.join(',')})&limit=${size}`)
+        : Promise.resolve([]),
+    ]);
     const byId = new Map(profiles.map((profile) => [profile.id, profile]));
+    const reactedIds = new Set(reactions.map((reaction) => reaction.content_id));
     return rows.map((row) => {
       const profile = byId.get(row.author_id);
       return {
         ...row,
+        viewer_reacted: reactedIds.has(row.id),
         author_display_name: profile?.display_name?.trim()
           || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim()
           || 'Membro RESA',
@@ -320,7 +328,31 @@ export class ResaSocialService {
   async comment(token: string, contentId: string, input: { body: string; parent_id?: string | null }) {
     const a = await this.actor(token); const rows = await this.db.post<any[]>('resa_comments', token, { content_id: contentId, author_id: a.id, body: this.clean(input.body, 'body', 5000), parent_id: input.parent_id ?? null }); return rows[0];
   }
-  async comments(token: string, contentId: string, limit = 50, before?: string) { await this.actor(token); const size = Math.min(Math.max(Number(limit) || 50, 1), 100); const cursor = before ? `&created_at=gt.${encodeURIComponent(before)}` : ''; return this.db.get('resa_comments', token, `?select=*&content_id=eq.${contentId}&status=eq.active&order=created_at.asc&limit=${size}${cursor}`); }
+  async comments(token: string, contentId: string, limit = 50, before?: string) {
+    await this.actor(token);
+    const size = Math.min(Math.max(Number(limit) || 50, 1), 100);
+    const cursor = before ? `&created_at=gt.${encodeURIComponent(before)}` : '';
+    const rows = await this.db.get<any[]>('resa_comments', token, `?select=*&content_id=eq.${encodeURIComponent(contentId)}&status=eq.active&order=created_at.asc&limit=${size}${cursor}`);
+    const authorIds = [...new Set(rows.map((row) => row.author_id).filter(Boolean))];
+    const profiles: any[] = [];
+    for (let offset = 0; offset < authorIds.length; offset += 200) {
+      const batch = await this.db.rpc<any[]>('resa_profiles_for_ids', token, {
+        p_user_ids: authorIds.slice(offset, offset + 200),
+      });
+      profiles.push(...batch);
+    }
+    const byId = new Map(profiles.map((profile) => [profile.id, profile]));
+    return rows.map((row) => {
+      const profile = byId.get(row.author_id);
+      return {
+        ...row,
+        author_display_name: profile?.display_name?.trim()
+          || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim()
+          || 'Membro RESA',
+        author_avatar_url: profile?.avatar_url ?? null,
+      };
+    });
+  }
   async react(token: string, contentId: string, reactionType: string) { const a = await this.actor(token); const rows = await this.db.upsert<any[]>('resa_reactions', token, { content_id: contentId, user_id: a.id, reaction_type: this.clean(reactionType, 'reaction_type', 40).toLowerCase() }, '?on_conflict=content_id,user_id'); return rows[0]; }
   async removeReaction(token: string, contentId: string) { const a = await this.actor(token); await this.db.delete('resa_reactions', token, `?content_id=eq.${contentId}&user_id=eq.${a.id}`); return { removed: true }; }
   async follow(token: string, followedId: string) {
