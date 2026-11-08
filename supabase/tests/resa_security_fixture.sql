@@ -66,7 +66,17 @@ create table public.resa_live_access_grants (
   primary key (live_id, user_id)
 );
 
-create table public.organizations (id uuid primary key);
+create table public.organizations (
+  id uuid primary key,
+  name text not null,
+  slug text not null,
+  organization_type text not null default 'LOCAL_CHURCH',
+  parent_id uuid references public.organizations(id),
+  created_by uuid references auth.users(id),
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
 create table public.ministries (
   id uuid primary key,
   organization_id uuid not null references public.organizations(id),
