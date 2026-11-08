@@ -436,6 +436,53 @@ describe('ResaSocialService feeds', () => {
     });
   });
 
+  it('distributes followed members reposts as distinct feed items linked to the original publication', async () => {
+    const sourceAuthorId = '33333333-3333-4333-8333-333333333333';
+    const sourceId = '55555555-5555-4555-8555-555555555555';
+    const shareId = '66666666-6666-4666-8666-666666666666';
+    getSpy.mockImplementation(async (table: string, _token: string, query: string) => {
+      if (table === 'resa_follows') return follows as never;
+      if (table === 'resa_shares' && query.includes('share_type=eq.repost')) return [{
+        id: shareId,
+        content_id: sourceId,
+        user_id: FOLLOWED_ID,
+        created_at: '2026-11-08T12:00:00.000Z',
+      }] as never;
+      if (table === 'resa_contents' && query.includes('id=in.(')) return [{
+        id: sourceId,
+        author_id: sourceAuthorId,
+        type: 'text',
+        visibility: 'public',
+        body: 'Original publication',
+        created_at: '2026-11-08T09:00:00.000Z',
+      }] as never;
+      return [] as never;
+    });
+    rpcSpy.mockImplementation(async (functionName: string) => {
+      if (functionName === 'resa_profiles_for_ids') return [
+        { id: sourceAuthorId, display_name: 'Original author' },
+        { id: FOLLOWED_ID, display_name: 'Followed reposter' },
+      ] as never;
+      return [] as never;
+    });
+
+    const result = await service.feed('session-token', 30, 'following');
+
+    expect(getSpy).toHaveBeenCalledWith('resa_shares', 'session-token',
+      expect.stringContaining(`user_id=in.(${ACTOR_ID},${FOLLOWED_ID})`));
+    expect(result.items).toMatchObject([{
+      id: sourceId,
+      feed_item_id: shareId,
+      feed_item_type: 'repost',
+      is_repost: true,
+      author_display_name: 'Original author',
+      reposted_by_id: FOLLOWED_ID,
+      reposted_by_display_name: 'Followed reposter',
+      source_created_at: '2026-11-08T09:00:00.000Z',
+      created_at: '2026-11-08T12:00:00.000Z',
+    }]);
+  });
+
   it('serves a global chronological Latest feed without recommendation ranking', async () => {
     const otherAuthorId = '33333333-3333-4333-8333-333333333333';
     getSpy.mockImplementation(async (table: string) => {
