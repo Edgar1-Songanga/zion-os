@@ -50,7 +50,9 @@ function isQuietNow(start?: string | null, end?: string | null, timezone?: strin
 
 export function playNotificationAlert(type: string, preferences: NotificationAlertPreferences | null | undefined, repeat = false): () => void {
   const settings = preferences ?? {};
-  if (settings.enabled === false || settings.muted_types?.includes(type) || isQuietNow(settings.quiet_start, settings.quiet_end, settings.timezone)) return () => undefined;
+  const criticalCall = type.includes("call");
+  if (settings.enabled === false || settings.muted_types?.includes(type)
+    || (!criticalCall && isQuietNow(settings.quiet_start, settings.quiet_end, settings.timezone))) return () => undefined;
   let stopped = false;
   let timer: number | undefined;
   const beep = () => {
