@@ -82,6 +82,7 @@ export default function ResaLiveFeed() {
   const loadMore = useCallback(async () => {
     if (!nextCursor || inFlightRef.current || loadingMoreRef.current) return;
     loadingMoreRef.current = true;
+    inFlightRef.current = true;
     setLoadingMore(true);
     setError(null);
     try {
@@ -97,9 +98,13 @@ export default function ResaLiveFeed() {
       setError(e instanceof Error ? e.message : t("feedLoadError"));
     } finally {
       loadingMoreRef.current = false;
+      inFlightRef.current = false;
       setLoadingMore(false);
+      const pendingMode = pendingModeRef.current;
+      pendingModeRef.current = null;
+      if (pendingMode && pendingMode !== feedMode) void load(true, pendingMode);
     }
-  }, [feedMode, nextCursor, t]);
+  }, [feedMode, nextCursor, t, load]);
 
   useEffect(() => {
     void load();
