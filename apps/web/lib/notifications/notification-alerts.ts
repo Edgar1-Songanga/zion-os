@@ -1,5 +1,7 @@
 export type NotificationAlertPreferences = {
   enabled?: boolean;
+  channels?: string[];
+  timezone?: string;
   sound_enabled?: boolean;
   sound_style?: 'soft' | 'chime' | 'classic' | 'silent';
   vibration_enabled?: boolean;
@@ -18,10 +20,20 @@ export function unlockNotificationAudio(): void {
   } catch { /* Audio is optional and subject to browser policy. */ }
 }
 
-function isQuietNow(start?: string | null, end?: string | null): boolean {
+function isQuietNow(start?: string | null, end?: string | null, timezone?: string): boolean {
   if (!start || !end) return false;
   const now = new Date();
-  const current = now.getHours() * 60 + now.getMinutes();
+  let current = now.getHours() * 60 + now.getMinutes();
+  if (timezone) {
+    try {
+      const parts = new Intl.DateTimeFormat("en-GB", {
+        timeZone: timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+      }).formatToParts(now);
+      const hour = Number(parts.find((part) => part.type === "hour")?.value);
+      const minute = Number(parts.find((part) => part.type === "minute")?.value);
+      if (Number.isFinite(hour) && Number.isFinite(minute)) current = hour * 60 + minute;
+    } catch { /* Fall back to the device timezone if the profile timezone is invalid. */ }
+  }
   const toMinutes = (value: string) => {
     const match = /^(\d{2}):(\d{2})/.exec(value);
     if (!match) return null;
@@ -38,7 +50,9 @@ function isQuietNow(start?: string | null, end?: string | null): boolean {
 
 export function playNotificationAlert(type: string, preferences: NotificationAlertPreferences | null | undefined, repeat = false): () => void {
   const settings = preferences ?? {};
-  if (settings.enabled === false || settings.muted_types?.includes(type) || isQuietNow(settings.quiet_start, settings.quiet_end)) return () => undefined;
+  const criticalCall = type.includes("call");
+  if (settings.enabled === false || settings.muted_types?.includes(type)
+    || (!criticalCall && isQuietNow(settings.quiet_start, settings.quiet_end, settings.timezone))) return () => undefined;
   let stopped = false;
   let timer: number | undefined;
   const beep = () => {
