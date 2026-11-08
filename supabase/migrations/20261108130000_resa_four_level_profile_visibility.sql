@@ -66,11 +66,12 @@ as $function$
           on fv.follower_id = vf.followed_id and fv.followed_id = vf.follower_id
         join public.resa_follows owner_friend
           on owner_friend.follower_id = vf.followed_id
+         and owner_friend.followed_id = p_owner_id
         join public.resa_follows fo
-          on fo.follower_id = p_owner_id and fo.followed_id = owner_friend.followed_id
+          on fo.follower_id = p_owner_id and fo.followed_id = vf.followed_id
         where vf.follower_id = p_viewer_id
-          and owner_friend.followed_id <> p_viewer_id
-          and owner_friend.followed_id <> p_owner_id
+          and vf.followed_id <> p_viewer_id
+          and vf.followed_id <> p_owner_id
       )
     )
     -- Legacy value is treated as friends during transition only.
