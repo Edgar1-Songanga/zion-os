@@ -14,7 +14,7 @@ export class YouthActivityService {
 
   async listPublicActivities(token: string) {
     return this.db.get<any[]>('youth_club_activities', token,
-      '?select=id,title,description,activity_type,starts_at,ends_at,location,status,organization_id,club_id&is_public=eq.true&status=neq.CANCELLED&order=starts_at.asc&limit=50');
+      '?select=id,title,description,activity_type,starts_at,ends_at,location,status&is_public=eq.true&status=neq.CANCELLED&order=starts_at.asc&limit=50');
   }
 
   async listClubActivities(token: string, clubId: string) {
