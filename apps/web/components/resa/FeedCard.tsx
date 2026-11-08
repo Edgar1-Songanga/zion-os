@@ -25,6 +25,11 @@ type ResaContent = {
   reaction_count?: number;
   comment_count?: number;
   share_count?: number;
+  feed_item_id?: string;
+  is_repost?: boolean;
+  reposted_by_id?: string | null;
+  reposted_by_display_name?: string | null;
+  viewer_reposted?: boolean;
 };
 
 type CommentItem = {
@@ -63,6 +68,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
   const [reactionCount, setReactionCount] = useState(content.reaction_count ?? 0);
   const [commentCount, setCommentCount] = useState(content.comment_count ?? 0);
   const [shareCount, setShareCount] = useState(content.share_count ?? 0);
+  const [alreadyReposted, setAlreadyReposted] = useState(Boolean(content.viewer_reposted));
   const [saving, setSaving] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [reposting, setReposting] = useState(false);
@@ -156,7 +162,8 @@ export default function FeedCard({ content }: { content: ResaContent }) {
     setReactionCount(content.reaction_count ?? 0);
     setCommentCount(content.comment_count ?? 0);
     setShareCount(content.share_count ?? 0);
-  }, [content.id, content.viewer_reacted, content.viewer_saved, content.reaction_count, content.comment_count, content.share_count]);
+    setAlreadyReposted(Boolean(content.viewer_reposted));
+  }, [content.id, content.viewer_reacted, content.viewer_saved, content.reaction_count, content.comment_count, content.share_count, content.viewer_reposted]);
 
   useEffect(() => {
     if (!showComments || commentsLoadedRef.current) return;
@@ -265,7 +272,8 @@ export default function FeedCard({ content }: { content: ResaContent }) {
         body: JSON.stringify({ quote: false }),
       });
       setShareCount((current) => current + 1);
-      setActionFeedback("Publicação partilhada no mural.");
+      setAlreadyReposted(true);
+      setActionFeedback("Publicação republicada no teu mural.");
     } catch (error) {
       setActionFeedback(error instanceof Error ? error.message : "Não foi possível partilhar a publicação.");
     } finally {
@@ -275,7 +283,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
   }
 
   return (
-    <article id={`resa-post-${content.id}`} className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.05)] transition-shadow hover:shadow-[0_18px_55px_rgba(15,23,42,0.08)]">
+    <article id={`resa-post-${content.feed_item_id || content.id}`} className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.05)] transition-shadow hover:shadow-[0_18px_55px_rgba(15,23,42,0.08)]">
       <div className="p-6 sm:p-7">
         <header className="flex items-start gap-4">
           {content.author_avatar_url ? (
@@ -333,9 +341,9 @@ export default function FeedCard({ content }: { content: ResaContent }) {
           <ResaIcon name="comment" size={16} />
           Comentar {commentCount > 0 ? `(${commentCount})` : ""}
         </button>
-        <button type="button" onClick={() => void repost()} disabled={reposting} className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-white hover:text-[#0C1A3D]">
+        <button type="button" onClick={() => void repost()} disabled={reposting || alreadyReposted} className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-white hover:text-[#0C1A3D]">
           <ResaIcon name="repost" size={16} />
-          {reposting ? t("reposting") : t("repost")}
+          {reposting ? t("reposting") : alreadyReposted ? "Republicado" : t("repost")}
           {shareCount > 0 && <span className="text-xs tabular-nums opacity-75">{shareCount}</span>}
         </button>
         <button type="button" onClick={() => { setShowShare((v) => !v); setShowReport(false); setShareFeedback(""); }} className="inline-flex items-center gap-2 rounded-xl bg-[#0C1A3D] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md" aria-expanded={showShare}>
