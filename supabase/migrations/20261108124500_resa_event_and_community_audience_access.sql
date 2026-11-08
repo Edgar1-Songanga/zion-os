@@ -1,5 +1,27 @@
 begin;
 
+-- The community creator is always a moderator, even before their membership
+-- row is materialized. Keep this helper restricted to the private schema.
+create or replace function private.resa_is_community_moderator(p_community_id uuid, p_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = pg_catalog, pg_temp
+as $
+  select exists (
+    select 1 from public.resa_communities c
+    where c.id = p_community_id and c.created_by = p_user_id
+  ) or exists (
+    select 1 from public.resa_community_members m
+    where m.community_id = p_community_id
+      and m.user_id = p_user_id
+      and m.status = 'active'
+      and m.role in ('owner','moderator')
+  );
+$;
+grant execute on function private.resa_is_community_moderator(uuid,uuid) to authenticated;
+
 -- Public communities can be joined directly. Private and organization-scoped
 -- communities require an invitation or moderator action; a member cannot
 -- self-insert into those spaces by calling the REST endpoint directly.
