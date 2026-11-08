@@ -56,6 +56,7 @@ export default function StoriesPage() {
   useEffect(() => { void load(); }, [load]);
 
   const displayItems = showArchive ? archiveItems : items;
+  const activeStory = activeIndex === null ? null : displayItems[activeIndex] ?? null;
 
   useEffect(() => {
     if (!activeStory?.id || showArchive) {
@@ -105,8 +106,6 @@ export default function StoriesPage() {
       setInteractionError(e instanceof Error ? e.message : "Não foi possível reagir à story.");
     }
   }
-  const activeStory = activeIndex === null ? null : displayItems[activeIndex] ?? null;
-
   function openStory(id: string) {
     const index = displayItems.findIndex(item => item.id === id);
     if (index >= 0) setActiveIndex(index);
