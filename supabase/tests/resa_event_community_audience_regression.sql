@@ -69,6 +69,7 @@ do $test$
 begin
   if (select count(*) from public.resa_events where id='99000000-0000-4000-8000-000000000003') <> 1 then raise exception 'Community member cannot read community event'; end if;
   if (select count(*) from public.resa_events where id='99000000-0000-4000-8000-000000000002') <> 0 then raise exception 'Community member can read followers event without following'; end if;
+  if (select count(*) from public.resa_communities where id='97000000-0000-4000-8000-000000000001') <> 1 then raise exception 'Active member cannot discover their private community'; end if;
 end;
 $test$;
 do $test$
@@ -103,6 +104,8 @@ begin
   if (select count(*) from public.resa_events where id='99000000-0000-4000-8000-000000000003') <> 0 then raise exception 'Stranger can read community event'; end if;
   if (select count(*) from public.resa_events where id='99000000-0000-4000-8000-000000000004') <> 0 then raise exception 'Stranger can read organization event'; end if;
   if (select count(*) from public.resa_events where id='99000000-0000-4000-8000-000000000005') <> 0 then raise exception 'Stranger can read private event'; end if;
+  if (select count(*) from public.resa_communities where id='97000000-0000-4000-8000-000000000001') <> 0 then raise exception 'Stranger can discover private community'; end if;
+  if (select count(*) from public.resa_communities where id='97000000-0000-4000-8000-000000000002') <> 1 then raise exception 'Stranger cannot discover public community'; end if;
 end;
 $test$;
 do $test$
