@@ -539,7 +539,7 @@ export class ResaOperationalService {
     return this.media.createJoinConfig({ meetingId: id, providerRoomId: `zion-call-${id}`, userId: actor.id });
   }
 
-  private async enforceContactPreferences(token: string, actorId: string, targetIds: string[], policyField: 'message_policy' | 'group_invite_policy') {
+  private async enforceContactPreferences(token: string, actorId: string, targetIds: string[], policyField: 'message_policy' | 'call_policy' | 'group_invite_policy') {
     const profiles = await this.db.get<any[]>('profiles', token, `?select=id,privacy&id=in.(${targetIds.join(',')})`);
     const [targetFollowsActor, actorFollowsTarget] = await Promise.all([
       this.db.get<any[]>('resa_follows', token, `?select=follower_id&follower_id=in.(${targetIds.join(',')})&followed_id=eq.${actorId}`),
@@ -555,20 +555,24 @@ export class ResaOperationalService {
         || (policy === 'following' && following.has(targetId));
       if (!allowed) throw new ForbiddenException(policyField === 'message_policy'
         ? 'Este membro não aceita mensagens deste perfil.'
-        : 'Este membro não aceita convites para grupos deste perfil.');
+        : policyField === 'call_policy' ? 'Este membro não aceita chamadas deste perfil.' : 'Este membro não aceita convites para grupos deste perfil.');
     }
   }
 
-  async createConversation(token: string, memberIds: unknown[], title?: unknown) {
+  async createConversation(token: string, memberIds: unknown[], title?: unknown, purpose: 'message' | 'call' = 'message') {
     const actor = await this.actor(token);
     if (!Array.isArray(memberIds) || memberIds.length < 1 || memberIds.length > 50) throw new BadRequestException('member_ids is invalid');
     const targetIds = [...new Set(memberIds.map((value) => this.id(value, 'member_id')).filter((id) => id !== actor.id))];
     if (!targetIds.length || targetIds.length > 49) throw new BadRequestException('A conversation requires one to forty-nine other members');
-    await this.enforceContactPreferences(token, actor.id, targetIds, targetIds.length === 1 ? 'message_policy' : 'group_invite_policy');
+    if (!['message', 'call'].includes(purpose)) throw new BadRequestException('purpose is invalid');
+    if (targetIds.length > 1 && purpose !== 'message') throw new BadRequestException('Group conversations require message purpose');
+    const policyField = targetIds.length > 1 ? 'group_invite_policy' : purpose === 'call' ? 'call_policy' : 'message_policy';
+    await this.enforceContactPreferences(token, actor.id, targetIds, policyField);
     const safeTitle = typeof title === 'string' ? title.trim().slice(0, 120) || null : null;
     const result = await this.db.rpc<any>('resa_create_conversation', token, {
       p_member_ids: targetIds,
       p_title: safeTitle,
+      p_contact_type: purpose,
     });
     const conversation = Array.isArray(result) ? result[0] : result;
     if (!conversation?.id) throw new Error('Conversation could not be created');
