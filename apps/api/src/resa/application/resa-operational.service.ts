@@ -182,9 +182,15 @@ export class ResaOperationalService {
       if (!memberships.length) throw new ForbiddenException('Não pertence à organização selecionada.');
     }
     const startsAt = this.text(input.starts_at, 'starts_at', 1, 80);
-    if (Number.isNaN(Date.parse(startsAt))) throw new BadRequestException('starts_at is invalid');
+    if (Number.isNaN(Date.parse(startsAt)) || Date.parse(startsAt) <= Date.now()) throw new BadRequestException('starts_at must be a future date');
     const endsAt = input.ends_at ? this.text(input.ends_at, 'ends_at', 1, 80) : null;
     if (endsAt && (Number.isNaN(Date.parse(endsAt)) || Date.parse(endsAt) <= Date.parse(startsAt))) throw new BadRequestException('ends_at must be after starts_at');
+    const meetingUrl = typeof input.meeting_url === 'string' && input.meeting_url.trim() ? input.meeting_url.trim() : null;
+    if (meetingUrl) {
+      let parsed: URL;
+      try { parsed = new URL(meetingUrl); } catch { throw new BadRequestException('meeting_url must be a valid HTTPS URL'); }
+      if (parsed.protocol !== 'https:') throw new BadRequestException('meeting_url must use HTTPS');
+    }
     const rows = await this.db.post<any[]>('resa_events', token, {
       created_by: actor.id,
       title: this.text(input.title, 'title', 2, 160),
@@ -192,7 +198,7 @@ export class ResaOperationalService {
       starts_at: new Date(startsAt).toISOString(),
       ends_at: endsAt ? new Date(endsAt).toISOString() : null,
       location: typeof input.location === 'string' ? input.location.trim() || null : null,
-      meeting_url: typeof input.meeting_url === 'string' ? input.meeting_url.trim() || null : null,
+      meeting_url: meetingUrl,
       visibility,
       community_id: communityId,
       organization_id: organizationId,
