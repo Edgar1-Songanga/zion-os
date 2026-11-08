@@ -5,7 +5,6 @@ import { MEDIA_PROVIDER } from '../../media/media.module';
 import type { MediaProvider } from '../../media/application/media-provider';
 
 const COMMUNITY_VISIBILITY = ['public', 'private', 'organization'] as const;
-const EVENT_VISIBILITY = ['public', 'followers', 'community', 'organization', 'private'] as const;
 const REPORT_REASONS = ['spam', 'harassment', 'hate', 'sexual', 'violence', 'misinformation', 'copyright', 'other'] as const;
 
 @Injectable()
