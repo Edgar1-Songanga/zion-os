@@ -256,6 +256,7 @@ create table public.resa_communities (
   visibility text not null default 'public',
   status text not null default 'active'
 );
+alter table public.resa_communities enable row level security;
 create table public.resa_community_members (
   community_id uuid not null references public.resa_communities(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
