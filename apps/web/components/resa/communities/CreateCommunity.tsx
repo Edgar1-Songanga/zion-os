@@ -20,8 +20,9 @@ export default function CreateCommunity({ onCreated }: { onCreated?: () => void 
     setSaving(true);
     setMessage(null);
     setError(false);
-    const slug = cleanName.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const baseSlug = cleanName.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "comunidade";
+    const slug = baseSlug + "-" + crypto.randomUUID().slice(0, 8);
     try {
       await resaRequest("/v1/resa/communities", {
         method: "POST",
