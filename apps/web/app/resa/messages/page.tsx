@@ -185,7 +185,7 @@ export default function MessagesPage() {
     const target = searchParams.get("to");
     if (!target || startedTarget.current === target) return;
     startedTarget.current = target;
-    void startConversation({ id: target, title: "Conversa direta" });
+    void startConversation({ id: target, title: "Conversa direta" }, searchParams.get("call") === "audio" ? "call" : "message");
   }, [searchParams]);
 
   useEffect(() => {
@@ -296,7 +296,7 @@ export default function MessagesPage() {
     }
   }
 
-  async function startConversation(person: SearchResult) {
+  async function startConversation(person: SearchResult, purpose: 'message' | 'call' = 'message') {
     if (startingPersonId === person.id) return;
     setError(null);
     setStartingPersonId(person.id);
@@ -304,7 +304,7 @@ export default function MessagesPage() {
       const displayName = person.display_name || person.title || [person.first_name, person.last_name].filter(Boolean).join(" ") || person.email || "Conversa direta";
       const conversation = await resaRequest<Conversation>("/v1/resa/conversations", {
         method: "POST",
-        body: JSON.stringify({ member_ids: [person.id], title: displayName }),
+        body: JSON.stringify({ member_ids: [person.id], title: displayName, purpose }),
       });
       setQuery("");
       setPeople([]);
@@ -416,7 +416,7 @@ export default function MessagesPage() {
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef2f8] text-[#0C1A3D]"><ResaIcon name="message" size={18} /></div>
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-[#0C1A3D]">{selectedConversation?.title || "Selecione uma conversa"}</p>
-                <div className="flex items-center justify-between gap-3"><p className="text-xs text-slate-400">{selectedConversation ? "Mensagens privadas" : "Escolha uma conversa para começar"}</p>{selectedConversation && <ResaCallControls conversationId={selectedConversation.id} />}</div>
+                <div className="flex items-center justify-between gap-3"><p className="text-xs text-slate-400">{selectedConversation ? "Mensagens privadas" : "Escolha uma conversa para começar"}</p>{selectedConversation && <ResaCallControls conversationId={selectedConversation.id} autoStart={searchParams.get("call") === "audio" ? "audio" : null} />}</div>
               </div>
             </div>
 
