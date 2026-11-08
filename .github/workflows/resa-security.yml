@@ -101,12 +101,15 @@ jobs:
       - name: Apply RESA user blocking safety
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108133000_resa_user_blocking_safety.sql
-      - name: Verify RESA user blocking and interaction boundaries
-        run: |
-          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_user_blocking_regression.sql
       - name: Apply four-level profile visibility
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108130000_resa_four_level_profile_visibility.sql
+      - name: Apply block-aware profile visibility
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108134500_resa_blocked_profile_visibility.sql
+      - name: Verify RESA user blocking and interaction boundaries
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_user_blocking_regression.sql
       - name: Verify public, friends, friends-of-friends and private visibility
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_four_level_profile_visibility.sql
