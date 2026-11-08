@@ -212,6 +212,6 @@ using (
 grant usage on schema private to authenticated;
 grant usage on schema auth to authenticated;
 grant execute on function auth.uid() to authenticated;
-grant select on public.resa_conversation_members to authenticated;
+grant select, insert on public.resa_conversation_members to authenticated;
 grant select,insert,update on public.resa_calls, public.resa_call_participants, public.resa_call_signals to authenticated;
 grant usage,select on sequence public.resa_call_signals_id_seq to authenticated;
