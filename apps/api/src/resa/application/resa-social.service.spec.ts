@@ -129,22 +129,22 @@ describe('ResaSocialService feeds', () => {
   });
 
   it('paginates the feed with a stable created_at and id cursor', async () => {
-    const result = await service.feed('session-token', 2, 'following');
+    const result = await service.feed('session-token', 1, 'following');
 
-    expect(result.items).toHaveLength(2);
+    expect(result.items).toHaveLength(1);
     expect(result.has_more).toBe(true);
-    expect(result.next_cursor).toBe('2026-11-08T10:00:00.000Z|post-own');
+    expect(result.next_cursor).toBe('2026-11-08T11:00:00.000Z|post-new');
     expect(getSpy).toHaveBeenCalledWith(
       'resa_contents',
       'session-token',
-      expect.stringContaining('order=created_at.desc,id.desc&limit=3'),
+      expect.stringContaining('order=created_at.desc,id.desc&limit=2'),
     );
 
-    await service.feed('session-token', 2, 'following', result.next_cursor ?? undefined);
+    await service.feed('session-token', 1, 'following', result.next_cursor ?? undefined);
     expect(getSpy).toHaveBeenLastCalledWith(
       'resa_contents',
       'session-token',
-      expect.stringContaining('created_at.lt.2026-11-08T10%3A00%3A00.000Z'),
+      expect.stringContaining('created_at.lt.2026-11-08T11%3A00%3A00.000Z'),
     );
   });
 
