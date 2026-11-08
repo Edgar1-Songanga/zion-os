@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { resaRequest } from "@/lib/resa/api";
 import { playNotificationAlert, type NotificationAlertPreferences } from "@/lib/notifications/notification-alerts";
@@ -30,6 +31,7 @@ export default function NotificationBell() {
   const [soundStyle, setSoundStyle] = useState<NonNullable<NotificationAlertPreferences["sound_style"]>>("soft");
   const [soundSaving, setSoundSaving] = useState(false);
   const soundStyleRef = useRef<NonNullable<NotificationAlertPreferences["sound_style"]>>("soft");
+  const alertPreferencesRef = useRef<NotificationAlertPreferences>({ sound_style: "soft" });
   const loadingRef = useRef(false);
   const mountedRef = useRef(true);
   const pushPublicKey = process.env.NEXT_PUBLIC_RESA_VAPID_PUBLIC_KEY || "BEmbs-5tKPOjip3OfVkjD4VynTnbOTxGQkXohOT_3KTCF-vCRJzbpLrJubl1y6CowFavkTDf1gSIJdXqNK2CJP8";
@@ -77,6 +79,13 @@ export default function NotificationBell() {
           if (error) throw error;
         }
         setPushEnabled(false);
+        const preferences = await resaRequest<NotificationAlertPreferences>("/v1/notifications/preferences");
+        const channels = (preferences.channels ?? ["in_app"]).filter((channel) => channel !== "push");
+        const updated = await resaRequest<NotificationAlertPreferences>("/v1/notifications/preferences", {
+          method: "PATCH",
+          body: JSON.stringify({ channels }),
+        });
+        alertPreferencesRef.current = { ...alertPreferencesRef.current, ...updated, channels };
         setPushMessage("Notificações push desativadas neste dispositivo.");
         return;
       }
@@ -111,6 +120,13 @@ export default function NotificationBell() {
         await subscription.unsubscribe();
         throw error;
       }
+      const preferences = await resaRequest<NotificationAlertPreferences>("/v1/notifications/preferences");
+      const channels = [...new Set([...(preferences.channels ?? ["in_app"]), "push"])];
+      const updated = await resaRequest<NotificationAlertPreferences>("/v1/notifications/preferences", {
+        method: "PATCH",
+        body: JSON.stringify({ channels }),
+      });
+      alertPreferencesRef.current = { ...alertPreferencesRef.current, ...updated, channels };
       setPushEnabled(true);
       setPushMessage("Notificações push ativadas neste dispositivo.");
     } catch (error) {
@@ -159,7 +175,7 @@ export default function NotificationBell() {
           if (payload.eventType === "INSERT") {
             const next = payload.new as NotificationItem;
             setItems((current) => [next, ...current.filter((item) => item.id !== next.id)].slice(0, 20));
-            playNotificationAlert("notification", { sound_style: soundStyleRef.current, vibration_enabled: false });
+            playNotificationAlert("notification", alertPreferencesRef.current);
           } else {
             void load();
           }
@@ -207,6 +223,7 @@ export default function NotificationBell() {
       .then((preferences) => {
         if (!active) return;
         const style = preferences.sound_style ?? "soft";
+        alertPreferencesRef.current = { ...preferences, sound_style: style };
         soundStyleRef.current = style;
         setSoundStyle(style);
       })
@@ -217,6 +234,7 @@ export default function NotificationBell() {
   async function changeSoundStyle(value: NonNullable<NotificationAlertPreferences["sound_style"]>) {
     const previous = soundStyleRef.current;
     soundStyleRef.current = value;
+    alertPreferencesRef.current = { ...alertPreferencesRef.current, sound_style: value };
     setSoundStyle(value);
     setSoundSaving(true);
     try {
@@ -227,6 +245,7 @@ export default function NotificationBell() {
       if (value !== "silent") playNotificationAlert("notification", { sound_style: value, vibration_enabled: false });
     } catch {
       soundStyleRef.current = previous;
+      alertPreferencesRef.current = { ...alertPreferencesRef.current, sound_style: previous };
       setSoundStyle(previous);
       setPushMessage("Não foi possível guardar a preferência de som.");
     } finally {
@@ -362,6 +381,9 @@ export default function NotificationBell() {
               </div>
               {pushMessage && <p role="status" className="mt-2 text-xs leading-5 text-[var(--zion-muted)]">{pushMessage}</p>}
               {!pushPublicKey && !pushEnabled && <p className="mt-2 text-[11px] text-[var(--zion-muted)]">A configuração das chaves ainda não está concluída.</p>}
+            </div>
+            <div className="mt-3 flex justify-end">
+              <Link href="/resa/settings/notifications" onClick={() => setOpen(false)} className="text-xs font-semibold text-[var(--zion-primary)] hover:underline">Mais definições de notificações</Link>
             </div>
           </div>
           {loadError && <div role="status" className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">A ligação às notificações está instável. O sistema tentará atualizar novamente.</div>}\n          <div className="max-h-80 overflow-y-auto">
