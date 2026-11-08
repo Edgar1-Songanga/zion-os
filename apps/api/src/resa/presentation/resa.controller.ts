@@ -22,7 +22,7 @@ export class ResaController {
   @Get('profiles/:userId/social') social(@Headers('authorization') a: string | undefined, @Param('userId') id: string) { return this.resa.social(this.token(a), id); }
   @Get('profiles/suggestions') suggestions(@Headers('authorization') a: string | undefined, @Query('limit') limit?: string) { return this.resa.suggestions(this.token(a), Number(limit) || 12); }
   @Post('content/:contentId/mentions') mention(@Headers('authorization') a: string | undefined, @Param('contentId') id: string, @Body() b: { mentioned_user_id: string }) { return this.resa.mention(this.token(a), id, b.mentioned_user_id); }
-  @Post('topics') topic(@Headers('authorization') a: string | undefined, @Body() b: { name: string }) { return this.resa.topic(this.token(a), b.name); }
+  @Get('topics/:slug') topicFeed(@Headers('authorization') a: string | undefined, @Param('slug') slug: string, @Query('limit') limit?: string) { return this.resa.topicFeed(this.token(a), slug, Number(limit) || 50); }\n  @Post('topics') topic(@Headers('authorization') a: string | undefined, @Body() b: { name: string }) { return this.resa.topic(this.token(a), b.name); }
   @Post('content/:contentId/topics') attachTopic(@Headers('authorization') a: string | undefined, @Param('contentId') id: string, @Body() b: { topic_id: string }) { return this.resa.attachTopic(this.token(a), id, b.topic_id); }
   @Post('content/:contentId/save') save(@Headers('authorization') a: string | undefined, @Param('contentId') id: string) { return this.resa.save(this.token(a), id); }
   @Delete('content/:contentId/save') unsave(@Headers('authorization') a: string | undefined, @Param('contentId') id: string) { return this.resa.unsave(this.token(a), id); }
