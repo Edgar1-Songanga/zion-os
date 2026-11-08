@@ -1,34 +1,10 @@
 -- RESA private content storage foundation.
 -- The legacy resa-media bucket remains public for avatars and existing assets.
--- New post/story/reel media must use this isolated private bucket.
-
-insert into storage.buckets (
-  id,
-  name,
-  public,
-  file_size_limit,
-  allowed_mime_types
-)
-values (
-  'resa-content-private',
-  'resa-content-private',
-  false,
-  52428800,
-  array[
-    'image/jpeg',
-    'image/png',
-    'image/webp',
-    'image/gif',
-    'video/mp4',
-    'video/webm',
-    'video/quicktime',
-    'audio/mpeg',
-    'audio/mp4',
-    'audio/ogg',
-    'audio/wav'
-  ]::text[]
-)
-on conflict (id) do nothing;
+-- Create resa-content-private as a PRIVATE bucket in Supabase Storage before
+-- enabling the new upload flow. Bucket creation is intentionally performed
+-- through Supabase Storage (Dashboard/API), never by writing storage.buckets.
+-- Required bucket settings: 50 MiB max; JPEG, PNG, WebP, GIF, MP4, WebM,
+-- QuickTime, MPEG audio, MP4 audio, OGG and WAV.
 
 -- Uploads are allowed only into a path whose first segment is the uploader's
 -- authenticated user ID. Use unique paths; overwriting is intentionally absent.
