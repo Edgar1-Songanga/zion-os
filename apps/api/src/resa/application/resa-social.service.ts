@@ -223,6 +223,9 @@ export class ResaSocialService {
       token,
       `?select=viewer_id,viewed_at&story_id=eq.${encodeURIComponent(storyId)}&order=viewed_at.desc&limit=1000`,
     );
+    const viewCount = await this.db.rpc<number>('resa_story_view_count', token, {
+      p_story_id: storyId,
+    });
     const viewerIds = [...new Set(views.map((view) => view.viewer_id).filter(Boolean))];
     const profiles = viewerIds.length
       ? await this.db.rpc<any[]>('resa_profiles_for_ids', token, { p_user_ids: viewerIds })
@@ -231,7 +234,7 @@ export class ResaSocialService {
 
     return {
       is_author: true,
-      view_count: views.length,
+      view_count: Number(viewCount ?? views.length),
       viewers: views.map((view) => {
         const profile = profilesById.get(view.viewer_id);
         return {
