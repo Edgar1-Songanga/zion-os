@@ -28,7 +28,7 @@ export class ResaSocialService {
     const rows = await this.db.get<any[]>(
       'resa_contents',
       token,
-      `?select=id,author_id,media_type,media_url,media_path& id=eq.${encodeURIComponent(contentId)}&limit=1`.replace('& id=', '&id='),
+      `?select=id,author_id,media_type,media_url,media_path&id=eq.${encodeURIComponent(contentId)}&limit=1`,
     );
     const content = rows[0];
     if (!content || !content.media_type) throw new NotFoundException('Media not found or not accessible');
