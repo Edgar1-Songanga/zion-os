@@ -61,7 +61,7 @@ export class ResaSocialService {
       ? `&author_id=not.in.(${mutedAuthorIds.join(',')})`
       : '';
     const contentQuery = mode === 'following'
-      ? `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&type=neq.story&visibility=in.(public,followers,community,organization)&author_id=in.(${followedAuthorIds.join(',')})&order=created_at.desc,id.desc&limit=${size + 1}${cursorFilter}`
+      ? `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&type=neq.story&visibility=in.(public,followers,community,organization)&author_id=in.(${followedAuthorIds.join(',')})&order=created_at.desc,id.desc&limit=${size + 1}${cursorFilter}${mutedAuthorFilter}`
       : `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&type=neq.story&visibility=in.(public,followers,community,organization)&order=created_at.desc,id.desc&limit=${size + 1}${cursorFilter}${mutedAuthorFilter}`;
     const fetchedContents = await this.db.get<any[]>('resa_contents', token, contentQuery);
     const hasMore = fetchedContents.length > size;
