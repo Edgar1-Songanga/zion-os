@@ -124,7 +124,7 @@ jobs:
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_four_level_profile_visibility.sql
       - name: Apply RESA account mute controls
         run: |
-          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108183000_resa_user_mutes.sql
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108170700_resa_user_mutes.sql
       - name: Verify RESA account mute isolation and notification suppression
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_user_mutes_regression.sql
