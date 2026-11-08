@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import CreatePost from "@/components/resa/CreatePost";
 import { resaRequest } from "@/lib/resa/api";
 
+type StoryComment = { id: string; author_id: string; body: string; created_at: string };
+
 type Story = {
   id: string;
   author_id: string;
@@ -25,7 +27,7 @@ export default function StoriesPage() {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [showArchive, setShowArchive] = useState(false);
   const [archiveItems, setArchiveItems] = useState<Story[]>([]);
-  const [archiveLoading, setArchiveLoading] = useState(false);
+  const [archiveLoading, setArchiveLoading] = useState(false);\n  const [storyComments, setStoryComments] = useState<StoryComment[]>([]);\n  const [commentsLoading, setCommentsLoading] = useState(false);\n  const [replyText, setReplyText] = useState("");\n  const [replySending, setReplySending] = useState(false);\n  const [reactedStoryIds, setReactedStoryIds] = useState<string[]>([]);\n  const [interactionError, setInteractionError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -54,6 +56,55 @@ export default function StoriesPage() {
   useEffect(() => { void load(); }, [load]);
 
   const displayItems = showArchive ? archiveItems : items;
+
+  useEffect(() => {
+    if (!activeStory?.id || showArchive) {
+      setStoryComments([]);
+      return;
+    }
+    let current = true;
+    setCommentsLoading(true);
+    setInteractionError(null);
+    resaRequest<StoryComment[]>(`/v1/resa/content/${activeStory.id}/comments?limit=30`)
+      .then(rows => { if (current) setStoryComments(rows); })
+      .catch(e => { if (current) setInteractionError(e instanceof Error ? e.message : "Não foi possível carregar as respostas."); })
+      .finally(() => { if (current) setCommentsLoading(false); });
+    return () => { current = false; };
+  }, [activeStory?.id, showArchive]);
+
+  async function sendStoryReply(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!activeStory || !replyText.trim() || replySending || showArchive) return;
+    setReplySending(true);
+    setInteractionError(null);
+    try {
+      await resaRequest(`/v1/resa/content/${activeStory.id}/comments`, {
+        method: "POST",
+        body: JSON.stringify({ body: replyText.trim() }),
+      });
+      setReplyText("");
+      const rows = await resaRequest<StoryComment[]>(`/v1/resa/content/${activeStory.id}/comments?limit=30`);
+      setStoryComments(rows);
+    } catch (e) {
+      setInteractionError(e instanceof Error ? e.message : "Não foi possível enviar a resposta.");
+    } finally {
+      setReplySending(false);
+    }
+  }
+
+  async function reactToStory() {
+    if (!activeStory || showArchive || reactedStoryIds.includes(activeStory.id)) return;
+    setInteractionError(null);
+    try {
+      await resaRequest(`/v1/resa/content/${activeStory.id}/reactions`, {
+        method: "POST",
+        body: JSON.stringify({ reaction_type: "like" }),
+      });
+      setReactedStoryIds(current => [...current, activeStory.id]);
+    } catch (e) {
+      setInteractionError(e instanceof Error ? e.message : "Não foi possível reagir à story.");
+    }
+  }
   const activeStory = activeIndex === null ? null : displayItems[activeIndex] ?? null;
 
   function openStory(id: string) {
@@ -145,6 +196,24 @@ export default function StoriesPage() {
               <button type="button" onClick={() => moveStory(1)} aria-label="Story seguinte" className="absolute right-0 top-1/2 h-24 w-1/4 -translate-y-1/2 bg-transparent" />
             </div>
             {activeStory.media_url && activeStory.body && <div className="bg-slate-950 px-5 py-4 text-sm leading-6 text-slate-200">{activeStory.body}</div>}
+            {!showArchive && <section className="max-h-52 shrink-0 overflow-y-auto border-t border-white/10 bg-slate-950 px-4 py-3">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold text-white/80">Respostas</p>
+                <button type="button" onClick={() => void reactToStory()} disabled={reactedStoryIds.includes(activeStory.id)} className="rounded-full border border-white/15 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">{reactedStoryIds.includes(activeStory.id) ? "Gostaste" : "Enviar gosto"}</button>
+              </div>
+              {interactionError && <p role="alert" className="mb-2 text-xs text-rose-300">{interactionError}</p>}
+              {commentsLoading ? <p className="text-xs text-white/50">A carregar respostas…</p> : storyComments.length ? <div className="space-y-2">
+                {storyComments.map(comment => <div key={comment.id} className="rounded-xl bg-white/[0.06] px-3 py-2">
+                  <p className="text-[10px] text-white/45">{new Date(comment.created_at).toLocaleString("pt-PT")}</p>
+                  <p className="whitespace-pre-wrap break-words text-xs leading-5 text-white/90">{comment.body}</p>
+                </div>)}
+              </div> : <p className="text-xs text-white/50">Ainda não há respostas. Seja o primeiro a responder.</p>}
+              <form onSubmit={sendStoryReply} className="mt-3 flex gap-2">
+                <input value={replyText} onChange={event => setReplyText(event.target.value)} maxLength={5000} placeholder="Escreva uma resposta…" aria-label="Resposta à story" className="min-w-0 flex-1 rounded-xl border border-white/15 bg-white/[0.07] px-3 py-2 text-xs text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                <button type="submit" disabled={!replyText.trim() || replySending} className="rounded-xl bg-blue-500 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">{replySending ? "…" : "Enviar"}</button>
+              </form>
+            </section>}
+            {showArchive && <p className="border-t border-white/10 bg-slate-950 px-4 py-3 text-center text-xs text-white/50">Story arquivada · respostas e reações estão encerradas</p>}
             <div className="flex items-center justify-between border-t border-white/10 bg-slate-950 px-4 py-3">
               <button type="button" onClick={() => moveStory(-1)} disabled={activeIndex === 0} className="rounded-lg px-3 py-2 text-sm font-semibold text-white disabled:opacity-30">Anterior</button>
               <span className="text-xs text-white/55">{activeIndex + 1} / {displayItems.length}</span>
