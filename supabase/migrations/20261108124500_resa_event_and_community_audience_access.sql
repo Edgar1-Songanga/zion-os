@@ -90,7 +90,16 @@ with check (
   and exists (
     select 1 from public.resa_events e
     where e.id = event_id
-      and private.resa_can_view_content(e.created_by, e.visibility, e.community_id, e.organization_id)
+      and (
+        private.resa_can_view_content(e.created_by, e.visibility, e.community_id, e.organization_id)
+        or (
+          e.visibility = 'private'
+          and exists (
+            select 1 from public.resa_event_participants p
+            where p.event_id = e.id and p.user_id = (select auth.uid())
+          )
+        )
+      )
   )
 );
 
