@@ -186,7 +186,15 @@ export class ResaSocialService {
   async comments(token: string, contentId: string, limit = 50, before?: string) { await this.actor(token); const size = Math.min(Math.max(Number(limit) || 50, 1), 100); const cursor = before ? `&created_at=gt.${encodeURIComponent(before)}` : ''; return this.db.get('resa_comments', token, `?select=*&content_id=eq.${contentId}&status=eq.active&order=created_at.asc&limit=${size}${cursor}`); }
   async react(token: string, contentId: string, reactionType: string) { const a = await this.actor(token); const rows = await this.db.upsert<any[]>('resa_reactions', token, { content_id: contentId, user_id: a.id, reaction_type: this.clean(reactionType, 'reaction_type', 40).toLowerCase() }, '?on_conflict=content_id,user_id'); return rows[0]; }
   async removeReaction(token: string, contentId: string) { const a = await this.actor(token); await this.db.delete('resa_reactions', token, `?content_id=eq.${contentId}&user_id=eq.${a.id}`); return { removed: true }; }
-  async follow(token: string, followedId: string) { const a = await this.actor(token); if (a.id === followedId) throw new BadRequestException('You cannot follow yourself'); const rows = await this.db.upsert<any[]>('resa_follows', token, { follower_id: a.id, followed_id: followedId }, '?on_conflict=follower_id,followed_id'); return rows[0]; }
+  async follow(token: string, followedId: string) {
+    const actor = await this.actor(token);
+    if (actor.id === followedId) throw new BadRequestException('You cannot follow yourself');
+    const targets = await this.db.get<any[]>('profiles', token, `?select=id,privacy&id=eq.${encodeURIComponent(followedId)}&limit=1`);
+    if (!targets[0]) throw new NotFoundException('Profile not found');
+    if (targets[0].privacy?.follow_policy === 'none') throw new ForbiddenException('Este perfil não aceita novos seguidores.');
+    const rows = await this.db.upsert<any[]>('resa_follows', token, { follower_id: actor.id, followed_id: followedId }, '?on_conflict=follower_id,followed_id');
+    return rows[0];
+  }
   async unfollow(token: string, followedId: string) { const a = await this.actor(token); await this.db.delete('resa_follows', token, `?follower_id=eq.${a.id}&followed_id=eq.${followedId}`); return { removed: true }; }
   async publicProfile(token: string, userId: string) {
     const actor = await this.actor(token);
@@ -202,7 +210,7 @@ export class ResaSocialService {
     const isFollowing = viewerFollows.length > 0;
     const isFollower = ownerFollows.length > 0;
     const privacy = profile.privacy ?? {};
-    if (privacy.profile_visibility === 'private' && !isOwner && !isFollower) throw new NotFoundException('Profile not found');
+    if (privacy.profile_visibility === 'private' && !isOwner && !isFollowing) throw new NotFoundException('Profile not found');
     const contents = await this.db.get<any[]>('resa_contents', token, `?select=id,author_id,type,title,body,created_at,media_type,media_url,language&author_id=eq.${encodeURIComponent(id)}&visibility=eq.public&order=created_at.desc&limit=20`);
     return {
       profile: {
@@ -211,13 +219,13 @@ export class ResaSocialService {
         first_name: privacy.profile_visibility === 'private' && !isOwner && !isFollower ? null : profile.first_name,
         last_name: privacy.profile_visibility === 'private' && !isOwner && !isFollower ? null : profile.last_name,
         avatar_url: profile.avatar_url,
-        bio: isOwner || privacy.bio_visibility === 'public' || (privacy.bio_visibility === 'community' && (isFollowing || isFollower)) ? profile.bio : null,
-        country_code: isOwner || privacy.country_visibility === 'public' || (privacy.country_visibility === 'community' && (isFollowing || isFollower)) ? profile.country_code : null,
+        bio: isOwner || privacy.bio_visibility === 'public' || privacy.bio_visibility === 'community' ? profile.bio : null,
+        country_code: isOwner || privacy.country_visibility === 'public' || privacy.country_visibility === 'community' ? profile.country_code : null,
         is_owner: isOwner,
         is_following: isFollowing,
-        message_allowed: isOwner ? false : ['everyone','followers','following'].includes(privacy.message_policy ?? 'everyone') && (privacy.message_policy !== 'followers' || isFollower) && (privacy.message_policy !== 'following' || isFollowing),
-        call_allowed: isOwner ? false : ['everyone','followers','following'].includes(privacy.call_policy ?? 'everyone') && (privacy.call_policy !== 'followers' || isFollower) && (privacy.call_policy !== 'following' || isFollowing),
-        group_invite_allowed: isOwner ? false : ['everyone','followers','following'].includes(privacy.group_invite_policy ?? 'everyone') && (privacy.group_invite_policy !== 'followers' || isFollower) && (privacy.group_invite_policy !== 'following' || isFollowing),
+        message_allowed: isOwner ? false : ['everyone','followers','following'].includes(privacy.message_policy ?? 'everyone') && (privacy.message_policy !== 'followers' || isFollowing) && (privacy.message_policy !== 'following' || isFollower),
+        call_allowed: isOwner ? false : ['everyone','followers','following'].includes(privacy.call_policy ?? 'everyone') && (privacy.call_policy !== 'followers' || isFollowing) && (privacy.call_policy !== 'following' || isFollower),
+        group_invite_allowed: isOwner ? false : ['everyone','followers','following'].includes(privacy.group_invite_policy ?? 'everyone') && (privacy.group_invite_policy !== 'followers' || isFollowing) && (privacy.group_invite_policy !== 'following' || isFollower),
         follow_allowed: !isOwner && privacy.follow_policy !== 'none',
       },
       contents,
