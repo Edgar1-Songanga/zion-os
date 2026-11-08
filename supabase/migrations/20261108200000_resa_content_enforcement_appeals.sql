@@ -66,6 +66,7 @@ alter table public.resa_moderation_actions enable row level security;
 alter table public.resa_content_moderation_appeals enable row level security;
 revoke all on public.resa_moderation_actions, public.resa_content_moderation_appeals from anon;
 grant select on public.resa_moderation_actions, public.resa_content_moderation_appeals to authenticated;
+grant insert on public.resa_content_moderation_appeals to authenticated;
 
 drop policy if exists resa_moderation_actions_read on public.resa_moderation_actions;
 create policy resa_moderation_actions_read on public.resa_moderation_actions
