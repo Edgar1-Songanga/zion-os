@@ -465,7 +465,8 @@ export default function MessagesPage() {
 
             {selected && (
               <div className="border-t border-slate-100 bg-white p-4">
-                {replyTo && <div className="mb-2 flex items-center justify-between rounded-xl bg-[#eef2f8] px-3 py-2 text-xs text-slate-600"><span className="truncate">A responder: {replyTo.body}</span><button onClick={() => setReplyTo(null)} className="font-semibold text-[#0C1A3D]">Cancelar</button></div>}
+                                {searchParams.get("call") === "audio" ? <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">Pedido de chamada iniciado. A caixa de mensagens está desativada neste modo.</p> : <>
+{replyTo && <div className="mb-2 flex items-center justify-between rounded-xl bg-[#eef2f8] px-3 py-2 text-xs text-slate-600"><span className="truncate">A responder: {replyTo.body}</span><button onClick={() => setReplyTo(null)} className="font-semibold text-[#0C1A3D]">Cancelar</button></div>}
                 <div className="rounded-[22px] border border-slate-200 bg-white p-2 shadow-[0_8px_30px_rgba(12,26,61,0.06)] transition focus-within:border-[#9aa9c6] focus-within:shadow-[0_12px_34px_rgba(12,26,61,0.09)]">
                   <div className="flex items-end gap-2">
                   <textarea
@@ -486,6 +487,7 @@ export default function MessagesPage() {
                     <span>Enter envia · Shift + Enter cria uma nova linha</span>
                     <span>{body.length}/10000</span>
                   </div>
+                </>}
                 </div>
               </div>
             )}
