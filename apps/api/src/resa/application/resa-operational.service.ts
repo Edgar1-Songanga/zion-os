@@ -754,13 +754,49 @@ export class ResaOperationalService {
   async search(token: string, query: string, type?: string, limit = 30) {
     const actor = await this.actor(token);
     const normalized = this.text(query, 'query', 2, 120).replace(/[(),]/g, ' ');
+    const term = encodeURIComponent(normalized);
     const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
-    if (type === 'profile') {
+    const profileSearch = async () => {
       const profiles = await this.db.rpc<any[]>('resa_search_profiles', token, { p_query: normalized, p_limit: size });
       // Do not offer the signed-in user as a target for a new direct conversation.
-      return profiles.filter((profile) => profile.id !== actor.id);
+      return profiles.filter((profile) => profile.id !== actor.id).map((profile) => ({
+        ...profile,
+        entity_type: 'profile',
+        entity_id: profile.id,
+        title: profile.display_name || [profile.first_name, profile.last_name].filter(Boolean).join(' ').trim() || 'Membro RESA',
+        body: profile.bio ?? null,
+      }));
+    };
+    const contentSearch = async () => (await this.db.get<any[]>('resa_contents', token,
+      `?select=id,title,body,type,author_id,created_at,media_type,media_url,visibility&visibility=in.(public,followers,community,organization)&type=neq.story&or=(title.ilike.*${term}*,body.ilike.*${term}*)&order=created_at.desc&limit=${size}`))
+      .map((item) => ({ ...item, entity_type: 'content', entity_id: item.id }));
+    const topicSearch = async () => (await this.db.get<any[]>('resa_topics', token,
+      `?select=id,name,normalized_name&or=(name.ilike.*${term}*,normalized_name.ilike.*${term}*)&order=name.asc&limit=${size}`))
+      .map((item) => ({ ...item, entity_type: 'topic', entity_id: item.id, title: '#' + item.name, body: item.normalized_name }));
+    const communitySearch = async () => (await this.db.get<any[]>('resa_communities', token,
+      `?select=id,name,slug,description,visibility,created_by&status=eq.active&or=(name.ilike.*${term}*,description.ilike.*${term}*)&order=created_at.desc&limit=${size}`))
+      .map((item) => ({ ...item, entity_type: 'community', entity_id: item.id, title: item.name, body: item.description }));
+    const eventSearch = async () => (await this.db.get<any[]>('resa_events', token,
+      `?select=id,title,description,starts_at,location,visibility,status&status=neq.cancelled&or=(title.ilike.*${term}*,description.ilike.*${term}*)&order=starts_at.asc&limit=${size}`))
+      .map((item) => ({ ...item, entity_type: 'event', entity_id: item.id, body: item.description }));
+
+    const searches: Record<string, () => Promise<any[]>> = {
+      profile: profileSearch,
+      content: contentSearch,
+      topic: topicSearch,
+      community: communitySearch,
+      event: eventSearch,
+    };
+    if (type) {
+      const selected = searches[type];
+      if (!selected) throw new BadRequestException('Unsupported search type');
+      return selected();
     }
-    const typeFilter = type ? `&entity_type=eq.${encodeURIComponent(this.text(type, 'type', 1, 40))}` : '';
-    return this.db.get('zion_search_documents', token, `?select=*&or=(title.ilike.*${encodeURIComponent(normalized)}*,body.ilike.*${encodeURIComponent(normalized)}*)&order=updated_at.desc&limit=${size}${typeFilter}`);
+    const groups = await Promise.all(Object.values(searches).map((searchGroup) => searchGroup()));
+    return groups.flat().sort((a, b) => {
+      const dateA = Date.parse(a.created_at ?? a.updated_at ?? a.starts_at ?? '') || 0;
+      const dateB = Date.parse(b.created_at ?? b.updated_at ?? b.starts_at ?? '') || 0;
+      return dateB - dateA;
+    }).slice(0, Math.min(size * 3, 100));
   }
 }
