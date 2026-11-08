@@ -99,7 +99,7 @@ export default function MessagesPage() {
   useEffect(() => {
     if (autoStartCallConversationId && selected && selected !== autoStartCallConversationId) setAutoStartCallConversationId(null);
     if (callOnlyConversationId && selected && selected !== callOnlyConversationId) setCallOnlyConversationId(null);
-  }, [autoStartCallConversationId, selected]);
+  }, [autoStartCallConversationId, callOnlyConversationId, selected]);
 
   const selectedConversation = useMemo(
     () => items.find((item) => item.id === selected) ?? null,
