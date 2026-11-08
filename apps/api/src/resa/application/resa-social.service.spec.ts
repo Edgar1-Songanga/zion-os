@@ -47,6 +47,32 @@ describe('ResaSocialService feeds', () => {
     });
   });
 
+  it('hydrates follower and following lists by their actual profile IDs', async () => {
+    getSpy.mockImplementation(async (table: string, _token: string, query: string) => {
+      if (table !== 'resa_follows') return [] as never;
+      if (query.includes('followed_id=eq.' + ACTOR_ID)) {
+        return [{ follower_id: FOLLOWED_ID, created_at: '2026-11-08T10:00:00.000Z' }] as never;
+      }
+      if (query.includes('follower_id=eq.' + ACTOR_ID)) {
+        return [{ followed_id: '33333333-3333-4333-8333-333333333333', created_at: '2026-11-08T11:00:00.000Z' }] as never;
+      }
+      return [] as never;
+    });
+    rpcSpy.mockResolvedValue([
+      { id: FOLLOWED_ID, display_name: 'Follower profile' },
+      { id: '33333333-3333-4333-8333-333333333333', display_name: 'Following profile' },
+    ] as never);
+
+    const result = await service.social('session-token');
+
+    expect(rpcSpy).toHaveBeenCalledWith('resa_profiles_for_ids', 'session-token', {
+      p_user_ids: expect.arrayContaining([FOLLOWED_ID, '33333333-3333-4333-8333-333333333333']),
+    });
+    expect(rpcSpy).not.toHaveBeenCalledWith('resa_search_profiles', 'session-token', expect.anything());
+    expect(result.followers[0]).toMatchObject({ id: FOLLOWED_ID, display_name: 'Follower profile' });
+    expect(result.following[0]).toMatchObject({ id: '33333333-3333-4333-8333-333333333333', display_name: 'Following profile' });
+  });
+
   it('makes follow creation idempotent using the database composite key', async () => {
     const upsertSpy = jest.spyOn(SupabaseRestClient.prototype, 'upsert').mockResolvedValue([
       { follower_id: ACTOR_ID, followed_id: FOLLOWED_ID },

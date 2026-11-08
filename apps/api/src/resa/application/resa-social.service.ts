@@ -209,12 +209,20 @@ export class ResaSocialService {
   async social(token: string, userId?: string) {
     const actor = await this.actor(token);
     const targetId = userId || actor.id;
-    const [followers, following, actorFollowingTarget, profiles] = await Promise.all([
+    const [followers, following, actorFollowingTarget] = await Promise.all([
       this.db.get<any[]>('resa_follows', token, `?select=follower_id,created_at&followed_id=eq.${targetId}&order=created_at.desc&limit=100`),
       this.db.get<any[]>('resa_follows', token, `?select=followed_id,created_at&follower_id=eq.${targetId}&order=created_at.desc&limit=100`),
       targetId === actor.id ? Promise.resolve([]) : this.db.get<any[]>('resa_follows', token, `?select=followed_id&follower_id=eq.${actor.id}&followed_id=eq.${targetId}&limit=1`),
-      this.db.rpc<any[]>('resa_search_profiles', token, { p_query: '', p_limit: 50 }),
     ]);
+    const profileIds = [...new Set([
+      ...followers.map((row) => row.follower_id),
+      ...following.map((row) => row.followed_id),
+    ].filter(Boolean))];
+    // Resolve only the identities present in these lists. Search requires a real
+    // query string and must not be used as an empty-query profile directory.
+    const profiles = profileIds.length
+      ? await this.db.rpc<any[]>('resa_profiles_for_ids', token, { p_user_ids: profileIds })
+      : [];
     const profileMap = new Map(profiles.map((p) => [p.id, p]));
     const person = (id: string, createdAt: string) => ({ id, created_at: createdAt, ...(profileMap.get(id) || {}) });
     return {
