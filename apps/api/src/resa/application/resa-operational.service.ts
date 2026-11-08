@@ -1,4 +1,4 @@
-import { BadGatewayException, BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { IdentityService } from '../../identity/application/identity.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 import { MEDIA_PROVIDER } from '../../media/media.module';
