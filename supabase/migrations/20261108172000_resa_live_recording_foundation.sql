@@ -43,6 +43,7 @@ create unique index if not exists resa_live_recordings_one_active_per_live_idx
   where status in ('starting', 'recording', 'processing');
 
 alter table public.resa_live_recordings enable row level security;
+grant select, insert, update on public.resa_live_recordings to authenticated;
 
 drop policy if exists resa_live_recordings_owner_read on public.resa_live_recordings;
 create policy resa_live_recordings_owner_read
