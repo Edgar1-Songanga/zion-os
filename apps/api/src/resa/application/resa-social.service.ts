@@ -32,23 +32,32 @@ export class ResaSocialService {
     const a = await this.actor(token);
     const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
 
-    // Bound the candidate window and select only fields consumed by feed ranking/rendering.
-    const contents = await this.db.get<any[]>(
-      'resa_contents',
-      token,
-      '?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&visibility=eq.public&order=created_at.desc&limit=120',
-    );
+    // The Following feed must query the followed authors directly. Filtering only
+    // the global newest 120 posts would silently omit followed creators whenever
+    // unrelated accounts publish more frequently.
+    const followingRows = mode === 'following'
+      ? await this.db.get<any[]>('resa_follows', token, `?select=followed_id&follower_id=eq.${a.id}&order=created_at.desc&limit=1000`)
+      : null;
+    const followedAuthorIds = followingRows
+      ? [...new Set([a.id, ...followingRows.map((row) => row.followed_id).filter(Boolean)])]
+      : [];
+    const contentQuery = mode === 'following'
+      ? `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&visibility=eq.public&author_id=in.(${followedAuthorIds.join(',')})&order=created_at.desc&limit=120`
+      : '?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&visibility=eq.public&order=created_at.desc&limit=120';
+    const contents = await this.db.get<any[]>('resa_contents', token, contentQuery);
     const contentIds = contents.map((item) => item.id).filter(Boolean);
     const authorIds = [...new Set(contents.map((item) => item.author_id).filter(Boolean))];
 
     // Scope personalized lookups to this feed page rather than downloading each user's
-    // entire follow graph, feedback history, and saved-content list on every refresh.
+    // entire feedback history and saved-content list on every refresh.
     const contentFilter = contentIds.length ? `in.(${contentIds.join(',')})` : null;
     const authorFilter = authorIds.length ? `in.(${authorIds.join(',')})` : null;
     const [follows, feedback, reactions, saves, viewerReactions] = await Promise.all([
-      authorFilter
-        ? this.db.get<any[]>( 'resa_follows', token, `?select=followed_id&follower_id=eq.${a.id}&followed_id=${authorFilter}&limit=120`)
-        : Promise.resolve([]),
+      followingRows
+        ? Promise.resolve(followingRows)
+        : authorFilter
+          ? this.db.get<any[]>( 'resa_follows', token, `?select=followed_id&follower_id=eq.${a.id}&followed_id=${authorFilter}&limit=120`)
+          : Promise.resolve([]),
       contentFilter
         ? this.db.get<any[]>( 'resa_feed_feedback', token, `?select=content_id,feedback&user_id=eq.${a.id}&content_id=${contentFilter}&limit=120`)
         : Promise.resolve([]),
