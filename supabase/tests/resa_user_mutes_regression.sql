@@ -26,8 +26,19 @@ begin
     insert into public.resa_user_mutes(muter_id,muted_id)
     values (auth.uid(),auth.uid());
     raise exception 'Self-mute unexpectedly succeeded';
-  exception when check_violation then null;
+  exception when insufficient_privilege or check_violation then null;
   end;
+end;
+$test$;
+reset role;
+
+select set_config('request.jwt.claim.sub','96000000-0000-4000-8000-000000000002',false);
+set role authenticated;
+do $test$
+begin
+  if exists (select 1 from public.resa_user_mutes) then
+    raise exception 'Another member can read someone else mute list';
+  end if;
 end;
 $test$;
 reset role;
