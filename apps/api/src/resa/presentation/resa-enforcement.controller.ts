@@ -39,4 +39,39 @@ export class ResaEnforcementController {
   decide(@Headers('authorization') authorization: string | undefined, @Param('appealId') appealId: string, @Body() body: { status: 'reviewing'|'upheld'|'overturned'; decision_note?: string }) {
     return this.enforcement.decide(this.token(authorization), appealId, body.status, body.decision_note);
   }
+
+  @Get('my-account-sanctions')
+  myAccountSanctions(@Headers('authorization') authorization?: string, @Query('limit') limit?: string) {
+    return this.enforcement.myAccountSanctions(this.token(authorization), Number(limit) || 50);
+  }
+
+  @Get('account-sanctions')
+  accountSanctionQueue(@Headers('authorization') authorization?: string, @Query('limit') limit?: string) {
+    return this.enforcement.accountSanctionQueue(this.token(authorization), Number(limit) || 100);
+  }
+
+  @Post('account-sanctions')
+  createAccountSanction(@Headers('authorization') authorization: string | undefined, @Body() body: { target_user_id?: unknown; restriction_type?: unknown; reason?: unknown; expires_at?: unknown }) {
+    return this.enforcement.createAccountSanction(this.token(authorization), body);
+  }
+
+  @Patch('account-sanctions/:sanctionId/revoke')
+  revokeAccountSanction(@Headers('authorization') authorization: string | undefined, @Param('sanctionId') sanctionId: string, @Body() body: { note?: unknown }) {
+    return this.enforcement.revokeAccountSanction(this.token(authorization), sanctionId, body.note);
+  }
+
+  @Post('account-sanctions/:sanctionId/appeals')
+  submitAccountSanctionAppeal(@Headers('authorization') authorization: string | undefined, @Param('sanctionId') sanctionId: string, @Body() body: { reason?: unknown; details?: unknown }) {
+    return this.enforcement.submitAccountSanctionAppeal(this.token(authorization), sanctionId, body);
+  }
+
+  @Get('account-sanction-appeals')
+  accountSanctionAppeals(@Headers('authorization') authorization?: string, @Query('status') status?: string, @Query('limit') limit?: string) {
+    return this.enforcement.accountSanctionAppeals(this.token(authorization), status || 'open', Number(limit) || 100);
+  }
+
+  @Patch('account-sanction-appeals/:appealId')
+  decideAccountSanctionAppeal(@Headers('authorization') authorization: string | undefined, @Param('appealId') appealId: string, @Body() body: { status: 'reviewing'|'upheld'|'overturned'; decision_note?: unknown }) {
+    return this.enforcement.decideAccountSanctionAppeal(this.token(authorization), appealId, body.status, body.decision_note);
+  }
 }
