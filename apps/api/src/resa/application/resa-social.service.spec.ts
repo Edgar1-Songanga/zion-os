@@ -630,4 +630,44 @@ describe('ResaSocialService feeds', () => {
     expect(getSpy).toHaveBeenCalledWith('resa_user_mutes', 'session-token', expect.stringContaining('muter_id=eq.' + ACTOR_ID));
     expect(result).toEqual([{ user_id: mutedId, muted_at: '2026-11-08T12:00:00.000Z', profile: { id: mutedId, display_name: 'Muted profile' } }]);
   });
+  it('filters muted authors from Reels, Explore, Stories and topic feeds at query time', async () => {
+    const mutedId = '33333333-3333-4333-8333-333333333333';
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_user_mutes') return [{ muted_id: mutedId }] as never;
+      if (table === 'resa_topics') return [{ id: 'topic-1', name: 'Community', normalized_name: 'community' }] as never;
+      if (table === 'resa_content_topics') return [{ content_id: 'topic-post' }] as never;
+      return [] as never;
+    });
+
+    await service.reels('session-token', 20);
+    await service.explore('session-token', 'community', 20);
+    await service.stories('session-token', 20);
+    await service.topicFeed('session-token', 'community', 20);
+
+    const contentQueries = getSpy.mock.calls
+      .filter(([table]) => table === 'resa_contents')
+      .map(([, , query]) => String(query));
+    expect(contentQueries).toHaveLength(4);
+    for (const query of contentQueries) {
+      expect(query).toContain('author_id=not.in.(' + mutedId + ')');
+    }
+  });
+
+  it('removes muted accounts from profile suggestions', async () => {
+    const mutedId = '33333333-3333-4333-8333-333333333333';
+    getSpy.mockImplementation(async (table: string, _token: string, query: string) => {
+      if (table === 'resa_follows' && query.includes('follower_id=eq.')) return [{ followed_id: FOLLOWED_ID }] as never;
+      if (table === 'resa_follows') return [{ follower_id: FOLLOWED_ID, followed_id: mutedId }] as never;
+      if (table === 'resa_user_mutes') return [{ muted_id: mutedId }] as never;
+      return [] as never;
+    });
+
+    const result = await service.suggestions('session-token', 10);
+
+    expect(result).toEqual([]);
+    expect(rpcSpy).not.toHaveBeenCalledWith('resa_profiles_for_ids', 'session-token', {
+      p_user_ids: [mutedId],
+    });
+  });
+
 });

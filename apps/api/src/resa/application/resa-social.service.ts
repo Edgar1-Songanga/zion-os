@@ -8,6 +8,17 @@ export class ResaSocialService {
   private readonly db = new SupabaseRestClient();
   constructor(private readonly identity: IdentityService, private readonly recommendations: ResaRecommendationService) {}
   private async actor(token: string) { return this.identity.getCurrentUser(token); }
+  private async mutedAuthorIds(token: string, userId: string): Promise<string[]> {
+    const rows = await this.db.get<any[]>(
+      'resa_user_mutes',
+      token,
+      `?select=muted_id&muter_id=eq.${encodeURIComponent(userId)}&order=created_at.desc&limit=1000`,
+    );
+    return [...new Set(rows.map((row) => row.muted_id).filter(Boolean))];
+  }
+  private mutedAuthorFilter(ids: string[]): string {
+    return ids.length ? `&author_id=not.in.(${ids.join(',')})` : '';
+  }
   private clean(value: unknown, field: string, max = 10000) {
     if (typeof value !== 'string' || !value.trim()) throw new BadRequestException(`${field} is required`);
     const v = value.trim(); if (v.length > max) throw new BadRequestException(`${field} is too long`); return v;
@@ -167,10 +178,11 @@ export class ResaSocialService {
   async reels(token: string, limit = 30) {
     const viewer = await this.actor(token);
     const size = Math.min(Math.max(Number(limit) || 30, 1), 50);
+    const mutedIds = await this.mutedAuthorIds(token, viewer.id);
     const rows = await this.db.get<any[]>(
       'resa_contents',
       token,
-      `?select=id,author_id,title,body,created_at,media_url,media_type,language,visibility&type=neq.story&media_type=eq.video&visibility=in.(public,followers,community,organization)&order=created_at.desc&limit=${size}`,
+      `?select=id,author_id,title,body,created_at,media_url,media_type,language,visibility&type=neq.story&media_type=eq.video&visibility=in.(public,followers,community,organization)${this.mutedAuthorFilter(mutedIds)}&order=created_at.desc&limit=${size}`,
     );
     const authorIds = [...new Set(rows.map((row) => row.author_id).filter(Boolean))];
     const contentIds = rows.map((row) => row.id).filter(Boolean);
@@ -205,17 +217,19 @@ export class ResaSocialService {
   }
 
   async explore(token: string, query?: string, limit = 30) {
-    await this.actor(token); const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
+    const viewer = await this.actor(token); const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
+    const mutedIds = await this.mutedAuthorIds(token, viewer.id);
     const filter = query?.trim() ? `&or=(title.ilike.*${encodeURIComponent(query.trim())}*,body.ilike.*${encodeURIComponent(query.trim())}*)` : '';
-    return this.db.get('resa_contents', token, `?select=*&type=neq.story&visibility=in.(public,followers,community,organization)&order=created_at.desc&limit=${size}${filter}`);
+    return this.db.get('resa_contents', token, `?select=*&type=neq.story&visibility=in.(public,followers,community,organization)${this.mutedAuthorFilter(mutedIds)}&order=created_at.desc&limit=${size}${filter}`);
   }
   async stories(token: string, limit = 30) {
     const viewer = await this.actor(token);
     const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
+    const mutedIds = await this.mutedAuthorIds(token, viewer.id);
     const rows = await this.db.get<any[]>(
       'resa_contents',
       token,
-      `?select=id,author_id,title,body,created_at,media_type,media_url,media_path,visibility,language&type=eq.story&visibility=in.(public,followers,community,organization)&created_at=gte.${encodeURIComponent(new Date(Date.now() - 86400000).toISOString())}&order=created_at.desc&limit=${size}`,
+      `?select=id,author_id,title,body,created_at,media_type,media_url,media_path,visibility,language&type=eq.story&visibility=in.(public,followers,community,organization)${this.mutedAuthorFilter(mutedIds)}&created_at=gte.${encodeURIComponent(new Date(Date.now() - 86400000).toISOString())}&order=created_at.desc&limit=${size}`,
     );
     const authorIds = [...new Set(rows.map((row) => row.author_id).filter(Boolean))];
     const storyIds = rows.map((row) => row.id).filter(Boolean);
@@ -532,7 +546,9 @@ export class ResaSocialService {
       if (!candidateId || candidateId === actor.id || followedIds.includes(candidateId)) continue;
       mutualCounts.set(candidateId, (mutualCounts.get(candidateId) ?? 0) + 1);
     }
+    const mutedIds = new Set(await this.mutedAuthorIds(token, actor.id));
     const candidateIds = [...mutualCounts.entries()]
+      .filter(([id]) => !mutedIds.has(id))
       .sort((a, b) => b[1] - a[1])
       .slice(0, 200)
       .map(([id]) => id);
@@ -565,15 +581,16 @@ export class ResaSocialService {
     return rows[0];
   }
   async topicFeed(token: string, slug: string, limit = 50) {
-    await this.actor(token);
+    const viewer = await this.actor(token);
     const normalized = this.clean(slug, 'slug', 80).replace(/^#/, '').toLowerCase();
     const topics = await this.db.get<any[]>('resa_topics', token, `?select=id,name,normalized_name&normalized_name=eq.${encodeURIComponent(normalized)}&limit=1`);
     if (!topics[0]) return { topic: null, contents: [] };
     const size = Math.min(Math.max(Number(limit) || 50, 1), 100);
     const links = await this.db.get<any[]>('resa_content_topics', token, `?select=content_id&topic_id=eq.${topics[0].id}&limit=1000`);
+    const mutedIds = await this.mutedAuthorIds(token, viewer.id);
     const ids = [...new Set(links.map((row) => row.content_id).filter(Boolean))];
     if (!ids.length) return { topic: topics[0], contents: [] };
-    const contents = await this.db.get<any[]>('resa_contents', token, `?select=id,author_id,type,title,body,created_at,media_type,media_url,language&visibility=eq.public&id=in.(${ids.join(',')})&order=created_at.desc&limit=${size}`);
+    const contents = await this.db.get<any[]>('resa_contents', token, `?select=id,author_id,type,title,body,created_at,media_type,media_url,language&visibility=eq.public&id=in.(${ids.join(',')})${this.mutedAuthorFilter(mutedIds)}&order=created_at.desc&limit=${size}`);
     const authorIds = [...new Set(contents.map((item) => item.author_id).filter(Boolean))];
     const profiles = authorIds.length
       ? await this.db.rpc<any[]>('resa_profiles_for_ids', token, { p_user_ids: authorIds })
