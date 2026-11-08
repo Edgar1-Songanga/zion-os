@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import CreatePost from "@/components/resa/CreatePost";
 import { resaRequest } from "@/lib/resa/api";
 
@@ -27,7 +27,13 @@ export default function StoriesPage() {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [showArchive, setShowArchive] = useState(false);
   const [archiveItems, setArchiveItems] = useState<Story[]>([]);
-  const [archiveLoading, setArchiveLoading] = useState(false);\n  const [storyComments, setStoryComments] = useState<StoryComment[]>([]);\n  const [commentsLoading, setCommentsLoading] = useState(false);\n  const [replyText, setReplyText] = useState("");\n  const [replySending, setReplySending] = useState(false);\n  const [reactedStoryIds, setReactedStoryIds] = useState<string[]>([]);\n  const [interactionError, setInteractionError] = useState<string | null>(null);
+  const [archiveLoading, setArchiveLoading] = useState(false);
+  const [storyComments, setStoryComments] = useState<StoryComment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [replyText, setReplyText] = useState("");
+  const [replySending, setReplySending] = useState(false);
+  const [reactedStoryIds, setReactedStoryIds] = useState<string[]>([]);
+  const [interactionError, setInteractionError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -73,7 +79,7 @@ export default function StoriesPage() {
     return () => { current = false; };
   }, [activeStory?.id, showArchive]);
 
-  async function sendStoryReply(event: React.FormEvent<HTMLFormElement>) {
+  async function sendStoryReply(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!activeStory || !replyText.trim() || replySending || showArchive) return;
     setReplySending(true);
