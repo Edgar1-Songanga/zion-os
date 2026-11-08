@@ -398,9 +398,7 @@ describe('ResaOperationalService live permissions', () => {
       p_title: 'Direct chat',
       p_contact_type: 'message',
     });
-    expect(getSpy).toHaveBeenCalledTimes(3);
-    expect(getSpy).toHaveBeenCalledWith('profiles', 'session-token', expect.stringContaining(TARGET_ID));
-    expect(getSpy).toHaveBeenCalledWith('resa_follows', 'session-token', expect.stringContaining(TARGET_ID));
+    expect(getSpy).not.toHaveBeenCalled();
     expect(result.id).toBe(CONVERSATION_ID);
   });
 
