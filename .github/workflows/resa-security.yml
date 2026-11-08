@@ -8,6 +8,7 @@ on:
       - "supabase/tests/resa_security*"
       - "supabase/tests/resa_call_security*"
       - "supabase/tests/resa_member_privacy_regression.sql"
+      - "supabase/tests/resa_four_level_profile_visibility.sql"
       - ".github/workflows/resa-security.yml"
   push:
     branches: [main]
@@ -65,6 +66,12 @@ jobs:
       - name: Verify profile, message, call, follow and group-invite privacy
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_member_privacy_regression.sql
+      - name: Apply four-level profile visibility
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108130000_resa_four_level_profile_visibility.sql
+      - name: Verify public, friends, friends-of-friends and private visibility
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_four_level_profile_visibility.sql
       - name: Stop disposable PostgreSQL
         if: always()
         run: docker rm -f zion-resa-security-postgres || true
