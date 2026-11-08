@@ -15,6 +15,10 @@ values
  ('95000000-0000-4000-8000-000000000011','95000000-0000-4000-8000-000000000001','text','A post','From A','public'),
  ('95000000-0000-4000-8000-000000000012','95000000-0000-4000-8000-000000000002','text','B post','From B','public')
 on conflict (id) do nothing;
+insert into public.resa_follows(follower_id,followed_id) values
+ ('95000000-0000-4000-8000-000000000001','95000000-0000-4000-8000-000000000002'),
+ ('95000000-0000-4000-8000-000000000002','95000000-0000-4000-8000-000000000001')
+on conflict do nothing;
 
 select set_config('request.jwt.claim.sub','95000000-0000-4000-8000-000000000001',false);
 set role authenticated;
@@ -41,6 +45,11 @@ begin
   end if;
   if (select count(*) from public.resa_user_blocks where blocker_id=auth.uid()) <> 1 then
     raise exception 'Blocker cannot see own block list';
+  end if;
+  if (select count(*) from public.resa_follows
+      where (follower_id='95000000-0000-4000-8000-000000000001' and followed_id='95000000-0000-4000-8000-000000000002')
+         or (follower_id='95000000-0000-4000-8000-000000000002' and followed_id='95000000-0000-4000-8000-000000000001')) <> 0 then
+    raise exception 'Blocking did not remove both follow edges';
   end if;
   begin
     insert into public.resa_follows(follower_id,followed_id)
