@@ -354,8 +354,8 @@ export class ResaSocialService {
     const body = typeof input.body === 'string' ? input.body.trim() : '';
     if (!title && !body) throw new BadRequestException('title or body is required');
     const visibility = input.publish_visibility || 'public';
-    if (!['public', 'followers', 'community', 'organization'].includes(visibility)) {
-      throw new BadRequestException('Invalid publish visibility');
+    if (!['public', 'followers'].includes(visibility)) {
+      throw new BadRequestException('New scheduled posts can currently target public or followers audiences.');
     }
     const rows = await this.db.rpc<any[]>('resa_create_scheduled_content', token, {
       p_title: title || null,
