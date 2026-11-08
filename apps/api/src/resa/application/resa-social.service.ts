@@ -378,9 +378,13 @@ export class ResaSocialService {
     );
     const ids = [...new Set(blocks.map((row) => row.blocked_id).filter(Boolean))];
     if (!ids.length) return [];
-    const profiles = await this.db.rpc<any[]>('resa_profiles_for_ids', token, {
-      p_user_ids: ids,
-    });
+    const profiles: any[] = [];
+    for (let offset = 0; offset < ids.length; offset += 200) {
+      const batch = await this.db.rpc<any[]>('resa_profiles_for_ids', token, {
+        p_user_ids: ids.slice(offset, offset + 200),
+      });
+      profiles.push(...batch);
+    }
     const byId = new Map(profiles.map((profile) => [profile.id, profile]));
     return blocks.map((block) => ({
       user_id: block.blocked_id,
