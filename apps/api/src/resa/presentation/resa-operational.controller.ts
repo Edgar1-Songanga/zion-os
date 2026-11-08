@@ -40,6 +40,10 @@ export class ResaOperationalController {
     return this.operational.respondToEvent(this.token(authorization), eventId, body.response);
   }
 
+  @Patch('events/:eventId/cancel') cancelEvent(@Headers('authorization') authorization: string | undefined, @Param('eventId') eventId: string) {
+    return this.operational.cancelEvent(this.token(authorization), eventId);
+  }
+
   @Get('prayer') prayer(@Headers('authorization') authorization?: string, @Query('limit') limit?: string) {
     return this.operational.listPrayerRequests(this.token(authorization), Number(limit) || 30);
   }
