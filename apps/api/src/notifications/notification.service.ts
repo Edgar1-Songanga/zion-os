@@ -11,7 +11,19 @@ export class NotificationService {
     const actor = await this.identity.getCurrentUser(token);
     const size = Math.min(Math.max(Number(limit) || 50, 1), 100);
     const unread = unreadOnly ? '&read_at=is.null' : '';
-    return this.db.get('notifications', token, `?select=*&user_id=eq.${actor.id}${unread}&order=created_at.desc&limit=${size}`);
+    const [mutes, notifications] = await Promise.all([
+      this.db.get<any[]>('resa_user_mutes', token, `?select=muted_id&muter_id=eq.${actor.id}&limit=1000`),
+      this.db.get<any[]>('notifications', token, `?select=*&user_id=eq.${actor.id}${unread}&order=created_at.desc&limit=${Math.min(size * 10, 1000)}`),
+    ]);
+    const mutedIds = new Set(mutes.map((row) => row.muted_id).filter(Boolean));
+    if (!mutedIds.size) return notifications.slice(0, size);
+    return notifications
+      .filter((notification) => {
+        const data = notification.data && typeof notification.data === 'object' ? notification.data : {};
+        const actorId = typeof data.actor_id === 'string' ? data.actor_id : null;
+        return !actorId || !mutedIds.has(actorId);
+      })
+      .slice(0, size);
   }
 
   async markRead(token: string, notificationId: string) {
