@@ -69,11 +69,7 @@ using (
   private.resa_can_view_content(created_by, visibility, community_id, organization_id)
   or (
     visibility = 'private'
-    and exists (
-      select 1 from public.resa_event_participants p
-      where p.event_id = resa_events.id
-        and p.user_id = (select auth.uid())
-    )
+    and private.resa_is_event_participant(resa_events.id, (select auth.uid()))
   )
 );
 
