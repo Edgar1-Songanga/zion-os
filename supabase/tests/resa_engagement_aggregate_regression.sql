@@ -15,7 +15,9 @@ insert into public.profiles(id,display_name,privacy) values
 on conflict (id) do nothing;
 
 insert into public.resa_contents(id,author_id,type,title,body,visibility)
-values ('94000000-0000-4000-8000-000000000011','94000000-0000-4000-8000-000000000001','text','Metrics post','Aggregate interactions only','public')
+values
+ ('94000000-0000-4000-8000-000000000011','94000000-0000-4000-8000-000000000001','text','Metrics post','Aggregate interactions only','public'),
+ ('94000000-0000-4000-8000-000000000012','94000000-0000-4000-8000-000000000001','text','Private metrics post','Must remain private','private')
 on conflict (id) do nothing;
 
 do $privileges$
@@ -37,6 +39,15 @@ insert into public.resa_comments(content_id,author_id,body)
 values ('94000000-0000-4000-8000-000000000011',auth.uid(),'Member B comment');
 insert into public.resa_shares(content_id,user_id,share_type)
 values ('94000000-0000-4000-8000-000000000011',auth.uid(),'repost');
+do $privacy$
+begin
+  if exists (
+    select 1 from public.resa_content_engagement_counts(array['94000000-0000-4000-8000-000000000012'::uuid])
+  ) then
+    raise exception 'Viewer received engagement aggregates for a private publication';
+  end if;
+end;
+$privacy$;
 reset role;
 
 select set_config('request.jwt.claim.sub','94000000-0000-4000-8000-000000000003',false);
