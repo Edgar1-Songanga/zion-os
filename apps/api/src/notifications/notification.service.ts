@@ -11,7 +11,14 @@ export class NotificationService {
     const actor = await this.identity.getCurrentUser(token);
     const size = Math.min(Math.max(Number(limit) || 50, 1), 100);
     const unread = unreadOnly ? '&read_at=is.null' : '';
-    return this.db.get('notifications', token, `?select=*&user_id=eq.${actor.id}${unread}&order=created_at.desc&limit=${size}`);
+    const [notifications, mutes] = await Promise.all([
+      this.db.get<any[]>('notifications', token, `?select=*&user_id=eq.${actor.id}${unread}&order=created_at.desc&limit=${Math.min(size * 10, 1000)}`),
+      this.db.get<any[]>('resa_user_mutes', token, `?select=muted_id&muter_id=eq.${actor.id}&limit=1000`),
+    ]);
+    const mutedIds = new Set(mutes.map((row) => row.muted_id));
+    return notifications
+      .filter((notification) => !notification.data?.actor_id || !mutedIds.has(notification.data.actor_id))
+      .slice(0, size);
   }
 
   async markRead(token: string, notificationId: string) {
