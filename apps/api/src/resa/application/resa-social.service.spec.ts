@@ -141,6 +141,111 @@ describe('ResaSocialService feeds', () => {
     expect(result).toMatchObject([{ id: 'archived-story', author_id: ACTOR_ID, author_display_name: 'My profile' }]);
   });
 
+  it('records story views through the deduplicating database function', async () => {
+    rpcSpy.mockResolvedValueOnce(true as never);
+
+    const result = await service.recordStoryView('session-token', 'story-1');
+
+    expect(rpcSpy).toHaveBeenCalledWith('resa_record_story_view', 'session-token', {
+      p_story_id: 'story-1',
+    });
+    expect(result).toEqual({ recorded: true });
+  });
+
+  it('returns story viewers only to the authenticated story author', async () => {
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_contents') return [{
+        id: 'story-1',
+        author_id: ACTOR_ID,
+        type: 'story',
+      }] as never;
+      if (table === 'resa_story_views') return [{
+        viewer_id: FOLLOWED_ID,
+        viewed_at: '2026-11-08T12:00:00.000Z',
+      }] as never;
+      return [] as never;
+    });
+    rpcSpy
+      .mockResolvedValueOnce(1450 as never)
+      .mockResolvedValueOnce([{
+        id: FOLLOWED_ID,
+        display_name: 'Viewer profile',
+        avatar_url: 'https://example.test/viewer.jpg',
+      }] as never);
+
+    const result = await service.storyViews('session-token', 'story-1');
+
+    expect(getSpy).toHaveBeenCalledWith(
+      'resa_story_views',
+      'session-token',
+      expect.stringContaining('story_id=eq.story-1'),
+    );
+    expect(result).toMatchObject({
+      is_author: true,
+      view_count: 1450,
+      viewers: [{
+        user_id: FOLLOWED_ID,
+        display_name: 'Viewer profile',
+        avatar_url: 'https://example.test/viewer.jpg',
+      }],
+    });
+  });
+
+  it('hydrates large story viewer lists in batches within profile privacy limits', async () => {
+    const viewerIds = Array.from({ length: 201 }, (_, index) => `viewer-${index}`);
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_contents') return [{
+        id: 'story-1',
+        author_id: ACTOR_ID,
+        type: 'story',
+      }] as never;
+      if (table === 'resa_story_views') return viewerIds.map((viewer_id) => ({
+        viewer_id,
+        viewed_at: '2026-11-08T12:00:00.000Z',
+      })) as never;
+      return [] as never;
+    });
+    rpcSpy.mockImplementation(async (functionName: string, _token: string, args: any) => {
+      if (functionName === 'resa_story_view_count') return 201 as never;
+      if (functionName === 'resa_profiles_for_ids') {
+        return args.p_user_ids.map((id: string) => ({
+          id,
+          display_name: `Profile ${id}`,
+        })) as never;
+      }
+      return [] as never;
+    });
+
+    const result = await service.storyViews('session-token', 'story-1');
+    const profileCalls = rpcSpy.mock.calls.filter(([name]) => name === 'resa_profiles_for_ids');
+
+    expect(result).toMatchObject({ is_author: true, view_count: 201 });
+    expect(profileCalls).toHaveLength(2);
+    expect(profileCalls[0][2].p_user_ids).toHaveLength(200);
+    expect(profileCalls[1][2].p_user_ids).toHaveLength(1);
+    expect((result as any).viewers?.[200]).toMatchObject({
+      user_id: 'viewer-200',
+      display_name: 'Profile viewer-200',
+    });
+  });
+
+  it('does not expose story viewer data to anyone except the author', async () => {
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_contents') return [{
+        id: 'story-1',
+        author_id: FOLLOWED_ID,
+        type: 'story',
+      }] as never;
+      return [] as never;
+    });
+
+    const result = await service.storyViews('session-token', 'story-1');
+
+    expect(result).toEqual({ is_author: false });
+    expect(getSpy).not.toHaveBeenCalledWith('resa_story_views', expect.anything(), expect.anything());
+    expect(rpcSpy).not.toHaveBeenCalledWith('resa_profiles_for_ids', expect.anything(), expect.anything());
+  });
+
   it('loads Following from followed authors instead of the global newest-post window', async () => {
     const result = await service.feed('session-token', 30, 'following');
 
