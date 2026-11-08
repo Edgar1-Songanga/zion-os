@@ -10,7 +10,7 @@ type Profile = { id: string; display_name?: string | null; first_name?: string |
 type Activity = {
   id: string; club_id: string; title: string; description: string; activity_type: string;
   starts_at: string; ends_at?: string | null; location: string; leader_user_id?: string | null;
-  status: "PLANNED" | "ONGOING" | "COMPLETED" | "CANCELLED";
+  status: "PLANNED" | "ONGOING" | "COMPLETED" | "CANCELLED"; is_public: boolean;
 };
 type Participant = { activity_id: string; club_id: string; user_id: string; status: "REGISTERED" | "ATTENDED" | "ABSENT" | "CANCELLED"; notes?: string };
 type Report = {
@@ -21,7 +21,7 @@ type Report = {
   by_program?: Array<{ program_id: string; clubs: number; active_memberships: number; activities: number }>;
 };
 
-const emptyForm = { title: "", description: "", activity_type: "meeting", starts_at: "", ends_at: "", location: "", leader_user_id: "" };
+const emptyForm = { title: "", description: "", activity_type: "meeting", starts_at: "", ends_at: "", location: "", leader_user_id: "", is_public: false };
 const ACTIVITY_TYPES = [
   ["meeting", "Reunião"], ["camp", "Acampamento"], ["congress", "Congresso"],
   ["investiture", "Investidura"], ["training", "Formação"], ["mission", "Missão"],
@@ -143,7 +143,7 @@ export default function YouthActivityOperations() {
       starts_at: toDateTimeLocal(activity.starts_at),
       ends_at: activity.ends_at ? toDateTimeLocal(activity.ends_at) : "",
       location: activity.location ?? "",
-      leader_user_id: activity.leader_user_id ?? "",
+      leader_user_id: activity.leader_user_id ?? "",\n      is_public: activity.is_public === true,
     });
     setError(null); setMessage(null);
   }
@@ -152,6 +152,20 @@ export default function YouthActivityOperations() {
     setEditingActivityId(null);
     setForm(emptyForm);
     setError(null); setMessage(null);
+  }
+
+  async function toggleActivityPublication(activity: Activity) {
+    if (saving) return;
+    setSaving(true); setError(null); setMessage(null);
+    try {
+      const updated = await resaRequest<Activity>(`/v1/youth/activities/${encodeURIComponent(activity.id)}`, {
+        method: "PATCH", body: JSON.stringify({ is_public: !activity.is_public }),
+      });
+      setActivities((items) => items.map((item) => item.id === activity.id ? { ...item, ...updated } : item));
+      setMessage(updated.is_public ? "Atividade publicada no RESA para a comunidade." : "Atividade retirada da agenda pública do RESA.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível alterar a publicação.");
+    } finally { setSaving(false); }
   }
 
   async function changeActivityStatus(activity: Activity, status: Activity["status"]) {
@@ -279,7 +293,7 @@ export default function YouthActivityOperations() {
               </div>
               <label className="block text-sm font-medium text-slate-700">Local<input maxLength={240} value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2" /></label>
               <label className="block text-sm font-medium text-slate-700">Responsável designado<select value={form.leader_user_id} onChange={(event) => setForm({ ...form, leader_user_id: event.target.value })} className="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2"><option value="">A definir</option>{activeMembers.filter((member) => clubLeaderIds.includes(member.userId) && profiles[member.userId]).map((member) => <option key={member.userId} value={member.userId}>{personName(profiles[member.userId])}</option>)}</select></label>
-              <label className="block text-sm font-medium text-slate-700">Descrição<textarea rows={3} maxLength={4000} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2" /></label>
+              <label className="block text-sm font-medium text-slate-700">Descrição<textarea rows={3} maxLength={4000} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2" /></label>\n              <label className="flex items-start gap-2 text-xs leading-5 text-slate-600"><input type="checkbox" checked={form.is_public} onChange={(event) => setForm({ ...form, is_public: event.target.checked })} className="mt-1" />Publicar no RESA para toda a comunidade acompanhar esta atividade</label>
               <div className="flex flex-wrap gap-2"><button type="submit" disabled={saving} className="rounded-xl bg-[#0C1A3D] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving ? "A guardar…" : editingActivityId ? "Guardar alterações" : "Registar atividade"}</button>{editingActivityId && <button type="button" disabled={saving} onClick={cancelActivityEdit} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600">Cancelar edição</button>}</div>
             </form>
           </div>
@@ -293,7 +307,7 @@ export default function YouthActivityOperations() {
                   <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{activity.status}</span>
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
-                  <button type="button" onClick={() => editActivity(activity)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-[#0C1A3D]">Editar</button><button type="button" onClick={() => void openAttendance(activity)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-[#0C1A3D]">Participantes e presenças</button>
+                  <button type="button" onClick={() => editActivity(activity)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-[#0C1A3D]">Editar</button><button type="button" disabled={saving} onClick={() => void toggleActivityPublication(activity)} className="rounded-lg border border-[#C8A24A] px-3 py-1.5 text-xs font-semibold text-[#0C1A3D]">{activity.is_public ? "Retirar do RESA" : "Publicar no RESA"}</button><button type="button" onClick={() => void openAttendance(activity)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-[#0C1A3D]">Participantes e presenças</button>
                   {activity.status === "PLANNED" && <button type="button" disabled={saving} onClick={() => void changeActivityStatus(activity, "ONGOING")} className="rounded-lg border border-[#C8A24A] px-3 py-1.5 text-xs font-semibold">Iniciar</button>}
                   {activity.status === "ONGOING" && <button type="button" disabled={saving} onClick={() => void changeActivityStatus(activity, "COMPLETED")} className="rounded-lg bg-[#0C1A3D] px-3 py-1.5 text-xs font-semibold text-white">Concluir</button>}
                   {activity.status !== "COMPLETED" && activity.status !== "CANCELLED" && <button type="button" disabled={saving} onClick={() => void changeActivityStatus(activity, "CANCELLED")} className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700">Cancelar</button>}
