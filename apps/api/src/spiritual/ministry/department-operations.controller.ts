@@ -26,6 +26,11 @@ export class DepartmentOperationsController {
     return this.token(authorization).then((token) => this.operations.confirmRetentionPolicy(token, organizationId, body));
   }
 
+  @Get('sabbath/classes/community')
+  publicClasses(@Headers('authorization') authorization: string | undefined) {
+    return this.token(authorization).then((token) => this.operations.listPublicClasses(token));
+  }
+
   @Get('sabbath/classes')
   classes(@Headers('authorization') authorization: string | undefined, @Query('organizationId') organizationId: string) {
     return this.token(authorization).then((token) => this.operations.listClasses(token, organizationId));
@@ -34,7 +39,7 @@ export class DepartmentOperationsController {
   @Post('sabbath/classes')
   createClass(
     @Headers('authorization') authorization: string | undefined,
-    @Body() body: { organization_id: string; ministry_id: string; name: string; meeting_day?: number | null; meeting_time?: string | null; room_label?: string | null; teacher_user_id?: string | null },
+    @Body() body: { organization_id: string; ministry_id: string; name: string; meeting_day?: number | null; meeting_time?: string | null; room_label?: string | null; teacher_user_id?: string | null; is_public?: boolean },
   ) {
     return this.token(authorization).then((token) => this.operations.createClass(token, body.organization_id, body));
   }
