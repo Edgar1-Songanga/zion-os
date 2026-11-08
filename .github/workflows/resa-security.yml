@@ -10,6 +10,7 @@ on:
       - "supabase/tests/resa_member_privacy_regression.sql"
       - "supabase/tests/resa_four_level_profile_visibility.sql"
       - "supabase/tests/resa_content_audience_visibility_regression.sql"
+      - "supabase/tests/resa_media_visibility_regression.sql"
       - "supabase/tests/resa_security_fixture.sql"
       - ".github/workflows/resa-security.yml"
   push:
@@ -74,6 +75,12 @@ jobs:
       - name: Verify public, followers, community, organization and private content access
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_content_audience_visibility_regression.sql
+      - name: Apply public-bucket media visibility guard
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108123000_resa_public_bucket_media_visibility_guard.sql
+      - name: Verify non-public posts cannot reference public media
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_media_visibility_regression.sql
       - name: Apply four-level profile visibility
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108130000_resa_four_level_profile_visibility.sql
