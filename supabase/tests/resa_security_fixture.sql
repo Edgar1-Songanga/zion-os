@@ -64,6 +64,18 @@ grant usage on schema storage to authenticated;
 grant select on storage.objects to authenticated;
 
 create table auth.users (id uuid primary key, email text);
+create table public.notification_preferences (
+  user_id uuid primary key references auth.users(id),
+  enabled boolean not null default true,
+  channels text[] not null default array['in_app']::text[],
+  muted_types text[] not null default '{}'::text[],
+  quiet_start time,
+  quiet_end time,
+  updated_at timestamptz not null default now(),
+  sound_style text not null default 'soft',
+  sound_enabled boolean not null default true,
+  vibration_enabled boolean not null default true
+);
 create table public.notifications (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id),
@@ -163,7 +175,8 @@ create table public.profiles (
   avatar_url text,
   bio text,
   country_code text,
-  privacy jsonb not null default '{}'::jsonb
+  privacy jsonb not null default '{}'::jsonb,
+  timezone text
 );
 
 create table public.resa_conversations (
