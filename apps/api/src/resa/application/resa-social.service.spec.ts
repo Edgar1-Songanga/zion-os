@@ -137,11 +137,13 @@ describe('ResaSocialService feeds', () => {
       }] as never;
       return [] as never;
     });
-    rpcSpy.mockResolvedValueOnce([{
-      id: FOLLOWED_ID,
-      display_name: 'Viewer profile',
-      avatar_url: 'https://example.test/viewer.jpg',
-    }] as never);
+    rpcSpy
+      .mockResolvedValueOnce(1450 as never)
+      .mockResolvedValueOnce([{
+        id: FOLLOWED_ID,
+        display_name: 'Viewer profile',
+        avatar_url: 'https://example.test/viewer.jpg',
+      }] as never);
 
     const result = await service.storyViews('session-token', 'story-1');
 
@@ -152,7 +154,7 @@ describe('ResaSocialService feeds', () => {
     );
     expect(result).toMatchObject({
       is_author: true,
-      view_count: 1,
+      view_count: 1450,
       viewers: [{
         user_id: FOLLOWED_ID,
         display_name: 'Viewer profile',
