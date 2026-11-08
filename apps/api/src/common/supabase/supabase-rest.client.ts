@@ -82,6 +82,28 @@ export class SupabaseRestClient {
     });
   }
 
+  async createSignedStorageUrl(bucket: string, objectPath: string, accessToken: string, expiresIn = 300): Promise<string> {
+    const encodedPath = objectPath.split('/').map((segment) => encodeURIComponent(segment)).join('/');
+    const payload = await this.request<{ signedURL?: string }>(
+      'POST storage signed URL',
+      `${env.supabaseUrl}/storage/v1/object/sign/${encodeURIComponent(bucket)}/${encodedPath}`,
+      {
+        method: 'POST',
+        headers: this.headers(accessToken),
+        body: JSON.stringify({ expiresIn }),
+      },
+    );
+    if (!payload?.signedURL || typeof payload.signedURL !== 'string') {
+      throw new ServiceUnavailableException('Não foi possível gerar o acesso temporário ao ficheiro.');
+    }
+    const signedPath = payload.signedURL.startsWith('/storage/v1/')
+      ? payload.signedURL
+      : `/storage/v1/${payload.signedURL.replace(/^\\/+/, '')}`;
+    return payload.signedURL.startsWith('http')
+      ? payload.signedURL
+      : new URL(signedPath, `${env.supabaseUrl.replace(/\\/+$/, '')}/`).toString();
+  }
+
   private async request<T>(operation: string, url: string, init: RequestInit): Promise<T> {
     let response: Response;
     try {
