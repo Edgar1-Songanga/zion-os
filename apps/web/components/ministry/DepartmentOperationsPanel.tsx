@@ -150,7 +150,8 @@ function SabbathOperations({ ministry, organizationId, retention, userId, busy, 
   const [name, setName] = useState("");
   const [day, setDay] = useState("");
   const [room, setRoom] = useState("");
-  const [selfAsTeacher, setSelfAsTeacher] = useState(false);\n  const [publishClass, setPublishClass] = useState(false);
+  const [selfAsTeacher, setSelfAsTeacher] = useState(false);
+  const [publishClass, setPublishClass] = useState(false);
   const [date, setDate] = useState(localDate());
   const [lesson, setLesson] = useState("");
   const [statuses, setStatuses] = useState<Record<string, string>>({});
