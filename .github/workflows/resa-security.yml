@@ -128,6 +128,13 @@ jobs:
       - name: Verify story view deduplication, audience, expiry, blocking and author-only reads
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_story_view_tracking_regression.sql
+      # Exercise the private recording bucket, RLS and owner-path policy in the isolated PostgreSQL fixture.
+      - name: Apply private RESA Live recording storage foundation
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108172000_resa_live_recording_foundation.sql
+      - name: Verify private RESA Live recording metadata and storage ownership
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_live_recording_foundation_regression.sql
       - name: Stop disposable PostgreSQL
         if: always()
         run: docker rm -f zion-resa-security-postgres || true
