@@ -14,6 +14,8 @@ insert into public.profiles(id,display_name,privacy) values
  ('96000000-0000-4000-8000-000000000003','Audience Outsider','{}'::jsonb)
 on conflict (id) do nothing;
 
+select set_config('request.jwt.claim.sub','96000000-0000-4000-8000-000000000001',false);
+
 insert into public.resa_contents(id,author_id,type,title,body,visibility,moderation_status)
 values
  ('96000000-0000-4000-8000-000000000011','96000000-0000-4000-8000-000000000001','text','Followers-only post','Private to followers','followers','active'),
