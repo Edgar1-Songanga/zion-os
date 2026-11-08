@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import CreatePost from "@/components/resa/CreatePost";
 import { resaRequest } from "@/lib/resa/api";
+import { resolveResaMediaUrls } from "@/lib/resa/media";
 
 type StoryComment = { id: string; author_id: string; body: string; created_at: string; author_display_name?: string; author_avatar_url?: string | null };
 
@@ -41,8 +42,10 @@ export default function StoriesPage() {
     setError(null);
     try {
       const stories = await resaRequest<Story[]>("/v1/resa/stories?limit=60");
-      setItems(stories);
-      setReactedStoryIds(stories.filter(story => story.viewer_reacted).map(story => story.id));
+      const media = await resolveResaMediaUrls(stories.filter(story => !story.media_url && story.media_type).map(story => story.id));
+      const hydratedStories = stories.map(story => ({ ...story, media_url: story.media_url || media[story.id] || null }));
+      setItems(hydratedStories);
+      setReactedStoryIds(hydratedStories.filter(story => story.viewer_reacted).map(story => story.id));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível carregar as stories.");
     } finally {
@@ -54,7 +57,9 @@ export default function StoriesPage() {
     setArchiveLoading(true);
     setError(null);
     try {
-      setArchiveItems(await resaRequest<Story[]>("/v1/resa/stories/archive?limit=100"));
+      const stories = await resaRequest<Story[]>("/v1/resa/stories/archive?limit=100");
+      const media = await resolveResaMediaUrls(stories.filter(story => !story.media_url && story.media_type).map(story => story.id));
+      setArchiveItems(stories.map(story => ({ ...story, media_url: story.media_url || media[story.id] || null })));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível carregar o arquivo de stories.");
     } finally {
