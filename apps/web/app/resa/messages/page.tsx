@@ -79,6 +79,7 @@ export default function MessagesPage() {
   const [newOpen, setNewOpen] = useState(false);
   const [loadingPeople, setLoadingPeople] = useState(false);
   const [startingPersonId, setStartingPersonId] = useState<string | null>(null);
+  const [autoStartCallConversationId, setAutoStartCallConversationId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
@@ -93,6 +94,10 @@ export default function MessagesPage() {
   const startedTarget = useRef<string | null>(null);
   const startedConversation = useRef<string | null>(null);
   const startedInvite = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (autoStartCallConversationId && selected && selected !== autoStartCallConversationId) setAutoStartCallConversationId(null);
+  }, [autoStartCallConversationId, selected]);
 
   const selectedConversation = useMemo(
     () => items.find((item) => item.id === selected) ?? null,
@@ -306,6 +311,7 @@ export default function MessagesPage() {
         method: "POST",
         body: JSON.stringify({ member_ids: [person.id], title: displayName, purpose }),
       });
+      if (purpose === 'call') setAutoStartCallConversationId(conversation.id);
       setQuery("");
       setPeople([]);
       // Select the new conversation immediately so the composer is available
@@ -416,7 +422,7 @@ export default function MessagesPage() {
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef2f8] text-[#0C1A3D]"><ResaIcon name="message" size={18} /></div>
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-[#0C1A3D]">{selectedConversation?.title || "Selecione uma conversa"}</p>
-                <div className="flex items-center justify-between gap-3"><p className="text-xs text-slate-400">{selectedConversation ? "Mensagens privadas" : "Escolha uma conversa para começar"}</p>{selectedConversation && <ResaCallControls conversationId={selectedConversation.id} autoStart={searchParams.get("call") === "audio" ? "audio" : null} />}</div>
+                <div className="flex items-center justify-between gap-3"><p className="text-xs text-slate-400">{selectedConversation ? "Mensagens privadas" : "Escolha uma conversa para começar"}</p>{selectedConversation && <ResaCallControls conversationId={selectedConversation.id} autoStart={autoStartCallConversationId === selectedConversation.id ? "audio" : null} onAutoStartHandled={() => setAutoStartCallConversationId(null)} />}</div>
               </div>
             </div>
 
