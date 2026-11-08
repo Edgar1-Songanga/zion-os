@@ -157,6 +157,7 @@ create trigger resa_shares_block_guard
 before insert on public.resa_shares
 for each row execute function private.resa_guard_content_interaction();
 
+drop policy if exists resa_contents_public_read on public.resa_contents;
 drop policy if exists resa_contents_audience_read on public.resa_contents;
 create policy resa_contents_audience_read
 on public.resa_contents for select to authenticated
