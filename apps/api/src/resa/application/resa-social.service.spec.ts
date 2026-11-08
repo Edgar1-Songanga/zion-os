@@ -32,6 +32,35 @@ describe('ResaSocialService feeds', () => {
 
   afterEach(() => jest.restoreAllMocks());
 
+  it('hydrates story authors and keeps stories in their own 24-hour surface', async () => {
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_contents') return [{
+        id: 'story-1',
+        author_id: FOLLOWED_ID,
+        type: 'story',
+        title: 'Community moment',
+        body: 'A moment from today',
+        created_at: '2026-11-08T11:00:00.000Z',
+        media_type: null,
+        media_url: null,
+        visibility: 'public',
+      }] as never;
+      return [] as never;
+    });
+    rpcSpy.mockResolvedValue([{ id: FOLLOWED_ID, display_name: 'Followed profile', avatar_url: 'https://example.test/avatar.jpg' }] as never);
+
+    const result = await service.stories('session-token', 30);
+
+    expect(getSpy).toHaveBeenCalledWith(
+      'resa_contents',
+      'session-token',
+      expect.stringContaining('type=eq.story'),
+    );
+    expect(result).toMatchObject([
+      { id: 'story-1', author_display_name: 'Followed profile', author_avatar_url: 'https://example.test/avatar.jpg' },
+    ]);
+  });
+
   it('loads Following from followed authors instead of the global newest-post window', async () => {
     const result = await service.feed('session-token', 30, 'following');
 
