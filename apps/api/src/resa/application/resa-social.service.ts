@@ -28,7 +28,7 @@ export class ResaSocialService {
     return rows[0];
   }
 
-  async feed(token: string, limit = 30) {
+  async feed(token: string, limit = 30, mode: 'for_you' | 'following' = 'for_you') {
     const a = await this.actor(token);
     const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
 
@@ -76,7 +76,11 @@ export class ResaSocialService {
     }, {});
     const saved = new Set(saves.map((row) => row.content_id));
     const reactedByViewer = new Set(viewerReactions.map((row) => row.content_id));
-    const ranked = this.recommendations.rank(contents
+    const feedMode = mode === 'following' ? 'following' : 'for_you';
+    const eligibleContents = feedMode === 'following'
+      ? contents.filter((item) => item.author_id === a.id || followed.has(item.author_id))
+      : contents;
+    const ranked = this.recommendations.rank(eligibleContents
       .filter((item) => !hiddenAuthors.has(item.author_id))
       .map((item) => ({
         ...item,
@@ -94,9 +98,8 @@ export class ResaSocialService {
       : [];
     const profilesById = new Map(visibleProfiles.map((profile) => [profile.id, profile]));
 
-    // The home mural is chronological: a new publication must never be buried
-    // beneath an older, more popular item. Ranking signals remain available for
-    // discovery, while the main feed always shows the newest eligible content first.
+    // "For you" uses the recommendation score; "following" stays chronological
+    // and is restricted to the viewer plus profiles they explicitly follow.
     return ranked.map((item) => {
       const profile = profilesById.get(item.author_id);
       const displayName = profile?.display_name?.trim()
@@ -108,6 +111,7 @@ export class ResaSocialService {
         author_avatar_url: profile?.avatar_url ?? null,
       };
     }).sort((a, b) => {
+      if (feedMode === 'for_you') return b.score - a.score;
       const aTime = Date.parse(a.created_at);
       const bTime = Date.parse(b.created_at);
       return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
@@ -140,7 +144,7 @@ export class ResaSocialService {
   async comments(token: string, contentId: string, limit = 50, before?: string) { await this.actor(token); const size = Math.min(Math.max(Number(limit) || 50, 1), 100); const cursor = before ? `&created_at=gt.${encodeURIComponent(before)}` : ''; return this.db.get('resa_comments', token, `?select=*&content_id=eq.${contentId}&status=eq.active&order=created_at.asc&limit=${size}${cursor}`); }
   async react(token: string, contentId: string, reactionType: string) { const a = await this.actor(token); const rows = await this.db.upsert<any[]>('resa_reactions', token, { content_id: contentId, user_id: a.id, reaction_type: this.clean(reactionType, 'reaction_type', 40).toLowerCase() }, '?on_conflict=content_id,user_id'); return rows[0]; }
   async removeReaction(token: string, contentId: string) { const a = await this.actor(token); await this.db.delete('resa_reactions', token, `?content_id=eq.${contentId}&user_id=eq.${a.id}`); return { removed: true }; }
-  async follow(token: string, followedId: string) { const a = await this.actor(token); if (a.id === followedId) throw new BadRequestException('You cannot follow yourself'); const rows = await this.db.post<any[]>('resa_follows', token, { follower_id: a.id, followed_id: followedId }); return rows[0]; }
+  async follow(token: string, followedId: string) { const a = await this.actor(token); if (a.id === followedId) throw new BadRequestException('You cannot follow yourself'); const rows = await this.db.upsert<any[]>('resa_follows', token, { follower_id: a.id, followed_id: followedId }, '?on_conflict=follower_id,followed_id'); return rows[0]; }
   async unfollow(token: string, followedId: string) { const a = await this.actor(token); await this.db.delete('resa_follows', token, `?follower_id=eq.${a.id}&followed_id=eq.${followedId}`); return { removed: true }; }
   async social(token: string, userId?: string) {
     const actor = await this.actor(token);
