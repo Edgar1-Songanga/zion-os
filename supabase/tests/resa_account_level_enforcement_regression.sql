@@ -7,6 +7,13 @@ insert into auth.users(id,email) values
  ('98300000-0000-4000-8000-000000000003','resa-sanction-admin-two@example.test')
 on conflict (id) do nothing;
 
+insert into public.resa_conversations(id,created_by,kind)
+values ('98300000-0000-4000-8000-000000000010','98300000-0000-4000-8000-000000000001','direct')
+on conflict (id) do nothing;
+insert into public.resa_conversation_members(conversation_id,user_id,role)
+values ('98300000-0000-4000-8000-000000000010','98300000-0000-4000-8000-000000000002','member')
+on conflict (conversation_id,user_id) do nothing;
+
 -- First global administrator creates a temporary publishing restriction.
 select set_config('request.jwt.claim.sub','98300000-0000-4000-8000-000000000001',false);
 select set_config('test.zion_global_admin','true',false);
@@ -19,6 +26,10 @@ begin
     'Publicações repetidas violaram a política comunitária.',now()+interval '2 hours'
   );
   if v_sanction.id is null or v_sanction.created_by<>auth.uid() then raise exception 'Sanction audit record missing'; end if;
+  perform private.resa_admin_create_account_sanction(
+    '98300000-0000-4000-8000-000000000002','interaction',
+    'Interações abusivas repetidas foram confirmadas.',now()+interval '2 hours'
+  );
 end;
 $test$;
 reset role;
@@ -30,7 +41,7 @@ set role authenticated;
 do $test$
 declare v_sanction uuid;
 begin
-  select id into v_sanction from public.resa_account_sanctions where target_user_id=auth.uid() and status='active';
+  select id into v_sanction from public.resa_account_sanctions where target_user_id=auth.uid() and restriction_type='publishing' and status='active';
   if v_sanction is null then raise exception 'Sanction history is not visible to the affected user'; end if;
   begin
     insert into public.resa_contents(author_id,type,title,body,visibility)
@@ -40,6 +51,13 @@ begin
     null;
   end;
   perform private.resa_submit_account_sanction_appeal(v_sanction,'A decisão não considerou o contexto da publicação.','Peço uma revisão independente.');
+  begin
+    insert into public.resa_calls(conversation_id,initiator_id,kind)
+    values('98300000-0000-4000-8000-000000000010',auth.uid(),'audio');
+    raise exception 'Interaction restriction was bypassed for voice calls';
+  exception when insufficient_privilege then
+    null;
+  end;
 end;
 $test$;
 reset role;
