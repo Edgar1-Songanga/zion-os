@@ -30,7 +30,12 @@ export class ResaController {
   @Delete('content/:contentId/save') unsave(@Headers('authorization') a: string | undefined, @Param('contentId') id: string) { return this.resa.unsave(this.token(a), id); }
   @Post('content/:contentId/repost') repost(@Headers('authorization') a: string | undefined, @Param('contentId') id: string, @Body() b: { quote?: boolean; body?: string }) { return this.resa.repost(this.token(a), id, b.quote === true, b.body); }
   @Post('content/:contentId/feedback') feedback(@Headers('authorization') a: string | undefined, @Param('contentId') id: string, @Body() b: { feedback: string }) { return this.resa.feedback(this.token(a), id, b.feedback); }
-  @Post('creator/schedules') schedule(@Headers('authorization') a: string | undefined, @Body() b: { content_id: string; scheduled_for: string }) { return this.resa.schedule(this.token(a), b.content_id, b.scheduled_for); }
+  @Post('creator/schedules') schedule(@Headers('authorization') a: string | undefined, @Body() b: { content_id?: string; scheduled_for: string; title?: string; body?: string; type?: string; publish_visibility?: string; language?: string }) {
+    const token = this.token(a);
+    return b.content_id
+      ? this.resa.schedule(token, b.content_id, b.scheduled_for, b.publish_visibility)
+      : this.resa.scheduleNew(token, b);
+  }
   @Get('creator/schedules') schedules(@Headers('authorization') a: string | undefined, @Query('limit') limit?: string) { return this.resa.schedules(this.token(a), Number(limit) || 50); }
   @Delete('creator/schedules/:scheduleId') cancelSchedule(@Headers('authorization') a: string | undefined, @Param('scheduleId') id: string) { return this.resa.cancelSchedule(this.token(a), id); }
 }
