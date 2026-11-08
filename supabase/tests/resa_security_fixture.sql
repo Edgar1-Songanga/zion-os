@@ -4,6 +4,27 @@ create schema if not exists auth;
 create schema if not exists private;
 create schema if not exists extensions;
 create schema if not exists cron;
+create schema if not exists storage;
+create table storage.buckets (
+  id text primary key,
+  name text not null,
+  public boolean not null default false,
+  file_size_limit bigint,
+  allowed_mime_types text[]
+);
+create table storage.objects (
+  id uuid primary key default gen_random_uuid(),
+  bucket_id text not null references storage.buckets(id),
+  name text not null,
+  owner_id text,
+  created_at timestamptz not null default now()
+);
+create or replace function storage.foldername(p_name text)
+returns text[] language sql immutable
+as $
+  select (string_to_array(p_name, '/'))[1:greatest(array_length(string_to_array(p_name, '/'), 1) - 1, 0)]
+$;
+grant select on storage.objects to authenticated;
 create table cron.job (
   jobid bigint generated always as identity primary key,
   schedule text not null,
