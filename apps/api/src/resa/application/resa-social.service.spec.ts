@@ -40,6 +40,43 @@ describe('ResaSocialService feeds', () => {
 
   afterEach(() => jest.restoreAllMocks());
 
+  it('issues a short-lived private media URL only for an accessible owned-path object', async () => {
+    getSpy.mockResolvedValueOnce([{
+      id: 'private-post',
+      author_id: ACTOR_ID,
+      media_type: 'image',
+      media_url: null,
+      media_path: ACTOR_ID + '/private-image.webp',
+    }] as never);
+    const signSpy = jest.spyOn(SupabaseRestClient.prototype, 'createSignedStorageUrl')
+      .mockResolvedValue('https://storage.example.test/signed/private-image');
+
+    const result = await service.contentMediaUrl('session-token', 'private-post');
+
+    expect(getSpy).toHaveBeenCalledWith('resa_contents', 'session-token', expect.stringContaining('id=eq.private-post'));
+    expect(signSpy).toHaveBeenCalledWith('resa-content-private', ACTOR_ID + '/private-image.webp', 'session-token', 300);
+    expect(result).toEqual({
+      url: 'https://storage.example.test/signed/private-image',
+      expires_in: 300,
+      private: true,
+    });
+  });
+
+  it('rejects private media paths outside the content author namespace', async () => {
+    getSpy.mockResolvedValueOnce([{
+      id: 'private-post',
+      author_id: ACTOR_ID,
+      media_type: 'image',
+      media_url: null,
+      media_path: FOLLOWED_ID + '/private-image.webp',
+    }] as never);
+    const signSpy = jest.spyOn(SupabaseRestClient.prototype, 'createSignedStorageUrl');
+
+    await expect(service.contentMediaUrl('session-token', 'private-post'))
+      .rejects.toThrow('Private media not found or not accessible');
+    expect(signSpy).not.toHaveBeenCalled();
+  });
+
   it('blocks a profile, persists the block and removes the viewer follow', async () => {
     const upsertSpy = jest.spyOn(SupabaseRestClient.prototype, 'upsert').mockResolvedValue([{ blocker_id: ACTOR_ID, blocked_id: FOLLOWED_ID }] as never);
     const deleteSpy = jest.spyOn(SupabaseRestClient.prototype, 'delete').mockResolvedValue([] as never);
