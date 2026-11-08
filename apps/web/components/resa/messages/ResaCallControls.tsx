@@ -30,7 +30,7 @@ export default function ResaCallControls({ conversationId, autoStart = null }: {
   const ringAudioRef = useRef<AudioContext | null>(null);
   const ringTimerRef = useRef<number | null>(null);
   const callTimeoutRef = useRef<number | null>(null);
-  const autoStartRef = useRef(false);
+  const autoStartConversationRef = useRef<string | null>(null);
   const startCallRef = useRef<(kind: CallKind) => void>(() => undefined);
 
   useEffect(() => {
@@ -45,8 +45,8 @@ export default function ResaCallControls({ conversationId, autoStart = null }: {
   }, [supabase]);
 
   useEffect(() => {
-    if (!ready || !autoStart || autoStartRef.current) return;
-    autoStartRef.current = true;
+    if (!ready || !autoStart || autoStartConversationRef.current === conversationId) return;
+    autoStartConversationRef.current = conversationId;
     startCallRef.current(autoStart);
   }, [ready, autoStart, conversationId]);
 
