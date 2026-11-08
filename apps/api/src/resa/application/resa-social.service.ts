@@ -210,8 +210,8 @@ export class ResaSocialService {
     const isFollowing = viewerFollows.length > 0;
     const isFollower = ownerFollows.length > 0;
     const privacy = profile.privacy ?? {};
-    if (privacy.profile_visibility === 'private' && !isOwner && !isFollowing) throw new NotFoundException('Profile not found');
-    const contents = await this.db.get<any[]>('resa_contents', token, `?select=id,author_id,type,title,body,created_at,media_type,media_url,language&author_id=eq.${encodeURIComponent(id)}&visibility=eq.public&order=created_at.desc&limit=20`);
+    const privateLocked = privacy.profile_visibility === 'private' && !isOwner && !isFollowing;
+    const contents = privateLocked ? [] : await this.db.get<any[]>('resa_contents', token, `?select=id,author_id,type,title,body,created_at,media_type,media_url,language&author_id=eq.${encodeURIComponent(id)}&visibility=eq.public&order=created_at.desc&limit=20`);
     return {
       profile: {
         id: profile.id,
@@ -219,14 +219,15 @@ export class ResaSocialService {
         first_name: privacy.profile_visibility === 'private' && !isOwner && !isFollower ? null : profile.first_name,
         last_name: privacy.profile_visibility === 'private' && !isOwner && !isFollower ? null : profile.last_name,
         avatar_url: profile.avatar_url,
-        bio: isOwner || privacy.bio_visibility === 'public' || privacy.bio_visibility === 'community' ? profile.bio : null,
-        country_code: isOwner || privacy.country_visibility === 'public' || privacy.country_visibility === 'community' ? profile.country_code : null,
+        bio: !privateLocked && (isOwner || privacy.bio_visibility === 'public' || privacy.bio_visibility === 'community') ? profile.bio : null,
+        country_code: !privateLocked && (isOwner || privacy.country_visibility === 'public' || privacy.country_visibility === 'community') ? profile.country_code : null,
         is_owner: isOwner,
         is_following: isFollowing,
-        message_allowed: isOwner ? false : ['everyone','followers','following'].includes(privacy.message_policy ?? 'everyone') && (privacy.message_policy !== 'followers' || isFollowing) && (privacy.message_policy !== 'following' || isFollower),
-        call_allowed: isOwner ? false : ['everyone','followers','following'].includes(privacy.call_policy ?? 'everyone') && (privacy.call_policy !== 'followers' || isFollowing) && (privacy.call_policy !== 'following' || isFollower),
-        group_invite_allowed: isOwner ? false : ['everyone','followers','following'].includes(privacy.group_invite_policy ?? 'everyone') && (privacy.group_invite_policy !== 'followers' || isFollowing) && (privacy.group_invite_policy !== 'following' || isFollower),
-        follow_allowed: !isOwner && privacy.follow_policy !== 'none',
+        message_allowed: isOwner || privateLocked ? false : ['everyone','followers','following'].includes(privacy.message_policy ?? 'everyone') && (privacy.message_policy !== 'followers' || isFollowing) && (privacy.message_policy !== 'following' || isFollower),
+        call_allowed: isOwner || privateLocked ? false : ['everyone','followers','following'].includes(privacy.call_policy ?? 'everyone') && (privacy.call_policy !== 'followers' || isFollowing) && (privacy.call_policy !== 'following' || isFollower),
+        group_invite_allowed: isOwner || privateLocked ? false : ['everyone','followers','following'].includes(privacy.group_invite_policy ?? 'everyone') && (privacy.group_invite_policy !== 'followers' || isFollowing) && (privacy.group_invite_policy !== 'following' || isFollower),
+        follow_allowed: !isOwner && !isFollowing && privacy.follow_policy !== 'none',
+        private_locked: privateLocked,
       },
       contents,
     };
