@@ -65,7 +65,7 @@ begin
   end if;
 
   foreach v_target in array v_targets loop
-    if not public.resa_contact_allowed(v_actor, v_target, case when cardinality(v_targets) = 1 then 'message_policy' else 'group_invite_policy' end) then
+    if not private.resa_contact_allowed(v_actor, v_target, case when cardinality(v_targets) = 1 then 'message_policy' else 'group_invite_policy' end) then
       raise exception 'recipient does not accept this contact type' using errcode = '42501';
     end if;
   end loop;
@@ -154,7 +154,7 @@ for each row execute function public.resa_guard_direct_message_privacy();
 revoke all on function public.resa_guard_direct_message_privacy() from public, anon;
 
 -- Safe profile projection: authenticated callers receive only fields permitted by the owner's privacy choices.
-create or replace function public.resa_public_profile(p_user_id uuid)
+create or replace function private.resa_public_profile_internal(p_user_id uuid)
 returns table(id uuid, display_name text, first_name text, last_name text, avatar_url text, bio text, country_code text, is_owner boolean, is_following boolean, message_allowed boolean, call_allowed boolean, group_invite_allowed boolean, follow_allowed boolean, private_locked boolean)
 language sql stable security definer
 set search_path = pg_catalog, public, auth, pg_temp
@@ -180,6 +180,15 @@ as $function$
     target.privacy->>'profile_visibility' = 'private' and not target.is_owner and not target.is_following
   from target;
 $function$;
+create or replace function public.resa_public_profile(p_user_id uuid)
+returns table(id uuid, display_name text, first_name text, last_name text, avatar_url text, bio text, country_code text, is_owner boolean, is_following boolean, message_allowed boolean, call_allowed boolean, group_invite_allowed boolean, follow_allowed boolean, private_locked boolean)
+language sql stable security invoker
+set search_path = pg_catalog, private, pg_temp
+as $function$
+  select * from private.resa_public_profile_internal(p_user_id);
+$function$;
+revoke all on function private.resa_public_profile_internal(uuid) from public, anon;
+grant execute on function private.resa_public_profile_internal(uuid) to authenticated;
 revoke all on function public.resa_public_profile(uuid) from public, anon;
 grant execute on function public.resa_public_profile(uuid) to authenticated;
 
