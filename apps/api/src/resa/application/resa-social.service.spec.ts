@@ -137,7 +137,14 @@ describe('ResaSocialService feeds', () => {
     expect(getSpy).toHaveBeenCalledWith(
       'resa_contents',
       'session-token',
-      expect.stringContaining('order=created_at.desc,id.desc&limit=2'),
+      expect.stringContaining('order=created_at.desc,id.desc&limit=3'),
+    );
+
+    await service.feed('session-token', 2, 'following', result.next_cursor ?? undefined);
+    expect(getSpy).toHaveBeenLastCalledWith(
+      'resa_contents',
+      'session-token',
+      expect.stringContaining('created_at.lt.2026-11-08T10%3A00%3A00.000Z'),
     );
   });
 
