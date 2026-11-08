@@ -261,6 +261,27 @@ describe('ResaSocialService feeds', () => {
     });
   });
 
+  it('serves a global chronological Latest feed without recommendation ranking', async () => {
+    const otherAuthorId = '33333333-3333-4333-8333-333333333333';
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_contents') return [
+        { id: 'older-followed', author_id: FOLLOWED_ID, type: 'text', visibility: 'public', created_at: '2026-11-08T10:00:00.000Z' },
+        { id: 'newest-other', author_id: otherAuthorId, type: 'text', visibility: 'public', created_at: '2026-11-08T11:00:00.000Z' },
+      ] as never;
+      return [] as never;
+    });
+
+    const result = await service.feed('session-token', 30, 'latest');
+
+    expect(getSpy).toHaveBeenCalledWith(
+      'resa_contents',
+      'session-token',
+      expect.not.stringContaining('author_id=in.'),
+    );
+    expect(result.items.map((item) => item.id)).toEqual(['newest-other', 'older-followed']);
+    expect(result.items.every((item) => item.score === 0)).toBe(true);
+  });
+
   it('paginates the feed with a stable created_at and id cursor', async () => {
     const firstId = '33333333-3333-4333-8333-333333333333';
     const secondId = '44444444-4444-4444-8444-444444444444';
