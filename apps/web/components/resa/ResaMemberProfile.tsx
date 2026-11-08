@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { resaRequest } from "@/lib/resa/api";
+import { resolveResaMediaUrls } from "@/lib/resa/media";
 
 type Profile = {
   id: string;
@@ -37,7 +38,11 @@ export default function ResaMemberProfile({ userId }: { userId: string }) {
     setError("");
     try {
       const result = await resaRequest<Result>("/v1/resa/profiles/" + encodeURIComponent(userId));
-      setData(result);
+      const media = await resolveResaMediaUrls(result.contents.filter((item) => !item.media_url && item.media_type).map((item) => item.id));
+      setData({
+        ...result,
+        contents: result.contents.map((item) => ({ ...item, media_url: item.media_url || media[item.id] || null })),
+      });
       setError("");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível abrir este perfil.");
