@@ -127,6 +127,65 @@ $function$;
 revoke all on function public.resa_create_conversation(uuid[], text) from public, anon;
 grant execute on function public.resa_create_conversation(uuid[], text) to authenticated;
 
+-- Enforce contact policy for messages in already-existing direct conversations.
+create or replace function public.resa_guard_direct_message_privacy()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public, pg_temp
+as $function$
+declare
+  v_kind text;
+  v_target uuid;
+  v_policy text;
+begin
+  if new.sender_id <> (select auth.uid()) then
+    raise exception 'message sender must match authenticated user' using errcode = '42501';
+  end if;
+
+  select kind into v_kind
+  from public.resa_conversations
+  where id = new.conversation_id;
+
+  if v_kind = 'direct' then
+    for v_target in
+      select m.user_id
+      from public.resa_conversation_members m
+      where m.conversation_id = new.conversation_id
+        and m.user_id <> new.sender_id
+    loop
+      select coalesce(p.privacy->>'message_policy', 'everyone')
+        into v_policy
+      from public.profiles p
+      where p.id = v_target;
+      v_policy := coalesce(v_policy, 'everyone');
+
+      if v_policy = 'none' then
+        raise exception 'recipient does not accept direct messages' using errcode = '42501';
+      elsif v_policy = 'followers' and not exists (
+        select 1 from public.resa_follows f
+        where f.follower_id = new.sender_id and f.followed_id = v_target
+      ) then
+        raise exception 'recipient only accepts messages from followers' using errcode = '42501';
+      elsif v_policy = 'following' and not exists (
+        select 1 from public.resa_follows f
+        where f.follower_id = v_target and f.followed_id = new.sender_id
+      ) then
+        raise exception 'recipient only accepts messages from profiles they follow' using errcode = '42501';
+      end if;
+    end loop;
+  end if;
+  return new;
+end;
+$function$;
+
+drop trigger if exists resa_direct_message_privacy_guard on public.resa_messages;
+create trigger resa_direct_message_privacy_guard
+before insert on public.resa_messages
+for each row execute function public.resa_guard_direct_message_privacy();
+
+revoke all on function public.resa_guard_direct_message_privacy() from public, anon;
+
 -- Calls are inserted directly by the authenticated call client, so enforce the
 -- recipient's call policy in RLS rather than relying on a hidden frontend button.
 drop policy if exists "resa_calls_member_insert" on public.resa_calls;
