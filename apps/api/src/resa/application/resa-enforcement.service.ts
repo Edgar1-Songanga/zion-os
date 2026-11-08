@@ -89,4 +89,82 @@ export class ResaEnforcementService {
     if (!result?.id) throw new BadRequestException('Não foi possível concluir a reapreciação.');
     return result;
   }
+
+  async myAccountSanctions(token: string, limit = 50) {
+    const actor = await this.actor(token);
+    return this.db.get<any[]>('resa_account_sanctions', token,
+      `?select=id,restriction_type,reason,status,expires_at,created_at,revoked_at,revocation_note&target_user_id=eq.${actor.id}&order=created_at.desc&limit=${this.limit(limit)}`);
+  }
+
+  async accountSanctionQueue(token: string, limit = 100) {
+    await this.actor(token);
+    return this.db.get<any[]>('resa_account_sanctions', token,
+      `?select=id,target_user_id,restriction_type,reason,status,expires_at,created_by,created_at,revoked_at,revocation_note&order=created_at.desc&limit=${this.limit(limit)}`);
+  }
+
+  async createAccountSanction(token: string, input: { target_user_id?: unknown; restriction_type?: unknown; reason?: unknown; expires_at?: unknown }) {
+    await this.actor(token);
+    const target = typeof input.target_user_id === 'string' ? this.id(input.target_user_id) : '';
+    const restriction = input.restriction_type;
+    if (!['publishing','interaction','account'].includes(String(restriction))) throw new BadRequestException('Tipo de restrição inválido.');
+    const reason = typeof input.reason === 'string' ? input.reason.trim() : '';
+    if (reason.length < 10 || reason.length > 2000) throw new BadRequestException('A fundamentação deve ter entre 10 e 2000 caracteres.');
+    let expiresAt: string | null = null;
+    if (input.expires_at !== undefined && input.expires_at !== null && input.expires_at !== '') {
+      if (typeof input.expires_at !== 'string' || Number.isNaN(Date.parse(input.expires_at)) || Date.parse(input.expires_at) <= Date.now()) {
+        throw new BadRequestException('A data de expiração deve ser futura e válida.');
+      }
+      expiresAt = new Date(input.expires_at).toISOString();
+    }
+    const result = await this.db.rpc<any>('resa_admin_create_account_sanction', token, {
+      p_target_user_id: target, p_restriction_type: restriction, p_reason: reason, p_expires_at: expiresAt,
+    });
+    if (!result?.id) throw new BadRequestException('A restrição não foi registada.');
+    return result;
+  }
+
+  async revokeAccountSanction(token: string, sanctionId: string, note: unknown) {
+    await this.actor(token);
+    const reason = typeof note === 'string' ? note.trim() : '';
+    if (reason.length < 10 || reason.length > 2000) throw new BadRequestException('A revogação exige uma fundamentação entre 10 e 2000 caracteres.');
+    const result = await this.db.rpc<any>('resa_admin_revoke_account_sanction', token, {
+      p_sanction_id: this.id(sanctionId), p_note: reason,
+    });
+    if (!result?.id) throw new BadRequestException('Não foi possível revogar a restrição.');
+    return result;
+  }
+
+  async submitAccountSanctionAppeal(token: string, sanctionId: string, input: { reason?: unknown; details?: unknown }) {
+    await this.actor(token);
+    const reason = typeof input.reason === 'string' ? input.reason.trim() : '';
+    const details = typeof input.details === 'string' ? input.details.trim() : '';
+    if (reason.length < 10 || reason.length > 2000) throw new BadRequestException('O motivo do recurso deve ter entre 10 e 2000 caracteres.');
+    if (details.length > 5000) throw new BadRequestException('Os detalhes não podem exceder 5000 caracteres.');
+    const result = await this.db.rpc<any>('resa_submit_account_sanction_appeal', token, {
+      p_sanction_id: this.id(sanctionId), p_reason: reason, p_details: details || null,
+    });
+    if (!result?.id) throw new BadRequestException('O recurso não foi registado.');
+    return result;
+  }
+
+  async accountSanctionAppeals(token: string, status = 'open', limit = 100) {
+    await this.actor(token);
+    if (!['open','reviewing','upheld','overturned','all'].includes(status)) throw new BadRequestException('Estado de recurso inválido.');
+    return this.db.get<any[]>('resa_account_sanction_appeals', token,
+      `?select=*&${status === 'all' ? '' : `status=eq.${status}&`}order=created_at.asc&limit=${this.limit(limit)}`);
+  }
+
+  async decideAccountSanctionAppeal(token: string, appealId: string, status: 'reviewing'|'upheld'|'overturned', note: unknown) {
+    await this.actor(token);
+    if (!['reviewing','upheld','overturned'].includes(status)) throw new BadRequestException('Decisão inválida.');
+    const decisionNote = typeof note === 'string' ? note.trim() : '';
+    if (status !== 'reviewing' && (decisionNote.length < 10 || decisionNote.length > 2000)) {
+      throw new BadRequestException('A decisão final exige fundamentação entre 10 e 2000 caracteres.');
+    }
+    const result = await this.db.rpc<any>('resa_admin_decide_account_sanction_appeal', token, {
+      p_appeal_id: this.id(appealId), p_status: status, p_decision_note: decisionNote || null,
+    });
+    if (!result?.id) throw new BadRequestException('Não foi possível concluir o recurso.');
+    return result;
+  }
 }
