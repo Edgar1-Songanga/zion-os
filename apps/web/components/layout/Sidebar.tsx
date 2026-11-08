@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslation } from "@/components/i18n";
@@ -81,7 +81,7 @@ export default function Sidebar() {
     "ministry_leader", "department_leader", "sabbath_school_director", "youth_director",
   );
 
-  const sections = useMemo(() => uniqueSections([
+  const sections = uniqueSections([
     {
       title: "Principal",
       items: [
@@ -120,7 +120,7 @@ export default function Sidebar() {
         ...(hasRole("organization_owner", "organization_admin", "finance_manager", "hr_manager", "payroll_manager", "secretary") ? [{ name: "Relatórios", path: "/reports" }] : []),
       ],
     },
-  ]), [globalAdmin, isMinistryManager, isOrganizationManager, roleKeys, t]);
+  ]);
 
   const nestedActiveRoutes = new Set([
     "/admin", "/church-administration", "/secretariat", "/finance", "/hr",
