@@ -10,11 +10,13 @@ import { ResaOperationalController } from './presentation/resa-operational.contr
 import { ResaLiveEgressService } from './application/resa-live-egress.service';
 import { ResaModerationAppealsService } from './application/resa-moderation-appeals.service';
 import { ResaModerationAppealsController } from './presentation/resa-moderation-appeals.controller';
+import { ResaEnforcementService } from './application/resa-enforcement.service';
+import { ResaEnforcementController } from './presentation/resa-enforcement.controller';
 
 @Module({
   imports: [IdentityModule, MediaModule],
-  controllers: [ResaController, ResaOperationalController, ResaModerationAppealsController],
-  providers: [ResaEngine, ResaSocialService, ResaRecommendationService, ResaOperationalService, ResaLiveEgressService, ResaModerationAppealsService],
-  exports: [ResaEngine, ResaSocialService, ResaRecommendationService, ResaOperationalService, ResaLiveEgressService, ResaModerationAppealsService],
+  controllers: [ResaController, ResaOperationalController, ResaModerationAppealsController, ResaEnforcementController],
+  providers: [ResaEngine, ResaSocialService, ResaRecommendationService, ResaOperationalService, ResaLiveEgressService, ResaModerationAppealsService, ResaEnforcementService],
+  exports: [ResaEngine, ResaSocialService, ResaRecommendationService, ResaOperationalService, ResaLiveEgressService, ResaModerationAppealsService, ResaEnforcementService],
 })
 export class ResaModule {}

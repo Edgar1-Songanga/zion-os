@@ -778,7 +778,7 @@ export class ResaOperationalService {
       }));
     };
     const contentSearch = async () => (await this.db.get<any[]>('resa_contents', token,
-      `?select=id,title,body,type,author_id,created_at,media_type,media_url,visibility&visibility=in.(public,followers,community,organization)&type=neq.story&or=(title.ilike.*${term}*,body.ilike.*${term}*)&order=created_at.desc&limit=${size}`))
+      `?select=id,title,body,type,author_id,created_at,media_type,media_url,visibility&moderation_status=eq.active&visibility=in.(public,followers,community,organization)&type=neq.story&or=(title.ilike.*${term}*,body.ilike.*${term}*)&order=created_at.desc&limit=${size}`))
       .map((item) => ({ ...item, entity_type: 'content', entity_id: item.id }));
     const topicSearch = async () => (await this.db.get<any[]>('resa_topics', token,
       `?select=id,name,normalized_name&or=(name.ilike.*${term}*,normalized_name.ilike.*${term}*)&order=name.asc&limit=${size}`))
