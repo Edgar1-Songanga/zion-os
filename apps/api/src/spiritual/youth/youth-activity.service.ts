@@ -12,6 +12,11 @@ export class YouthActivityService {
 
   constructor(private readonly identity: IdentityService) {}
 
+  async listPublicActivities(token: string) {
+    return this.db.get<any[]>('youth_club_activities', token,
+      '?select=id,title,description,activity_type,starts_at,ends_at,location,status&is_public=eq.true&status=neq.CANCELLED&order=starts_at.asc&limit=50');
+  }
+
   async listClubActivities(token: string, clubId: string) {
     const club = this.uuid(clubId, 'club id');
     return this.db.get<any[]>(
@@ -32,6 +37,7 @@ export class YouthActivityService {
       throw new BadRequestException('ends_at must be equal to or later than starts_at.');
     }
     const location = this.optionalText(input.location, 'location', 240) ?? '';
+    if (input.is_public !== undefined && typeof input.is_public !== 'boolean') throw new BadRequestException('is_public must be boolean.');
     const leaderUserId = input.leader_user_id ? this.uuid(input.leader_user_id, 'leader_user_id') : null;
     if (leaderUserId) {
       await this.assertClubLeader(token, club.id, leaderUserId);
@@ -40,7 +46,7 @@ export class YouthActivityService {
     const rows = await this.db.post<any[]>('youth_club_activities', token, {
       organization_id: club.organization_id, club_id: club.id, title, description,
       activity_type: activityType, starts_at: startsAt, ends_at: endsAt,
-      location, leader_user_id: leaderUserId, status: 'PLANNED', created_by: actor.id,
+      location, leader_user_id: leaderUserId, status: 'PLANNED', is_public: input.is_public === true, created_by: actor.id,
     });
     if (!rows[0]) throw new BadRequestException('Activity was not created.');
     return rows[0];
@@ -61,6 +67,10 @@ export class YouthActivityService {
     if (input.status !== undefined) {
       if (!ACTIVITY_STATUSES.includes(input.status)) throw new BadRequestException('Invalid activity status.');
       patch.status = input.status;
+    }
+    if (input.is_public !== undefined) {
+      if (typeof input.is_public !== 'boolean') throw new BadRequestException('is_public must be boolean.');
+      patch.is_public = input.is_public;
     }
     if (Object.keys(patch).length === 1) throw new BadRequestException('At least one activity field must be provided.');
     const current = await this.db.get<any[]>('youth_club_activities', token, `?select=id,club_id,starts_at,ends_at&id=eq.${encodeURIComponent(activityId)}&limit=1`);

@@ -11,6 +11,11 @@ export class YouthActivityController {
     return token;
   }
 
+  @Get('community')
+  publicActivities(@Headers('authorization') authorization: string | undefined) {
+    return this.activities.listPublicActivities(this.token(authorization));
+  }
+
   @Get('organization/:organizationId/report')
   report(@Headers('authorization') authorization: string | undefined, @Param('organizationId') organizationId: string) {
     return this.activities.report(this.token(authorization), organizationId);
@@ -27,7 +32,7 @@ export class YouthActivityController {
     @Param('clubId') clubId: string,
     @Body() body: {
       title?: string; description?: string; activity_type?: string; starts_at?: string;
-      ends_at?: string | null; location?: string; leader_user_id?: string | null;
+      ends_at?: string | null; location?: string; leader_user_id?: string | null; is_public?: boolean;
     },
   ) {
     return this.activities.createActivity(this.token(authorization), clubId, body);
@@ -39,7 +44,7 @@ export class YouthActivityController {
     @Param('id') id: string,
     @Body() body: {
       title?: string; description?: string; activity_type?: string; starts_at?: string;
-      ends_at?: string | null; location?: string; leader_user_id?: string | null; status?: string;
+      ends_at?: string | null; location?: string; leader_user_id?: string | null; status?: string; is_public?: boolean;
     },
   ) {
     return this.activities.updateActivity(this.token(authorization), id, body);

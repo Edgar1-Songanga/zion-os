@@ -7,7 +7,7 @@ import type { Ministry } from "./types";
 
 type RetentionDomain = "SABBATH_SCHOOL_ATTENDANCE" | "PERSONAL_MINISTRY_FOLLOW_UP";
 type RetentionPolicy = { data_domain: RetentionDomain; retention_days: number; approved_policy_label: string; confirmed_at: string };
-type SabbathClass = { id: string; name: string; meeting_day: number | null; meeting_time: string | null; room_label: string | null; is_active: boolean };
+type SabbathClass = { id: string; name: string; meeting_day: number | null; meeting_time: string | null; room_label: string | null; is_active: boolean; is_public: boolean };
 type RosterMember = { member_record_id: string; first_name: string; last_name: string };
 type Session = { id: string; attendance_date: string; lesson_reference: string | null; recorded_at: string };
 type FollowUp = { id: string; display_name: string; contact_method: "IN_PERSON" | "PHONE" | "EMAIL"; contact_locator: string; consent_method: string; assigned_to: string; follow_up_status: string; expires_at: string };
@@ -151,6 +151,7 @@ function SabbathOperations({ ministry, organizationId, retention, userId, busy, 
   const [day, setDay] = useState("");
   const [room, setRoom] = useState("");
   const [selfAsTeacher, setSelfAsTeacher] = useState(false);
+  const [publishClass, setPublishClass] = useState(false);
   const [date, setDate] = useState(localDate());
   const [lesson, setLesson] = useState("");
   const [statuses, setStatuses] = useState<Record<string, string>>({});
@@ -181,11 +182,26 @@ function SabbathOperations({ ministry, organizationId, retention, userId, busy, 
   async function createClass() {
     setBusy(true); setError(null); setNotice(null);
     try {
-      await resaRequest("/v1/department-operations/sabbath/classes", { method: "POST", body: JSON.stringify({ organization_id: organizationId, ministry_id: ministry.id, name, meeting_day: day ? Number(day) : null, room_label: room || null, teacher_user_id: selfAsTeacher ? userId || null : null }) });
-      setName(""); setRoom(""); setDay(""); setSelfAsTeacher(false); await loadClasses(); setNotice("Turma criada. Para incluir membros, é necessária a permissão apropriada no cadastro.");
+      await resaRequest("/v1/department-operations/sabbath/classes", { method: "POST", body: JSON.stringify({ organization_id: organizationId, ministry_id: ministry.id, name, meeting_day: day ? Number(day) : null, room_label: room || null, teacher_user_id: selfAsTeacher ? userId || null : null, is_public: publishClass }) });
+      setName(""); setRoom(""); setDay(""); setSelfAsTeacher(false); setPublishClass(false); await loadClasses(); setNotice("Turma criada. Para incluir membros, é necessária a permissão apropriada no cadastro.");
     } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível criar a turma."); }
     finally { setBusy(false); }
   }
+  async function toggleClassPublication() {
+    if (!selectedClass) return;
+    const next = !selectedClass.is_public;
+    setBusy(true); setError(null); setNotice(null);
+    try {
+      const updated = await resaRequest<SabbathClass>(`/v1/department-operations/sabbath/classes/${encodeURIComponent(selectedClass.id)}`, {
+        method: "PATCH", body: JSON.stringify({ is_public: next }),
+      });
+      setClasses((items) => items.map((item) => item.id === updated.id ? { ...item, ...updated } : item));
+      setNotice(next ? "Turma publicada no RESA. Só o nome e horário de reunião ficam visíveis." : "Turma retirada da área pública do RESA.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível alterar a publicação da turma.");
+    } finally { setBusy(false); }
+  }
+
   async function enroll() {
     if (!selectedClassId || !selectedMember) return;
     setBusy(true); setError(null); setNotice(null);
@@ -221,9 +237,9 @@ function SabbathOperations({ ministry, organizationId, retention, userId, busy, 
             <FieldLabel>Sala/local (opcional)<input value={room} onChange={(e) => setRoom(e.target.value)} maxLength={120} className={inputClass} /></FieldLabel>
             <div className="flex items-end"><button type="button" disabled={busy || name.trim().length < 2} onClick={() => void createClass()} className={buttonClass}>Criar turma</button></div>
           </div>
-          <label className="flex items-start gap-2 text-xs leading-5 text-slate-600"><input type="checkbox" checked={selfAsTeacher} onChange={(e) => setSelfAsTeacher(e.target.checked)} className="mt-1" />Atribuir a minha conta como professor/a desta turma</label>
+          <div className="space-y-2"><label className="flex items-start gap-2 text-xs leading-5 text-slate-600"><input type="checkbox" checked={selfAsTeacher} onChange={(e) => setSelfAsTeacher(e.target.checked)} className="mt-1" />Atribuir a minha conta como professor/a desta turma</label><label className="flex items-start gap-2 text-xs leading-5 text-slate-600"><input type="checkbox" checked={publishClass} onChange={(e) => setPublishClass(e.target.checked)} className="mt-1" />Publicar esta turma no RESA para a comunidade consultar nome e horário</label></div>
           <FieldLabel>Turma selecionada<select value={selectedClassId} onChange={(e) => setSelectedClassId(e.target.value)} className={inputClass}><option value="">Selecione…</option>{classes.map((item) => <option key={item.id} value={item.id}>{item.name}{item.is_active ? "" : " · inativa"}</option>)}</select></FieldLabel>
-          {selectedClass && <p className="text-xs text-slate-500">{selectedClass.meeting_day == null ? "dia não definido" : WEEKDAYS[selectedClass.meeting_day]}{selectedClass.meeting_time ? ` · ${selectedClass.meeting_time}` : ""}{selectedClass.room_label ? ` · ${selectedClass.room_label}` : ""}</p>}
+          {selectedClass && <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs text-slate-500">{selectedClass.meeting_day == null ? "dia não definido" : WEEKDAYS[selectedClass.meeting_day]}{selectedClass.meeting_time ? ` · ${selectedClass.meeting_time}` : ""}{selectedClass.room_label ? ` · ${selectedClass.room_label}` : ""}</p><button type="button" disabled={busy} onClick={() => void toggleClassPublication()} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-[#0C1A3D]">{selectedClass.is_public ? "Retirar do RESA" : "Publicar no RESA"}</button></div>}
           {selectedClassId && (
             <>
             <div className="flex flex-wrap gap-2">
