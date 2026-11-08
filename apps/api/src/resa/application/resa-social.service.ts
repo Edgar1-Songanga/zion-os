@@ -53,11 +53,15 @@ export class ResaSocialService {
         : Promise.resolve(null),
       this.db.get<any[]>('resa_user_mutes', token, `?select=muted_id&muter_id=eq.${a.id}&limit=1000`),
     ]);
+    const mutedAuthorIds = [...new Set(muteRows.map((row) => row.muted_id).filter(Boolean))];
+    const mutedAuthorSet = new Set(mutedAuthorIds);
     const followedAuthorIds = followingRows
       ? [...new Set([a.id, ...followingRows.map((row) => row.followed_id).filter(Boolean)])]
+        .filter((id) => !mutedAuthorSet.has(id))
       : [];
-    const mutedAuthorIds = [...new Set(muteRows.map((row) => row.muted_id).filter(Boolean))];
-    const mutedAuthorFilter = mutedAuthorIds.length
+    // Following mode already constrains author_id with an IN clause; do not
+    // duplicate that query parameter with a second NOT IN clause.
+    const mutedAuthorFilter = mode !== 'following' && mutedAuthorIds.length
       ? `&author_id=not.in.(${mutedAuthorIds.join(',')})`
       : '';
     const contentQuery = mode === 'following'
