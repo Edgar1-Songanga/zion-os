@@ -94,9 +94,14 @@ as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$
 
 create or replace function private.has_org_permission(p_organization_id uuid, p_permission text)
 returns boolean language sql stable
-as $$
+as $
   select nullif(current_setting('test.zion_manager_org', true), '') = p_organization_id::text
-$$;
+$;
+create or replace function private.is_verified_zion_global_admin()
+returns boolean language sql stable
+as $
+  select coalesce(current_setting('test.zion_global_admin', true), '') = 'true'
+$;
 
 create table public.resa_live_sessions (
   id uuid primary key,
@@ -330,6 +335,23 @@ create table public.resa_contents (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+create table public.resa_moderation_reports (
+  id uuid primary key default gen_random_uuid(),
+  reporter_id uuid not null references auth.users(id) on delete restrict,
+  content_id uuid references public.resa_contents(id) on delete cascade,
+  message_id uuid references public.resa_messages(id) on delete cascade,
+  reason text not null,
+  details text,
+  status text not null default 'open',
+  reviewed_by uuid references auth.users(id) on delete set null,
+  reviewed_at timestamptz,
+  review_note text,
+  created_at timestamptz not null default now(),
+  organization_id uuid references public.organizations(id) on delete set null,
+  check ((content_id is not null) <> (message_id is not null))
+);
+alter table public.resa_moderation_reports enable row level security;
+
 alter table public.resa_contents enable row level security;
 create policy resa_contents_public_read on public.resa_contents
   for select to authenticated
