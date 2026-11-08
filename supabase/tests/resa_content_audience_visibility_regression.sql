@@ -22,9 +22,9 @@ insert into public.resa_community_members(community_id,user_id,role,status)
 values ('92000000-0000-4000-8000-000000000001','91000000-0000-4000-8000-000000000004','member','active')
 on conflict do nothing;
 
-insert into public.organizations(id)
-values ('94000000-0000-4000-8000-000000000001')
-on conflict do nothing;
+insert into public.organizations(id,name,slug,created_by)
+values ('94000000-0000-4000-8000-000000000001','RESA Audience Test','resa-audience-test-org','91000000-0000-4000-8000-000000000001')
+on conflict (id) do nothing;
 
 insert into public.organization_memberships(organization_id,user_id,status)
 values ('94000000-0000-4000-8000-000000000001','91000000-0000-4000-8000-000000000005','ACTIVE')
