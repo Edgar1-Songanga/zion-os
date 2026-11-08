@@ -94,139 +94,173 @@ export class ResaSocialService {
   }
 
   async feed(token: string, limit = 30, mode: 'for_you' | 'following' | 'latest' = 'for_you', before?: string) {
-    const a = await this.actor(token);
+    const actor = await this.actor(token);
     const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
     let cursorFilter = '';
     if (before) {
       const separator = before.indexOf('|');
       const createdAt = separator >= 0 ? before.slice(0, separator) : '';
-      const contentId = separator >= 0 ? before.slice(separator + 1) : '';
-      const parsedDate = Date.parse(createdAt);
-      if (!Number.isFinite(parsedDate) || !/^\d{4}-\d{2}-\d{2}T/.test(createdAt)
-        || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(contentId)) {
+      const itemId = separator >= 0 ? before.slice(separator + 1) : '';
+      if (!Number.isFinite(Date.parse(createdAt)) || createdAt.length < 20 || createdAt[4] !== '-' || createdAt[7] !== '-' || createdAt[10] !== 'T'
+        || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(itemId)) {
         throw new BadRequestException('Invalid feed cursor');
       }
-      cursorFilter = `&or=(created_at.lt.${encodeURIComponent(createdAt)},and(created_at.eq.${encodeURIComponent(createdAt)},id.lt.${contentId}))`;
+      cursorFilter = `&or=(created_at.lt.${encodeURIComponent(createdAt)},and(created_at.eq.${encodeURIComponent(createdAt)},id.lt.${itemId}))`;
     }
 
-    // The Following feed must query the followed authors directly. Filtering only
-    // the global newest 120 posts would silently omit followed creators whenever
-    // unrelated accounts publish more frequently.
     const [followingRows, muteRows] = await Promise.all([
       mode === 'following'
-        ? this.db.get<any[]>('resa_follows', token, `?select=followed_id&follower_id=eq.${a.id}&order=created_at.desc&limit=1000`)
+        ? this.db.get<any[]>('resa_follows', token, `?select=followed_id&follower_id=eq.${actor.id}&order=created_at.desc&limit=1000`)
         : Promise.resolve(null),
-      this.db.get<any[]>('resa_user_mutes', token, `?select=muted_id&muter_id=eq.${a.id}&limit=1000`),
+      this.db.get<any[]>('resa_user_mutes', token, `?select=muted_id&muter_id=eq.${actor.id}&limit=1000`),
     ]);
-    const mutedAuthorIds = [...new Set(muteRows.map((row) => row.muted_id).filter(Boolean))];
-    const mutedAuthorSet = new Set(mutedAuthorIds);
-    const followedAuthorIds = followingRows
-      ? [...new Set([a.id, ...followingRows.map((row) => row.followed_id).filter(Boolean)])]
-        .filter((id) => !mutedAuthorSet.has(id))
+    const mutedIds = [...new Set(muteRows.map((row) => row.muted_id).filter(Boolean))];
+    const mutedSet = new Set(mutedIds);
+    const followedIds = followingRows
+      ? [...new Set([actor.id, ...followingRows.map((row) => row.followed_id).filter(Boolean)])]
+        .filter((id) => !mutedSet.has(id))
       : [];
-    // Following mode already constrains author_id with an IN clause; do not
-    // duplicate that query parameter with a second NOT IN clause.
-    const mutedAuthorFilter = mode !== 'following' && mutedAuthorIds.length
-      ? `&author_id=not.in.(${mutedAuthorIds.join(',')})`
-      : '';
-    const contentQuery = mode === 'following'
-      ? `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&moderation_status=eq.active&type=neq.story&visibility=in.(public,followers,community,organization)&author_id=in.(${followedAuthorIds.join(',')})&order=created_at.desc,id.desc&limit=${size + 1}${cursorFilter}${mutedAuthorFilter}`
-      : `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&moderation_status=eq.active&type=neq.story&visibility=in.(public,followers,community,organization)&order=created_at.desc,id.desc&limit=${size + 1}${cursorFilter}${mutedAuthorFilter}`;
-    const fetchedContents = await this.db.get<any[]>('resa_contents', token, contentQuery);
-    const hasMore = fetchedContents.length > size;
-    const contents = fetchedContents.slice(0, size);
-    const lastChronologicalItem = contents[contents.length - 1];
-    const nextCursor = hasMore && lastChronologicalItem
-      ? `${lastChronologicalItem.created_at}|${lastChronologicalItem.id}`
-      : null;
-    const contentIds = contents.map((item) => item.id).filter(Boolean);
-    const authorIds = [...new Set(contents.map((item) => item.author_id).filter(Boolean))];
+    const authorFilter = mode === 'following'
+      ? `&author_id=in.(${followedIds.join(',')})`
+      : mutedIds.length ? `&author_id=not.in.(${mutedIds.join(',')})` : '';
+    const shareAuthorFilter = mode === 'following'
+      ? `&user_id=in.(${followedIds.join(',')})`
+      : mutedIds.length ? `&user_id=not.in.(${mutedIds.join(',')})` : '';
 
-    // Scope personalized lookups to this feed page rather than downloading each user's
-    // entire feedback history and saved-content list on every refresh.
+    // Original publications and repost events are independent feed entries.
+    // Both streams use the same (created_at,id) cursor, so pagination remains
+    // chronological and does not collapse two reposts of the same publication.
+    const contentQuery = `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&moderation_status=eq.active&type=neq.story&visibility=in.(public,followers,community,organization)${authorFilter}&order=created_at.desc,id.desc&limit=${size + 1}${cursorFilter}`;
+    const shareQuery = `?select=id,content_id,user_id,created_at&share_type=eq.repost${shareAuthorFilter}&order=created_at.desc,id.desc&limit=${size + 1}${cursorFilter}`;
+    const [contentRows, shareRows] = await Promise.all([
+      this.db.get<any[]>('resa_contents', token, contentQuery),
+      this.db.get<any[]>('resa_shares', token, shareQuery),
+    ]);
+
+    const sharedContentIds = [...new Set(shareRows.map((row) => row.content_id).filter(Boolean))];
+    const sharedContents = sharedContentIds.length
+      ? await this.db.get<any[]>('resa_contents', token,
+        `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&moderation_status=eq.active&type=neq.story&id=in.(${sharedContentIds.join(',')})`)
+      : [];
+    const sourceById = new Map(sharedContents.map((item) => [item.id, item]));
+
+    const feedEntries = [
+      ...contentRows.map((item) => ({
+        ...item,
+        feed_item_id: item.id,
+        feed_item_type: 'content',
+        is_repost: false,
+        source_created_at: item.created_at,
+        reposted_by_id: null,
+      })),
+      ...shareRows.flatMap((share) => {
+        const source = sourceById.get(share.content_id);
+        if (!source || mutedSet.has(source.author_id)) return [];
+        return [{
+          ...source,
+          created_at: share.created_at,
+          feed_item_id: share.id,
+          feed_item_type: 'repost',
+          is_repost: true,
+          source_created_at: source.created_at,
+          reposted_by_id: share.user_id,
+        }];
+      }),
+    ].sort((left, right) => {
+      const byTime = Date.parse(right.created_at) - Date.parse(left.created_at);
+      return byTime || String(right.feed_item_id).localeCompare(String(left.feed_item_id));
+    });
+
+    const hasMore = feedEntries.length > size;
+    const pageEntries = feedEntries.slice(0, size);
+    const lastItem = pageEntries[pageEntries.length - 1];
+    const nextCursor = hasMore && lastItem ? `${lastItem.created_at}|${lastItem.feed_item_id}` : null;
+    const contentIds = [...new Set(pageEntries.map((item) => item.id).filter(Boolean))];
+    const authorIds = [...new Set(pageEntries.flatMap((item) => [item.author_id, item.reposted_by_id]).filter(Boolean))];
     const contentFilter = contentIds.length ? `in.(${contentIds.join(',')})` : null;
-    const authorFilter = authorIds.length ? `in.(${authorIds.join(',')})` : null;
-    const [follows, feedback, engagements, saves, viewerReactions] = await Promise.all([
+    const authorFilterForLookups = authorIds.length ? `in.(${authorIds.join(',')})` : null;
+
+    const [follows, feedback, engagements, saves, viewerReactions, viewerShares] = await Promise.all([
       followingRows
         ? Promise.resolve(followingRows)
-        : authorFilter
-          ? this.db.get<any[]>( 'resa_follows', token, `?select=followed_id&follower_id=eq.${a.id}&followed_id=${authorFilter}&limit=120`)
+        : authorFilterForLookups
+          ? this.db.get<any[]>('resa_follows', token, `?select=followed_id&follower_id=eq.${actor.id}&followed_id=${authorFilterForLookups}&limit=120`)
           : Promise.resolve([]),
       contentFilter
-        ? this.db.get<any[]>( 'resa_feed_feedback', token, `?select=content_id,feedback&user_id=eq.${a.id}&content_id=${contentFilter}&limit=120`)
+        ? this.db.get<any[]>('resa_feed_feedback', token, `?select=content_id,feedback&user_id=eq.${actor.id}&content_id=${contentFilter}&limit=120`)
         : Promise.resolve([]),
       contentFilter
         ? this.db.rpc<any[]>('resa_content_engagement_counts', token, { p_content_ids: contentIds })
         : Promise.resolve([]),
       contentFilter
-        ? this.db.get<any[]>( 'resa_saves', token, `?select=content_id&user_id=eq.${a.id}&content_id=${contentFilter}&limit=120`)
+        ? this.db.get<any[]>('resa_saves', token, `?select=content_id&user_id=eq.${actor.id}&content_id=${contentFilter}&limit=120`)
         : Promise.resolve([]),
       contentFilter
-        ? this.db.get<any[]>( 'resa_reactions', token, `?select=content_id&user_id=eq.${a.id}&content_id=${contentFilter}&limit=120`)
+        ? this.db.get<any[]>('resa_reactions', token, `?select=content_id&user_id=eq.${actor.id}&content_id=${contentFilter}&limit=120`)
+        : Promise.resolve([]),
+      contentFilter
+        ? this.db.get<any[]>('resa_shares', token, `?select=content_id&user_id=eq.${actor.id}&share_type=eq.repost&content_id=${contentFilter}&limit=120`)
         : Promise.resolve([]),
     ]);
 
     const followed = new Set(follows.map((row) => row.followed_id));
     const hidden = new Map(feedback.map((row) => [row.content_id, row.feedback]));
-    const hiddenAuthors = new Set(
-      contents
-        .filter((item) => hidden.get(item.id) === 'hide_author')
-        .map((item) => item.author_id),
-    );
+    const hiddenAuthors = new Set(pageEntries
+      .filter((item) => hidden.get(item.id) === 'hide_author')
+      .map((item) => item.author_id));
     const engagementByContent = new Map(engagements.map((row) => [row.content_id, row]));
     const saved = new Set(saves.map((row) => row.content_id));
-    const reactedByViewer = new Set(viewerReactions.map((row) => row.content_id));
-    const feedMode = mode;
-    const eligibleContents = feedMode === 'following'
-      ? contents.filter((item) => item.author_id === a.id || followed.has(item.author_id))
-      : contents;
-    const preparedContents = eligibleContents
-      .filter((item) => !hiddenAuthors.has(item.author_id) && hidden.get(item.id) !== 'report')
-      .map((item) => ({
-        ...item,
-        followedAuthor: followed.has(item.author_id),
-        reaction_count: Number(engagementByContent.get(item.id)?.reaction_count ?? 0),
-        comment_count: Number(engagementByContent.get(item.id)?.comment_count ?? 0),
-        share_count: Number(engagementByContent.get(item.id)?.share_count ?? 0),
-        interactionCount:
-          Number(engagementByContent.get(item.id)?.reaction_count ?? 0)
-          + Number(engagementByContent.get(item.id)?.comment_count ?? 0)
-          + Number(engagementByContent.get(item.id)?.share_count ?? 0),
-        saved: saved.has(item.id),
-        viewer_saved: saved.has(item.id),
-        viewer_reacted: reactedByViewer.has(item.id),
-        feedback: hidden.get(item.id),
-        contentType: item.type,
-        ageHours: Math.max(0, (Date.now() - Date.parse(item.created_at)) / 3600000),
-      }));
-    const ranked = feedMode === 'for_you'
-      ? this.recommendations.rank(preparedContents)
-      : preparedContents.map((item) => ({ ...item, score: 0 }));
-    const visibleProfiles = authorIds.length
+    const reacted = new Set(viewerReactions.map((row) => row.content_id));
+    const reposted = new Set(viewerShares.map((row) => row.content_id));
+    const profiles = authorIds.length
       ? await this.db.rpc<any[]>('resa_profiles_for_ids', token, { p_user_ids: authorIds })
       : [];
-    const profilesById = new Map(visibleProfiles.map((profile) => [profile.id, profile]));
+    const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
 
-    // "For you" is ranked; "following" is restricted to followed profiles;
-    // "latest" is global and chronological. Both chronological modes remain stable.
-    const items = ranked.map((item) => {
-      const profile = profilesById.get(item.author_id);
-      const displayName = profile?.display_name?.trim()
-        || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim()
-        || 'Membro RESA';
-      return {
-        ...item,
-        author_display_name: displayName,
-        author_avatar_url: profile?.avatar_url ?? null,
-      };
-    }).sort((a, b) => {
-      if (feedMode === 'for_you') return b.score - a.score;
-      const aTime = Date.parse(a.created_at);
-      const bTime = Date.parse(b.created_at);
-      const byTime = (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
-      return byTime || String(b.id).localeCompare(String(a.id));
-    });
-    return { items, next_cursor: nextCursor, has_more: hasMore };
+    const prepared = pageEntries
+      .filter((item) => !hiddenAuthors.has(item.author_id) && hidden.get(item.id) !== 'report')
+      .filter((item) => mode !== 'following' || (item.is_repost ? followed.has(item.reposted_by_id) : item.author_id === actor.id || followed.has(item.author_id)))
+      .map((item) => {
+        const authorProfile = profileById.get(item.author_id);
+        const reposterProfile = item.reposted_by_id ? profileById.get(item.reposted_by_id) : null;
+        const counts = engagementByContent.get(item.id);
+        return {
+          ...item,
+          followedAuthor: followed.has(item.author_id),
+          author_display_name: authorProfile?.display_name?.trim()
+            || [authorProfile?.first_name, authorProfile?.last_name].filter(Boolean).join(' ').trim()
+            || 'Membro RESA',
+          author_avatar_url: authorProfile?.avatar_url ?? null,
+          reposted_by_display_name: reposterProfile?.display_name?.trim()
+            || [reposterProfile?.first_name, reposterProfile?.last_name].filter(Boolean).join(' ').trim()
+            || null,
+          reposted_by_avatar_url: reposterProfile?.avatar_url ?? null,
+          reaction_count: Number(counts?.reaction_count ?? 0),
+          comment_count: Number(counts?.comment_count ?? 0),
+          share_count: Number(counts?.share_count ?? 0),
+          interactionCount: Number(counts?.reaction_count ?? 0)
+            + Number(counts?.comment_count ?? 0) + Number(counts?.share_count ?? 0),
+          saved: saved.has(item.id),
+          viewer_saved: saved.has(item.id),
+          viewer_reacted: reacted.has(item.id),
+          viewer_reposted: reposted.has(item.id),
+          feedback: hidden.get(item.id),
+          contentType: item.type,
+          ageHours: Math.max(0, (Date.now() - Date.parse(item.source_created_at)) / 3600000),
+        };
+      });
+    const ranked = mode === 'for_you'
+      ? this.recommendations.rank(prepared)
+      : prepared.map((item) => ({ ...item, score: 0 }));
+    return {
+      items: ranked.sort((left, right) => {
+        if (mode === 'for_you') return right.score - left.score;
+        const byTime = Date.parse(right.created_at) - Date.parse(left.created_at);
+        return byTime || String(right.feed_item_id).localeCompare(String(left.feed_item_id));
+      }),
+      next_cursor: nextCursor,
+      has_more: hasMore,
+    };
   }
 
   async reels(token: string, limit = 30) {

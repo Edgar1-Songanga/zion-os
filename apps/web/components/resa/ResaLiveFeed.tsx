@@ -27,6 +27,12 @@ type ResaContent = {
   reaction_count?: number;
   comment_count?: number;
   share_count?: number;
+  feed_item_id?: string;
+  feed_item_type?: "content" | "repost";
+  is_repost?: boolean;
+  reposted_by_id?: string | null;
+  reposted_by_display_name?: string | null;
+  viewer_reposted?: boolean;
 };
 
 function newestFirst(items: ResaContent[]): ResaContent[] {
@@ -91,8 +97,8 @@ export default function ResaLiveFeed() {
         `/v1/resa/feed?limit=30&mode=${feedMode}&before=${encodeURIComponent(nextCursor)}`,
       );
       setItems((current) => {
-        const known = new Set(current.map((item) => item.id));
-        return [...current, ...page.items.filter((item) => !known.has(item.id))];
+        const known = new Set(current.map((item) => item.feed_item_id || item.id));
+        return [...current, ...page.items.filter((item) => !known.has(item.feed_item_id || item.id))];
       });
       setNextCursor(page.next_cursor);
     } catch (e) {
@@ -235,7 +241,7 @@ export default function ResaLiveFeed() {
         </div>
       )}
 
-      {!loading && !error && items.map((item) => <FeedCard key={item.id} content={item} />)}
+      {!loading && !error && items.map((item) => <FeedCard key={item.feed_item_id || item.id} content={item} />)}
 
       {!loading && !error && nextCursor && (
         <div className="flex justify-center pb-4">
