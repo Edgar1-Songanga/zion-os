@@ -1,5 +1,6 @@
 export type NotificationAlertPreferences = {
   enabled?: boolean;
+  channels?: string[];
   sound_enabled?: boolean;
   sound_style?: 'soft' | 'chime' | 'classic' | 'silent';
   vibration_enabled?: boolean;
