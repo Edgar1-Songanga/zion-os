@@ -14,6 +14,7 @@ on:
       - "supabase/tests/resa_event_community_audience_regression.sql"
       - "supabase/tests/resa_user_blocking_regression.sql"
       - "supabase/tests/resa_engagement_aggregate_regression.sql"
+      - "supabase/tests/resa_story_view_tracking_regression.sql"
       - "supabase/tests/resa_security_fixture.sql"
       - ".github/workflows/resa-security.yml"
   push:
@@ -23,6 +24,7 @@ on:
       - "supabase/migrations/*department*"
       - "supabase/tests/resa_security*"
       - "supabase/tests/resa_call_security*"
+      - "supabase/tests/resa_story_view_tracking_regression.sql"
       - ".github/workflows/resa-security.yml"
 
 permissions:
@@ -120,6 +122,12 @@ jobs:
       - name: Verify public, friends, friends-of-friends and private visibility
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_four_level_profile_visibility.sql
+      - name: Apply secure RESA story view tracking
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108143000_resa_story_view_tracking.sql
+      - name: Verify story view deduplication, audience, expiry, blocking and author-only reads
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_story_view_tracking_regression.sql
       - name: Stop disposable PostgreSQL
         if: always()
         run: docker rm -f zion-resa-security-postgres || true
