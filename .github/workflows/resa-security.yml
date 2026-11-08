@@ -85,6 +85,9 @@ jobs:
       - name: Apply event and community audience access policies
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108124500_resa_event_and_community_audience_access.sql
+      - name: Apply community membership reactivation hardening
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108130500_resa_community_membership_reactivation_hardening.sql
       - name: Verify event and community access boundaries
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_event_community_audience_regression.sql
