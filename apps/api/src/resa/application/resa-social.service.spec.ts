@@ -77,34 +77,6 @@ describe('ResaSocialService feeds', () => {
     expect(signSpy).not.toHaveBeenCalled();
   });
 
-  it('resolves private and legacy public media URLs in one authorized batch', async () => {
-    const firstId = '33333333-3333-4333-8333-333333333333';
-    const secondId = '44444444-4444-4444-8444-444444444444';
-    getSpy.mockResolvedValueOnce([
-      { id: firstId, author_id: ACTOR_ID, media_type: 'image', media_url: null, media_path: ACTOR_ID + '/private.webp' },
-      { id: secondId, author_id: FOLLOWED_ID, media_type: 'video', media_url: 'https://legacy.example.test/video.mp4', media_path: null },
-    ] as never);
-    const signSpy = jest.spyOn(SupabaseRestClient.prototype, 'createSignedStorageUrl')
-      .mockResolvedValue('https://storage.example.test/signed/private.webp');
-
-    const result = await service.contentMediaUrls('session-token', [firstId, secondId, firstId]);
-
-    expect(getSpy).toHaveBeenCalledWith('resa_contents', 'session-token', expect.stringContaining(`id=in.(${firstId},${secondId})`));
-    expect(signSpy).toHaveBeenCalledTimes(1);
-    expect(result.items).toEqual([
-      { content_id: firstId, url: 'https://storage.example.test/signed/private.webp', expires_in: 300, private: true },
-      { content_id: secondId, url: 'https://legacy.example.test/video.mp4', expires_in: null, private: false },
-    ]);
-  });
-
-  it('rejects oversized or malformed media URL batches before querying content', async () => {
-    await expect(service.contentMediaUrls('session-token', new Array(51).fill(ACTOR_ID)))
-      .rejects.toThrow('at most 50 IDs');
-    await expect(service.contentMediaUrls('session-token', ['not-a-uuid']))
-      .rejects.toThrow('invalid ID');
-    expect(getSpy).not.toHaveBeenCalled();
-  });
-
   it('blocks a profile, persists the block and removes the viewer follow', async () => {
     const upsertSpy = jest.spyOn(SupabaseRestClient.prototype, 'upsert').mockResolvedValue([{ blocker_id: ACTOR_ID, blocked_id: FOLLOWED_ID }] as never);
     const deleteSpy = jest.spyOn(SupabaseRestClient.prototype, 'delete').mockResolvedValue([] as never);

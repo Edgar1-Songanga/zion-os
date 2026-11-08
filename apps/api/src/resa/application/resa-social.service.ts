@@ -66,7 +66,7 @@ export class ResaSocialService {
         return { content_id: content.id, url: content.media_url, expires_in: null, private: false };
       }
       const path = typeof content.media_path === 'string' ? content.media_path : '';
-      if (!path || path.startsWith('/') || path.includes('..') || path.includes('\\\\')
+      if (!path || path.startsWith('/') || path.includes('..') || path.includes(String.fromCharCode(92))
         || !path.startsWith(`${content.author_id}/`)) {
         return null;
       }

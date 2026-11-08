@@ -7,7 +7,6 @@ export class ResaController {
   private token(a?: string) { const t = a?.replace(/^Bearer\s+/i, '').trim(); if (!t) throw new UnauthorizedException('Bearer token is required'); return t; }
   @Get('content') content(@Headers('authorization') a: string | undefined, @Query('limit') limit?: string, @Query('before') before?: string) { return this.resa.listContent(this.token(a), Number(limit) || 30, before); }
   @Get('content/:contentId/media-url') contentMediaUrl(@Headers('authorization') a: string | undefined, @Param('contentId') id: string) { return this.resa.contentMediaUrl(this.token(a), id); }
-  @Post('content/media-urls') contentMediaUrls(@Headers('authorization') a: string | undefined, @Body() b: { content_ids?: unknown }) { return this.resa.contentMediaUrls(this.token(a), b.content_ids); }
   @Get('content/:contentId') getContent(@Headers('authorization') a: string | undefined, @Param('contentId') id: string) { return this.resa.getContentById(this.token(a), id); }
   @Get('feed') feed(@Headers('authorization') a: string | undefined, @Query('limit') limit?: string, @Query('mode') mode?: 'for_you' | 'following' | 'latest', @Query('before') before?: string) { return this.resa.feed(this.token(a), Number(limit) || 30, mode === 'following' ? 'following' : mode === 'latest' ? 'latest' : 'for_you', before); }
   @Get('reels') reels(@Headers('authorization') a: string | undefined, @Query('limit') limit?: string) { return this.resa.reels(this.token(a), Number(limit) || 30); }
