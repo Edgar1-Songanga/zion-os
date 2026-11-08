@@ -129,11 +129,22 @@ describe('ResaSocialService feeds', () => {
   });
 
   it('paginates the feed with a stable created_at and id cursor', async () => {
+    const firstId = '33333333-3333-4333-8333-333333333333';
+    const secondId = '44444444-4444-4444-8444-444444444444';
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_follows') return follows as never;
+      if (table === 'resa_contents') return [
+        { ...followedPosts[0], id: firstId },
+        { ...followedPosts[1], id: secondId },
+      ] as never;
+      return [] as never;
+    });
+
     const result = await service.feed('session-token', 1, 'following');
 
     expect(result.items).toHaveLength(1);
     expect(result.has_more).toBe(true);
-    expect(result.next_cursor).toBe('2026-11-08T11:00:00.000Z|post-new');
+    expect(result.next_cursor).toBe(`2026-11-08T11:00:00.000Z|${firstId}`);
     expect(getSpy).toHaveBeenCalledWith(
       'resa_contents',
       'session-token',
