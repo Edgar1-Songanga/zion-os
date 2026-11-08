@@ -21,6 +21,9 @@ type ResaContent = {
   media_url?: string | null;
   viewer_reacted?: boolean;
   viewer_saved?: boolean;
+  reaction_count?: number;
+  comment_count?: number;
+  share_count?: number;
 };
 
 type CommentItem = {
@@ -55,6 +58,9 @@ export default function FeedCard({ content }: { content: ResaContent }) {
   const { t, locale } = useTranslation();
   const [reaction, setReaction] = useState(Boolean(content.viewer_reacted));
   const [saved, setSaved] = useState(Boolean(content.viewer_saved));
+  const [reactionCount, setReactionCount] = useState(content.reaction_count ?? 0);
+  const [commentCount, setCommentCount] = useState(content.comment_count ?? 0);
+  const [shareCount, setShareCount] = useState(content.share_count ?? 0);
   const [saving, setSaving] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [reposting, setReposting] = useState(false);
@@ -134,13 +140,16 @@ export default function FeedCard({ content }: { content: ResaContent }) {
   useEffect(() => {
     setReaction(Boolean(content.viewer_reacted));
     setSaved(Boolean(content.viewer_saved));
-  }, [content.id, content.viewer_reacted, content.viewer_saved]);
+    setReactionCount(content.reaction_count ?? 0);
+    setCommentCount(content.comment_count ?? 0);
+    setShareCount(content.share_count ?? 0);
+  }, [content.id, content.viewer_reacted, content.viewer_saved, content.reaction_count, content.comment_count, content.share_count]);
 
   useEffect(() => {
     if (!showComments || commentsLoadedRef.current) return;
     commentsLoadedRef.current = true;
     void resaRequest<CommentItem[]>("/v1/resa/content/" + content.id + "/comments")
-      .then(setComments)
+      .then((items) => { setComments(items); setCommentCount((current) => Math.max(current, items.length)); })
       .catch(() => { commentsLoadedRef.current = false; });
   }, [content.id, showComments]);
 
@@ -150,6 +159,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
     const previous = reaction;
     const next = !previous;
     setReaction(next);
+    setReactionCount((current) => Math.max(0, current + (next ? 1 : -1)));
     setActionFeedback(null);
     try {
       await resaRequest("/v1/resa/content/" + content.id + "/reactions", next
@@ -158,6 +168,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
       setActionFeedback(next ? "Gostaste desta publicação." : "Gosto removido.");
     } catch (error) {
       setReaction(previous);
+      setReactionCount((current) => Math.max(0, current + (previous ? 1 : -1)));
       setActionFeedback(error instanceof Error ? error.message : "Não foi possível registar a reação.");
     } finally {
       reactionBusyRef.current = false;
@@ -195,6 +206,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
         body: JSON.stringify({ body: value }),
       });
       setComments((current) => [created, ...current]);
+      setCommentCount((current) => current + 1);
       commentsLoadedRef.current = true;
       setComment("");
       setShowComments(true);
@@ -239,6 +251,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
         method: "POST",
         body: JSON.stringify({ quote: false }),
       });
+      setShareCount((current) => current + 1);
       setActionFeedback("Publicação partilhada no mural.");
     } catch (error) {
       setActionFeedback(error instanceof Error ? error.message : "Não foi possível partilhar a publicação.");
@@ -297,6 +310,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
         }`}>
           <ResaIcon name="heart" size={16} />
           {reaction ? t("liked") : t("like")}
+          {reactionCount > 0 && <span className="text-xs tabular-nums opacity-75">{reactionCount}</span>}
         </button>
         <button type="button" onClick={() => void save()} disabled={saving} className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-white hover:text-[#0C1A3D]">
           <ResaIcon name="bookmark" size={16} />
@@ -304,11 +318,12 @@ export default function FeedCard({ content }: { content: ResaContent }) {
         </button>
         <button type="button" onClick={() => setShowComments((v) => !v)} className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-white hover:text-[#0C1A3D]">
           <ResaIcon name="comment" size={16} />
-          Comentar {comments.length ? `(${comments.length})` : ""}
+          Comentar {commentCount > 0 ? `(${commentCount})` : ""}
         </button>
         <button type="button" onClick={() => void repost()} disabled={reposting} className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-white hover:text-[#0C1A3D]">
           <ResaIcon name="repost" size={16} />
           {reposting ? t("reposting") : t("repost")}
+          {shareCount > 0 && <span className="text-xs tabular-nums opacity-75">{shareCount}</span>}
         </button>
         <button type="button" onClick={() => { setShowShare((v) => !v); setShowReport(false); setShareFeedback(""); }} className="inline-flex items-center gap-2 rounded-xl bg-[#0C1A3D] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md" aria-expanded={showShare}>
           <ResaIcon name="share" size={17} />
