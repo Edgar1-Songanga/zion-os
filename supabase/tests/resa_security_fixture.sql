@@ -24,6 +24,8 @@ returns text[] language sql immutable
 as $
   select (string_to_array(p_name, '/'))[1:greatest(array_length(string_to_array(p_name, '/'), 1) - 1, 0)]
 $;
+alter table storage.objects enable row level security;
+grant usage on schema storage to authenticated;
 grant select on storage.objects to authenticated;
 create table cron.job (
   jobid bigint generated always as identity primary key,
