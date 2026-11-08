@@ -96,12 +96,14 @@ export class SupabaseRestClient {
     if (!payload?.signedURL || typeof payload.signedURL !== 'string') {
       throw new ServiceUnavailableException('Não foi possível gerar o acesso temporário ao ficheiro.');
     }
-    const signedPath = payload.signedURL.startsWith('/storage/v1/')
-      ? payload.signedURL
-      : `/storage/v1/${payload.signedURL.replace(/^\\/+/, '')}`;
+    let signedPath = payload.signedURL;
+    if (!signedPath.startsWith('/storage/v1/')) {
+      signedPath = `/storage/v1/${signedPath.startsWith('/') ? signedPath.slice(1) : signedPath}`;
+    }
+    const baseUrl = env.supabaseUrl.endsWith('/') ? env.supabaseUrl.slice(0, -1) : env.supabaseUrl;
     return payload.signedURL.startsWith('http')
       ? payload.signedURL
-      : new URL(signedPath, `${env.supabaseUrl.replace(/\\/+$/, '')}/`).toString();
+      : new URL(signedPath, `${baseUrl}/`).toString();
   }
 
   private async request<T>(operation: string, url: string, init: RequestInit): Promise<T> {
