@@ -13,6 +13,7 @@ type Reel = {
   body?: string | null;
   media_url: string;
   created_at: string;
+  viewer_reacted?: boolean;
 };
 
 export default function ResaReels() {
