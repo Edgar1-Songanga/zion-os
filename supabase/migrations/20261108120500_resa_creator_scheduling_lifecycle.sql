@@ -39,26 +39,30 @@ begin
     raise exception 'scheduled_for must be in the future' using errcode = '22023';
   end if;
 
-  select coalesce(p_publish_visibility, s.publish_visibility)
+  select c.visibility
     into v_visibility
-  from public.resa_creator_schedules s
-  where s.content_id = p_content_id and s.creator_id = v_actor
+  from public.resa_contents c
+  where c.id = p_content_id and c.author_id = v_actor
   for update;
 
-  if v_visibility is null then
-    select coalesce(p_publish_visibility, c.visibility)
-      into v_visibility
-    from public.resa_contents c
-    where c.id = p_content_id and c.author_id = v_actor
-    for update;
-  else
-    perform 1 from public.resa_contents c
-    where c.id = p_content_id and c.author_id = v_actor
-    for update;
+  if not found then
+    raise exception 'Content not found or not owned by this creator' using errcode = '42501';
   end if;
 
-  if v_visibility is null then
-    raise exception 'Content not found or not owned by this creator' using errcode = '42501';
+  if p_publish_visibility is null then
+    select s.publish_visibility
+      into v_visibility
+    from public.resa_creator_schedules s
+    where s.content_id = p_content_id and s.creator_id = v_actor
+    for update;
+    if not found then
+      select c.visibility
+        into v_visibility
+      from public.resa_contents c
+      where c.id = p_content_id and c.author_id = v_actor;
+    end if;
+  else
+    v_visibility := p_publish_visibility;
   end if;
   if v_visibility not in ('public','followers','community','organization') then
     raise exception 'Invalid publish visibility' using errcode = '22023';
