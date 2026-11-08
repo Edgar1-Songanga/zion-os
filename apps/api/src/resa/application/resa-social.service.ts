@@ -127,6 +127,31 @@ export class ResaSocialService {
     }).slice(0, size);
   }
 
+  async reels(token: string, limit = 30) {
+    await this.actor(token);
+    const size = Math.min(Math.max(Number(limit) || 30, 1), 50);
+    const rows = await this.db.get<any[]>(
+      'resa_contents',
+      token,
+      `?select=id,author_id,title,body,created_at,media_url,media_type,language,visibility&media_type=eq.video&visibility=eq.public&order=created_at.desc&limit=${size}`,
+    );
+    const authorIds = [...new Set(rows.map((row) => row.author_id).filter(Boolean))];
+    const profiles = authorIds.length
+      ? await this.db.rpc<any[]>('resa_profiles_for_ids', token, { p_user_ids: authorIds })
+      : [];
+    const byId = new Map(profiles.map((profile) => [profile.id, profile]));
+    return rows.map((row) => {
+      const profile = byId.get(row.author_id);
+      return {
+        ...row,
+        author_display_name: profile?.display_name?.trim()
+          || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim()
+          || 'Membro RESA',
+        author_avatar_url: profile?.avatar_url ?? null,
+      };
+    });
+  }
+
   async explore(token: string, query?: string, limit = 30) {
     await this.actor(token); const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
     const filter = query?.trim() ? `&or=(title.ilike.*${encodeURIComponent(query.trim())}*,body.ilike.*${encodeURIComponent(query.trim())}*)` : '';
