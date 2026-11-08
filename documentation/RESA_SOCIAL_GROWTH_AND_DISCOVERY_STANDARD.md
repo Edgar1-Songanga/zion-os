@@ -5,7 +5,7 @@
 
 ## 1. Product objective
 
-RESA is a social network for spiritual connection, learning, service and community participation. Growth must come from useful content and genuine relationships, not fabricated users, purchased engagement, dark patterns or compulsive engagement loops.
+RESA is the social network within the ZION platform for spiritual connection, learning, service and community participation. Growth must come from useful content and genuine relationships, not fabricated users, purchased engagement, dark patterns or compulsive engagement loops.
 
 Success is measured by meaningful participation:
 - people finding relevant people, churches, ministries and activities;
@@ -98,9 +98,9 @@ A Reel linked to a department activity must open the canonical activity page. De
 
 ## 7. Institutional and department publishing
 
-Each ministry/department works in its own authorized workspace. It does not need to operate inside the central RESA administration area.
+Each ministry/department works in its own authorized workspace. It does not need to operate inside the central ZION administration area.
 
-The workspace provides:
+The department workspace (inside its authorized ZION department area) provides:
 - institutional profile and delegated managers;
 - content and media library;
 - events, classes, programmes and training;
@@ -109,7 +109,7 @@ The workspace provides:
 - publish/unpublish controls;
 - performance analytics appropriate to the role.
 
-When a department selects public distribution and passes required authorization, the canonical record becomes eligible for RESA public surfaces: Feed, Reels, Explore, search and its institutional page. The record remains owned by its source domain (for example Sabbath School or Youth Ministry). RESA stores/distributes a reference and presentation metadata rather than creating a second administrative copy.
+When a department selects public distribution and passes required authorization, the canonical record becomes eligible for RESA public surfaces: Feed, Reels, Explore, search and its institutional page. The record remains owned by its source domain (for example Sabbath School or Youth Ministry). RESA stores/distributes a reference and presentation metadata rather than creating a second administrative copy. ZION remains the system of record for administration and department operations.
 
 The publication pipeline must support draft, pending review, scheduled, published, suspended and archived states. It must record the authoring identity, approving identity, audience, timestamps and audit trail.
 
@@ -157,7 +157,7 @@ Never expose identifiable viewer histories to institutional managers unless a se
 
 ## 11. Technical and operational requirements
 
-- ZION Identity remains the single identity and authorization source.
+- ZION remains the central platform and administrative authority; RESA is its social network. ZION Identity remains the single identity and authorization source.
 - Organization and department authority is checked server-side on every write.
 - Supabase RLS and API authorization must enforce the same audience rules.
 - Media is stored through the central Media service; use signed access for restricted assets.
