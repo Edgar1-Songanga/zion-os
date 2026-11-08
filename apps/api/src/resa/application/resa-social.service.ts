@@ -28,9 +28,21 @@ export class ResaSocialService {
     return rows[0];
   }
 
-  async feed(token: string, limit = 30, mode: 'for_you' | 'following' = 'for_you') {
+  async feed(token: string, limit = 30, mode: 'for_you' | 'following' = 'for_you', before?: string) {
     const a = await this.actor(token);
     const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
+    let cursorFilter = '';
+    if (before) {
+      const separator = before.indexOf('|');
+      const createdAt = separator >= 0 ? before.slice(0, separator) : '';
+      const contentId = separator >= 0 ? before.slice(separator + 1) : '';
+      const parsedDate = Date.parse(createdAt);
+      if (!Number.isFinite(parsedDate) || !/^\\d{4}-\\d{2}-\\d{2}T/.test(createdAt)
+        || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(contentId)) {
+        throw new BadRequestException('Invalid feed cursor');
+      }
+      cursorFilter = `&or=(created_at.lt.${encodeURIComponent(createdAt)},and(created_at.eq.${encodeURIComponent(createdAt)},id.lt.${contentId}))`;
+    }
 
     // The Following feed must query the followed authors directly. Filtering only
     // the global newest 120 posts would silently omit followed creators whenever
@@ -42,9 +54,14 @@ export class ResaSocialService {
       ? [...new Set([a.id, ...followingRows.map((row) => row.followed_id).filter(Boolean)])]
       : [];
     const contentQuery = mode === 'following'
-      ? `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&type=neq.story&visibility=in.(public,followers,community,organization)&author_id=in.(${followedAuthorIds.join(',')})&order=created_at.desc&limit=120`
-      : '?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&type=neq.story&visibility=in.(public,followers,community,organization)&order=created_at.desc&limit=120';
+      ? `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&type=neq.story&visibility=in.(public,followers,community,organization)&author_id=in.(${followedAuthorIds.join(',')})&order=created_at.desc,id.desc&limit=${size}${cursorFilter}`
+      : `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&type=neq.story&visibility=in.(public,followers,community,organization)&order=created_at.desc,id.desc&limit=${size}${cursorFilter}`;
     const contents = await this.db.get<any[]>('resa_contents', token, contentQuery);
+    const lastChronologicalItem = contents[contents.length - 1];
+    const hasMore = contents.length === size;
+    const nextCursor = hasMore && lastChronologicalItem
+      ? `${lastChronologicalItem.created_at}|${lastChronologicalItem.id}`
+      : null;
     const contentIds = contents.map((item) => item.id).filter(Boolean);
     const authorIds = [...new Set(contents.map((item) => item.author_id).filter(Boolean))];
 
@@ -112,7 +129,7 @@ export class ResaSocialService {
 
     // "For you" uses the recommendation score; "following" stays chronological
     // and is restricted to the viewer plus profiles they explicitly follow.
-    return ranked.map((item) => {
+    const items = ranked.map((item) => {
       const profile = profilesById.get(item.author_id);
       const displayName = profile?.display_name?.trim()
         || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim()
@@ -126,8 +143,10 @@ export class ResaSocialService {
       if (feedMode === 'for_you') return b.score - a.score;
       const aTime = Date.parse(a.created_at);
       const bTime = Date.parse(b.created_at);
-      return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
-    }).slice(0, size);
+      const byTime = (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
+      return byTime || String(b.id).localeCompare(String(a.id));
+    });
+    return { items, next_cursor: nextCursor, has_more: hasMore };
   }
 
   async reels(token: string, limit = 30) {
