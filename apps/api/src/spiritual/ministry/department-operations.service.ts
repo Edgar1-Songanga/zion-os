@@ -52,7 +52,7 @@ export class DepartmentOperationsService {
 
   async listPublicClasses(token: string) {
     return this.db.get<any[]>('sabbath_school_classes', token,
-      '?select=id,name,meeting_day,meeting_time,room_label,organization_id&is_active=eq.true&is_public=eq.true&order=name.asc&limit=100');
+      '?select=id,name,meeting_day,meeting_time,room_label&is_active=eq.true&is_public=eq.true&order=name.asc&limit=100');
   }
 
   async createClass(token: string, organizationId: string, input: {
