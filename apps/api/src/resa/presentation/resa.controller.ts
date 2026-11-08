@@ -37,6 +37,7 @@ export class ResaController {
   @Get('topics/:slug') topicFeed(@Headers('authorization') a: string | undefined, @Param('slug') slug: string, @Query('limit') limit?: string) { return this.resa.topicFeed(this.token(a), slug, Number(limit) || 50); }
   @Post('topics') topic(@Headers('authorization') a: string | undefined, @Body() b: { name: string }) { return this.resa.topic(this.token(a), b.name); }
   @Post('content/:contentId/topics') attachTopic(@Headers('authorization') a: string | undefined, @Param('contentId') id: string, @Body() b: { topic_id: string }) { return this.resa.attachTopic(this.token(a), id, b.topic_id); }
+  @Get('saved') savedContent(@Headers('authorization') a: string | undefined, @Query('limit') limit?: string) { return this.resa.savedContent(this.token(a), Number(limit) || 30); }
   @Post('content/:contentId/save') save(@Headers('authorization') a: string | undefined, @Param('contentId') id: string) { return this.resa.save(this.token(a), id); }
   @Delete('content/:contentId/save') unsave(@Headers('authorization') a: string | undefined, @Param('contentId') id: string) { return this.resa.unsave(this.token(a), id); }
   @Post('content/:contentId/repost') repost(@Headers('authorization') a: string | undefined, @Param('contentId') id: string, @Body() b: { quote?: boolean; body?: string }) { return this.resa.repost(this.token(a), id, b.quote === true, b.body); }

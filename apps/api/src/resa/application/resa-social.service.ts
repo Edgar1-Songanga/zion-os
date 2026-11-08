@@ -669,6 +669,42 @@ export class ResaSocialService {
     const rows = await this.db.upsert<any[]>('resa_content_topics', token, { content_id: contentId, topic_id: topicId }, '?on_conflict=content_id,topic_id');
     return rows[0];
   }
+  async savedContent(token: string, limit = 30) {
+    const actor = await this.actor(token);
+    const size = Math.max(1, Math.min(60, Math.floor(limit) || 30));
+    const saves = await this.db.get<any[]>('resa_saves', token,
+      `?select=content_id,created_at&user_id=eq.${actor.id}&order=created_at.desc&limit=${size}`);
+    const ids = [...new Set(saves.map((row) => row.content_id).filter(Boolean))];
+    if (!ids.length) return { items: [] };
+    const rows = await this.db.get<any[]>('resa_contents', token,
+      `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url&moderation_status=eq.active&type=neq.story&id=in.(${ids.join(',')})&limit=${size}`);
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    const visible = ids.map((id) => byId.get(id)).filter(Boolean);
+    const authorIds = [...new Set(visible.map((row) => row.author_id).filter(Boolean))];
+    const [profiles, engagements, reactions] = await Promise.all([
+      authorIds.length ? this.db.rpc<any[]>('resa_profiles_for_ids', token, { p_user_ids: authorIds }) : Promise.resolve([]),
+      visible.length ? this.db.rpc<any[]>('resa_content_engagement_counts', token, { p_content_ids: visible.map((row) => row.id) }) : Promise.resolve([]),
+      visible.length ? this.db.get<any[]>('resa_reactions', token, `?select=content_id&user_id=eq.${actor.id}&content_id=in.(${visible.map((row) => row.id).join(',')})&limit=${size}`) : Promise.resolve([]),
+    ]);
+    const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
+    const engagementById = new Map(engagements.map((row) => [row.content_id, row]));
+    const reacted = new Set(reactions.map((row) => row.content_id));
+    return { items: visible.map((item) => {
+      const profile = profileById.get(item.author_id);
+      const counts = engagementById.get(item.id);
+      return {
+        ...item,
+        author_display_name: profile?.display_name?.trim() || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim() || 'Membro RESA',
+        author_avatar_url: profile?.avatar_url ?? null,
+        viewer_saved: true,
+        viewer_reacted: reacted.has(item.id),
+        reaction_count: Number(counts?.reaction_count ?? 0),
+        comment_count: Number(counts?.comment_count ?? 0),
+        share_count: Number(counts?.share_count ?? 0),
+      };
+    }) };
+  }
+
   async save(token: string, contentId: string) { const a = await this.actor(token); const rows = await this.db.upsert<any[]>('resa_saves', token, { content_id: contentId, user_id: a.id }, '?on_conflict=content_id,user_id'); return rows[0]; }
   async unsave(token: string, contentId: string) { const a = await this.actor(token); await this.db.delete('resa_saves', token, `?content_id=eq.${contentId}&user_id=eq.${a.id}`); return { removed: true }; }
   async repost(token: string, contentId: string, quote = false, body?: string) { const a = await this.actor(token); if (quote) { const rows = await this.db.post<any[]>('resa_contents', token, { author_id: a.id, type: 'text', body: this.clean(body, 'body', 5000), visibility: 'public', language: 'pt', quoted_content_id: contentId }); return rows[0]; } const rows = await this.db.post<any[]>('resa_shares', token, { content_id: contentId, user_id: a.id, share_type: 'repost' }); return rows[0]; }

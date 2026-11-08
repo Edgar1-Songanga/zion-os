@@ -25,6 +25,7 @@ const primaryNavigation = [
 
 const secondaryNavigation = [
   ["Eventos", "calendar", "/resa/events"],
+  ["Guardados", "bookmark", "/resa/saved"],
   ["Oração", "prayer", "/resa/prayer"],
   ["Stories", "story", "/resa/stories"],
   ["Creator Studio", "creator", "/resa/creator"],
