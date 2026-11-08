@@ -140,6 +140,11 @@ begin
   if p_action_type = 'content_removed' then
     update public.resa_contents set moderation_status='removed', updated_at=now() where id=p_content_id;
   end if;
+  insert into public.notifications(user_id,type,title,body,channel,priority,data)
+  values(v_content.author_id,'resa.moderation.action',
+    case when p_action_type='content_removed' then 'Publicação removida' else 'Advertência formal' end,
+    case when p_action_type='content_removed' then 'Uma publicação tua foi removida. Consulta as medidas aplicadas à tua conta para veres a fundamentação e, se necessário, apresentares recurso.' else 'Recebeste uma advertência formal da equipa de moderação. Consulta o histórico de medidas para veres a fundamentação.' end,
+    'in_app','high',jsonb_build_object('action_id',v_action.id,'content_id',p_content_id));
   return v_action;
 end;
 $$;
@@ -192,6 +197,11 @@ begin
         );
     end if;
   end if;
+  insert into public.notifications(user_id,type,title,body,channel,priority,data)
+  values(v_appeal.appellant_id,'resa.moderation.appeal',
+    case when p_status='overturned' then 'Recurso aceite' else case when p_status='upheld' then 'Recurso concluído' else 'Recurso em análise' end end,
+    case when p_status='overturned' then 'A revisão independente anulou a medida. A publicação foi restaurada.' else case when p_status='upheld' then 'A revisão independente manteve a medida aplicada. Consulta a fundamentação no teu histórico.' else 'O teu recurso foi atribuído para análise independente.' end end,
+    'in_app','high',jsonb_build_object('appeal_id',v_appeal.id,'action_id',v_action.id));
   return v_appeal;
 end;
 $$;
