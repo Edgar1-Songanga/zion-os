@@ -293,3 +293,64 @@ create policy resa_contents_owner_update on public.resa_contents
 grant select, insert, update, delete on public.resa_contents to authenticated;
 grant usage on schema private to authenticated;
 grant execute on function private.is_org_member(uuid) to authenticated;
+
+
+create or replace function private.resa_is_community_moderator(p_community_id uuid, p_user_id uuid)
+returns boolean language sql stable security definer
+set search_path = pg_catalog, public
+as $$
+  select exists (
+    select 1 from public.resa_communities c
+    where c.id = p_community_id and c.created_by = p_user_id
+  ) or exists (
+    select 1 from public.resa_community_members m
+    where m.community_id = p_community_id
+      and m.user_id = p_user_id
+      and m.status = 'active'
+      and m.role in ('owner','moderator')
+  );
+$$;
+grant execute on function private.resa_is_community_moderator(uuid,uuid) to authenticated;
+
+create table public.resa_events (
+  id uuid primary key,
+  created_by uuid not null references auth.users(id),
+  title text not null,
+  description text,
+  starts_at timestamptz not null,
+  ends_at timestamptz,
+  location text,
+  meeting_url text,
+  visibility text not null default 'public',
+  community_id uuid references public.resa_communities(id),
+  organization_id uuid references public.organizations(id),
+  status text not null default 'scheduled',
+  constraint resa_events_check check (ends_at is null or ends_at > starts_at)
+);
+create table public.resa_event_participants (
+  event_id uuid not null references public.resa_events(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  response text not null default 'interested',
+  primary key (event_id,user_id),
+  constraint resa_event_participants_response_check check (response in ('interested','going','declined'))
+);
+alter table public.resa_events enable row level security;
+alter table public.resa_event_participants enable row level security;
+create policy resa_events_read on public.resa_events
+  for select to authenticated
+  using (visibility = 'public' or created_by = (select auth.uid()) or exists (
+    select 1 from public.resa_event_participants p where p.event_id = id and p.user_id = (select auth.uid())
+  ));
+create policy resa_events_insert on public.resa_events
+  for insert to authenticated
+  with check (created_by = (select auth.uid()));
+create policy resa_events_update on public.resa_events
+  for update to authenticated
+  using (created_by = (select auth.uid()))
+  with check (created_by = (select auth.uid()));
+create policy resa_event_participants_owner on public.resa_event_participants
+  for all to authenticated
+  using (user_id = (select auth.uid()))
+  with check (user_id = (select auth.uid()));
+grant select, insert, update on public.resa_events to authenticated;
+grant select, insert, update, delete on public.resa_event_participants to authenticated;
