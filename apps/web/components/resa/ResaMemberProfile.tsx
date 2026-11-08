@@ -86,7 +86,7 @@ export default function ResaMemberProfile({ userId }: { userId: string }) {
 
   return (
     <main className="mx-auto max-w-3xl space-y-5 p-3 pb-10 sm:p-6">
-      <div className="flex items-center justify-between"><Link href="/resa" className="text-sm font-semibold text-slate-600 hover:text-[#0C1A3D]">← Voltar ao RESA</Link>{profile.is_owner && <Link href="/profile" className="text-sm font-semibold text-blue-700 hover:underline">Editar perfil</Link>}</div>
+      <div className="flex items-center justify-between"><Link href="/resa" className="text-sm font-semibold text-slate-600 hover:text-[#0C1A3D]">← Voltar ao RESA</Link>{profile.is_owner && <div className="flex items-center gap-3"><Link href="/resa/blocked" className="text-sm font-semibold text-slate-600 hover:text-[#0C1A3D]">Contas bloqueadas</Link><Link href="/profile" className="text-sm font-semibold text-blue-700 hover:underline">Editar perfil</Link></div>}</div>
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
           <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-100 text-2xl font-semibold text-[#0C1A3D]">{profile.avatar_url ? <img src={profile.avatar_url} alt={name} className="h-full w-full object-cover" /> : initials}</div>
