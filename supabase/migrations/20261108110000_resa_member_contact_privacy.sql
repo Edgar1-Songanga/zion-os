@@ -165,4 +165,17 @@ with check (
   )
 );
 
+-- A member who disables new followers cannot be followed through direct table access.
+drop policy if exists resa_follows_owner_insert on public.resa_follows;
+create policy resa_follows_owner_insert on public.resa_follows
+for insert to authenticated
+with check (
+  follower_id = (select auth.uid())
+  and coalesce((
+    select p.privacy->>'follow_policy'
+    from public.profiles p
+    where p.id = resa_follows.followed_id
+  ), 'auto') <> 'none'
+);
+
 commit;
