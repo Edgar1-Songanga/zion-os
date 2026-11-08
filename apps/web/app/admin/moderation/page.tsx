@@ -76,6 +76,8 @@ export default function ModerationPage() {
           <p className="mt-2 max-w-2xl text-sm leading-6 text-white/70">Rever denúncias, registar decisões e manter um histórico claro da análise. O acesso é limitado a moderadores autorizados.</p>
         </header>
 
+        <div className="flex justify-end"><a href="/admin/moderation/appeals" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">Fila de reapreciações</a></div>
+
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap gap-2">
             {statuses.map((item) => (
