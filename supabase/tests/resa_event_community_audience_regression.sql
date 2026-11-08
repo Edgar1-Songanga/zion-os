@@ -33,6 +33,10 @@ insert into public.resa_community_members(community_id,user_id,role,status)
 values ('97000000-0000-4000-8000-000000000001','96000000-0000-4000-8000-000000000004','member','active')
 on conflict do nothing;
 
+insert into public.resa_community_members(community_id,user_id,role,status)
+values ('97000000-0000-4000-8000-000000000001','96000000-0000-4000-8000-000000000003','member','left')
+on conflict do update set status='left', role='member';
+
 insert into public.resa_events(id,created_by,title,starts_at,visibility,community_id,organization_id)
 values
  ('99000000-0000-4000-8000-000000000001','96000000-0000-4000-8000-000000000001','Public event',now()+interval '2 days','public',null,null),
@@ -113,6 +117,14 @@ begin
     insert into public.resa_community_members(community_id,user_id,role,status)
     values ('97000000-0000-4000-8000-000000000001',auth.uid(),'member','active');
     raise exception 'Stranger self-joined a private community';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    update public.resa_community_members
+    set status='active'
+    where community_id='97000000-0000-4000-8000-000000000001'
+      and user_id=auth.uid();
+    raise exception 'Member reactivated their private community membership without invitation';
   exception when insufficient_privilege then null;
   end;
   insert into public.resa_community_members(community_id,user_id,role,status)
