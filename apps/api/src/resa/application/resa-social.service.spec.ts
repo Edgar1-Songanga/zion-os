@@ -99,6 +99,32 @@ describe('ResaSocialService feeds', () => {
     }]);
   });
 
+  it('hydrates blocked profiles in batches within profile privacy limits', async () => {
+    const blocks = Array.from({ length: 201 }, (_, index) => ({
+      blocked_id: `blocked-${index}`,
+      created_at: '2026-11-08T12:00:00.000Z',
+    }));
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_user_blocks') return blocks as never;
+      return [] as never;
+    });
+    rpcSpy.mockImplementation(async (functionName: string, _token: string, args: any) => {
+      if (functionName === 'resa_profiles_for_ids') {
+        return args.p_user_ids.map((id: string) => ({ id, display_name: `Profile ${id}` })) as never;
+      }
+      return [] as never;
+    });
+
+    const result = await service.blockedProfiles('session-token');
+    const profileCalls = rpcSpy.mock.calls.filter(([name]) => name === 'resa_profiles_for_ids');
+
+    expect(profileCalls).toHaveLength(2);
+    expect(profileCalls[0][2].p_user_ids).toHaveLength(200);
+    expect(profileCalls[1][2].p_user_ids).toHaveLength(1);
+    expect(result).toHaveLength(201);
+    expect(result[200].profile).toMatchObject({ id: 'blocked-200', display_name: 'Profile blocked-200' });
+  });
+
   it('hydrates whether the viewer has blocked the profile owner', async () => {
     getSpy.mockImplementation(async (table: string) => {
       if (table === 'profiles') return [{ id: FOLLOWED_ID, privacy: {} }] as never;
