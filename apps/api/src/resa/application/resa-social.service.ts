@@ -216,8 +216,8 @@ export class ResaSocialService {
       profile: {
         id: profile.id,
         display_name: profile.display_name,
-        first_name: privacy.profile_visibility === 'private' && !isOwner && !isFollower ? null : profile.first_name,
-        last_name: privacy.profile_visibility === 'private' && !isOwner && !isFollower ? null : profile.last_name,
+        first_name: privateLocked ? null : profile.first_name,
+        last_name: privateLocked ? null : profile.last_name,
         avatar_url: profile.avatar_url,
         bio: !privateLocked && (isOwner || privacy.bio_visibility === 'public' || privacy.bio_visibility === 'community') ? profile.bio : null,
         country_code: !privateLocked && (isOwner || privacy.country_visibility === 'public' || privacy.country_visibility === 'community') ? profile.country_code : null,
