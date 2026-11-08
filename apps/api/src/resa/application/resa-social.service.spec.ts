@@ -113,6 +113,34 @@ describe('ResaSocialService feeds', () => {
     ]);
   });
 
+  it('lists only the authenticated author stories older than 24 hours in the archive', async () => {
+    getSpy.mockImplementation(async (table: string, _token: string, query: string) => {
+      if (table === 'resa_contents') return [{
+        id: 'archived-story',
+        author_id: ACTOR_ID,
+        type: 'story',
+        created_at: '2026-11-06T10:00:00.000Z',
+        visibility: 'private',
+      }] as never;
+      return [] as never;
+    });
+    rpcSpy.mockResolvedValueOnce([{ id: ACTOR_ID, display_name: 'My profile', avatar_url: null }] as never);
+
+    const result = await service.archivedStories('session-token', 40);
+
+    expect(getSpy).toHaveBeenCalledWith(
+      'resa_contents',
+      'session-token',
+      expect.stringContaining(`author_id=eq.${ACTOR_ID}`),
+    );
+    expect(getSpy).toHaveBeenCalledWith(
+      'resa_contents',
+      'session-token',
+      expect.stringContaining('created_at=lt.'),
+    );
+    expect(result).toMatchObject([{ id: 'archived-story', author_id: ACTOR_ID, author_display_name: 'My profile' }]);
+  });
+
   it('loads Following from followed authors instead of the global newest-post window', async () => {
     const result = await service.feed('session-token', 30, 'following');
 
