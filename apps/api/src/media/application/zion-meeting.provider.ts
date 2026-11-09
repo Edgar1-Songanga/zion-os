@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { getIceServers } from '../../config/env';
-import { MediaJoinConfig, MediaProvider, MediaRoom } from './media-provider';
+import { MediaJoinConfig, MediaProvider, MediaRoom, MediaTrackSource } from './media-provider';
 
 @Injectable()
 export class ZionMeetingProvider implements MediaProvider {
@@ -20,7 +20,7 @@ export class ZionMeetingProvider implements MediaProvider {
     providerRoomId?: string | null;
     userId: string;
     canPublish?: boolean;
-    canPublishSources?: string[];
+    canPublishSources?: MediaTrackSource[];
   }): Promise<MediaJoinConfig> {
     return {
       mode: 'P2P',
