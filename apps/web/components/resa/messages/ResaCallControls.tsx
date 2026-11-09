@@ -20,11 +20,13 @@ export default function ResaCallControls({ conversationId, autoStart = null, onA
   const [muted, setMuted] = useState(false);
   const [camera, setCamera] = useState(true);
   const [screenShare, setScreenShare] = useState(false);
+  const [remoteScreenShare, setRemoteScreenShare] = useState(false);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const roomRef = useRef<Room | null>(null);
   const localVideo = useRef<HTMLVideoElement | null>(null);
   const remoteMedia = useRef<HTMLDivElement | null>(null);
+  const remoteScreenMedia = useRef<HTMLDivElement | null>(null);
   const userId = useRef<string | null>(null);
   const callRef = useRef<CallRow | null>(null);
   const intentionalDisconnectRef = useRef(false);
@@ -181,7 +183,11 @@ export default function ResaCallControls({ conversationId, autoStart = null, onA
     room.on(RoomEvent.TrackSubscribed, (track) => {
       const element = track.attach();
       element.autoplay = true;
-      if (track.kind === Track.Kind.Video) {
+      if (track.source === Track.Source.ScreenShare && track.kind === Track.Kind.Video) {
+        element.className = "h-full w-full bg-black object-contain";
+        remoteScreenMedia.current?.appendChild(element);
+        setRemoteScreenShare(true);
+      } else if (track.kind === Track.Kind.Video) {
         element.className = "h-full w-full rounded-2xl bg-black object-cover";
         remoteMedia.current?.appendChild(element);
       } else {
@@ -189,7 +195,10 @@ export default function ResaCallControls({ conversationId, autoStart = null, onA
         remoteMedia.current?.appendChild(element);
       }
     });
-    room.on(RoomEvent.TrackUnsubscribed, (track) => track.detach().forEach((element) => element.remove()));
+    room.on(RoomEvent.TrackUnsubscribed, (track) => {
+      track.detach().forEach((element) => element.remove());
+      if (track.source === Track.Source.ScreenShare) setRemoteScreenShare(false);
+    });
     try {
       await room.connect(config.joinUrl, config.token, { autoSubscribe: true });
       await room.localParticipant.setMicrophoneEnabled(true);
@@ -320,7 +329,7 @@ export default function ResaCallControls({ conversationId, autoStart = null, onA
     intentionalDisconnectRef.current = true;
     await room?.disconnect(true);
     intentionalDisconnectRef.current = false;
-    setCall(null); setActive(false); setConnected(false); setReconnecting(false); setConnectionFailed(false); setScreenShare(false);
+    setCall(null); setActive(false); setConnected(false); setReconnecting(false); setConnectionFailed(false); setScreenShare(false); setRemoteScreenShare(false);
     if (id) {
       const { error: updateError } = await supabase.from("resa_calls")
         .update({ status: "ended", ended_at: new Date().toISOString() }).eq("id", id);
@@ -363,6 +372,6 @@ export default function ResaCallControls({ conversationId, autoStart = null, onA
     <button disabled={!ready || active} onClick={() => void start("video")} aria-label="Iniciar videochamada" title="Videochamada" className="flex h-10 items-center gap-2 rounded-xl bg-[#0C1A3D] px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-[#122858] disabled:opacity-40"><span aria-hidden="true">▣</span><span className="hidden sm:inline">Vídeo</span></button>
     {error&&<span role="alert" className="max-w-[240px] text-xs text-red-600">{error}</span>}
     {incoming&&<div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#061127]/60 p-4 backdrop-blur-md"><div className="w-full max-w-sm rounded-[2rem] bg-white p-6 shadow-2xl"><p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Chamada recebida</p><h3 className="mt-2 text-2xl font-semibold text-[#0C1A3D]">{incoming.kind === "video" ? "Videochamada" : "Chamada de áudio"}</h3><div className="mt-6 flex gap-3"><button onClick={() => void decline()} className="flex-1 rounded-2xl border px-4 py-3 font-semibold">Recusar</button><button onClick={() => void accept()} className="flex-1 rounded-2xl bg-[#0C1A3D] px-4 py-3 font-semibold text-white">Atender</button></div></div></div>}
-    {active&&<div className="fixed inset-0 z-[60] bg-[#020817]/95 p-3 backdrop-blur-md sm:p-5"><div className="mx-auto flex h-full max-w-6xl flex-col"><div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white"><div><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">RESA · chamada segura</p><p className="mt-1 font-semibold">{connected ? "Ligado" : reconnecting ? "A recuperar ligação…" : connectionFailed ? "Ligação interrompida" : "A ligar…"} · {call?.kind === "video" ? "Vídeo" : "Áudio"}{screenShare ? " · Ecrã partilhado" : ""}</p></div><button onClick={() => void end()} className="rounded-xl bg-red-500/90 px-4 py-2 text-sm font-semibold shadow-lg hover:bg-red-500">Terminar</button></div><div className="relative mt-4 min-h-0 flex-1 overflow-hidden rounded-[2rem] bg-slate-900"><div ref={remoteMedia} className="flex h-full w-full items-center justify-center gap-3 [&_video]:max-h-full [&_video]:max-w-full" />{call?.kind === "video"&&<video ref={localVideo} autoPlay muted playsInline className="absolute bottom-5 right-5 h-32 w-52 rounded-2xl border-2 border-white/20 bg-slate-900 object-cover shadow-2xl" />}{call?.kind === "audio"&&<div className="pointer-events-none absolute inset-0 flex items-center justify-center text-6xl text-white/80">☎</div>}</div><div className="mt-4 flex justify-center gap-3"><button onClick={() => void toggleMute()} aria-label={muted ? "Ativar microfone" : "Silenciar microfone"} className={"rounded-2xl px-5 py-3 text-sm font-semibold text-white shadow-lg " + (muted ? "bg-red-500/80" : "bg-white/10 hover:bg-white/15")}>{muted ? "Ativar microfone" : "Silenciar microfone"}</button>{call?.kind === "video"&&<button onClick={() => void toggleCamera()} aria-label={camera ? "Desligar câmara" : "Ligar câmara"} className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold text-white shadow-lg hover:bg-white/15">{camera ? "Desligar câmara" : "Ligar câmara"}</button>}<button onClick={() => void toggleScreenShare()} disabled={!connected} aria-pressed={screenShare} className={"rounded-2xl px-5 py-3 text-sm font-semibold text-white shadow-lg disabled:opacity-40 " + (screenShare ? "bg-sky-500/80" : "bg-white/10 hover:bg-white/15")}>{screenShare ? "Parar partilha" : "Partilhar ecrã"}</button><button onClick={() => void startAudio()} className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold text-white shadow-lg hover:bg-white/15">Ativar áudio</button></div></div></div>}
+    {active&&<div className="fixed inset-0 z-[60] bg-[#020817]/95 p-3 backdrop-blur-md sm:p-5"><div className="mx-auto flex h-full max-w-6xl flex-col"><div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white"><div><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">RESA · chamada segura</p><p className="mt-1 font-semibold">{connected ? "Ligado" : reconnecting ? "A recuperar ligação…" : connectionFailed ? "Ligação interrompida" : "A ligar…"} · {call?.kind === "video" ? "Vídeo" : "Áudio"}{screenShare ? " · A partilhar" : remoteScreenShare ? " · Ecrã do participante" : ""}</p></div><button onClick={() => void end()} className="rounded-xl bg-red-500/90 px-4 py-2 text-sm font-semibold shadow-lg hover:bg-red-500">Terminar</button></div><div className="relative mt-4 min-h-0 flex-1 overflow-hidden rounded-[2rem] bg-slate-900"><div ref={remoteMedia} className="absolute inset-0 flex h-full w-full items-center justify-center gap-3 [&_video]:max-h-full [&_video]:max-w-full" /><div ref={remoteScreenMedia} className="absolute inset-0 z-[1] h-full w-full bg-black [&_video]:h-full [&_video]:w-full [&_video]:object-contain" />{call?.kind === "video"&&<video ref={localVideo} autoPlay muted playsInline className="absolute bottom-5 right-5 z-10 h-32 w-52 rounded-2xl border-2 border-white/20 bg-slate-900 object-cover shadow-2xl" />}{call?.kind === "audio"&&<div className="pointer-events-none absolute inset-0 flex items-center justify-center text-6xl text-white/80">☎</div>}</div><div className="mt-4 flex justify-center gap-3"><button onClick={() => void toggleMute()} aria-label={muted ? "Ativar microfone" : "Silenciar microfone"} className={"rounded-2xl px-5 py-3 text-sm font-semibold text-white shadow-lg " + (muted ? "bg-red-500/80" : "bg-white/10 hover:bg-white/15")}>{muted ? "Ativar microfone" : "Silenciar microfone"}</button>{call?.kind === "video"&&<button onClick={() => void toggleCamera()} aria-label={camera ? "Desligar câmara" : "Ligar câmara"} className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold text-white shadow-lg hover:bg-white/15">{camera ? "Desligar câmara" : "Ligar câmara"}</button>}<button onClick={() => void toggleScreenShare()} disabled={!connected} aria-pressed={screenShare} className={"rounded-2xl px-5 py-3 text-sm font-semibold text-white shadow-lg disabled:opacity-40 " + (screenShare ? "bg-sky-500/80" : "bg-white/10 hover:bg-white/15")}>{screenShare ? "Parar partilha" : "Partilhar ecrã"}</button><button onClick={() => void startAudio()} className="rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold text-white shadow-lg hover:bg-white/15">Ativar áudio</button></div></div></div>}
   </div>;
 }
