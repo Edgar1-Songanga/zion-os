@@ -3,7 +3,7 @@ import { requireAnyOrganizationRole } from "@/lib/auth/require-role";
 
 export default async function MinistryPage() {
   await requireAnyOrganizationRole(
-    ["organization_owner", "organization_admin", "organization_leader", "pastor", "ministry_leader", "department_leader", "stewardship_manager"],
+    ["organization_owner", "organization_admin", "organization_leader", "pastor", "ministry_leader", "department_leader", "sabbath_school_director", "stewardship_manager"],
     "/ministry",
   );
   return (
