@@ -180,24 +180,52 @@ export default function ResaCallControls({ conversationId, autoStart = null, onA
         setError("A ligação foi interrompida. Termine a chamada antes de iniciar outra.");
       }
     });
-    room.on(RoomEvent.TrackSubscribed, (track) => {
+    room.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
       const element = track.attach();
       element.autoplay = true;
-      if (track.source === Track.Source.ScreenShare && track.kind === Track.Kind.Video) {
+      const participantName = participant.name || participant.identity || "Participante";
+      const isRemoteScreen = track.source === Track.Source.ScreenShare && track.kind === Track.Kind.Video;
+      if (isRemoteScreen) {
+        const tile = document.createElement("div");
+        tile.className = "relative h-full w-full bg-black";
+        tile.dataset.participant = participant.identity;
         element.className = "h-full w-full bg-black object-contain";
-        remoteScreenMedia.current?.appendChild(element);
+        element.setAttribute("aria-label", "Ecrã partilhado por " + participantName);
+        tile.appendChild(element);
+        const label = document.createElement("div");
+        label.className = "absolute left-3 top-3 z-10 rounded-lg border border-white/15 bg-black/75 px-3 py-1.5 text-xs font-semibold text-white shadow-lg backdrop-blur";
+        label.textContent = participantName + " · Ecrã partilhado";
+        tile.appendChild(label);
+        remoteScreenMedia.current?.appendChild(tile);
         setRemoteScreenShare(true);
       } else if (track.kind === Track.Kind.Video) {
         element.className = "h-full w-full rounded-2xl bg-black object-cover";
+        element.dataset.participant = participant.identity;
         remoteMedia.current?.appendChild(element);
       } else {
         element.className = "sr-only";
+        element.dataset.participant = participant.identity;
         remoteMedia.current?.appendChild(element);
       }
     });
-    room.on(RoomEvent.TrackUnsubscribed, (track) => {
-      track.detach().forEach((element) => element.remove());
-      if (track.source === Track.Source.ScreenShare) setRemoteScreenShare(false);
+    room.on(RoomEvent.TrackUnsubscribed, (track, _publication, participant) => {
+      const isRemoteScreen = track.source === Track.Source.ScreenShare && track.kind === Track.Kind.Video;
+      if (isRemoteScreen) {
+        const tiles = Array.from(remoteScreenMedia.current?.children ?? []);
+        tiles.filter((node) => (node as HTMLElement).dataset.participant === participant.identity)
+          .forEach((node) => node.remove());
+        setRemoteScreenShare(false);
+      } else {
+        track.detach().forEach((element) => element.remove());
+      }
+    });
+    room.on(RoomEvent.ParticipantDisconnected, (participant) => {
+      [remoteMedia.current, remoteScreenMedia.current].forEach((container) => {
+        const nodes = Array.from(container?.querySelectorAll("[data-participant]") ?? []);
+        nodes.filter((node) => (node as HTMLElement).dataset.participant === participant.identity)
+          .forEach((node) => node.remove());
+      });
+      if (!remoteScreenMedia.current?.children.length) setRemoteScreenShare(false);
     });
     try {
       await room.connect(config.joinUrl, config.token, { autoSubscribe: true });
