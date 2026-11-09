@@ -1,9 +1,11 @@
 const mockUpdateParticipant = jest.fn();
+const mockCreateRoom = jest.fn();
 
 jest.mock('livekit-server-sdk', () => ({
   AccessToken: jest.fn(),
   RoomServiceClient: jest.fn().mockImplementation(() => ({
     updateParticipant: mockUpdateParticipant,
+    createRoom: mockCreateRoom,
   })),
   TrackSource: {
     CAMERA: 'CAMERA',
@@ -25,7 +27,24 @@ describe('ZionSfuProvider source-scoped participant permissions', () => {
     env.livekitApiKey = 'test-api-key';
     env.livekitApiSecret = 'test-api-secret';
     mockUpdateParticipant.mockReset().mockResolvedValue(undefined);
+    mockCreateRoom.mockReset().mockResolvedValue({ name: 'zion-meeting-1' });
     (RoomServiceClient as unknown as jest.Mock).mockClear();
+  });
+
+  it('applies the requested participant capacity when creating a LiveKit room', async () => {
+    const room = await provider.createRoom({
+      meetingId: 'meeting-1',
+      channelName: 'resa:group:meeting-1',
+      maxParticipants: 40,
+    });
+
+    expect(mockCreateRoom).toHaveBeenCalledWith({
+      name: 'zion-meeting-1',
+      emptyTimeout: 10 * 60,
+      maxParticipants: 40,
+      metadata: JSON.stringify({ meeting_id: 'meeting-1', channel_name: 'resa:group:meeting-1' }),
+    });
+    expect(room.providerRoomId).toBe('zion-meeting-1');
   });
 
   it('keeps the legacy publishing grant limited to camera and microphone', async () => {
