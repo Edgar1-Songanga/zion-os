@@ -60,9 +60,9 @@ export default function DepartmentOperationsPanel({ ministry, organizationId }: 
     let active = true;
     const supabase = createClient();
     void supabase.auth.getUser().then(({ data }) => { if (active) setUserId(data.user?.id ?? ""); });
-    void loadPolicies();
+    if (isSabbathPersonal) void loadPolicies();
     return () => { active = false; };
-  }, [loadPolicies]);
+  }, [isSabbathPersonal, loadPolicies]);
 
   const policyFor = (domain: RetentionDomain) => policies.find((policy) => policy.data_domain === domain) ?? null;
   const hasSabbathRetention = Boolean(policyFor("SABBATH_SCHOOL_ATTENDANCE"));
