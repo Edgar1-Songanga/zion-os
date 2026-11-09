@@ -113,6 +113,7 @@ describe('ResaGroupMeetingService', () => {
       userId: PARTICIPANT_ID,
       canPublish: true,
       canPublishSources: ['camera', 'microphone'],
+      ttl: '10m',
     }));
   });
 
@@ -129,6 +130,7 @@ describe('ResaGroupMeetingService', () => {
       userId: PARTICIPANT_ID,
       canPublish: true,
       canPublishSources: ['camera', 'microphone', 'screen_share', 'screen_share_audio'],
+      ttl: '10m',
     }));
   });
 
@@ -145,6 +147,7 @@ describe('ResaGroupMeetingService', () => {
       userId: PARTICIPANT_ID,
       canPublish: false,
       canPublishSources: [],
+      ttl: '10m',
     }));
   });
 
@@ -182,6 +185,16 @@ describe('ResaGroupMeetingService', () => {
       .mockResolvedValueOnce([{ id: MEETING_ID, status: 'OPEN', title: 'Team planning' }] as never)
       .mockResolvedValueOnce([{ participant_role: 'PARTICIPANT', status: 'ACCEPTED' }] as never)
       .mockResolvedValueOnce([{ provider_room_id: 'zion-group-' + MEETING_ID, status: 'OPEN', locked: true }] as never);
+
+    await expect(service.joinConfig('session-token', MEETING_ID)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(media.createJoinConfig).not.toHaveBeenCalled();
+  });
+
+  it('does not issue a join token to a participant who has been removed', async () => {
+    actorId = PARTICIPANT_ID;
+    getSpy
+      .mockResolvedValueOnce([{ id: MEETING_ID, status: 'OPEN', title: 'Team planning' }] as never)
+      .mockResolvedValueOnce([{ participant_role: 'PARTICIPANT', status: 'REMOVED' }] as never);
 
     await expect(service.joinConfig('session-token', MEETING_ID)).rejects.toBeInstanceOf(ForbiddenException);
     expect(media.createJoinConfig).not.toHaveBeenCalled();
