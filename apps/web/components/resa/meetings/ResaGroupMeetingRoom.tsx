@@ -129,10 +129,22 @@ export default function ResaGroupMeetingRoom({
         }));
         refreshPeople(room);
       })
-      .on(RoomEvent.DataReceived, (payload) => {
+      .on(RoomEvent.DataReceived, (payload, participant, _kind, topic) => {
         try {
+          // Only accept chat packets from the LiveKit participant whose authenticated
+          // identity matches the sender persisted by the API. Data packets are client-
+          // publishable and must never be trusted as proof of another user's identity.
+          if (topic !== "resa-group-meeting-chat" || !participant?.identity) return;
           const packet = JSON.parse(new TextDecoder().decode(payload)) as MeetingMessage;
-          if (packet?.id && packet.meeting_id === meetingId) {
+          if (
+            packet?.id &&
+            packet.meeting_id === meetingId &&
+            packet.sender_id === participant.identity &&
+            typeof packet.body === "string" &&
+            packet.body.trim().length > 0 &&
+            packet.body.length <= 10000 &&
+            typeof packet.created_at === "string"
+          ) {
             setChat((current) => current.some((item) => item.id === packet.id) ? current : [...current, packet].slice(-200));
           }
         } catch {
