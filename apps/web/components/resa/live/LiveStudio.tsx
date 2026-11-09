@@ -291,9 +291,11 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
         const config = await resaRequest<JoinConfig>("/v1/resa/live/" + liveId + "/join", { method: "POST", body: JSON.stringify(joinPassword ? { password: joinPassword } : {}) });
         if (!config.joinUrl || !config.token) throw new Error("O serviço de vídeo não devolveu credenciais válidas.");
         const hostRole = Boolean(config.isHost || config.role === "host");
+        const moderatorRole = Boolean(config.isModerator || config.role === "moderator");
+        const roleCanPublish = hostRole || moderatorRole;
         if (mounted) {
           setIsHost(hostRole);
-          setIsModerator(Boolean(config.isModerator || config.role === "moderator"));
+          setIsModerator(moderatorRole);
           setAttendeePublishAllowed(config.attendee_publish_allowed !== false);
           setAttendeeCameraOnJoin(config.attendee_camera_on_join === true);
           setAttendeeMicrophoneOnJoin(config.attendee_microphone_on_join === true);
@@ -306,9 +308,10 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
         await room.connect(config.joinUrl, config.token, { autoSubscribe: true });
         const displayName = config.displayName || room.localParticipant.name || "Membro RESA";
         if (mounted) setSelfIdentity(room.localParticipant.identity);
-        const attendeeCanPublish = hostRole || config.attendee_publish_allowed !== false;
-        const initialCamera = attendeeCanPublish && joinMode !== "listen" && (hostRole ? joinMode === "video" : config.attendee_camera_on_join === true);
-        const initialMicrophone = attendeeCanPublish && joinMode !== "listen" && (hostRole ? true : config.attendee_microphone_on_join === true);
+        // The room-wide attendee policy is only a prerequisite for a moderator to
+        // promote a viewer; it must never grant publish rights to every spectator.
+        const initialCamera = roleCanPublish && joinMode !== "listen" && (hostRole ? joinMode === "video" : config.attendee_camera_on_join === true);
+        const initialMicrophone = roleCanPublish && joinMode !== "listen" && (hostRole ? true : config.attendee_microphone_on_join === true);
         await room.localParticipant.setCameraEnabled(initialCamera);
         await room.localParticipant.setMicrophoneEnabled(initialMicrophone, { echoCancellation: true, noiseSuppression: true, autoGainControl: true });
         const localCamera = room.localParticipant.getTrackPublication(Track.Source.Camera)?.track;
@@ -319,7 +322,7 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
         if (mounted) {
           setCamera(initialCamera);
           setMicrophone(initialMicrophone);
-          setCanSpeak(hostRole || config.attendee_publish_allowed !== false);
+          setCanSpeak(roleCanPublish);
           setNotice("Entraste como " + displayName + ". Podes alterar o áudio e o vídeo nos controlos da Live.");
         }
         syncParticipants(room);
