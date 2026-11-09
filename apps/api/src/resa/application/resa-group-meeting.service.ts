@@ -310,6 +310,8 @@ export class ResaGroupMeetingService {
       canPublishSources: canPublish
         ? (canShareScreen ? PRESENTER_SOURCES : PARTICIPANT_SOURCES)
         : [],
+      // Bound cached credentials on self-hosted LiveKit, where removal does not revoke JWTs.
+      ttl: '10m',
     });
   }
 
