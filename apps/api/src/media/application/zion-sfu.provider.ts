@@ -80,7 +80,7 @@ export class ZionSfuProvider implements MediaProvider {
       await this.client().updateParticipant(input.roomId, input.identity, {
         permission: {
           canPublish: input.canPublish,
-          ...(input.canPublish ? { canPublishSources: ['camera', 'microphone'] as any } : {}),
+          ...(input.canPublish ? { canPublishSources: ['camera', 'microphone'] as VideoGrant['canPublishSources'] } : {}),
           canSubscribe: true,
           canPublishData: true,
         },
