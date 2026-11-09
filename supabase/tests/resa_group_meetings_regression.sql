@@ -310,6 +310,34 @@ insert into public.resa_group_meeting_rooms (
   'resa:group:97100000-0000-4000-8000-000000000001',
   'ZION_SFU', 'zion-group-97100000-0000-4000-8000-000000000001'
 );
+do $test$
+begin
+  begin
+    update public.resa_group_meeting_rooms
+    set provider_room_id='attacker-controlled-room'
+    where meeting_id='97100000-0000-4000-8000-000000000001';
+    raise exception 'Moderator was able to replace the LiveKit provider room identity';
+  exception when insufficient_privilege then
+    null;
+  end;
+  begin
+    update public.resa_group_meeting_rooms
+    set channel_name='resa:group:attacker-controlled'
+    where meeting_id='97100000-0000-4000-8000-000000000001';
+    raise exception 'Moderator was able to replace the meeting channel identity';
+  exception when insufficient_privilege then
+    null;
+  end;
+  begin
+    update public.resa_group_meeting_rooms
+    set status='CLOSED'
+    where meeting_id='97100000-0000-4000-8000-000000000001';
+    raise exception 'Moderator was able to force an invalid room status transition';
+  exception when insufficient_privilege then
+    null;
+  end;
+end;
+$test$;
 update public.resa_group_meeting_rooms
 set locked=true, lock_reason='Regression test lock'
 where meeting_id='97100000-0000-4000-8000-000000000001';
