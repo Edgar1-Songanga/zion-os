@@ -24,6 +24,7 @@ export interface MinistryOrganization {
 export interface MinistryLeader {
   id: string;
   name: string;
+  userId?: string;
   role: string;
   photo?: string;
   verified?: boolean;
