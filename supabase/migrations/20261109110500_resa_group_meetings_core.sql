@@ -298,6 +298,7 @@ begin
           (old.status = 'INVITED' and new.status in ('ACCEPTED', 'DECLINED'))
           or (old.status = 'ACCEPTED' and new.status in ('PRESENT', 'LEFT'))
           or (old.status = 'PRESENT' and new.status = 'LEFT')
+          or (old.status = 'LEFT' and new.status = 'PRESENT')
         )
       )
       or private.resa_is_group_meeting_moderator(old.meeting_id, auth.uid())
