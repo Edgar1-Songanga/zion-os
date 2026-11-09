@@ -370,6 +370,32 @@ describe('ResaOperationalService live permissions', () => {
     }));
   });
 
+  it('issues direct-call media credentials only to an active conversation member', async () => {
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_calls') return [{ id: LIVE_ID, conversation_id: CONVERSATION_ID, status: 'active' }] as never;
+      if (table === 'resa_conversation_members') return [{ conversation_id: CONVERSATION_ID }] as never;
+      return [] as never;
+    });
+
+    await service.callJoinConfig('session-token', LIVE_ID);
+
+    expect(media.createJoinConfig).toHaveBeenCalledWith(expect.objectContaining({
+      meetingId: LIVE_ID,
+      providerRoomId: 'zion-call-' + LIVE_ID,
+      userId: actorId,
+    }));
+  });
+
+  it('denies direct-call media credentials to a non-member', async () => {
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_calls') return [{ id: LIVE_ID, conversation_id: CONVERSATION_ID, status: 'active' }] as never;
+      return [] as never;
+    });
+
+    await expect(service.callJoinConfig('session-token', LIVE_ID)).rejects.toBeInstanceOf(NotFoundException);
+    expect(media.createJoinConfig).not.toHaveBeenCalled();
+  });
+
   it('does not expose chat messages for a private live to a non-host', async () => {
     actorId = 'uninvited-viewer';
     // With the caller JWT, RLS hides a private Live unless a valid access grant exists.
