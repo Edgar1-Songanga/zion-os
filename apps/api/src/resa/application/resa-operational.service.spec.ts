@@ -16,6 +16,7 @@ describe('ResaOperationalService live permissions', () => {
     closeRoom: jest.Mock;
     createJoinConfig: jest.Mock;
     setParticipantPublishing: jest.Mock;
+    setParticipantPermissions: jest.Mock;
     setRoomPublishingForAttendees: jest.Mock;
     removeParticipant: jest.Mock;
   };
@@ -31,6 +32,7 @@ describe('ResaOperationalService live permissions', () => {
       closeRoom: jest.fn().mockResolvedValue(undefined),
       createJoinConfig: jest.fn().mockResolvedValue({ mode: 'SFU', provider: 'ZION_SFU', roomId: 'zion-live-' + LIVE_ID, joinUrl: 'wss://media.example', token: 'token' }),
       setParticipantPublishing: jest.fn().mockResolvedValue(undefined),
+      setParticipantPermissions: jest.fn().mockResolvedValue(undefined),
       setRoomPublishingForAttendees: jest.fn().mockResolvedValue(undefined),
       removeParticipant: jest.fn().mockResolvedValue(undefined),
     };
@@ -300,6 +302,26 @@ describe('ResaOperationalService live permissions', () => {
     });
   });
 
+  it('grants approved Live speakers camera, microphone, screen video and screen audio permissions', async () => {
+    getSpy.mockResolvedValueOnce([{
+      id: LIVE_ID,
+      host_id: 'host-user',
+      status: 'live',
+      attendee_publish_allowed: true,
+    }] as never);
+
+    const result = await service.moderateLiveParticipant('session-token', LIVE_ID, TARGET_ID, 'allow_speak');
+
+    expect(result).toEqual(expect.objectContaining({ identity: TARGET_ID, action: 'allow_speak', applied: true }));
+    expect(media.setParticipantPermissions).toHaveBeenCalledWith({
+      roomId: 'zion-live-' + LIVE_ID,
+      identity: TARGET_ID,
+      canPublish: true,
+      canPublishSources: ['camera', 'microphone', 'screen_share', 'screen_share_audio'],
+    });
+    expect(media.setParticipantPublishing).not.toHaveBeenCalled();
+  });
+
   it('does not let a host reopen one participant while the global publishing lock is active', async () => {
     getSpy.mockResolvedValueOnce([{
       id: LIVE_ID,
@@ -311,6 +333,7 @@ describe('ResaOperationalService live permissions', () => {
     await expect(service.moderateLiveParticipant('session-token', LIVE_ID, TARGET_ID, 'allow_speak'))
       .rejects.toBeInstanceOf(BadRequestException);
 
+    expect(media.setParticipantPermissions).not.toHaveBeenCalled();
     expect(media.setParticipantPublishing).not.toHaveBeenCalled();
   });
 
