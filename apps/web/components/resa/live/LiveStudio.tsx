@@ -253,6 +253,12 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
         syncParticipants(room);
       })
       .on(RoomEvent.DataReceived, onData)
+      .on(RoomEvent.LocalTrackPublished, (publication) => {
+        if (publication.source === Track.Source.ScreenShare) setScreenShare(true);
+      })
+      .on(RoomEvent.LocalTrackUnpublished, (publication) => {
+        if (publication.source === Track.Source.ScreenShare) setScreenShare(false);
+      })
       .on(RoomEvent.Connected, () => {
         if (mounted) {
           setConnected(true);
