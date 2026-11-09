@@ -52,6 +52,7 @@ export class ZionSfuProvider implements MediaProvider {
         roomJoin: true,
         room: input.providerRoomId,
         canPublish,
+        ...(canPublish && input.canPublishSources ? { canPublishSources: input.canPublishSources as VideoGrant['canPublishSources'] } : {}),
         canSubscribe: true,
         canPublishData: true,
       };
@@ -77,7 +78,12 @@ export class ZionSfuProvider implements MediaProvider {
   async setParticipantPublishing(input: { roomId: string; identity: string; canPublish: boolean }): Promise<void> {
     try {
       await this.client().updateParticipant(input.roomId, input.identity, {
-        permission: { canPublish: input.canPublish, canSubscribe: true, canPublishData: true },
+        permission: {
+          canPublish: input.canPublish,
+          ...(input.canPublish ? { canPublishSources: ['camera', 'microphone'] as any } : {}),
+          canSubscribe: true,
+          canPublishData: true,
+        },
       });
     } catch (error) {
       throw new BadGatewayException(error instanceof Error ? error.message : 'Participant permissions could not be updated');
