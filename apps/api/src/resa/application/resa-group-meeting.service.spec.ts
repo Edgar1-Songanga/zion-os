@@ -327,4 +327,54 @@ describe('ResaGroupMeetingService', () => {
     expect(patchSpy).toHaveBeenCalledWith('resa_group_meeting_participants', 'session-token',
       { participant_role: 'PRESENTER' }, expect.stringContaining('user_id=eq.' + PARTICIPANT_ID));
   });
+  it('persists one active hand raise for an accepted participant in an open meeting', async () => {
+    actorId = PARTICIPANT_ID;
+    getSpy
+      .mockResolvedValueOnce([{
+        meeting_id: MEETING_ID, user_id: PARTICIPANT_ID,
+        participant_role: 'PARTICIPANT', status: 'PRESENT',
+      }] as never)
+      .mockResolvedValueOnce([{ id: MEETING_ID, status: 'OPEN' }] as never)
+      .mockResolvedValueOnce([] as never);
+    postSpy.mockResolvedValueOnce([{
+      id: 'hand-raise-1', meeting_id: MEETING_ID, user_id: PARTICIPANT_ID, status: 'WAITING',
+    }] as never);
+
+    const result = await service.raiseHand('session-token', MEETING_ID);
+
+    expect(postSpy).toHaveBeenCalledWith('resa_group_meeting_hand_raises', 'session-token', {
+      meeting_id: MEETING_ID, user_id: PARTICIPANT_ID, status: 'WAITING',
+    });
+    expect(result.status).toBe('WAITING');
+  });
+
+  it('does not allow invited users to raise a hand', async () => {
+    actorId = PARTICIPANT_ID;
+    getSpy.mockResolvedValueOnce([{
+      meeting_id: MEETING_ID, user_id: PARTICIPANT_ID,
+      participant_role: 'PARTICIPANT', status: 'INVITED',
+    }] as never);
+
+    await expect(service.raiseHand('session-token', MEETING_ID)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+
+  it('allows only a meeting moderator to resolve a pending hand raise', async () => {
+    actorId = MODERATOR_ID;
+    getSpy.mockResolvedValueOnce([{
+      meeting_id: MEETING_ID, user_id: MODERATOR_ID,
+      participant_role: 'MODERATOR', status: 'PRESENT',
+    }] as never);
+    patchSpy.mockResolvedValueOnce([{
+      meeting_id: MEETING_ID, user_id: PARTICIPANT_ID, status: 'ACKNOWLEDGED',
+    }] as never);
+
+    const result = await service.resolveHandRaise('session-token', MEETING_ID, PARTICIPANT_ID, 'ACKNOWLEDGED');
+
+    expect(patchSpy).toHaveBeenCalledWith('resa_group_meeting_hand_raises', 'session-token',
+      { status: 'ACKNOWLEDGED' },
+      `?meeting_id=eq.${MEETING_ID}&user_id=eq.${PARTICIPANT_ID}&status=eq.WAITING`);
+    expect(result.status).toBe('ACKNOWLEDGED');
+  });
+
 });
