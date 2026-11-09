@@ -14,13 +14,13 @@ export class ZionSfuProvider implements MediaProvider {
     return new RoomServiceClient(env.livekitUrl, env.livekitApiKey, env.livekitApiSecret);
   }
 
-  async createRoom(input: { meetingId: string; channelName: string }): Promise<MediaRoom> {
+  async createRoom(input: { meetingId: string; channelName: string; maxParticipants?: number }): Promise<MediaRoom> {
     try {
       const roomName = 'zion-' + input.meetingId;
       await this.client().createRoom({
         name: roomName,
         emptyTimeout: 10 * 60,
-        maxParticipants: 200,
+        maxParticipants: Math.min(Math.max(input.maxParticipants ?? 200, 2), 200),
         metadata: JSON.stringify({ meeting_id: input.meetingId, channel_name: input.channelName }),
       });
       return { provider: 'ZION_SFU', providerRoomId: roomName, providerRoomUrl: env.livekitUrl };

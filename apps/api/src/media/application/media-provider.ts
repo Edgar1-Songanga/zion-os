@@ -20,7 +20,7 @@ export type MediaJoinConfig = {
 };
 
 export interface MediaProvider {
-  createRoom(input: { meetingId: string; channelName: string }): Promise<MediaRoom>;
+  createRoom(input: { meetingId: string; channelName: string; maxParticipants?: number }): Promise<MediaRoom>;
   openRoom(input: { meetingId: string; providerRoomId?: string | null }): Promise<void>;
   closeRoom(input: { meetingId: string; providerRoomId?: string | null }): Promise<void>;
   createJoinConfig?(input: {
