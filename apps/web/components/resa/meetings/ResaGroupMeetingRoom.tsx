@@ -135,6 +135,12 @@ export default function ResaGroupMeetingRoom({
           // Ignore unrelated or malformed data packets.
         }
       })
+      .on(RoomEvent.LocalTrackPublished, (publication) => {
+        if (publication.source === Track.Source.ScreenShare) setScreenShareOn(true);
+      })
+      .on(RoomEvent.LocalTrackUnpublished, (publication) => {
+        if (publication.source === Track.Source.ScreenShare) setScreenShareOn(false);
+      })
       .on(RoomEvent.Disconnected, () => {
         if (active) setConnected(false);
       });
