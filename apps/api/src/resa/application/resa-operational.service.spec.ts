@@ -87,6 +87,20 @@ describe('ResaOperationalService live permissions', () => {
     expect(getSpy).toHaveBeenCalledWith('resa_communities', 'session-token', expect.stringContaining('status=eq.active'));
   });
 
+  it('allows an authorized live viewer to resolve the trusted moderator roster', async () => {
+    actorId = 'viewer-user';
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_live_sessions') return [{ id: LIVE_ID, host_id: 'host-user', status: 'live' }] as never;
+      if (table === 'resa_live_moderators') return [{ live_id: LIVE_ID, moderator_user_id: 'moderator-user', granted_by: 'host-user' }] as never;
+      return [] as never;
+    });
+
+    const roster = await service.listLiveModerators('session-token', LIVE_ID);
+
+    expect(roster).toEqual([expect.objectContaining({ moderator_user_id: 'moderator-user' })]);
+    expect(getSpy).toHaveBeenCalledWith('resa_live_sessions', 'session-token', expect.stringContaining('id=eq.' + LIVE_ID));
+  });
+
   it('issues publishing permission to the host only', async () => {
     getSpy.mockResolvedValueOnce([{ id: LIVE_ID, host_id: actorId, status: 'live', visibility: 'public' }] as never);
 

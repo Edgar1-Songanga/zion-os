@@ -13,6 +13,7 @@ type LivePacket =
   | { type: "hand_raise"; name?: string }
   | { type: "speak_granted"; name?: string }
   | { type: "speak_revoked"; name?: string }
+  | { type: "moderator_roster_changed"; name?: string }
   | { type: "announcement"; text: string; name?: string }
   | { type: "scripture"; title: string; text: string; name?: string }
   | { type: "reaction"; emoji: string; name?: string };
@@ -32,6 +33,7 @@ function renderLinkedText(value: string) {
 export default function LiveStudio({ liveId, title, isPrivate = false, isHostSession = false, onClose }: { liveId: string; title: string; isPrivate?: boolean; isHostSession?: boolean; onClose: () => void }) {
   const roomRef = useRef<Room | null>(null);
   const trustedModeratorIdentitiesRef = useRef<Set<string>>(new Set());
+  const hostIdentityRef = useRef<string | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const mediaVideoRef = useRef<HTMLVideoElement | null>(null);
   const mediaAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -234,6 +236,15 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
           setCamera(false);
           setScreenShare(false);
           setNotice("A moderação retirou a tua permissão de falar. O microfone, a câmara e a partilha foram desligados.");
+        } else if (packet.type === "moderator_roster_changed" && identity === hostIdentityRef.current) {
+          void resaRequest<Array<{ moderator_user_id: string }>>("/v1/resa/live/" + liveId + "/moderators")
+            .then((items) => {
+              trustedModeratorIdentitiesRef.current = new Set([
+                ...(hostIdentityRef.current ? [hostIdentityRef.current] : []),
+                ...items.map((item) => item.moderator_user_id).filter((value): value is string => typeof value === "string" && value.length > 0),
+              ]);
+            })
+            .catch(() => setNotice("A lista de moderadores não pôde ser atualizada. As permissões de publicação continuam protegidas pelo servidor."));
         } else if (packet.type === "announcement") {
           setNotice(packet.text);
         } else if (packet.type === "scripture" && packet.title?.trim() && packet.text?.trim()) {
@@ -319,6 +330,7 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
         if (!config.joinUrl || !config.token) throw new Error("O serviço de vídeo não devolveu credenciais válidas.");
         const hostRole = Boolean(config.isHost || config.role === "host");
         const moderatorRole = Boolean(config.isModerator || config.role === "moderator");
+        hostIdentityRef.current = config.hostIdentity || null;
         trustedModeratorIdentitiesRef.current = new Set([
           ...(config.hostIdentity ? [config.hostIdentity] : []),
           ...(Array.isArray(config.trustedModeratorIdentities) ? config.trustedModeratorIdentities : []),
@@ -687,6 +699,11 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
         body: JSON.stringify({ identity, enabled }),
       });
       setModeratorIds((current) => enabled ? [...new Set([...current, identity])] : current.filter((id) => id !== identity));
+      const trusted = new Set(trustedModeratorIdentitiesRef.current);
+      if (enabled) trusted.add(identity);
+      else trusted.delete(identity);
+      trustedModeratorIdentitiesRef.current = trusted;
+      await sendPacket({ type: "moderator_roster_changed" });
       setNotice(enabled ? "Moderador nomeado para esta Live." : "Permissão de moderador retirada.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível alterar a função de moderador.");
