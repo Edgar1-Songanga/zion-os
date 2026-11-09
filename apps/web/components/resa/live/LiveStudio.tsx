@@ -220,7 +220,7 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
           setRaisedHands((current) => current.some((item) => item.identity === identity) ? current : [...current, { identity, name }]);
           if (room.localParticipant.identity !== identity) setNotice(name + " levantou a mão.");
         } else if (packet.type === "speak_granted" && identity !== room.localParticipant.identity) {
-          setNotice("A moderação autorizou a tua participação. Já podes ativar o microfone e a câmara.");
+          setNotice("A moderação autorizou a tua participação. Já podes ativar o microfone, a câmara e partilhar o ecrã.");
           setCanSpeak(true);
           setHandRaised(false);
         } else if (packet.type === "speak_revoked" && identity !== room.localParticipant.identity) {
@@ -670,7 +670,7 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
     }));
     const applied = results.filter((result) => result.status === "fulfilled").length;
     if (applied !== targets.length) setError("A ação foi aplicada a " + applied + " de " + targets.length + " participantes. Verifica as permissões e tenta novamente.");
-    else setNotice(action === "allow_speak" ? "Publicação autorizada para todos os participantes presentes." : "Microfones, câmaras e partilhas foram bloqueados para os participantes presentes.");
+    else setNotice(action === "allow_speak" ? "Áudio, vídeo e partilha de ecrã autorizados para os participantes aprovados." : "Microfones, câmaras e partilhas foram bloqueados para os participantes presentes.");
   }
 
   async function toggleModerator(identity: string) {
@@ -703,7 +703,7 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
       } else if (action === "remove") {
         setRaisedHands((current) => current.filter((item) => item.identity !== identity));
       }
-      setNotice(action === "allow_speak" ? "Participante autorizado a falar." : action === "revoke_speak" ? "Permissão de publicação retirada." : "Participante removido da live.");
+      setNotice(action === "allow_speak" ? "Participante autorizado a falar e a partilhar o ecrã." : action === "revoke_speak" ? "Permissão de publicação retirada." : "Participante removido da live.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível aplicar a ação de moderação.");
     }
