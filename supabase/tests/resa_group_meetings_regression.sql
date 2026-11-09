@@ -211,6 +211,23 @@ update public.resa_group_meeting_participants
 set participant_role='PARTICIPANT'
 where meeting_id='97100000-0000-4000-8000-000000000001'
   and user_id='97000000-0000-4000-8000-000000000003';
+reset role;
+
+-- A network interruption or an intentional leave must not permanently prevent re-entry.
+select set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000003',false);
+set role authenticated;
+update public.resa_group_meeting_participants
+set status='LEFT', left_at=now()
+where meeting_id='97100000-0000-4000-8000-000000000001'
+  and user_id='97000000-0000-4000-8000-000000000003';
+update public.resa_group_meeting_participants
+set status='PRESENT', joined_at=now(), left_at=null
+where meeting_id='97100000-0000-4000-8000-000000000001'
+  and user_id='97000000-0000-4000-8000-000000000003';
+reset role;
+
+select set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000002',false);
+set role authenticated;
 insert into public.resa_group_meeting_rooms (
   meeting_id, channel_name, provider, provider_room_id
 ) values (
