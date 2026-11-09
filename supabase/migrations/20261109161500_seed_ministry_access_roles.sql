@@ -115,9 +115,9 @@ as $function$
     and not exists (
       select 1
       from public.organization_memberships current_membership
-      join public.roles current_role on current_role.id = current_membership.role_id
+      join public.roles existing_role on existing_role.id = current_membership.role_id
       where current_membership.id = target_membership
-        and current_role.key = 'organization_owner'
+        and existing_role.key = 'organization_owner'
     )
     and (
       private.can_assign_org_role(target_org, target_role_id)
@@ -140,9 +140,9 @@ using (
   private.has_org_permission(organization_id, 'membership.manage')
   and not exists (
     select 1
-    from public.roles current_role
-    where current_role.id = organization_memberships.role_id
-      and current_role.key = 'organization_owner'
+    from public.roles existing_role
+    where existing_role.id = organization_memberships.role_id
+      and existing_role.key = 'organization_owner'
   )
 )
 with check (private.can_update_org_membership(organization_id, id, role_id));
