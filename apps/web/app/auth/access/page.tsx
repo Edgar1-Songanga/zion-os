@@ -11,8 +11,8 @@ const accessProfiles = [
     icon: "01",
   },
   {
-    title: "Dirigente departamental",
-    description: "Gestão de ministérios, programas, atividades e acompanhamento.",
+    title: "Dirigente departamental / Mordomia",
+    description: "Gestão da área ministerial ou departamental atribuída pela organização."
     destination: "/ministry",
     label: "Entrar na área departamental",
     icon: "02",
