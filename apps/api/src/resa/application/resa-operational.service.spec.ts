@@ -130,7 +130,7 @@ describe('ResaOperationalService live permissions', () => {
     expect(config.role).toBe('viewer');
     expect(media.createJoinConfig).toHaveBeenCalledWith(expect.objectContaining({
       userId: 'authorized-viewer',
-      canPublish: true,
+      canPublish: false,
     }));
   });
 
@@ -151,7 +151,7 @@ describe('ResaOperationalService live permissions', () => {
     expect(media.createJoinConfig).toHaveBeenCalledWith(expect.objectContaining({
       userId: 'organization-member',
       name: expect.any(String),
-      canPublish: true,
+      canPublish: false,
     }));
   });
 
@@ -183,7 +183,9 @@ describe('ResaOperationalService live permissions', () => {
     expect(config.attendee_microphone_on_join).toBe(microphone);
     expect(media.createJoinConfig).toHaveBeenCalledWith(expect.objectContaining({
       userId: 'viewer-user',
-      canPublish: publish,
+      // Global attendee permission allows a moderator to promote a viewer; it does not
+      // grant every viewer publish rights in the SFU token.
+      canPublish: false,
     }));
   });
 
@@ -348,7 +350,7 @@ describe('ResaOperationalService live permissions', () => {
     expect(config.isHost).toBe(false);
     expect(media.createJoinConfig).toHaveBeenCalledWith(expect.objectContaining({
       userId: 'invited-viewer',
-      canPublish: true,
+      canPublish: false,
       providerRoomId: 'zion-live-' + LIVE_ID,
     }));
   });
