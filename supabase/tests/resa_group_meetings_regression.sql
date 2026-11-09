@@ -40,6 +40,9 @@ insert into public.resa_group_meeting_participants (
   '97000000-0000-4000-8000-000000000002',
   'PARTICIPANT', 'INVITED', '97000000-0000-4000-8000-000000000001'
 );
+update public.resa_group_meetings
+set status='OPEN', started_at=now()
+where id='97100000-0000-4000-8000-000000000001';
 
 do $test$
 begin
