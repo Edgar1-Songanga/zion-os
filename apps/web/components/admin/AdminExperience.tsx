@@ -5,6 +5,7 @@ import AdministrationHero from "./AdministrationHero";
 import OrganizationOverview from "./OrganizationOverview";
 import DepartmentsGrid from "./DepartmentsGrid";
 import MembershipsOverview from "./MembershipsOverview";
+import RoleAccessManager from "@/components/organization/RoleAccessManager";
 
 const administrationAreas = [
   { title: "Secretaria", description: "Registo de membros, famílias, transferências e batismos.", href: "/secretariat", tag: "Membresia" },
@@ -52,6 +53,7 @@ export default function AdminExperience() {
 
         <div id="organization-overview" className="scroll-mt-6"><OrganizationOverview /></div>
         <MembershipsOverview />
+        <RoleAccessManager />
         <div id="department-overview" className="scroll-mt-6"><DepartmentsGrid /></div>
       </div>
     </main>
