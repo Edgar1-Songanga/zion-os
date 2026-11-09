@@ -48,15 +48,46 @@ export default function Sidebar() {
   useEffect(() => {
     const supabase = createClient();
     let active = true;
-    const loadAccess = async (user: { app_metadata?: Record<string, unknown> } | null) => {
+    const loadAccess = async (user: { id: string; app_metadata?: Record<string, unknown> } | null) => {
       setGlobalAdmin(user?.app_metadata?.zion_global_role === "global_admin");
       if (!user) {
         setRoleKeys([]);
         return;
       }
+
       try {
         const context = await resaRequest<{ memberships?: Array<{ role?: { key?: string } | null }> }>("/v1/identity/profile/access");
-        if (active) setRoleKeys((context.memberships ?? []).map((membership) => membership.role?.key ?? "").filter(Boolean));
+        const apiRoleKeys = (context.memberships ?? [])
+          .map((membership) => membership.role?.key ?? "")
+          .filter(Boolean);
+        if (apiRoleKeys.length > 0) {
+          if (active) setRoleKeys(apiRoleKeys);
+          return;
+        }
+      } catch {
+        // Fall back to the authenticated user's own RLS-scoped membership records.
+      }
+
+      try {
+        const { data: memberships, error: membershipError } = await supabase
+          .from("organization_memberships")
+          .select("role_id")
+          .eq("user_id", user.id)
+          .eq("status", "ACTIVE");
+        if (membershipError) throw membershipError;
+
+        const roleIds = [...new Set((memberships ?? []).map((membership) => membership.role_id).filter(Boolean))];
+        if (roleIds.length === 0) {
+          if (active) setRoleKeys([]);
+          return;
+        }
+
+        const { data: roles, error: rolesError } = await supabase
+          .from("roles")
+          .select("key")
+          .in("id", roleIds);
+        if (rolesError) throw rolesError;
+        if (active) setRoleKeys((roles ?? []).map((role) => role.key).filter(Boolean));
       } catch {
         if (active) setRoleKeys([]);
       }
