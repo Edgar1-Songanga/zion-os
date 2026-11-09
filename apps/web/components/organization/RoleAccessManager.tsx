@@ -37,10 +37,10 @@ export default function RoleAccessManager() {
     setNotice("");
     try {
       const supabase = createClient();
-      const [{ data: auth }, roleResult, actorResult, memberResult] = await Promise.all([
-        supabase.auth.getUser(),
-        supabase.from("roles").select("id,key,name").neq("key", "organization_owner").order("name"),
-        supabase.from("organization_memberships").select("roles(key)").eq("organization_id", id).eq("status", "ACTIVE"),
+      const { data: auth } = await supabase.auth.getUser();
+      const [roleResult, actorResult, memberResult] = await Promise.all([
+        supabase.from("roles").select("id,key,name").order("name"),
+        supabase.from("organization_memberships").select("roles(key)").eq("organization_id", id).eq("user_id", auth.user?.id ?? "").eq("status", "ACTIVE"),
         resaRequest<Membership[]>("/v1/organizations/" + encodeURIComponent(id) + "/memberships"),
       ]);
 
@@ -122,11 +122,11 @@ export default function RoleAccessManager() {
                     <select
                       aria-label={"Função de " + item.user_id}
                       value={item.role_id}
-                      disabled={savingId === item.id || item.status.toUpperCase() !== "ACTIVE"}
+                      disabled={savingId === item.id || item.status.toUpperCase() !== "ACTIVE" || roleName(item.roles, roles.find((role) => role.id === item.role_id)?.key) === "organization_owner"}
                       onChange={(event) => void changeRole(item, event.target.value)}
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-[#C8A24A] disabled:bg-slate-100 disabled:text-slate-500"
                     >
-                      {roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
+                      {roles.map((role) => <option key={role.id} value={role.id} disabled={role.key === "organization_owner"}>{role.name}</option>)}
                     </select>
                   ) : (
                     <p className="text-sm text-slate-600">{roleName(item.roles, roles.find((role) => role.id === item.role_id)?.name)}</p>
