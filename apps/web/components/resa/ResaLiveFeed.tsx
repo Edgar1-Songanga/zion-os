@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import CreatePost from "./CreatePost";
 import FeedCard from "./FeedCard";
+import FeedImpressionTracker from "./core/FeedImpressionTracker";
 import ResaIcon from "./core/ResaIcon";
 import { resaRequest } from "@/lib/resa/api";
 import { createClient } from "@/lib/supabase/client";
@@ -52,6 +53,7 @@ export default function ResaLiveFeed() {
   const [refreshing, setRefreshing] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [resettingMemory, setResettingMemory] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlightRef = useRef(false);
   const loadingMoreRef = useRef(false);
@@ -85,6 +87,20 @@ export default function ResaLiveFeed() {
       if (pendingMode && pendingMode !== requestedMode) void load(true, pendingMode);
     }
   }, [t, feedMode]);
+
+  const resetFeedMemory = useCallback(async () => {
+    if (!window.confirm("Limpar apenas os sinais de aprendizagem do feed? As suas denúncias e preferências de ocultação serão preservadas.")) return;
+    setResettingMemory(true);
+    try {
+      await resaRequest("/v1/resa/feed-memory", { method: "DELETE" });
+      setFeedMode("for_you");
+      await load(true, "for_you");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível reiniciar a memória do feed.");
+    } finally {
+      setResettingMemory(false);
+    }
+  }, [load]);
 
   const loadMore = useCallback(async () => {
     if (!nextCursor || inFlightRef.current || loadingMoreRef.current) return;
@@ -199,6 +215,14 @@ export default function ResaLiveFeed() {
         </div>
         <button
           type="button"
+          onClick={() => void resetFeedMemory()}
+          disabled={resettingMemory}
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-slate-300 disabled:opacity-50"
+        >
+          {resettingMemory ? "A reiniciar…" : "Reiniciar memória"}
+        </button>
+        <button
+          type="button"
           onClick={() => void load(true)}
           disabled={refreshing}
           className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-slate-300 hover:text-[#0C1A3D] disabled:opacity-50"
@@ -241,7 +265,15 @@ export default function ResaLiveFeed() {
         </div>
       )}
 
-      {!loading && !error && items.map((item) => <FeedCard key={item.feed_item_id || item.id} content={item} />)}
+      {!loading && !error && items.map((item) => (
+        <div key={item.feed_item_id || item.id}>
+          {item.visibility === "public" ? (
+            <FeedImpressionTracker contentId={item.id}>
+              <FeedCard content={item} />
+            </FeedImpressionTracker>
+          ) : <FeedCard content={item} />}
+        </div>
+      ))}
 
       {!loading && !error && nextCursor && (
         <div className="flex justify-center pb-4">

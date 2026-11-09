@@ -180,7 +180,7 @@ export class ResaSocialService {
     const contentFilter = contentIds.length ? `in.(${contentIds.join(',')})` : null;
     const authorFilterForLookups = authorIds.length ? `in.(${authorIds.join(',')})` : null;
 
-    const [follows, feedback, engagements, saves, viewerReactions, viewerShares] = await Promise.all([
+    const [follows, feedback, engagements, saves, viewerReactions, viewerShares, impressions, interests] = await Promise.all([
       followingRows
         ? Promise.resolve(followingRows)
         : authorFilterForLookups
@@ -201,6 +201,10 @@ export class ResaSocialService {
       contentFilter
         ? this.db.get<any[]>('resa_shares', token, `?select=content_id&user_id=eq.${actor.id}&share_type=eq.repost&content_id=${contentFilter}&limit=120`)
         : Promise.resolve([]),
+      contentFilter
+        ? this.db.get<any[]>('resa_feed_impressions', token, `?select=content_id,duration_ms,view_count,completed_count&user_id=eq.${actor.id}&content_id=${contentFilter}&viewed_on=gte.${new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10)}&limit=1000`)
+        : Promise.resolve([]),
+      this.db.get<any[]>('resa_feed_interest_profiles', token, `?select=interest_key,interest_score,updated_at&user_id=eq.${actor.id}&updated_at=gte.${new Date(Date.now() - 180 * 86400000).toISOString()}&limit=500`),
     ]);
 
     const followed = new Set(follows.map((row) => row.followed_id));
@@ -212,6 +216,22 @@ export class ResaSocialService {
     const saved = new Set(saves.map((row) => row.content_id));
     const reacted = new Set(viewerReactions.map((row) => row.content_id));
     const reposted = new Set(viewerShares.map((row) => row.content_id));
+    const memoryByContent = new Map<string, { durationMs: number; viewCount: number; completedViews: number }>();
+    for (const row of impressions) {
+      const current = memoryByContent.get(row.content_id) ?? { durationMs: 0, viewCount: 0, completedViews: 0 };
+      current.durationMs += Number(row.duration_ms) || 0;
+      current.viewCount += Number(row.view_count) || 0;
+      current.completedViews += Number(row.completed_count) || 0;
+      memoryByContent.set(row.content_id, current);
+    }
+    const interestByType = new Map<string, number>();
+    const now = Date.now();
+    for (const row of interests) {
+      if (!String(row.interest_key).startsWith('type:')) continue;
+      const updatedAt = Date.parse(row.updated_at);
+      const ageDays = Number.isFinite(updatedAt) ? Math.max(0, (now - updatedAt) / 86400000) : 180;
+      interestByType.set(row.interest_key, (Number(row.interest_score) || 0) * Math.pow(0.5, ageDays / 30));
+    }
     const profiles = authorIds.length
       ? await this.db.rpc<any[]>('resa_profiles_for_ids', token, { p_user_ids: authorIds })
       : [];
@@ -224,6 +244,7 @@ export class ResaSocialService {
         const authorProfile = profileById.get(item.author_id);
         const reposterProfile = item.reposted_by_id ? profileById.get(item.reposted_by_id) : null;
         const counts = engagementByContent.get(item.id);
+        const memory = memoryByContent.get(item.id) ?? { durationMs: 0, viewCount: 0, completedViews: 0 };
         return {
           ...item,
           followedAuthor: followed.has(item.author_id),
@@ -247,6 +268,10 @@ export class ResaSocialService {
           feedback: hidden.get(item.id),
           contentType: item.type,
           ageHours: Math.max(0, (Date.now() - Date.parse(item.source_created_at)) / 3600000),
+          viewDurationMs: memory.durationMs,
+          viewCount: memory.viewCount,
+          completedViews: memory.completedViews,
+          topicInterestScore: interestByType.get(`type:${String(item.type).toLowerCase()}`) ?? 0,
         };
       });
     const ranked = mode === 'for_you'
