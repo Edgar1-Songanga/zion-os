@@ -176,6 +176,21 @@ describe('ResaGroupMeetingService', () => {
     expect(media.createJoinConfig).not.toHaveBeenCalled();
   });
 
+  it('allows a participant already marked present to reconnect', async () => {
+    actorId = PARTICIPANT_ID;
+    patchSpy.mockResolvedValueOnce([{
+      meeting_id: MEETING_ID, user_id: PARTICIPANT_ID, status: 'PRESENT',
+    }] as never);
+    postSpy.mockResolvedValueOnce([{ event_type: 'PARTICIPANT_JOINED' }] as never);
+
+    const result = await service.setPresence('session-token', MEETING_ID, 'PRESENT');
+
+    expect(patchSpy).toHaveBeenCalledWith('resa_group_meeting_participants', 'session-token',
+      expect.objectContaining({ status: 'PRESENT' }),
+      expect.stringContaining('status=in.(ACCEPTED,PRESENT)'));
+    expect(result.status).toBe('PRESENT');
+  });
+
   it('updates live SFU permissions before persisting presenter promotion', async () => {
     actorId = MODERATOR_ID;
     getSpy
