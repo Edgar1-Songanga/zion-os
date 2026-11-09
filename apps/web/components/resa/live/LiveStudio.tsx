@@ -37,6 +37,7 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
   const mediaObjectUrlRef = useRef<string | null>(null);
   const mediaTracksRef = useRef<MediaStreamTrack[]>([]);
   const remoteRef = useRef<HTMLDivElement | null>(null);
+  const remoteScreenRef = useRef<HTMLDivElement | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const recordingStreamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -140,11 +141,15 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
     roomRef.current = room;
 
     const attachRemote = (track: any, _publication: any, participant: any) => {
-      if (!remoteRef.current || !participant?.identity) return;
+      if (!participant?.identity) return;
+      const isScreenShare = track.source === Track.Source.ScreenShare && track.kind === Track.Kind.Video;
+      const target = isScreenShare ? remoteScreenRef.current : remoteRef.current;
+      if (!target) return;
       const element = track.attach() as HTMLMediaElement;
       const participantName = participant.name || participant.identity;
       element.autoplay = true;
       element.dataset.participant = participant.identity;
+      element.dataset.trackSource = String(track.source ?? "media");
       element.title = participantName;
       if (track.kind === Track.Kind.Video) {
         const video = element as HTMLVideoElement;
@@ -154,17 +159,18 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
         const tile = document.createElement("div");
         tile.className = "relative min-h-[180px] overflow-hidden rounded-2xl border border-white/10 bg-slate-950";
         tile.dataset.participant = participant.identity;
+        tile.dataset.trackSource = String(track.source ?? "media");
         tile.appendChild(video);
         const label = document.createElement("span");
         label.className = "absolute bottom-2 left-2 rounded-lg border border-white/10 bg-black/70 px-2.5 py-1.5 text-xs font-semibold text-white backdrop-blur";
-        label.textContent = participantName;
+        label.textContent = participantName + (isScreenShare ? " · Ecrã partilhado" : "");
         tile.appendChild(label);
-        remoteRef.current.appendChild(tile);
+        target.appendChild(tile);
       } else if (track.kind === Track.Kind.Audio) {
         const audio = element as HTMLAudioElement;
         audio.className = "sr-only";
         audio.setAttribute("aria-label", "Áudio de " + participantName);
-        remoteRef.current.appendChild(audio);
+        target.appendChild(audio);
       }
       const recordingTrack = (track as any).mediaStreamTrack as MediaStreamTrack | undefined;
       if (recordingTrack && recordingStreamRef.current && !recordingStreamRef.current.getTracks().some((item) => item.id === recordingTrack.id)) recordingStreamRef.current.addTrack(recordingTrack);
@@ -176,11 +182,25 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
       });
     };
 
+    const removeParticipantTrack = (identity: string, source: string) => {
+      [remoteRef.current, remoteScreenRef.current].forEach((container) => {
+        if (!container) return;
+        Array.from(container.querySelectorAll("[data-participant][data-track-source]"))
+          .filter((node) => {
+            const element = node as HTMLElement;
+            return element.dataset.participant === identity && element.dataset.trackSource === source;
+          })
+          .forEach((node) => node.remove());
+      });
+    };
+
     const removeParticipantTracks = (identity: string) => {
-      if (!remoteRef.current) return;
-      Array.from(remoteRef.current.querySelectorAll("[data-participant]"))
-        .filter((node) => (node as HTMLElement).dataset.participant === identity)
-        .forEach((node) => node.remove());
+      [remoteRef.current, remoteScreenRef.current].forEach((container) => {
+        if (!container) return;
+        Array.from(container.querySelectorAll("[data-participant]"))
+          .filter((node) => (node as HTMLElement).dataset.participant === identity)
+          .forEach((node) => node.remove());
+      });
     };
 
     const onData = (payload: Uint8Array, participant?: any) => {
@@ -244,7 +264,7 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
         const recordingTrack = (track as any).mediaStreamTrack as MediaStreamTrack | undefined;
         if (recordingTrack && recordingStreamRef.current?.getTracks().some((item) => item.id === recordingTrack.id)) recordingStreamRef.current.removeTrack(recordingTrack);
         track.detach().forEach((element: HTMLElement) => element.remove());
-        if (participant) removeParticipantTracks(participant.identity);
+        if (participant) removeParticipantTrack(participant.identity, String(track.source ?? "media"));
       })
       .on(RoomEvent.ParticipantConnected, () => syncParticipants(room))
       .on(RoomEvent.ParticipantDisconnected, (participant: any) => {
@@ -902,7 +922,8 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
 
         <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_350px]">
           <section className="flex min-h-0 flex-col gap-3 overflow-y-auto p-3 sm:p-5">
-            <div className="relative flex min-h-[260px] flex-1 items-center justify-center overflow-hidden rounded-2xl bg-black p-2">
+            <div className="relative flex min-h-[260px] flex-1 flex-col items-stretch justify-center gap-3 overflow-hidden rounded-2xl bg-black p-2">
+              <div ref={remoteScreenRef} aria-label="Palco de ecrãs partilhados" className="empty:hidden grid min-h-[220px] gap-3 rounded-xl border border-emerald-300/20 bg-black/70 p-2" />
               <div ref={remoteRef} className={"grid h-full w-full content-center gap-3 " + (stageLayout === "grid" ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1")} />
               <div className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-full border border-white/15 bg-black/60 px-3 py-2 text-[11px] font-semibold text-white backdrop-blur">
                 <span className={"h-2 w-2 rounded-full " + (connected ? "animate-pulse bg-rose-400" : starting ? "bg-amber-300" : "bg-slate-500")} /> {connected ? "AO VIVO" : starting ? "A LIGAR" : "OFFLINE"} <span className="text-white/60">{participants.length} participante{participants.length === 1 ? "" : "s"}</span>
