@@ -200,6 +200,9 @@ jobs:
       - name: Apply persistent RESA group meeting hand-raise queue
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261109205357_resa_group_meeting_hand_raise_queue.sql
+      - name: Index RESA group meeting hand-raise foreign keys
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261109205519_resa_group_meeting_hand_raise_fk_indexes.sql
       - name: Verify RESA group meeting membership, role, room and hand-raise boundaries
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_group_meetings_regression.sql
