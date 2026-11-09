@@ -204,16 +204,12 @@ insert into public.resa_group_meeting_participants (
 do $test$
 begin
   begin
-    insert into public.resa_group_meeting_participants (
-      meeting_id, user_id, participant_role, status
-    ) values (
-      '97100000-0000-4000-8000-000000000002',
-      '97000000-0000-4000-8000-000000000004',
-      'MODERATOR', 'ACCEPTED'
-    );
+    update public.resa_group_meeting_participants
+    set participant_role='MODERATOR'
+    where meeting_id='97100000-0000-4000-8000-000000000002'
+      and user_id='97000000-0000-4000-8000-000000000004';
     raise exception 'Public visitor was able to self-appoint as moderator';
-  exception when unique_violation then
-    -- The primary-key conflict is not an authorization result; verify role remains VIEWER below.
+  exception when insufficient_privilege then
     null;
   end;
   if not exists (
