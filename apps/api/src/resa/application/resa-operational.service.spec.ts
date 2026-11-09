@@ -94,6 +94,8 @@ describe('ResaOperationalService live permissions', () => {
 
     expect(config.isHost).toBe(true);
     expect(config.role).toBe('host');
+    expect(config.hostIdentity).toBe(actorId);
+    expect(config.trustedModeratorIdentities).toEqual([actorId]);
     expect(media.createJoinConfig).toHaveBeenCalledWith(expect.objectContaining({
       userId: actorId,
       canPublish: true,
@@ -113,6 +115,8 @@ describe('ResaOperationalService live permissions', () => {
 
     expect(config.isModerator).toBe(true);
     expect(config.role).toBe('moderator');
+    expect(config.hostIdentity).toBe('host-user');
+    expect(config.trustedModeratorIdentities).toEqual(['host-user', actorId]);
     expect(media.createJoinConfig).toHaveBeenCalledWith(expect.objectContaining({ userId: actorId, canPublish: true }));
   });
 
