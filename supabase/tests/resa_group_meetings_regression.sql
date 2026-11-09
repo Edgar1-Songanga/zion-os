@@ -26,6 +26,20 @@ insert into public.resa_group_meetings (
   '97000000-0000-4000-8000-000000000001',
   'Public project meeting', 'PUBLIC', 'SCHEDULED', now() + interval '1 hour'
 );
+insert into public.resa_group_meetings (
+  id, host_user_id, title, visibility, status, scheduled_at, max_participants
+) values (
+  '97100000-0000-4000-8000-000000000003',
+  '97000000-0000-4000-8000-000000000001',
+  'Capacity-limited meeting', 'PUBLIC', 'SCHEDULED', now() + interval '1 hour', 2
+);
+insert into public.resa_group_meeting_participants (
+  meeting_id, user_id, participant_role, status, invited_by
+) values (
+  '97100000-0000-4000-8000-000000000003',
+  '97000000-0000-4000-8000-000000000002',
+  'PARTICIPANT', 'INVITED', '97000000-0000-4000-8000-000000000001'
+);
 
 do $test$
 begin
@@ -232,6 +246,31 @@ begin
   if has_table_privilege('authenticated','public.resa_group_meeting_events','UPDATE')
      or has_table_privilege('authenticated','public.resa_group_meeting_events','DELETE') then
     raise exception 'Authenticated clients can rewrite or delete the meeting audit log';
+  end if;
+end;
+$test$;
+
+-- Capacity is enforced under the same transaction lock used for participant admission.
+do $test$
+begin
+  begin
+    insert into public.resa_group_meeting_participants (
+      meeting_id, user_id, participant_role, status
+    ) values (
+      '97100000-0000-4000-8000-000000000003',
+      '97000000-0000-4000-8000-000000000004',
+      'VIEWER', 'ACCEPTED'
+    );
+    raise exception 'Public meeting exceeded max_participants';
+  exception when check_violation then
+    null;
+  end;
+  if exists (
+    select 1 from public.resa_group_meeting_participants
+    where meeting_id='97100000-0000-4000-8000-000000000003'
+      and user_id='97000000-0000-4000-8000-000000000004'
+  ) then
+    raise exception 'Capacity-rejected viewer was persisted';
   end if;
 end;
 $test$;
