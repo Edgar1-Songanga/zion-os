@@ -464,6 +464,75 @@ export class ResaGroupMeetingService {
     return rows[0];
   }
 
+  async handRaises(token: string, meetingId: string) {
+    const id = this.id(meetingId, 'meeting_id');
+    await this.requireAcceptedMember(token, id);
+    return this.db.get<any[]>('resa_group_meeting_hand_raises', token,
+      `?select=id,meeting_id,user_id,status,raised_at&meeting_id=eq.${id}&status=eq.WAITING&order=raised_at.asc&limit=100`);
+  }
+
+  async raiseHand(token: string, meetingId: string) {
+    const id = this.id(meetingId, 'meeting_id');
+    const actor = await this.actor(token);
+    const participant = await this.participant(token, id, actor.id);
+    if (!participant || participant.status !== 'PRESENT') {
+      throw new ForbiddenException('Join the meeting before raising your hand');
+    }
+    const meetings = await this.db.get<any[]>('resa_group_meetings', token,
+      `?select=id,status&id=eq.${id}&limit=1`);
+    if (!meetings[0]) throw new NotFoundException('Meeting not found');
+    if (meetings[0].status !== 'OPEN') throw new BadRequestException('You can only raise your hand during an open meeting');
+
+    const filter = `?select=id,meeting_id,user_id,status,raised_at&meeting_id=eq.${id}&user_id=eq.${actor.id}&status=eq.WAITING&limit=1`;
+    const existing = await this.db.get<any[]>('resa_group_meeting_hand_raises', token, filter);
+    if (existing[0]) return existing[0];
+
+    try {
+      const rows = await this.db.post<any[]>('resa_group_meeting_hand_raises', token, {
+        meeting_id: id,
+        user_id: actor.id,
+        status: 'WAITING',
+      });
+      if (!rows[0]) throw new Error('Raise-hand request was not returned');
+      return rows[0];
+    } catch {
+      // A concurrent request may have won the partial unique index. Return that
+      // persisted request rather than creating duplicate queue entries.
+      const current = await this.db.get<any[]>('resa_group_meeting_hand_raises', token, filter);
+      if (current[0]) return current[0];
+      throw new BadGatewayException('Raise-hand request could not be persisted');
+    }
+  }
+
+  async withdrawHandRaise(token: string, meetingId: string) {
+    const id = this.id(meetingId, 'meeting_id');
+    const actor = await this.requireAcceptedMember(token, id);
+    const rows = await this.db.patch<any[]>('resa_group_meeting_hand_raises', token,
+      { status: 'WITHDRAWN' },
+      `?meeting_id=eq.${id}&user_id=eq.${actor.id}&status=eq.WAITING`);
+    if (!rows[0]) throw new NotFoundException('There is no active hand raise to withdraw');
+    return rows[0];
+  }
+
+  async resolveHandRaise(
+    token: string,
+    meetingId: string,
+    userId: string,
+    status: 'ACKNOWLEDGED' | 'DISMISSED',
+  ) {
+    const id = this.id(meetingId, 'meeting_id');
+    const targetId = this.id(userId, 'user_id');
+    await this.requireModerator(token, id);
+    if (!['ACKNOWLEDGED', 'DISMISSED'].includes(status)) {
+      throw new BadRequestException('Invalid raise-hand resolution');
+    }
+    const rows = await this.db.patch<any[]>('resa_group_meeting_hand_raises', token,
+      { status },
+      `?meeting_id=eq.${id}&user_id=eq.${targetId}&status=eq.WAITING`);
+    if (!rows[0]) throw new NotFoundException('Active hand-raise request not found');
+    return rows[0];
+  }
+
   async messages(token: string, meetingId: string, limit = 100) {
     const id = this.id(meetingId, 'meeting_id');
     await this.requireAcceptedMember(token, id);

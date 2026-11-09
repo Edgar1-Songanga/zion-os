@@ -189,6 +189,34 @@ export class ResaOperationalController {
     return this.groupMeetings.end(this.token(authorization), meetingId);
   }
 
+  @Get('group-meetings/:meetingId/hand-raises')
+  groupMeetingHandRaises(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('meetingId') meetingId: string,
+  ) {
+    return this.groupMeetings.handRaises(this.token(authorization), meetingId);
+  }
+
+  @Post('group-meetings/:meetingId/hand-raises')
+  raiseGroupMeetingHand(@Headers('authorization') authorization: string | undefined, @Param('meetingId') meetingId: string) {
+    return this.groupMeetings.raiseHand(this.token(authorization), meetingId);
+  }
+
+  @Post('group-meetings/:meetingId/hand-raises/withdraw')
+  withdrawGroupMeetingHand(@Headers('authorization') authorization: string | undefined, @Param('meetingId') meetingId: string) {
+    return this.groupMeetings.withdrawHandRaise(this.token(authorization), meetingId);
+  }
+
+  @Patch('group-meetings/:meetingId/hand-raises/:userId')
+  resolveGroupMeetingHand(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('meetingId') meetingId: string,
+    @Param('userId') userId: string,
+    @Body() body: { status: 'ACKNOWLEDGED' | 'DISMISSED' },
+  ) {
+    return this.groupMeetings.resolveHandRaise(this.token(authorization), meetingId, userId, body.status);
+  }
+
   @Get('group-meetings/:meetingId/messages')
   groupMeetingMessages(
     @Headers('authorization') authorization: string | undefined,

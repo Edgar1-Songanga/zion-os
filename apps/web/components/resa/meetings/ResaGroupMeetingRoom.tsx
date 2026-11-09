@@ -20,6 +20,13 @@ type MeetingMessage = {
   body: string;
   created_at: string;
 };
+type HandRaise = {
+  id: string;
+  meeting_id: string;
+  user_id: string;
+  status: "WAITING" | "ACKNOWLEDGED" | "DISMISSED" | "WITHDRAWN";
+  raised_at: string;
+};
 type JoinConfig = { joinUrl: string; token: string; roomId: string };
 
 export default function ResaGroupMeetingRoom({
@@ -48,6 +55,8 @@ export default function ResaGroupMeetingRoom({
   const [microphoneOn, setMicrophoneOn] = useState(false);
   const [screenShareOn, setScreenShareOn] = useState(false);
   const [chat, setChat] = useState<MeetingMessage[]>([]);
+  const [handRaises, setHandRaises] = useState<HandRaise[]>([]);
+  const [handBusy, setHandBusy] = useState(false);
   const [draft, setDraft] = useState("");
   const [people, setPeople] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +81,22 @@ export default function ResaGroupMeetingRoom({
       setError(cause instanceof Error ? cause.message : "Não foi possível carregar o chat.");
     }
   }, [meetingId]);
+
+  const loadHandRaises = useCallback(async () => {
+    try {
+      const rows = await resaRequest<HandRaise[]>(`/v1/resa/group-meetings/${meetingId}/hand-raises`);
+      setHandRaises(rows);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível carregar a fila de pedidos de palavra.");
+    }
+  }, [meetingId]);
+
+  useEffect(() => {
+    if (!connected) return;
+    void loadHandRaises();
+    const interval = window.setInterval(() => void loadHandRaises(), 5000);
+    return () => window.clearInterval(interval);
+  }, [connected, loadHandRaises]);
 
   useEffect(() => {
     let active = true;
@@ -259,6 +284,38 @@ export default function ResaGroupMeetingRoom({
     }
   };
 
+  const myHandRaised = handRaises.some((request) => request.user_id === userId && request.status === "WAITING");
+
+  const toggleHandRaise = async () => {
+    if (!connected || handBusy) return;
+    setHandBusy(true);
+    try {
+      await resaRequest(`/v1/resa/group-meetings/${meetingId}/hand-raises${myHandRaised ? "/withdraw" : ""}`, {
+        method: "POST",
+      });
+      await loadHandRaises();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível atualizar o pedido de palavra.");
+    } finally {
+      setHandBusy(false);
+    }
+  };
+
+  const resolveHandRaise = async (targetId: string, status: "ACKNOWLEDGED" | "DISMISSED") => {
+    setHandBusy(true);
+    try {
+      await resaRequest(`/v1/resa/group-meetings/${meetingId}/hand-raises/${targetId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+      await loadHandRaises();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível atualizar a fila de pedidos de palavra.");
+    } finally {
+      setHandBusy(false);
+    }
+  };
+
   const changePresenter = async (targetId: string, enabled: boolean) => {
     setBusy(targetId);
     try {
@@ -321,6 +378,9 @@ export default function ResaGroupMeetingRoom({
             <button disabled={!connected || !canPublish} onClick={() => void setCamera()} className={`rounded-xl px-4 py-3 text-sm font-semibold disabled:opacity-40 ${cameraOn ? "bg-sky-500 text-slate-950" : "bg-white/10 text-white"}`}>
               {cameraOn ? "Desligar câmara" : "Ligar câmara"}
             </button>
+            <button disabled={!connected || handBusy} onClick={() => void toggleHandRaise()} className={`rounded-xl px-4 py-3 text-sm font-semibold disabled:opacity-40 ${myHandRaised ? "bg-amber-300 text-slate-950" : "bg-white/10 text-white"}`}>
+              {myHandRaised ? "Baixar a mão" : "Levantar a mão"}
+            </button>
             <button disabled={!connected || !canShareScreen} onClick={() => void setScreenShare()} className={`rounded-xl px-4 py-3 text-sm font-semibold disabled:opacity-40 ${screenShareOn ? "bg-emerald-400 text-slate-950" : "bg-white/10 text-white"}`}>
               {screenShareOn ? "Parar partilha" : "Partilhar ecrã"}
             </button>
@@ -351,6 +411,34 @@ export default function ResaGroupMeetingRoom({
                 )}
               </div>
             ))}
+          </div>
+
+          <div className="border-t border-white/10 px-3 py-3">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-semibold">Pedidos de palavra</p>
+              <span className="rounded-full bg-amber-300/15 px-2 py-0.5 text-[10px] font-semibold text-amber-200">{handRaises.length}</span>
+            </div>
+            {!handRaises.length && <p className="text-xs text-slate-500">Não há pedidos pendentes.</p>}
+            <div className="max-h-36 space-y-2 overflow-y-auto">
+              {handRaises.map((request) => {
+                const person = participants.find((item) => item.user_id === request.user_id);
+                const label = request.user_id === userId ? "Tu" : person?.display_name || request.user_id.slice(0, 8) + "…";
+                return (
+                  <div key={request.id} className="flex items-center justify-between gap-2 rounded-lg bg-white/[0.05] px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-medium">{label}</p>
+                      <p className="text-[10px] text-slate-500">{new Date(request.raised_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+                    </div>
+                    {["HOST", "MODERATOR"].includes(role) && (
+                      <div className="flex shrink-0 gap-1">
+                        <button disabled={handBusy} onClick={() => void resolveHandRaise(request.user_id, "ACKNOWLEDGED")} className="rounded-md border border-emerald-400/30 px-2 py-1 text-[10px] font-semibold text-emerald-200 disabled:opacity-50">Concluir</button>
+                        <button disabled={handBusy} onClick={() => void resolveHandRaise(request.user_id, "DISMISSED")} className="rounded-md border border-white/15 px-2 py-1 text-[10px] text-slate-300 disabled:opacity-50">Dispensar</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col border-t border-white/10">
