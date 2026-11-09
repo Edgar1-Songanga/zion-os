@@ -19,6 +19,8 @@ export class ZionMeetingProvider implements MediaProvider {
     meetingId: string;
     providerRoomId?: string | null;
     userId: string;
+    canPublish?: boolean;
+    canPublishSources?: string[];
   }): Promise<MediaJoinConfig> {
     return {
       mode: 'P2P',
