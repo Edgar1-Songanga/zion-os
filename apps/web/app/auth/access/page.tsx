@@ -18,6 +18,13 @@ const accessProfiles = [
     icon: "02",
   },
   {
+    title: "Mordomia Cristã",
+    description: "Relatórios e operações do departamento de Mordomia, mediante atribuição confirmada.",
+    destination: "/stewardship",
+    label: "Entrar em Mordomia",
+    icon: "03",
+  },
+  {
     title: "Ministério Jovem",
     description: "Clubes, participantes, atividades, formação e progressão.",
     destination: "/youth",
