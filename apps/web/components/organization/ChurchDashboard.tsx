@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { resaRequest } from "@/lib/resa/api";
 import { OrganizationSelector, type ZionOrganization } from "@/components/organization/OrganizationSelector";
 
@@ -36,6 +37,15 @@ function formatNumber(value: number | undefined) {
 function countStatus(values: Array<{ status?: string }> | undefined, expected: string) {
   return (values ?? []).filter((item) => item.status?.toUpperCase() === expected).length;
 }
+
+const administrationAreas = [
+  { title: "Secretaria", description: "Registo de membros, famílias, transferências e batismos.", href: "/secretariat", tag: "Membresia" },
+  { title: "Tesouraria e finanças", description: "Plano de contas, lançamentos e consulta financeira.", href: "/finance", tag: "Financeiro" },
+  { title: "Ministérios e departamentos", description: "Estrutura ministerial, equipas e atividade departamental.", href: "/ministry", tag: "Departamentos" },
+  { title: "Relatórios", description: "Indicadores e relatórios operacionais disponíveis.", href: "/reports", tag: "Controlo" },
+  { title: "Escola Sabatina", description: "Lições, classes e acompanhamento da Escola Sabatina.", href: "/sabbath-school", tag: "Formação" },
+  { title: "Ministério Jovem", description: "Clubes, programas e atividades juvenis.", href: "/youth", tag: "Juventude" },
+];
 
 function MetricCard({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
@@ -163,6 +173,25 @@ export default function ChurchDashboard() {
             {errors.map((error) => <p key={error}>{error}</p>)}
           </div>
         )}
+
+        <section aria-labelledby="church-administration-areas" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+          <div className="mb-5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9B7A34]">Centro de gestão</p>
+            <h2 id="church-administration-areas" className="mt-2 text-xl font-semibold">Administração</h2>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {administrationAreas.map((area) => (
+              <Link key={area.href} href={area.href} className="group rounded-2xl border border-slate-200 bg-slate-50 p-5 transition hover:-translate-y-0.5 hover:border-[#C8A24A] hover:bg-white hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8A24A]">
+                <div className="flex items-start justify-between gap-3">
+                  <h3 className="font-semibold text-[#0C1A3D]">{area.title}</h3>
+                  <span className="rounded-full bg-slate-200 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600">{area.tag}</span>
+                </div>
+                <p className="mt-3 min-h-12 text-sm leading-6 text-slate-600">{area.description}</p>
+                <span className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[#0B2D4D]">Abrir área <span aria-hidden="true" className="transition-transform group-hover:translate-x-1">→</span></span>
+              </Link>
+            ))}
+          </div>
+        </section>
 
         <section>
           <div className="mb-4">
