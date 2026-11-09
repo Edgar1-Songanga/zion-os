@@ -187,6 +187,28 @@ describe('ResaGroupMeetingService', () => {
     expect(media.createJoinConfig).not.toHaveBeenCalled();
   });
 
+  it('does not expose meeting chat to invited users before they accept', async () => {
+    actorId = PARTICIPANT_ID;
+    getSpy.mockResolvedValueOnce([{
+      meeting_id: MEETING_ID, user_id: PARTICIPANT_ID,
+      participant_role: 'PARTICIPANT', status: 'INVITED',
+    }] as never);
+
+    await expect(service.messages('session-token', MEETING_ID)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('does not allow invited users to send meeting chat messages before accepting', async () => {
+    actorId = PARTICIPANT_ID;
+    getSpy.mockResolvedValueOnce([{
+      meeting_id: MEETING_ID, user_id: PARTICIPANT_ID,
+      participant_role: 'PARTICIPANT', status: 'INVITED',
+    }] as never);
+
+    await expect(service.sendMessage('session-token', MEETING_ID, 'Not yet admitted'))
+      .rejects.toBeInstanceOf(ForbiddenException);
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+
   it('allows a participant already marked present to reconnect', async () => {
     actorId = PARTICIPANT_ID;
     patchSpy.mockResolvedValueOnce([{
