@@ -11,3 +11,65 @@ on conflict (key) do update
 set name = excluded.name,
     description = excluded.description,
     is_system = true;
+
+-- A stewardship assignment is scoped to the ministry leader's verified appointment.
+drop policy if exists stewardship_period_reports_read on public.stewardship_period_reports;
+create policy stewardship_period_reports_read
+on public.stewardship_period_reports
+for select to authenticated
+using (
+  private.has_org_permission(organization_id, 'organization.manage')
+  or exists (
+    select 1
+    from public.ministry_leaders ml
+    where ml.ministry_id = stewardship_period_reports.ministry_id
+      and ml.user_id = (select auth.uid())
+      and ml.verified = true
+  )
+);
+
+drop policy if exists stewardship_period_reports_insert on public.stewardship_period_reports;
+create policy stewardship_period_reports_insert
+on public.stewardship_period_reports
+for insert to authenticated
+with check (
+  (
+    private.has_org_permission(organization_id, 'organization.manage')
+    or exists (
+      select 1
+      from public.ministry_leaders ml
+      where ml.ministry_id = stewardship_period_reports.ministry_id
+        and ml.user_id = (select auth.uid())
+        and ml.verified = true
+    )
+  )
+  and submitted_by = (select auth.uid())
+);
+
+drop policy if exists stewardship_period_reports_update on public.stewardship_period_reports;
+create policy stewardship_period_reports_update
+on public.stewardship_period_reports
+for update to authenticated
+using (
+  private.has_org_permission(organization_id, 'organization.manage')
+  or exists (
+    select 1
+    from public.ministry_leaders ml
+    where ml.ministry_id = stewardship_period_reports.ministry_id
+      and ml.user_id = (select auth.uid())
+      and ml.verified = true
+  )
+)
+with check (
+  (
+    private.has_org_permission(organization_id, 'organization.manage')
+    or exists (
+      select 1
+      from public.ministry_leaders ml
+      where ml.ministry_id = stewardship_period_reports.ministry_id
+        and ml.user_id = (select auth.uid())
+        and ml.verified = true
+    )
+  )
+  and submitted_by = (select auth.uid())
+);
