@@ -81,7 +81,7 @@ export default function ResaGroupMeetingRoom({
 
     const attachTrack = (track: any, participant: any) => {
       if (!participant?.identity) return;
-      const isScreenShare = track.source === Track.Source.ScreenShare;
+      const isScreenShare = track.source === Track.Source.ScreenShare && track.kind === Track.Kind.Video;
       const target = isScreenShare ? remoteScreenRef.current : remoteRef.current;
       if (!target) return;
       const element = track.attach() as HTMLMediaElement;
@@ -99,7 +99,7 @@ export default function ResaGroupMeetingRoom({
         tile.appendChild(video);
         const label = document.createElement("span");
         label.className = "absolute bottom-2 left-2 rounded-lg bg-black/70 px-2.5 py-1 text-xs font-semibold text-white";
-        label.textContent = participant.name || participant.identity;
+        label.textContent = (participant.name || participant.identity) + (isScreenShare ? " · Ecrã partilhado" : "");
         tile.appendChild(label);
         target.appendChild(tile);
       } else {
