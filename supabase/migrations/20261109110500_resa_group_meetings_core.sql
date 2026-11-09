@@ -151,6 +151,45 @@ grant execute on function private.resa_is_group_meeting_member(uuid, uuid) to au
 grant execute on function private.resa_is_group_meeting_host(uuid, uuid) to authenticated;
 grant execute on function private.resa_is_group_meeting_moderator(uuid, uuid) to authenticated;
 
+create or replace function private.resa_group_meeting_enforce_capacity()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public, pg_temp
+as $function$
+declare
+  v_max_participants integer;
+  v_active_count integer;
+begin
+  select m.max_participants
+    into v_max_participants
+  from public.resa_group_meetings m
+  where m.id = new.meeting_id
+  for update;
+
+  if v_max_participants is null then
+    raise exception 'Meeting not found for participant admission' using errcode = '23503';
+  end if;
+
+  select count(*)::integer
+    into v_active_count
+  from public.resa_group_meeting_participants p
+  where p.meeting_id = new.meeting_id
+    and p.status in ('INVITED', 'ACCEPTED', 'PRESENT');
+
+  if v_active_count >= v_max_participants then
+    raise exception 'Meeting participant capacity has been reached' using errcode = '23514';
+  end if;
+  return new;
+end;
+$function$;
+
+revoke all on function private.resa_group_meeting_enforce_capacity() from public, anon, authenticated;
+drop trigger if exists resa_group_meeting_enforce_capacity on public.resa_group_meeting_participants;
+create trigger resa_group_meeting_enforce_capacity
+before insert on public.resa_group_meeting_participants
+for each row execute function private.resa_group_meeting_enforce_capacity();
+
 create or replace function private.resa_group_meeting_add_host()
 returns trigger
 language plpgsql
@@ -428,6 +467,10 @@ for insert to authenticated
 with check (
   sender_id = (select auth.uid())
   and private.resa_is_group_meeting_member(meeting_id, (select auth.uid()))
+  and exists (
+    select 1 from public.resa_group_meetings m
+    where m.id = meeting_id and m.status = 'OPEN'
+  )
 );
 
 revoke all on function private.resa_group_meeting_guard_update() from public, anon, authenticated;
