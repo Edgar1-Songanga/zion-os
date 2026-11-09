@@ -161,6 +161,15 @@ declare
   v_max_participants integer;
   v_active_count integer;
 begin
+  if TG_OP = 'UPDATE' then
+    if old.status in ('INVITED', 'ACCEPTED', 'PRESENT')
+       or new.status not in ('INVITED', 'ACCEPTED', 'PRESENT') then
+      return new;
+    end if;
+  elsif new.status not in ('INVITED', 'ACCEPTED', 'PRESENT') then
+    return new;
+  end if;
+
   perform pg_advisory_xact_lock(hashtextextended(new.meeting_id::text, 0));
 
   select m.max_participants
@@ -189,7 +198,7 @@ $function$;
 revoke all on function private.resa_group_meeting_enforce_capacity() from public, anon, authenticated;
 drop trigger if exists resa_group_meeting_enforce_capacity on public.resa_group_meeting_participants;
 create trigger resa_group_meeting_enforce_capacity
-before insert on public.resa_group_meeting_participants
+before insert or update of status on public.resa_group_meeting_participants
 for each row execute function private.resa_group_meeting_enforce_capacity();
 
 create or replace function private.resa_group_meeting_add_host()
