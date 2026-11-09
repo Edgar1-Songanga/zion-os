@@ -140,6 +140,34 @@ export class SupabaseMinistryDirectory implements MinistryDirectoryPort {
     return records.filter((record): record is MinistryRecord => Boolean(record));
   }
 
+  async assignLeader(ministryId: string, userId: string, role: string, token: string) {
+    const ministryRows = await this.db.get<Array<{ id: string; organization_id: string; department: string }>>(
+      "ministries", token, "?select=id,organization_id,department&id=eq." + encodeURIComponent(ministryId) + "&limit=1",
+    );
+    const ministry = ministryRows[0];
+    if (!ministry) return null;
+    const memberships = await this.db.get<Array<{ id: string; roles?: { key?: string } | Array<{ key?: string }> }>>(
+      "organization_memberships", token,
+      "?select=id,roles(key)&organization_id=eq." + encodeURIComponent(ministry.organization_id) + "&user_id=eq." + encodeURIComponent(userId) + "&status=eq.ACTIVE&limit=1",
+    );
+    const membership = memberships[0];
+    const assignedRole = Array.isArray(membership?.roles) ? membership.roles[0] : membership?.roles;
+    if (!membership || (ministry.department === "stewardship" && assignedRole?.key !== "stewardship_manager")) return null;
+    const rows = await this.db.upsert<Array<{ id: string; user_id: string; role: string; verified: boolean }>>(
+      "ministry_leaders", token,
+      { ministry_id: ministryId, user_id: userId, role, verified: true },
+      "?on_conflict=ministry_id,user_id",
+    );
+    return rows[0] ?? null;
+  }
+
+  async removeLeader(ministryId: string, leaderId: string, token: string): Promise<boolean> {
+    const removed = await this.db.delete<Array<{ id: string }>>(
+      "ministry_leaders", token,
+      "?id=eq." + encodeURIComponent(leaderId) + "&ministry_id=eq." + encodeURIComponent(ministryId),
+    );
+    return removed.length > 0;
+  }
   private async hydrate(row: any, token: string): Promise<MinistryRecord> {
     const [organization, leaders, programs, reports, members] = await Promise.all([
       this.db.get<any[]>('organizations', token, `?select=name,organization_type&id=eq.${encodeURIComponent(row.organization_id)}&limit=1`),
@@ -164,7 +192,7 @@ export class SupabaseMinistryDirectory implements MinistryDirectoryPort {
       createdAt: row.created_at,
       department: row.department,
       organization: organization[0] ? { church: organization[0].name, district: row.department } : {},
-      leadership: leaders.map((leader) => ({ ...leader, name: leader.user_id })),
+      leadership: leaders.map((leader) => ({ ...leader, userId: leader.user_id, name: leader.user_id })),
       programs: programs.map((program) => this.mapProgram(program)),
       reports,
       metrics: {
