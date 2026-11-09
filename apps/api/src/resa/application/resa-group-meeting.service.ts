@@ -209,7 +209,10 @@ export class ResaGroupMeetingService {
       await this.recordEvent(token, id, actor.id, 'ROOM_OPENED', {});
       return meetingRows[0];
     } catch {
-      try { await this.media.closeRoom({ meetingId: id, providerRoomId: room.provider_room_id }); } catch { /* Cleanup failure is handled by the room monitor. */ }
+      try {
+        await this.media.closeRoom({ meetingId: id, providerRoomId: room.provider_room_id });
+        await this.db.patch('resa_group_meeting_rooms', token, { status: 'READY' }, `?meeting_id=eq.${id}`);
+      } catch { /* Cleanup failure is handled by the room monitor. */ }
       throw new BadGatewayException('Meeting could not be started safely');
     }
   }
@@ -277,8 +280,9 @@ export class ResaGroupMeetingService {
     if (['HOST', 'MODERATOR'].includes(target.participant_role)) {
       throw new BadRequestException('Host and moderators already have presenter permissions');
     }
-    const nextRole = enabled ? 'PRESENTER' : 'PARTICIPANT';
     const previousRole = target.participant_role;
+    if (!enabled && previousRole !== 'PRESENTER') return target;
+    const nextRole = enabled ? 'PRESENTER' : 'PARTICIPANT';
     if (previousRole === nextRole) return target;
 
     if (target.status === 'PRESENT') {
@@ -336,6 +340,10 @@ export class ResaGroupMeetingService {
   async end(token: string, meetingId: string) {
     const id = this.id(meetingId, 'meeting_id');
     const { actor } = await this.requireModerator(token, id);
+    const meetings = await this.db.get<any[]>('resa_group_meetings', token,
+      `?select=status&id=eq.${id}&limit=1`);
+    if (!meetings[0]) throw new NotFoundException('Meeting not found');
+    if (meetings[0].status !== 'OPEN') throw new BadRequestException('Only an open meeting can be ended');
     const rooms = await this.db.get<any[]>('resa_group_meeting_rooms', token,
       `?select=provider_room_id,status&meeting_id=eq.${id}&limit=1`);
     const room = rooms[0];
@@ -358,6 +366,9 @@ export class ResaGroupMeetingService {
     const target = await this.participant(token, id, targetId);
     if (!target) throw new NotFoundException('Participant not found');
     if (target.participant_role === 'HOST') throw new ForbiddenException('The meeting host cannot be removed');
+    if (target.participant_role === 'MODERATOR' && actor.participant_role !== 'HOST') {
+      throw new ForbiddenException('Only the host can remove another moderator');
+    }
     if (target.status === 'PRESENT') {
       if (!this.media.removeParticipant) throw new BadGatewayException('Media provider cannot remove participants');
       await this.media.removeParticipant({ roomId: await this.roomProviderId(token, id), identity: targetId });
