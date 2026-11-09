@@ -91,9 +91,9 @@ export class SpiritualMinistryService {
     return this.directory ? this.directory.listByOrganization(organizationId, token) : [];
   }
 
-  async listMyAssignments(userId: string, token: string): Promise<MinistryRecord[]> {
+  async listMyAssignments(userId: string, token: string, department?: string): Promise<MinistryRecord[]> {
     if (!this.isUuid(userId)) throw new BadRequestException("A valid authenticated user is required.");
-    return this.directory?.listByLeader?.(userId, token) ?? [];
+    return this.directory?.listByLeader?.(userId, token, department) ?? [];
   }
 
   async createProgram(ministryId: string, token: string, input: MinistryProgramRequestInput): Promise<MinistryProgramRecord | null> {
