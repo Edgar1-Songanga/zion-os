@@ -274,7 +274,7 @@ export class ResaGroupMeetingService {
   async setPresenter(token: string, meetingId: string, userId: string, enabled: boolean) {
     const id = this.id(meetingId, 'meeting_id');
     const targetId = this.id(userId, 'user_id');
-    const { actor, participant: moderator } = await this.requireModerator(token, id);
+    const { actor } = await this.requireModerator(token, id);
     const target = await this.participant(token, id, targetId);
     if (!target || !['ACCEPTED', 'PRESENT'].includes(target.status)) throw new NotFoundException('Active participant not found');
     if (['HOST', 'MODERATOR'].includes(target.participant_role)) {
@@ -362,7 +362,7 @@ export class ResaGroupMeetingService {
   async removeParticipant(token: string, meetingId: string, userId: string) {
     const id = this.id(meetingId, 'meeting_id');
     const targetId = this.id(userId, 'user_id');
-    const { actor } = await this.requireModerator(token, id);
+    const { actor, participant: moderator } = await this.requireModerator(token, id);
     const target = await this.participant(token, id, targetId);
     if (!target) throw new NotFoundException('Participant not found');
     if (target.participant_role === 'HOST') throw new ForbiddenException('The meeting host cannot be removed');
