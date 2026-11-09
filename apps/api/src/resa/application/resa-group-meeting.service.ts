@@ -61,6 +61,15 @@ export class ResaGroupMeetingService {
     return rows[0] ?? null;
   }
 
+  private async requireAcceptedMember(token: string, meetingId: string) {
+    const actor = await this.actor(token);
+    const participant = await this.participant(token, meetingId, actor.id);
+    if (!participant || !['ACCEPTED', 'PRESENT', 'LEFT'].includes(participant.status)) {
+      throw new ForbiddenException('Accept the meeting invitation before accessing room content');
+    }
+    return actor;
+  }
+
   private async requireModerator(token: string, meetingId: string) {
     const actor = await this.actor(token);
     const participant = await this.participant(token, meetingId, actor.id);
@@ -437,16 +446,16 @@ export class ResaGroupMeetingService {
   }
 
   async messages(token: string, meetingId: string, limit = 100) {
-    await this.actor(token);
     const id = this.id(meetingId, 'meeting_id');
+    await this.requireAcceptedMember(token, id);
     const size = Math.min(Math.max(Number(limit) || 100, 1), 200);
     return this.db.get<any[]>('resa_group_meeting_messages', token,
       `?select=id,meeting_id,sender_id,body,created_at&meeting_id=eq.${id}&order=created_at.asc&limit=${size}`);
   }
 
   async sendMessage(token: string, meetingId: string, rawBody: unknown) {
-    const actor = await this.actor(token);
     const id = this.id(meetingId, 'meeting_id');
+    const actor = await this.requireAcceptedMember(token, id);
     const body = this.text(rawBody, 'body', 1, 10000);
     const rows = await this.db.post<any[]>('resa_group_meeting_messages', token, {
       meeting_id: id, sender_id: actor.id, body,
