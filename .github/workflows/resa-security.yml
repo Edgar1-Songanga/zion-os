@@ -197,7 +197,10 @@ jobs:
       - name: Apply RESA group meeting room metadata guard
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261109134007_resa_group_meeting_room_metadata_guard.sql
-      - name: Verify RESA group meeting membership, role and room boundaries
+      - name: Apply persistent RESA group meeting hand-raise queue
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261109150000_resa_group_meeting_hand_raise_queue.sql
+      - name: Verify RESA group meeting membership, role, room and hand-raise boundaries
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_group_meetings_regression.sql
       - name: Stop disposable PostgreSQL
