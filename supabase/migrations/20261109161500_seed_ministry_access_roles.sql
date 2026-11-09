@@ -129,3 +129,20 @@ as $function$
       )
     );
 $function$;
+
+
+-- Prevent changes to the owner membership row itself, including status changes.
+drop policy if exists memberships_update_admin on public.organization_memberships;
+create policy memberships_update_admin
+on public.organization_memberships
+for update to authenticated
+using (
+  private.has_org_permission(organization_id, 'membership.manage')
+  and not exists (
+    select 1
+    from public.roles current_role
+    where current_role.id = organization_memberships.role_id
+      and current_role.key = 'organization_owner'
+  )
+)
+with check (private.can_update_org_membership(organization_id, id, role_id));
