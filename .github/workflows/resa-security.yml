@@ -190,7 +190,7 @@ jobs:
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261109113134_resa_group_meeting_host_presence.sql
       - name: Apply RESA group meeting accepted-member content privacy
         run: |
-          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261109120000_resa_group_meeting_accepted_member_privacy.sql
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261109113735_resa_group_meeting_accepted_member_privacy.sql
       - name: Verify RESA group meeting membership, role and room boundaries
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_group_meetings_regression.sql
