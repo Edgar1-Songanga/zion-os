@@ -29,6 +29,8 @@ export default function RoleAccessManager() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const isHigherOrganization = ["MISSION", "UNION", "DIVISION", "GENERAL_CONFERENCE"].includes(organization?.organization_type ?? "");
+  const assignableRoles = roles.filter((role) => isHigherOrganization || !["hr_manager", "payroll_manager"].includes(role.key));
 
   const load = useCallback(async (id: string) => {
     if (!id) return;
@@ -129,7 +131,7 @@ export default function RoleAccessManager() {
                       onChange={(event) => void changeRole(item, event.target.value)}
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-[#C8A24A] disabled:bg-slate-100 disabled:text-slate-500"
                     >
-                      {roles.map((role) => <option key={role.id} value={role.id} disabled={role.key === "organization_owner"}>{role.name}</option>)}
+                      {assignableRoles.map((role) => <option key={role.id} value={role.id} disabled={role.key === "organization_owner"}>{role.name}</option>)}
                     </select>
                   ) : (
                     <p className="text-sm text-slate-600">{roleName(item.roles, roles.find((role) => role.id === item.role_id)?.name)}</p>
