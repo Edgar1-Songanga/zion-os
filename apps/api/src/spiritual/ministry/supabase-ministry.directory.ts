@@ -119,14 +119,23 @@ export class SupabaseMinistryDirectory implements MinistryDirectoryPort {
     return Promise.all(rows.map((row) => this.hydrate(row, token)));
   }
 
-  async listByLeader(userId: string, token?: string): Promise<MinistryRecord[]> {
+  async listByLeader(userId: string, token?: string, department?: string): Promise<MinistryRecord[]> {
     if (!token) return [];
     const assignments = await this.db.get<Array<{ ministry_id: string }>>(
       "ministry_leaders",
       token,
       `?select=ministry_id&user_id=eq.${encodeURIComponent(userId)}&verified=eq.true&order=created_at.asc`,
     );
-    const ministryIds = [...new Set(assignments.map((assignment) => assignment.ministry_id).filter(Boolean))];
+    let ministryIds = [...new Set(assignments.map((assignment) => assignment.ministry_id).filter(Boolean))];
+    if (department && ministryIds.length > 0) {
+      const scoped = await this.db.get<Array<{ id: string }>>(
+        "ministries",
+        token,
+        `?select=id&id=in.(${ministryIds.join(",")})&department=eq.${encodeURIComponent(department)}`,
+      );
+      const allowedIds = new Set(scoped.map((row) => row.id));
+      ministryIds = ministryIds.filter((id) => allowedIds.has(id));
+    }
     const records = await Promise.all(ministryIds.map((id) => this.getById(id, token)));
     return records.filter((record): record is MinistryRecord => Boolean(record));
   }
