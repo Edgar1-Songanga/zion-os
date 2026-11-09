@@ -101,6 +101,26 @@ as $function$
   );
 $function$;
 
+create or replace function private.resa_is_group_meeting_host(
+  p_meeting_id uuid,
+  p_user_id uuid
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = pg_catalog, public, pg_temp
+as $function$
+  select exists (
+    select 1
+    from public.resa_group_meeting_participants p
+    where p.meeting_id = p_meeting_id
+      and p.user_id = p_user_id
+      and p.participant_role = 'HOST'
+      and p.status in ('ACCEPTED', 'PRESENT')
+  );
+$function$;
+
 create or replace function private.resa_is_group_meeting_moderator(
   p_meeting_id uuid,
   p_user_id uuid
@@ -122,8 +142,10 @@ as $function$
 $function$;
 
 revoke all on function private.resa_is_group_meeting_member(uuid, uuid) from public, anon;
+revoke all on function private.resa_is_group_meeting_host(uuid, uuid) from public, anon;
 revoke all on function private.resa_is_group_meeting_moderator(uuid, uuid) from public, anon;
 grant execute on function private.resa_is_group_meeting_member(uuid, uuid) to authenticated;
+grant execute on function private.resa_is_group_meeting_host(uuid, uuid) to authenticated;
 grant execute on function private.resa_is_group_meeting_moderator(uuid, uuid) to authenticated;
 
 create or replace function private.resa_group_meeting_add_host()
@@ -200,7 +222,7 @@ begin
   end if;
 
   if new.participant_role is distinct from old.participant_role
-     and not private.resa_is_group_meeting_moderator(old.meeting_id, auth.uid()) then
+     and not private.resa_is_group_meeting_host(old.meeting_id, auth.uid()) then
     raise exception 'Only the host or a moderator can change participant roles' using errcode = '42501';
   end if;
 
@@ -298,6 +320,13 @@ with check (
   (
     private.resa_is_group_meeting_moderator(meeting_id, (select auth.uid()))
     and status = 'INVITED'
+    and (
+      participant_role in ('PARTICIPANT', 'VIEWER')
+      or (
+        participant_role = 'MODERATOR'
+        and private.resa_is_group_meeting_host(meeting_id, (select auth.uid()))
+      )
+    )
   )
   or (
     user_id = (select auth.uid())
