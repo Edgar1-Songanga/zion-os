@@ -10,7 +10,7 @@ describe('ResaRecommendationService feed memory signals', () => {
     ageHours: 2,
   };
 
-  it('increases ranking for learned content interests', () => {
+  it('increases ranking for learned type and topic interests', () => {
     expect(service.score({ ...base, topicInterestScore: 40 }))
       .toBeGreaterThan(service.score(base));
   });
