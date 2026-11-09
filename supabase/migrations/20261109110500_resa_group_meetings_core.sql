@@ -237,7 +237,8 @@ begin
   end if;
 
   if new.status is distinct from old.status then
-    if old.participant_role = 'HOST' then
+    if old.participant_role = 'HOST'
+       and not (old.status = 'ACCEPTED' and new.status = 'PRESENT') then
       raise exception 'The meeting host cannot be removed or leave the meeting' using errcode = '42501';
     end if;
     if old.participant_role = 'MODERATOR'
