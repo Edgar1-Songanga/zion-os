@@ -13,10 +13,10 @@ export default function StewardshipArea() {
 
   useEffect(() => {
     let active = true;
-    void resaRequest<Ministry[]>("/v1/ministries/my-assignments")
+    void resaRequest<Ministry[]>("/v1/ministries/my-assignments/stewardship")
       .then((rows) => {
         if (!active) return;
-        const assigned = (rows ?? []).filter((row) => row.department === "stewardship");
+        const assigned = (rows ?? []);
         setMinistries(assigned);
         setSelectedId(assigned[0]?.id ?? "");
       })
