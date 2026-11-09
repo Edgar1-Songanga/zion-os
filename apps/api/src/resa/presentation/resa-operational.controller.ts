@@ -123,6 +123,11 @@ export class ResaOperationalController {
     return this.groupMeetings.invite(this.token(authorization), meetingId, body.user_id, body.role ?? 'PARTICIPANT');
   }
 
+  @Post('group-meetings/:meetingId/public-join')
+  joinPublicGroupMeeting(@Headers('authorization') authorization: string | undefined, @Param('meetingId') meetingId: string) {
+    return this.groupMeetings.joinPublic(this.token(authorization), meetingId);
+  }
+
   @Post('group-meetings/:meetingId/invitation-response')
   respondToGroupMeetingInvitation(
     @Headers('authorization') authorization: string | undefined,
