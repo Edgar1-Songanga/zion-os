@@ -112,19 +112,12 @@ security definer
 set search_path = pg_catalog, public, private, auth
 as $function$
   select private.has_org_permission(target_org, 'membership.manage')
-    and (
-      not exists (
-        select 1
-        from public.organization_memberships current_membership
-        join public.roles current_role on current_role.id = current_membership.role_id
-        where current_membership.id = target_membership
-          and current_role.key = 'organization_owner'
-      )
-      or exists (
-        select 1 from public.roles target_role
-        where target_role.id = target_role_id
-          and target_role.key = 'organization_owner'
-      )
+    and not exists (
+      select 1
+      from public.organization_memberships current_membership
+      join public.roles current_role on current_role.id = current_membership.role_id
+      where current_membership.id = target_membership
+        and current_role.key = 'organization_owner'
     )
     and (
       private.can_assign_org_role(target_org, target_role_id)
