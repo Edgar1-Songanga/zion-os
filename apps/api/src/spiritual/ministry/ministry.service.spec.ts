@@ -52,7 +52,7 @@ describe('SpiritualMinistryService ministry profile management', () => {
 
   it('returns only the authenticated user\'s assigned ministry records', async () => {
     const assigned: MinistryRecord[] = [];
-    directory.listByLeader.mockResolvedValue(assigned);
+    (directory.listByLeader as jest.Mock).mockResolvedValue(assigned);
     await expect(service.listMyAssignments(creatorId, 'access-token')).resolves.toBe(assigned);
     expect(directory.listByLeader).toHaveBeenCalledWith(creatorId, 'access-token');
   });
