@@ -128,7 +128,7 @@ export class ResaGroupMeetingService {
     const channelName = `resa:group:${meeting.id}`;
     let mediaRoom: Awaited<ReturnType<MediaProvider['createRoom']>> | null = null;
     try {
-      mediaRoom = await this.media.createRoom({ meetingId: meeting.id, channelName });
+      mediaRoom = await this.media.createRoom({ meetingId: meeting.id, channelName, maxParticipants });
       const roomRows = await this.db.post<any[]>('resa_group_meeting_rooms', token, {
         meeting_id: meeting.id,
         channel_name: channelName,
