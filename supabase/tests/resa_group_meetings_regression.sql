@@ -513,5 +513,129 @@ end;
 $test$;
 reset role;
 
+-- Raise-hand queue is durable, ordered, single-active per participant and moderator controlled.
+select set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000001',false);
+set role authenticated;
+insert into public.resa_group_meeting_participants (
+  meeting_id, user_id, participant_role, status, invited_by
+) values (
+  '97100000-0000-4000-8000-000000000001',
+  '97000000-0000-4000-8000-000000000004',
+  'PARTICIPANT', 'INVITED', '97000000-0000-4000-8000-000000000001'
+);
+reset role;
+
+select set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000004',false);
+set role authenticated;
+update public.resa_group_meeting_participants
+set status='ACCEPTED'
+where meeting_id='97100000-0000-4000-8000-000000000001'
+  and user_id='97000000-0000-4000-8000-000000000004';
+update public.resa_group_meeting_participants
+set status='PRESENT', joined_at=now()
+where meeting_id='97100000-0000-4000-8000-000000000001'
+  and user_id='97000000-0000-4000-8000-000000000004';
+
+insert into public.resa_group_meeting_hand_raises(meeting_id, user_id)
+values ('97100000-0000-4000-8000-000000000001','97000000-0000-4000-8000-000000000004');
+
+do $test$
+begin
+  begin
+    insert into public.resa_group_meeting_hand_raises(meeting_id, user_id)
+    values ('97100000-0000-4000-8000-000000000001','97000000-0000-4000-8000-000000000004');
+    raise exception 'A participant created duplicate active hand raises';
+  exception when unique_violation then
+    null;
+  end;
+  begin
+    update public.resa_group_meeting_hand_raises
+    set status='ACKNOWLEDGED'
+    where meeting_id='97100000-0000-4000-8000-000000000001'
+      and user_id='97000000-0000-4000-8000-000000000004'
+      and status='WAITING';
+    raise exception 'A participant resolved their own request as a moderator';
+  exception when insufficient_privilege then
+    null;
+  end;
+  if not exists (
+    select 1 from public.resa_group_meeting_hand_raises
+    where meeting_id='97100000-0000-4000-8000-000000000001'
+      and user_id='97000000-0000-4000-8000-000000000004'
+      and status='WAITING'
+  ) then
+    raise exception 'Unauthorized hand raise resolution changed the queue';
+  end if;
+end;
+$test$;
+reset role;
+
+-- Moderator acknowledges the request and becomes its recorded resolver.
+select set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000002',false);
+set role authenticated;
+update public.resa_group_meeting_hand_raises
+set status='ACKNOWLEDGED'
+where meeting_id='97100000-0000-4000-8000-000000000001'
+  and user_id='97000000-0000-4000-8000-000000000004'
+  and status='WAITING';
+do $test$
+begin
+  if not exists (
+    select 1 from public.resa_group_meeting_hand_raises
+    where meeting_id='97100000-0000-4000-8000-000000000001'
+      and user_id='97000000-0000-4000-8000-000000000004'
+      and status='ACKNOWLEDGED'
+      and resolved_by='97000000-0000-4000-8000-000000000002'
+      and resolved_at is not null
+  ) then
+    raise exception 'Moderator acknowledgement was not persisted with resolver metadata';
+  end if;
+end;
+$test$;
+reset role;
+
+-- A participant may raise again after resolution; the moderator can dismiss that new request.
+select set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000004',false);
+set role authenticated;
+insert into public.resa_group_meeting_hand_raises(meeting_id, user_id)
+values ('97100000-0000-4000-8000-000000000001','97000000-0000-4000-8000-000000000004');
+reset role;
+select set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000002',false);
+set role authenticated;
+update public.resa_group_meeting_hand_raises
+set status='DISMISSED'
+where meeting_id='97100000-0000-4000-8000-000000000001'
+  and user_id='97000000-0000-4000-8000-000000000004'
+  and status='WAITING';
+reset role;
+
+-- The same participant may raise once more and withdraw their own pending request.
+select set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000004',false);
+set role authenticated;
+insert into public.resa_group_meeting_hand_raises(meeting_id, user_id)
+values ('97100000-0000-4000-8000-000000000001','97000000-0000-4000-8000-000000000004');
+update public.resa_group_meeting_hand_raises
+set status='WITHDRAWN'
+where meeting_id='97100000-0000-4000-8000-000000000001'
+  and user_id='97000000-0000-4000-8000-000000000004'
+  and status='WAITING';
+do $test$
+begin
+  if (select count(*) from public.resa_group_meeting_hand_raises
+      where meeting_id='97100000-0000-4000-8000-000000000001'
+        and user_id='97000000-0000-4000-8000-000000000004') <> 3 then
+    raise exception 'Resolved hand raise history was not retained';
+  end if;
+  if exists (
+    select 1 from public.resa_group_meeting_hand_raises
+    where meeting_id='97100000-0000-4000-8000-000000000001'
+      and status='WAITING'
+  ) then
+    raise exception 'A withdrawn hand raise remained active in the queue';
+  end if;
+end;
+$test$;
+reset role;
+
 rollback;
 select 'RESA group meeting RLS and role authorization regression passed' as result;
