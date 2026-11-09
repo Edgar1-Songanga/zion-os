@@ -13,11 +13,13 @@ import { ResaModerationAppealsService } from './application/resa-moderation-appe
 import { ResaModerationAppealsController } from './presentation/resa-moderation-appeals.controller';
 import { ResaEnforcementService } from './application/resa-enforcement.service';
 import { ResaEnforcementController } from './presentation/resa-enforcement.controller';
+import { ResaFeedMemoryController } from './presentation/feed-memory.controller';
+import { ResaFeedMemoryService } from './application/feed-memory.service';
 
 @Module({
   imports: [IdentityModule, MediaModule],
-  controllers: [ResaController, ResaOperationalController, ResaModerationAppealsController, ResaEnforcementController],
-  providers: [ResaEngine, ResaSocialService, ResaRecommendationService, ResaOperationalService, ResaGroupMeetingService, ResaLiveEgressService, ResaModerationAppealsService, ResaEnforcementService],
-  exports: [ResaEngine, ResaSocialService, ResaRecommendationService, ResaOperationalService, ResaGroupMeetingService, ResaLiveEgressService, ResaModerationAppealsService, ResaEnforcementService],
+  controllers: [ResaController, ResaOperationalController, ResaModerationAppealsController, ResaEnforcementController, ResaFeedMemoryController],
+  providers: [ResaEngine, ResaSocialService, ResaRecommendationService, ResaOperationalService, ResaGroupMeetingService, ResaLiveEgressService, ResaModerationAppealsService, ResaEnforcementService, ResaFeedMemoryService],
+  exports: [ResaEngine, ResaSocialService, ResaRecommendationService, ResaOperationalService, ResaGroupMeetingService, ResaLiveEgressService, ResaModerationAppealsService, ResaEnforcementService, ResaFeedMemoryService],
 })
 export class ResaModule {}
