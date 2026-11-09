@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Room, RoomEvent, Track } from "livekit-client";
 import { resaRequest } from "@/lib/resa/api";
 
-type JoinConfig = { joinUrl: string; token: string; roomId: string; displayName?: string; isHost?: boolean; isModerator?: boolean; role?: "host" | "moderator" | "viewer"; attendee_publish_allowed?: boolean; attendee_camera_on_join?: boolean; attendee_microphone_on_join?: boolean };
+type JoinConfig = { joinUrl: string; token: string; roomId: string; displayName?: string; isHost?: boolean; isModerator?: boolean; role?: "host" | "moderator" | "viewer"; hostIdentity?: string; trustedModeratorIdentities?: string[]; attendee_publish_allowed?: boolean; attendee_camera_on_join?: boolean; attendee_microphone_on_join?: boolean };
 type LiveMessage = { id: string; identity: string; name: string; text: string; sentAt: number };
 type PersistedLiveMessage = { id: string; sender_id: string; name: string; text: string; sent_at: string };
 type Participant = { identity: string; name: string };
@@ -31,6 +31,7 @@ function renderLinkedText(value: string) {
 
 export default function LiveStudio({ liveId, title, isPrivate = false, isHostSession = false, onClose }: { liveId: string; title: string; isPrivate?: boolean; isHostSession?: boolean; onClose: () => void }) {
   const roomRef = useRef<Room | null>(null);
+  const trustedModeratorIdentitiesRef = useRef<Set<string>>(new Set());
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const mediaVideoRef = useRef<HTMLVideoElement | null>(null);
   const mediaAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -219,11 +220,11 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
         } else if (packet.type === "hand_raise") {
           setRaisedHands((current) => current.some((item) => item.identity === identity) ? current : [...current, { identity, name }]);
           if (room.localParticipant.identity !== identity) setNotice(name + " levantou a mão.");
-        } else if (packet.type === "speak_granted" && identity !== room.localParticipant.identity) {
+        } else if (packet.type === "speak_granted" && identity !== room.localParticipant.identity && trustedModeratorIdentitiesRef.current.has(identity)) {
           setNotice("A moderação autorizou a tua participação. Já podes ativar o microfone, a câmara e partilhar o ecrã.");
           setCanSpeak(true);
           setHandRaised(false);
-        } else if (packet.type === "speak_revoked" && identity !== room.localParticipant.identity) {
+        } else if (packet.type === "speak_revoked" && identity !== room.localParticipant.identity && trustedModeratorIdentitiesRef.current.has(identity)) {
           setCanSpeak(false);
           setHandRaised(false);
           void room.localParticipant.setMicrophoneEnabled(false).catch(() => {});
@@ -318,6 +319,10 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
         if (!config.joinUrl || !config.token) throw new Error("O serviço de vídeo não devolveu credenciais válidas.");
         const hostRole = Boolean(config.isHost || config.role === "host");
         const moderatorRole = Boolean(config.isModerator || config.role === "moderator");
+        trustedModeratorIdentitiesRef.current = new Set([
+          ...(config.hostIdentity ? [config.hostIdentity] : []),
+          ...(Array.isArray(config.trustedModeratorIdentities) ? config.trustedModeratorIdentities : []),
+        ].filter((identity): identity is string => typeof identity === "string" && identity.length > 0));
         const roleCanPublish = hostRole || moderatorRole;
         if (mounted) {
           setIsHost(hostRole);
