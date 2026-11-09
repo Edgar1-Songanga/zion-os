@@ -298,7 +298,7 @@ export class ResaGroupMeetingService {
     if (status === 'PRESENT') {
       const rows = await this.db.patch<any[]>('resa_group_meeting_participants', token,
         { status: 'PRESENT', joined_at: new Date().toISOString() },
-        `?meeting_id=eq.${id}&user_id=eq.${actor.id}&status=eq.ACCEPTED`);
+        `?meeting_id=eq.${id}&user_id=eq.${actor.id}&status=in.(ACCEPTED,PRESENT)`);
       if (!rows[0]) throw new BadRequestException('Accept the meeting invitation before joining');
       await this.recordEvent(token, id, actor.id, 'PARTICIPANT_JOINED', {});
       return rows[0];
