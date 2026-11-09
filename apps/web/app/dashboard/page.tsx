@@ -40,6 +40,10 @@ export default async function Dashboard() {
   }
 
   const has = (...keys: string[]) => roleKeys.some((key) => keys.includes(key));
+  const hasInstitutionalRole = roleKeys.some((key) => !["member", "moderator"].includes(key));
+  if (!accessLookupFailed && !globalAdminVerified && !isGlobalAdmin && !hasInstitutionalRole) {
+    redirect("/resa");
+  }
   const areas: WorkArea[] = [];
 
   if (globalAdminVerified) {
@@ -63,6 +67,8 @@ export default async function Dashboard() {
     }
     if (has("organization_owner", "organization_admin", "organization_leader")) {
       areas.push({ title: "Administração da igreja", description: "Visão e gestão da organização.", href: "/church-administration" });
+    }
+    if (has("secretary", "finance_manager", "hr_manager", "payroll_manager", "organization_owner", "organization_admin")) {
       areas.push({ title: "Relatórios", description: "Indicadores e relatórios autorizados.", href: "/reports" });
     }
     if (has("secretary", "organization_owner", "organization_admin")) {
@@ -72,7 +78,7 @@ export default async function Dashboard() {
       areas.push({ title: "Tesouraria", description: "Contabilidade, contribuições e relatórios financeiros.", href: "/finance" });
     }
     if (has(
-      "ministry_leader", "department_leader", "sabbath_school_director",
+      "pastor", "ministry_leader", "department_leader", "sabbath_school_director",
       "youth_director", "stewardship_leader", "stewardship_manager",
     )) {
       areas.push({ title: "Ministérios e departamentos", description: "Gestão da área ministerial atribuída.", href: "/ministry" });
