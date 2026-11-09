@@ -188,6 +188,32 @@ export class ResaGroupMeetingService {
     return rows[0];
   }
 
+  async joinPublic(token: string, meetingId: string) {
+    const actor = await this.actor(token);
+    const id = this.id(meetingId, 'meeting_id');
+    const meetings = await this.db.get<any[]>('resa_group_meetings', token,
+      `?select=id,visibility,status&id=eq.${id}&limit=1`);
+    const meeting = meetings[0];
+    if (!meeting) throw new NotFoundException('Meeting not found');
+    if (meeting.visibility !== 'PUBLIC' || !['SCHEDULED', 'OPEN'].includes(meeting.status)) {
+      throw new ForbiddenException('This meeting is not open to public viewers');
+    }
+    const existing = await this.participant(token, id, actor.id);
+    if (existing) {
+      if (['ACCEPTED', 'PRESENT'].includes(existing.status)) return existing;
+      if (existing.status === 'INVITED') return this.respond(token, id, 'ACCEPTED');
+      throw new ForbiddenException('This account is no longer eligible to join this meeting');
+    }
+    const rows = await this.db.post<any[]>('resa_group_meeting_participants', token, {
+      meeting_id: id,
+      user_id: actor.id,
+      participant_role: 'VIEWER',
+      status: 'ACCEPTED',
+    });
+    if (!rows[0]) throw new BadGatewayException('Public viewer admission was not persisted');
+    return rows[0];
+  }
+
   async start(token: string, meetingId: string) {
     const id = this.id(meetingId, 'meeting_id');
     const { actor } = await this.requireModerator(token, id);
