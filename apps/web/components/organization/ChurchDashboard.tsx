@@ -42,7 +42,6 @@ const administrationAreas = [
   { title: "Secretaria", description: "Registo de membros, famílias, transferências e batismos.", href: "/secretariat", tag: "Membresia" },
   { title: "Tesouraria e finanças", description: "Plano de contas, lançamentos e consulta financeira.", href: "/finance", tag: "Financeiro" },
   { title: "Ministérios e departamentos", description: "Estrutura ministerial, equipas e atividade departamental.", href: "/ministry", tag: "Departamentos" },
-  { title: "Mordomia Cristã", description: "Relatórios e operações específicas do departamento.", href: "/stewardship", tag: "Mordomia" },
   { title: "Relatórios", description: "Indicadores e relatórios operacionais disponíveis.", href: "/reports", tag: "Controlo" },
   { title: "Escola Sabatina", description: "Lições, classes e acompanhamento da Escola Sabatina.", href: "/sabbath-school", tag: "Formação" },
   { title: "Ministério Jovem", description: "Clubes, programas e atividades juvenis.", href: "/youth", tag: "Juventude" },
