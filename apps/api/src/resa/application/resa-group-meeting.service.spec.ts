@@ -190,6 +190,24 @@ describe('ResaGroupMeetingService', () => {
     expect(media.createJoinConfig).not.toHaveBeenCalled();
   });
 
+  it('asks LiveKit to revoke cached credentials when removing an offline accepted participant', async () => {
+    actorId = HOST_ID;
+    getSpy
+      .mockResolvedValueOnce([{ participant_role: 'HOST', status: 'PRESENT' }] as never)
+      .mockResolvedValueOnce([{ participant_role: 'PARTICIPANT', status: 'ACCEPTED', joined_at: null }] as never)
+      .mockResolvedValueOnce([{ provider_room_id: 'zion-group-' + MEETING_ID }] as never);
+    media.removeParticipant.mockResolvedValueOnce(undefined);
+    patchSpy.mockResolvedValueOnce([{ user_id: PARTICIPANT_ID, status: 'REMOVED' }] as never);
+    postSpy.mockResolvedValueOnce([{ event_type: 'PARTICIPANT_REMOVED' }] as never);
+
+    await service.removeParticipant('session-token', MEETING_ID, PARTICIPANT_ID);
+
+    expect(media.removeParticipant).toHaveBeenCalledWith({
+      roomId: 'zion-group-' + MEETING_ID,
+      identity: PARTICIPANT_ID,
+    });
+  });
+
   it('does not issue a join token to a participant who has been removed', async () => {
     actorId = PARTICIPANT_ID;
     getSpy

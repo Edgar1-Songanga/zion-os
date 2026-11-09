@@ -137,7 +137,12 @@ export class ZionSfuProvider implements MediaProvider {
     try {
       await this.client().removeParticipant(input.roomId, input.identity);
     } catch (error) {
-      throw new BadGatewayException(error instanceof Error ? error.message : 'Participant could not be removed');
+      const message = error instanceof Error ? error.message : String(error);
+      // LiveKit Cloud revokes a participant's token even when the participant is already offline.
+      // Treat that expected not-found response as successful moderation; self-hosted deployments
+      // still rely on the short token TTL configured for RESA group meetings.
+      if (/participant.*(?:does not exist|not found)|not found.*participant/i.test(message)) return;
+      throw new BadGatewayException(message || 'Participant could not be removed');
     }
   }
 }

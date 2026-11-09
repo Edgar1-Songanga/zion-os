@@ -1,11 +1,13 @@
 const mockUpdateParticipant = jest.fn();
 const mockCreateRoom = jest.fn();
+const mockRemoveParticipant = jest.fn();
 
 jest.mock('livekit-server-sdk', () => ({
   AccessToken: jest.fn(),
   RoomServiceClient: jest.fn().mockImplementation(() => ({
     updateParticipant: mockUpdateParticipant,
     createRoom: mockCreateRoom,
+    removeParticipant: mockRemoveParticipant,
   })),
   TrackSource: {
     CAMERA: 'CAMERA',
@@ -28,6 +30,7 @@ describe('ZionSfuProvider source-scoped participant permissions', () => {
     env.livekitApiSecret = 'test-api-secret';
     mockUpdateParticipant.mockReset().mockResolvedValue(undefined);
     mockCreateRoom.mockReset().mockResolvedValue({ name: 'zion-meeting-1' });
+    mockRemoveParticipant.mockReset().mockResolvedValue(undefined);
     (RoomServiceClient as unknown as jest.Mock).mockClear();
   });
 
@@ -97,6 +100,21 @@ describe('ZionSfuProvider source-scoped participant permissions', () => {
         canPublishData: true,
       },
     });
+  });
+
+  it('treats an already-offline participant as removed after requesting token revocation', async () => {
+    mockRemoveParticipant.mockRejectedValueOnce(new Error('participant does not exist'));
+
+    await expect(provider.removeParticipant({ roomId: 'room-1', identity: 'offline-user' }))
+      .resolves.toBeUndefined();
+    expect(mockRemoveParticipant).toHaveBeenCalledWith('room-1', 'offline-user');
+  });
+
+  it('wraps unexpected participant removal failures as gateway errors', async () => {
+    mockRemoveParticipant.mockRejectedValueOnce(new Error('SFU unavailable'));
+
+    await expect(provider.removeParticipant({ roomId: 'room-1', identity: 'participant-1' }))
+      .rejects.toThrow('SFU unavailable');
   });
 
   it('wraps SFU permission failures as gateway errors', async () => {
