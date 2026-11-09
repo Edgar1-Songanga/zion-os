@@ -13,7 +13,7 @@ type LivePacket =
   | { type: "hand_raise"; name?: string }
   | { type: "speak_granted"; name?: string }
   | { type: "speak_revoked"; name?: string }
-  | { type: "moderator_roster_changed" }
+  | { type: "moderator_roster_changed"; name?: string }
   | { type: "announcement"; text: string; name?: string }
   | { type: "scripture"; title: string; text: string; name?: string }
   | { type: "reaction"; emoji: string; name?: string };
