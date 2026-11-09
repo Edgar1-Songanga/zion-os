@@ -105,7 +105,8 @@ describe('ResaGroupMeetingService', () => {
     getSpy
       .mockResolvedValueOnce([{ id: MEETING_ID, status: 'OPEN', title: 'Team planning' }] as never)
       .mockResolvedValueOnce([{ participant_role: 'PARTICIPANT', status: 'ACCEPTED' }] as never)
-      .mockResolvedValueOnce([{ provider_room_id: 'zion-group-' + MEETING_ID, status: 'OPEN', locked: false }] as never);
+      .mockResolvedValueOnce([{ provider_room_id: 'zion-group-' + MEETING_ID, status: 'OPEN', locked: false }] as never)
+      .mockResolvedValueOnce([{ participant_role: 'PARTICIPANT', status: 'ACCEPTED' }] as never);
 
     await service.joinConfig('session-token', MEETING_ID);
 
@@ -122,7 +123,8 @@ describe('ResaGroupMeetingService', () => {
     getSpy
       .mockResolvedValueOnce([{ id: MEETING_ID, status: 'OPEN', title: 'Team planning' }] as never)
       .mockResolvedValueOnce([{ participant_role: 'PRESENTER', status: 'ACCEPTED' }] as never)
-      .mockResolvedValueOnce([{ provider_room_id: 'zion-group-' + MEETING_ID, status: 'OPEN', locked: false }] as never);
+      .mockResolvedValueOnce([{ provider_room_id: 'zion-group-' + MEETING_ID, status: 'OPEN', locked: false }] as never)
+      .mockResolvedValueOnce([{ participant_role: 'PRESENTER', status: 'ACCEPTED' }] as never);
 
     await service.joinConfig('session-token', MEETING_ID);
 
@@ -139,7 +141,8 @@ describe('ResaGroupMeetingService', () => {
     getSpy
       .mockResolvedValueOnce([{ id: MEETING_ID, status: 'OPEN', title: 'Team planning' }] as never)
       .mockResolvedValueOnce([{ participant_role: 'VIEWER', status: 'ACCEPTED' }] as never)
-      .mockResolvedValueOnce([{ provider_room_id: 'zion-group-' + MEETING_ID, status: 'OPEN', locked: false }] as never);
+      .mockResolvedValueOnce([{ provider_room_id: 'zion-group-' + MEETING_ID, status: 'OPEN', locked: false }] as never)
+      .mockResolvedValueOnce([{ participant_role: 'VIEWER', status: 'ACCEPTED' }] as never);
 
     await service.joinConfig('session-token', MEETING_ID);
 
@@ -202,6 +205,9 @@ describe('ResaGroupMeetingService', () => {
 
     await service.removeParticipant('session-token', MEETING_ID, PARTICIPANT_ID);
 
+    expect(patchSpy).toHaveBeenCalledWith('resa_group_meeting_participants', 'session-token',
+      { status: 'REMOVED' }, expect.stringContaining('user_id=eq.' + PARTICIPANT_ID));
+    expect(patchSpy.mock.invocationCallOrder[0]).toBeLessThan(media.removeParticipant.mock.invocationCallOrder[0]);
     expect(media.removeParticipant).toHaveBeenCalledWith({
       roomId: 'zion-group-' + MEETING_ID,
       identity: PARTICIPANT_ID,
@@ -216,6 +222,18 @@ describe('ResaGroupMeetingService', () => {
 
     await expect(service.joinConfig('session-token', MEETING_ID)).rejects.toBeInstanceOf(ForbiddenException);
     expect(media.createJoinConfig).not.toHaveBeenCalled();
+  });
+
+  it('does not return a join token if removal wins while LiveKit credentials are being minted', async () => {
+    actorId = PARTICIPANT_ID;
+    getSpy
+      .mockResolvedValueOnce([{ id: MEETING_ID, status: 'OPEN', title: 'Team planning' }] as never)
+      .mockResolvedValueOnce([{ participant_role: 'PARTICIPANT', status: 'ACCEPTED' }] as never)
+      .mockResolvedValueOnce([{ provider_room_id: 'zion-group-' + MEETING_ID, status: 'OPEN', locked: false }] as never)
+      .mockResolvedValueOnce([{ participant_role: 'PARTICIPANT', status: 'REMOVED' }] as never);
+
+    await expect(service.joinConfig('session-token', MEETING_ID)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(media.createJoinConfig).toHaveBeenCalledTimes(1);
   });
 
   it('does not expose meeting chat to invited users before they accept', async () => {
