@@ -131,6 +131,35 @@ end;
 $test$;
 reset role;
 
+-- The host may leave and rejoin; host authority remains immutable and the presence state is accurate.
+select set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000001',false);
+set role authenticated;
+update public.resa_group_meeting_participants
+set status='PRESENT', joined_at=now()
+where meeting_id='97100000-0000-4000-8000-000000000001'
+  and user_id='97000000-0000-4000-8000-000000000001';
+update public.resa_group_meeting_participants
+set status='LEFT', left_at=now()
+where meeting_id='97100000-0000-4000-8000-000000000001'
+  and user_id='97000000-0000-4000-8000-000000000001';
+update public.resa_group_meeting_participants
+set status='PRESENT', joined_at=now(), left_at=null
+where meeting_id='97100000-0000-4000-8000-000000000001'
+  and user_id='97000000-0000-4000-8000-000000000001';
+do $test$
+begin
+  if not exists (
+    select 1 from public.resa_group_meeting_participants
+    where meeting_id='97100000-0000-4000-8000-000000000001'
+      and user_id='97000000-0000-4000-8000-000000000001'
+      and participant_role='HOST' and status='PRESENT'
+  ) then
+    raise exception 'Host could not leave and rejoin while retaining host role';
+  end if;
+end;
+$test$;
+reset role;
+
 -- A participant accepts the invite but cannot invite, moderate or create the room.
 select set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000003',false);
 set role authenticated;
