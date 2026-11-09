@@ -91,6 +91,7 @@ export default function ResaGroupMeetingRoom({
         const tile = document.createElement("div");
         tile.className = "relative min-h-[180px] overflow-hidden rounded-2xl border border-white/10 bg-slate-950";
         tile.dataset.participant = participant.identity;
+        tile.dataset.trackSource = String(track.source ?? 'media');
         tile.appendChild(video);
         const label = document.createElement("span");
         label.className = "absolute bottom-2 left-2 rounded-lg bg-black/70 px-2.5 py-1 text-xs font-semibold text-white";
@@ -106,18 +107,22 @@ export default function ResaGroupMeetingRoom({
       });
     };
 
-    const detachParticipant = (identity: string) => {
+    const detachTrack = (track: any, identity: string) => {
+      const source = String(track.source ?? 'media');
       remoteRef.current?.querySelectorAll("[data-participant]").forEach((node) => {
-        if ((node as HTMLElement).dataset.participant === identity) node.remove();
+        const element = node as HTMLElement;
+        if (element.dataset.participant === identity && element.dataset.trackSource === source) element.remove();
       });
     };
 
     room
       .on(RoomEvent.TrackSubscribed, (track, _publication, participant) => attachTrack(track, participant))
-      .on(RoomEvent.TrackUnsubscribed, (_track, _publication, participant) => detachParticipant(participant.identity))
+      .on(RoomEvent.TrackUnsubscribed, (track, _publication, participant) => detachTrack(track, participant.identity))
       .on(RoomEvent.ParticipantConnected, () => refreshPeople(room))
       .on(RoomEvent.ParticipantDisconnected, (participant) => {
-        detachParticipant(participant.identity);
+        remoteRef.current?.querySelectorAll("[data-participant]").forEach((node) => {
+          if ((node as HTMLElement).dataset.participant === participant.identity) node.remove();
+        });
         refreshPeople(room);
       })
       .on(RoomEvent.DataReceived, (payload) => {
