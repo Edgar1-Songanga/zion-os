@@ -216,7 +216,7 @@ export class ResaGroupMeetingService {
     }
     const existing = await this.participant(token, id, actor.id);
     if (existing) {
-      if (['ACCEPTED', 'PRESENT'].includes(existing.status)) return existing;
+      if (['ACCEPTED', 'PRESENT', 'LEFT'].includes(existing.status)) return existing;
       if (existing.status === 'INVITED') return this.respond(token, id, 'ACCEPTED');
       throw new ForbiddenException('This account is no longer eligible to join this meeting');
     }
@@ -268,7 +268,7 @@ export class ResaGroupMeetingService {
     if (!meeting) throw new NotFoundException('Meeting not found');
     if (meeting.status !== 'OPEN') throw new BadRequestException('Meeting is not open');
     const participant = await this.participant(token, id, actor.id);
-    if (!participant || !['ACCEPTED', 'PRESENT'].includes(participant.status)) {
+    if (!participant || !['ACCEPTED', 'PRESENT', 'LEFT'].includes(participant.status)) {
       throw new ForbiddenException('An accepted meeting invitation is required');
     }
     const rooms = await this.db.get<any[]>('resa_group_meeting_rooms', token,
@@ -297,8 +297,8 @@ export class ResaGroupMeetingService {
     const id = this.id(meetingId, 'meeting_id');
     if (status === 'PRESENT') {
       const rows = await this.db.patch<any[]>('resa_group_meeting_participants', token,
-        { status: 'PRESENT', joined_at: new Date().toISOString() },
-        `?meeting_id=eq.${id}&user_id=eq.${actor.id}&status=in.(ACCEPTED,PRESENT)`);
+        { status: 'PRESENT', joined_at: new Date().toISOString(), left_at: null },
+        `?meeting_id=eq.${id}&user_id=eq.${actor.id}&status=in.(ACCEPTED,PRESENT,LEFT)`);
       if (!rows[0]) throw new BadRequestException('Accept the meeting invitation before joining');
       await this.recordEvent(token, id, actor.id, 'PARTICIPANT_JOINED', {});
       return rows[0];
@@ -318,7 +318,7 @@ export class ResaGroupMeetingService {
     const targetId = this.id(userId, 'user_id');
     const { actor } = await this.requireModerator(token, id);
     const target = await this.participant(token, id, targetId);
-    if (!target || !['ACCEPTED', 'PRESENT'].includes(target.status)) throw new NotFoundException('Active participant not found');
+    if (!target || !['ACCEPTED', 'PRESENT', 'LEFT'].includes(target.status)) throw new NotFoundException('Active participant not found');
     if (['HOST', 'MODERATOR'].includes(target.participant_role)) {
       throw new BadRequestException('Host and moderators already have presenter permissions');
     }
