@@ -17,6 +17,7 @@ on:
       - "supabase/tests/resa_engagement_aggregate_regression.sql"
       - "supabase/tests/resa_story_view_tracking_regression.sql"
       - "supabase/tests/resa_security_fixture.sql"
+      - "supabase/tests/resa_group_meetings_regression.sql"
       - ".github/workflows/resa-security.yml"
   push:
     branches: [main]
@@ -181,6 +182,12 @@ jobs:
       - name: Verify RESA interaction audience isolation
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_interaction_audience_regression.sql
+      - name: Apply RESA group meeting persistence and RLS
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261109110500_resa_group_meetings_core.sql
+      - name: Verify RESA group meeting membership, role and room boundaries
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_group_meetings_regression.sql
       - name: Stop disposable PostgreSQL
         if: always()
         run: docker rm -f zion-resa-security-postgres || true
