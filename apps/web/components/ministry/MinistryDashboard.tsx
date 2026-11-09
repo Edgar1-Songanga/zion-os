@@ -170,6 +170,7 @@ export default function MinistryDashboard({ ministry, onUpdated }: MinistryDashb
 
   useEffect(() => {
     let active = true;
+    setCanManageLeaders(false);
     async function checkLeaderManagementAccess() {
       if (!ministry.organizationId) {
         if (active) setCanManageLeaders(false);
