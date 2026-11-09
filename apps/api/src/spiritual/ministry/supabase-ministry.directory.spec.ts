@@ -25,6 +25,30 @@ describe('SupabaseMinistryDirectory program operations', () => {
     expect(records[0].department).toBe('stewardship');
   });
 
+  it('requires an active stewardship membership before verifying a stewardship leader', async () => {
+    const get = jest.spyOn(db, 'get').mockImplementation(async (table: string) => {
+      if (table === 'ministries') return [{ id: ministryId, organization_id: '00000000-0000-4000-8000-000000000003', department: 'stewardship' }];
+      if (table === 'organization_memberships') return [{ id: '00000000-0000-4000-8000-000000000006', roles: [{ key: 'stewardship_manager' }] }];
+      return [];
+    });
+    const upsert = jest.spyOn(db, 'upsert').mockResolvedValue([{ id: '00000000-0000-4000-8000-000000000007', user_id: '00000000-0000-4000-8000-000000000004', role: 'Dirigente', verified: true }]);
+    const leader = await directory.assignLeader(ministryId, '00000000-0000-4000-8000-000000000004', 'Dirigente', 'user-access-token');
+    expect(get).toHaveBeenCalledWith('organization_memberships', 'user-access-token', expect.stringContaining('status=eq.ACTIVE'));
+    expect(upsert).toHaveBeenCalledWith('ministry_leaders', 'user-access-token', expect.objectContaining({ verified: true, role: 'Dirigente' }), '?on_conflict=ministry_id,user_id');
+    expect(leader?.verified).toBe(true);
+  });
+
+  it('does not verify a stewardship leader whose organization role is not stewardship_manager', async () => {
+    jest.spyOn(db, 'get').mockImplementation(async (table: string) => {
+      if (table === 'ministries') return [{ id: ministryId, organization_id: '00000000-0000-4000-8000-000000000003', department: 'stewardship' }];
+      if (table === 'organization_memberships') return [{ id: '00000000-0000-4000-8000-000000000006', roles: [{ key: 'member' }] }];
+      return [];
+    });
+    const upsert = jest.spyOn(db, 'upsert');
+    await expect(directory.assignLeader(ministryId, '00000000-0000-4000-8000-000000000004', 'Dirigente', 'user-access-token')).resolves.toBeNull();
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
   it('creates an organization-scoped program and maps database dates to the API shape', async () => {
     const post = jest.spyOn(db, 'post').mockResolvedValue([{
       id: programId,
