@@ -18,7 +18,8 @@ describe('SupabaseMinistryDirectory program operations', () => {
       if (table === 'organizations') return [{ name: 'Igreja Local', organization_type: 'LOCAL_CHURCH' }];
       return [];
     });
-    const records = await directory.listByLeader('00000000-0000-4000-8000-000000000004', 'user-access-token');
+    const records = await directory.listByLeader('00000000-0000-4000-8000-000000000004', 'user-access-token', 'stewardship');
+    expect(get).toHaveBeenCalledWith('ministries', 'user-access-token', expect.stringContaining('department=eq.stewardship'));
     expect(get).toHaveBeenCalledWith('ministry_leaders', 'user-access-token', expect.stringContaining('verified=eq.true'));
     expect(records).toHaveLength(1);
     expect(records[0].department).toBe('stewardship');
