@@ -68,7 +68,7 @@ export default async function Dashboard() {
     if (has("organization_owner", "organization_admin", "organization_leader")) {
       areas.push({ title: "Administração da igreja", description: "Visão e gestão da organização.", href: "/church-administration" });
     }
-    if (has("secretary", "finance_manager", "hr_manager", "payroll_manager", "organization_owner", "organization_admin")) {
+    if (has("organization_owner", "organization_admin")) {
       areas.push({ title: "Relatórios", description: "Indicadores e relatórios autorizados.", href: "/reports" });
     }
     if (has("secretary", "organization_owner", "organization_admin")) {
@@ -109,6 +109,7 @@ export default async function Dashboard() {
   );
 
   const uniqueAreas = areas.filter((area, index, all) => all.findIndex((item) => item.href === area.href) === index);
+  const hasExecutiveOverview = globalAdminVerified || has("organization_owner", "organization_admin", "organization_leader");
 
   return (
     <DashboardExperience>
@@ -145,7 +146,7 @@ export default async function Dashboard() {
           </div>
         </div>
       </section>
-      <DashboardContent />
+      {hasExecutiveOverview && <DashboardContent />}
     </DashboardExperience>
   );
 }
