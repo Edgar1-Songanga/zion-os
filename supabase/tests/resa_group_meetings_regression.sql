@@ -270,7 +270,7 @@ begin
 end;
 $test$;
 
--- Capacity is enforced under the same transaction lock used for participant admission.
+-- Capacity is enforced under the same transaction lock for inserts and re-entry updates.
 do $test$
 begin
   begin
@@ -294,6 +294,52 @@ begin
   end if;
 end;
 $test$;
+
+-- Free one reserved slot, fill it with a public viewer, then reject reactivation of the former invitee.
+reset role;
+select set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000001',false);
+set role authenticated;
+update public.resa_group_meeting_participants
+set status='REMOVED'
+where meeting_id='97100000-0000-4000-8000-000000000003'
+  and user_id='97000000-0000-4000-8000-000000000002';
+reset role;
+
+select set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000004',false);
+set role authenticated;
+insert into public.resa_group_meeting_participants (
+  meeting_id, user_id, participant_role, status
+) values (
+  '97100000-0000-4000-8000-000000000003',
+  '97000000-0000-4000-8000-000000000004',
+  'VIEWER', 'ACCEPTED'
+);
+reset role;
+
+select set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000001',false);
+set role authenticated;
+do $test$
+begin
+  begin
+    update public.resa_group_meeting_participants
+    set status='ACCEPTED'
+    where meeting_id='97100000-0000-4000-8000-000000000003'
+      and user_id='97000000-0000-4000-8000-000000000002';
+    raise exception 'Re-entry update exceeded max_participants';
+  exception when check_violation then
+    null;
+  end;
+  if exists (
+    select 1 from public.resa_group_meeting_participants
+    where meeting_id='97100000-0000-4000-8000-000000000003'
+      and user_id='97000000-0000-4000-8000-000000000002'
+      and status='ACCEPTED'
+  ) then
+    raise exception 'Capacity-rejected re-entry was persisted';
+  end if;
+end;
+$test$;
+reset role;
 
 -- A public visitor may join only as a viewer, never as a moderator or host.
 insert into public.resa_group_meeting_participants (
