@@ -342,6 +342,8 @@ $test$;
 reset role;
 
 -- A public visitor may join only as a viewer, never as a moderator or host.
+select set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000004',false);
+set role authenticated;
 insert into public.resa_group_meeting_participants (
   meeting_id, user_id, participant_role, status
 ) values (
