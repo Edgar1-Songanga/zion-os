@@ -424,6 +424,8 @@ describe('ResaOperationalService live permissions', () => {
       meetingId: LIVE_ID,
       providerRoomId: 'zion-call-' + LIVE_ID,
       userId: actorId,
+      canPublish: true,
+      canPublishSources: ['camera', 'microphone', 'screen_share', 'screen_share_audio'],
     }));
   });
 

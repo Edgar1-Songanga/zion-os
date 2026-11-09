@@ -597,7 +597,13 @@ export class ResaOperationalService {
     );
     if (!memberships[0]) throw new NotFoundException('Call not found');
     if (!this.media.createJoinConfig) throw new BadGatewayException('Media provider does not expose a join configuration');
-    return this.media.createJoinConfig({ meetingId: id, providerRoomId: `zion-call-${id}`, userId: actor.id });
+    return this.media.createJoinConfig({
+      meetingId: id,
+      providerRoomId: `zion-call-${id}`,
+      userId: actor.id,
+      canPublish: true,
+      canPublishSources: ['camera', 'microphone', 'screen_share', 'screen_share_audio'],
+    });
   }
 
   async createConversation(token: string, memberIds: unknown[], title?: unknown, purpose: 'message' | 'call' = 'message') {
