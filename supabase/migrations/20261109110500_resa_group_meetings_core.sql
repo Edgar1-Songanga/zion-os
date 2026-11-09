@@ -310,6 +310,12 @@ begin
   if new.status = 'PRESENT' and new.joined_at is null then
     raise exception 'A present participant must have joined_at' using errcode = '42501';
   end if;
+  if new.status = 'PRESENT' and not exists (
+    select 1 from public.resa_group_meetings m
+    where m.id = new.meeting_id and m.status = 'OPEN'
+  ) then
+    raise exception 'Participants can only enter an open meeting' using errcode = '42501';
+  end if;
   if new.status = 'LEFT' and old.status = 'PRESENT' and new.left_at is null then
     raise exception 'A leaving participant must have left_at' using errcode = '42501';
   end if;
@@ -401,6 +407,10 @@ with check (
   (
     private.resa_is_group_meeting_moderator(meeting_id, (select auth.uid()))
     and status = 'INVITED'
+    and exists (
+      select 1 from public.resa_group_meetings m
+      where m.id = meeting_id and m.status in ('SCHEDULED', 'OPEN')
+    )
     and (
       participant_role in ('PARTICIPANT', 'VIEWER')
       or (
