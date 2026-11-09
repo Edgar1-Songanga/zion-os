@@ -301,7 +301,7 @@ export class ResaGroupMeetingService {
     const role = String(participant.participant_role).toUpperCase();
     const canPublish = role !== 'VIEWER';
     const canShareScreen = ['HOST', 'MODERATOR', 'PRESENTER'].includes(role);
-    return createJoinConfig.call(this.media, {
+    const joinConfig = await createJoinConfig.call(this.media, {
       meetingId: id,
       providerRoomId: room.provider_room_id,
       userId: actor.id,
@@ -313,6 +313,17 @@ export class ResaGroupMeetingService {
       // Bound cached credentials on self-hosted LiveKit, where removal does not revoke JWTs.
       ttl: '10m',
     });
+
+    // Membership/role may change while the SFU token is being minted. Never
+    // return a credential based on a stale participant snapshot.
+    const currentParticipant = await this.participant(token, id, actor.id);
+    if (!currentParticipant || !['ACCEPTED', 'PRESENT', 'LEFT'].includes(currentParticipant.status)) {
+      throw new ForbiddenException('Meeting access changed while preparing the join token');
+    }
+    if (currentParticipant.participant_role !== participant.participant_role) {
+      throw new ForbiddenException('Meeting permissions changed; request a fresh join token');
+    }
+    return joinConfig;
   }
 
   async setPresence(token: string, meetingId: string, status: 'PRESENT' | 'LEFT') {
@@ -434,16 +445,21 @@ export class ResaGroupMeetingService {
     if (target.participant_role === 'MODERATOR' && moderator.participant_role !== 'HOST') {
       throw new ForbiddenException('Only the host can remove another moderator');
     }
-    if (['ACCEPTED', 'PRESENT', 'LEFT'].includes(target.status)) {
-      if (!this.media.removeParticipant) throw new BadGatewayException('Media provider cannot remove participants');
-      // Revoke cached LiveKit credentials even if the participant is currently offline.
-      await this.media.removeParticipant({ roomId: await this.roomProviderId(token, id), identity: targetId });
-    }
+    const needsCredentialRevocation = ['ACCEPTED', 'PRESENT', 'LEFT', 'REMOVED'].includes(target.status);
+    const roomId = needsCredentialRevocation ? await this.roomProviderId(token, id) : null;
     const patch: Record<string, unknown> = { status: 'REMOVED' };
     if (target.joined_at) patch.left_at = new Date().toISOString();
     const rows = await this.db.patch<any[]>('resa_group_meeting_participants', token, patch,
       `?meeting_id=eq.${id}&user_id=eq.${targetId}`);
     if (!rows[0]) throw new BadGatewayException('Participant removal was not persisted');
+
+    // Persist the denial first. A concurrent joinConfig performs a second
+    // membership check after minting and will not return a stale credential.
+    // Repeated removal also retries revocation if the provider was unavailable.
+    if (needsCredentialRevocation) {
+      if (!this.media.removeParticipant) throw new BadGatewayException('Media provider cannot remove participants');
+      await this.media.removeParticipant({ roomId: roomId!, identity: targetId });
+    }
     await this.recordEvent(token, id, actor.id, 'PARTICIPANT_REMOVED', { target_user_id: targetId });
     return rows[0];
   }
