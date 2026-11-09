@@ -409,12 +409,23 @@ export class ResaGroupMeetingService {
       'SCREEN_SHARE_STARTED', 'SCREEN_SHARE_STOPPED', 'MODERATOR_ACTION', 'MEETING_ENDED',
     ];
     if (!allowed.includes(eventType)) throw new BadRequestException('Invalid meeting event');
-    const rows = await this.db.post<any[]>('resa_group_meeting_events', token, {
-      meeting_id: meetingId,
-      actor_user_id: actorId,
-      event_type: eventType,
-      payload: payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {},
-    });
-    return rows[0];
+    try {
+      const rows = await this.db.post<any[]>('resa_group_meeting_events', token, {
+        meeting_id: meetingId,
+        actor_user_id: actorId,
+        event_type: eventType,
+        payload: payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {},
+      });
+      return rows[0] ?? null;
+    } catch {
+      // Audit telemetry must not report a failed meeting mutation after the state change already committed.
+      // Keep the failure observable without logging user content or bearer/session data.
+      console.error(JSON.stringify({
+        event: 'resa_group_meeting_audit_event_failed',
+        meetingId,
+        eventType,
+      }));
+      return null;
+    }
   }
 }
