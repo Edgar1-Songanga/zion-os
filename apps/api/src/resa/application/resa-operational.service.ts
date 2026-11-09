@@ -564,8 +564,16 @@ export class ResaOperationalService {
       if (!this.media.removeParticipant) throw new BadGatewayException('Media provider does not support participant removal');
       await this.media.removeParticipant({ roomId: 'zion-live-' + id, identity: participantIdentity });
     } else {
-      if (!this.media.setParticipantPublishing) throw new BadGatewayException('Media provider does not support publishing permissions');
-      await this.media.setParticipantPublishing({ roomId: 'zion-live-' + id, identity: participantIdentity, canPublish: action === 'allow_speak' });
+      if (!this.media.setParticipantPermissions) throw new BadGatewayException('Media provider does not support source-scoped publishing permissions');
+      const canPublish = action === 'allow_speak';
+      await this.media.setParticipantPermissions({
+        roomId: 'zion-live-' + id,
+        identity: participantIdentity,
+        canPublish,
+        canPublishSources: canPublish
+          ? ['camera', 'microphone', 'screen_share', 'screen_share_audio']
+          : [],
+      });
     }
     return { liveId: id, identity: participantIdentity, action, applied: true };
   }
