@@ -41,6 +41,7 @@ export default function ResaGroupMeetingRoom({
 }) {
   const roomRef = useRef<Room | null>(null);
   const remoteRef = useRef<HTMLDivElement | null>(null);
+  const remoteScreenRef = useRef<HTMLDivElement | null>(null);
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(true);
   const [cameraOn, setCameraOn] = useState(false);
@@ -79,7 +80,10 @@ export default function ResaGroupMeetingRoom({
     roomRef.current = room;
 
     const attachTrack = (track: any, participant: any) => {
-      if (!remoteRef.current || !participant?.identity) return;
+      if (!participant?.identity) return;
+      const isScreenShare = track.source === Track.Source.ScreenShare;
+      const target = isScreenShare ? remoteScreenRef.current : remoteRef.current;
+      if (!target) return;
       const element = track.attach() as HTMLMediaElement;
       element.autoplay = true;
       element.dataset.participant = participant.identity;
@@ -97,10 +101,10 @@ export default function ResaGroupMeetingRoom({
         label.className = "absolute bottom-2 left-2 rounded-lg bg-black/70 px-2.5 py-1 text-xs font-semibold text-white";
         label.textContent = participant.name || participant.identity;
         tile.appendChild(label);
-        remoteRef.current.appendChild(tile);
+        target.appendChild(tile);
       } else {
         element.className = "sr-only";
-        remoteRef.current.appendChild(element);
+        target.appendChild(element);
       }
       void element.play().catch(() => {
         if (active) setError("O navegador bloqueou a reprodução automática. Interage com a página para ativar o áudio.");
@@ -109,10 +113,10 @@ export default function ResaGroupMeetingRoom({
 
     const detachTrack = (track: any, identity: string) => {
       const source = String(track.source ?? 'media');
-      remoteRef.current?.querySelectorAll("[data-participant]").forEach((node) => {
+      [remoteRef.current, remoteScreenRef.current].forEach((container) => container?.querySelectorAll("[data-participant]").forEach((node) => {
         const element = node as HTMLElement;
         if (element.dataset.participant === identity && element.dataset.trackSource === source) element.remove();
-      });
+      }));
     };
 
     room
@@ -120,9 +124,9 @@ export default function ResaGroupMeetingRoom({
       .on(RoomEvent.TrackUnsubscribed, (track, _publication, participant) => detachTrack(track, participant.identity))
       .on(RoomEvent.ParticipantConnected, () => refreshPeople(room))
       .on(RoomEvent.ParticipantDisconnected, (participant) => {
-        remoteRef.current?.querySelectorAll("[data-participant]").forEach((node) => {
+        [remoteRef.current, remoteScreenRef.current].forEach((container) => container?.querySelectorAll("[data-participant]").forEach((node) => {
           if ((node as HTMLElement).dataset.participant === participant.identity) node.remove();
-        });
+        }));
         refreshPeople(room);
       })
       .on(RoomEvent.DataReceived, (payload) => {
@@ -287,6 +291,7 @@ export default function ResaGroupMeetingRoom({
 
       <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div>
+          <div ref={remoteScreenRef} aria-label="Palco de ecrãs partilhados" className="empty:hidden mb-3 grid min-h-[220px] gap-3 rounded-2xl border border-emerald-300/20 bg-black/60 p-3" />
           <div ref={remoteRef} className="grid min-h-[320px] auto-rows-fr grid-cols-1 gap-3 rounded-2xl bg-black/30 p-2 sm:grid-cols-2">
             {!remotePeople.length && (
               <div className="col-span-full flex min-h-[300px] flex-col items-center justify-center text-center text-slate-400">
