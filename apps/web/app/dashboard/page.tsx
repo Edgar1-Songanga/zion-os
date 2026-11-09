@@ -52,6 +52,7 @@ export default async function Dashboard() {
       { title: "Secretaria", description: "Registos e processos de membresia.", href: "/secretariat" },
       { title: "Tesouraria", description: "Contabilidade, contribuições e relatórios financeiros.", href: "/finance" },
       { title: "Ministérios", description: "Departamentos, equipas e atividade ministerial.", href: "/ministry" },
+      { title: "Mordomia Cristã", description: "Operações do departamento de Mordomia atribuídas.", href: "/stewardship" },
       { title: "Relatórios", description: "Indicadores e acompanhamento institucional.", href: "/reports" },
       { title: "Recursos humanos", description: "Gestão de pessoas nos níveis autorizados.", href: "/hr" },
       { title: "Processamento salarial", description: "Operações de processamento salarial.", href: "/payroll" },
@@ -77,10 +78,10 @@ export default async function Dashboard() {
     if (has("finance_manager", "organization_owner", "organization_admin")) {
       areas.push({ title: "Tesouraria", description: "Contabilidade, contribuições e relatórios financeiros.", href: "/finance" });
     }
-    if (has(
-      "pastor", "ministry_leader", "department_leader", "sabbath_school_director",
-      "youth_director", "stewardship_leader", "stewardship_manager",
-    )) {
+    if (has("stewardship_manager", "stewardship_leader")) {
+      areas.push({ title: "Mordomia Cristã", description: "Operações e relatórios do departamento de Mordomia atribuído.", href: "/stewardship" });
+    }
+    if (has("pastor", "ministry_leader", "department_leader", "sabbath_school_director", "youth_director")) {
       areas.push({ title: "Ministérios e departamentos", description: "Gestão da área ministerial atribuída.", href: "/ministry" });
     }
     if (has("hr_manager", "organization_owner", "organization_admin")) {
