@@ -119,6 +119,18 @@ export class SupabaseMinistryDirectory implements MinistryDirectoryPort {
     return Promise.all(rows.map((row) => this.hydrate(row, token)));
   }
 
+  async listByLeader(userId: string, token?: string): Promise<MinistryRecord[]> {
+    if (!token) return [];
+    const assignments = await this.db.get<Array<{ ministry_id: string }>>(
+      "ministry_leaders",
+      token,
+      `?select=ministry_id&user_id=eq.${encodeURIComponent(userId)}&verified=eq.true&order=created_at.asc`,
+    );
+    const ministryIds = [...new Set(assignments.map((assignment) => assignment.ministry_id).filter(Boolean))];
+    const records = await Promise.all(ministryIds.map((id) => this.getById(id, token)));
+    return records.filter((record): record is MinistryRecord => Boolean(record));
+  }
+
   private async hydrate(row: any, token: string): Promise<MinistryRecord> {
     const [organization, leaders, programs, reports, members] = await Promise.all([
       this.db.get<any[]>('organizations', token, `?select=name,organization_type&id=eq.${encodeURIComponent(row.organization_id)}&limit=1`),
