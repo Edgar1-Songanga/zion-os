@@ -36,6 +36,12 @@ export interface MediaProvider {
     identity: string;
     canPublish: boolean;
   }): Promise<void>;
+  setParticipantPermissions?(input: {
+    roomId: string;
+    identity: string;
+    canPublish: boolean;
+    canPublishSources?: MediaTrackSource[];
+  }): Promise<void>;
   removeParticipant?(input: { roomId: string; identity: string }): Promise<void>;
   setRoomPublishingForAttendees?(input: { roomId: string; hostIdentity: string; canPublish: boolean }): Promise<void>;
 }
