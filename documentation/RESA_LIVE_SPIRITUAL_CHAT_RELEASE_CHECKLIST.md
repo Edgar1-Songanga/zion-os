@@ -34,6 +34,8 @@ This checklist is the acceptance gate for direct RESA calls, RESA group meetings
 - [ ] A participant whose presenter permission is revoked can no longer publish screen or screen-audio tracks.
 - [ ] Leaving or reconnecting does not corrupt the meeting state or other participants' media.
 
+**Current product boundary:** RESA group conversations are currently messaging conversations; a separate group audio/video meeting room and join flow have not yet been delivered. The group-meeting checks above are future acceptance criteria, not evidence that this surface currently exists.
+
 ## Screen sharing — shared acceptance criteria
 
 - [ ] The presenter explicitly starts screen sharing from a user gesture; no screen capture starts automatically.
@@ -96,7 +98,8 @@ This checklist is the acceptance gate for direct RESA calls, RESA group meetings
 
 - Live chat and hand-raise packets use the LiveKit data channel in this implementation. Chat history is not persisted across sessions/reloads.
 - Speaker requests are in-memory in each Studio; they are not a durable moderation queue.
-- Existing screen-sharing implementation is present in RESA Live Studio and ZION Governance meetings. The inspected direct-call component currently lacks a screen-share control/track flow; issue #176 tracks the cross-surface work.
+- Direct-call screen sharing has now been implemented in PR #178 and deployed to production. The implementation is role-scoped: direct-call participants may share; RESA Live spectators remain subscribe-only; only Live hosts/moderators receive screen-share publishing grants. The final merged commit still needs a fresh CI run, authenticated two-account tests and real-device verification.
+- RESA Live Studio and ZION Governance meetings have existing screen-sharing paths; their full role, remote-rendering and device acceptance checks remain unverified.
 - The ZION↔RESA canonical institutional publishing bridge is a separate workstream tracked in issue #175.
 - Automated end-to-end browser tests, role-based tests, two-account authenticated tests and real-device compatibility checks must be run before calling these flows fully production-verified.
 - The Bible assistant uses deterministic knowledge matching plus the Bible API for cited passages. A generative AI provider is not wired into this component yet; the interface must not imply otherwise.
