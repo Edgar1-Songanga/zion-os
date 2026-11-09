@@ -149,6 +149,7 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
       const participantName = participant.name || participant.identity;
       element.autoplay = true;
       element.dataset.participant = participant.identity;
+      element.dataset.trackSource = String(track.source ?? "media");
       element.title = participantName;
       if (track.kind === Track.Kind.Video) {
         const video = element as HTMLVideoElement;
@@ -178,6 +179,18 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
           setAudioNeedsGesture(true);
           setNotice("O navegador bloqueou o áudio automático. Toca em Ativar áudio para ouvir a transmissão.");
         }
+      });
+    };
+
+    const removeParticipantTrack = (identity: string, source: string) => {
+      [remoteRef.current, remoteScreenRef.current].forEach((container) => {
+        if (!container) return;
+        Array.from(container.querySelectorAll("[data-participant][data-track-source]"))
+          .filter((node) => {
+            const element = node as HTMLElement;
+            return element.dataset.participant === identity && element.dataset.trackSource === source;
+          })
+          .forEach((node) => node.remove());
       });
     };
 
@@ -251,7 +264,7 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
         const recordingTrack = (track as any).mediaStreamTrack as MediaStreamTrack | undefined;
         if (recordingTrack && recordingStreamRef.current?.getTracks().some((item) => item.id === recordingTrack.id)) recordingStreamRef.current.removeTrack(recordingTrack);
         track.detach().forEach((element: HTMLElement) => element.remove());
-        if (participant) removeParticipantTracks(participant.identity);
+        if (participant) removeParticipantTrack(participant.identity, String(track.source ?? "media"));
       })
       .on(RoomEvent.ParticipantConnected, () => syncParticipants(room))
       .on(RoomEvent.ParticipantDisconnected, (participant: any) => {
