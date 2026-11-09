@@ -56,7 +56,7 @@ describe('SpiritualMinistryService ministry profile management', () => {
     const assigned: MinistryRecord[] = [];
     (directory.listByLeader as jest.Mock).mockResolvedValue(assigned);
     await expect(service.listMyAssignments(creatorId, 'access-token')).resolves.toBe(assigned);
-    expect(directory.listByLeader).toHaveBeenCalledWith(creatorId, 'access-token');
+    expect(directory.listByLeader).toHaveBeenCalledWith(creatorId, 'access-token', undefined);
   });
 
   it('rejects an invalid user id for assigned ministry lookup', async () => {
