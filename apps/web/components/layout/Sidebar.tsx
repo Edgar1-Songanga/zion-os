@@ -152,7 +152,7 @@ export default function Sidebar() {
         ...(hasRole("finance_manager", "organization_owner", "organization_admin") ? [{ name: "Finanças", path: "/finance" }] : []),
         ...(hasRole("hr_manager", "organization_owner", "organization_admin") ? [{ name: "Recursos Humanos", path: "/hr" }] : []),
         ...(hasRole("payroll_manager", "organization_owner", "organization_admin") ? [{ name: "Processamento salarial", path: "/payroll" }] : []),
-        ...(hasRole("organization_owner", "organization_admin", "finance_manager", "hr_manager", "payroll_manager", "secretary") ? [{ name: "Relatórios", path: "/reports" }] : []),
+        ...(hasRole("organization_owner", "organization_admin") ? [{ name: "Relatórios", path: "/reports" }] : []),
       ],
     },
   ]);
