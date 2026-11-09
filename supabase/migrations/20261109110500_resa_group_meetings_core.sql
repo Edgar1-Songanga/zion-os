@@ -269,6 +269,10 @@ begin
     if old.participant_role = 'HOST' or new.participant_role = 'HOST' then
       raise exception 'The meeting host role is immutable' using errcode = '42501';
     end if;
+    if old.participant_role = 'MODERATOR'
+       and not private.resa_is_group_meeting_host(old.meeting_id, auth.uid()) then
+      raise exception 'Only the host can change another moderator role' using errcode = '42501';
+    end if;
     if not private.resa_is_group_meeting_host(old.meeting_id, auth.uid()) then
       if not private.resa_is_group_meeting_moderator(old.meeting_id, auth.uid())
          or new.participant_role not in ('PRESENTER', 'PARTICIPANT', 'VIEWER') then
