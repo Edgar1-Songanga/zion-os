@@ -158,12 +158,17 @@ export class GovernanceService {
 
     // Publishing is a server-enforced capability. Until the meeting model supports
     // individually delegated presenter grants, only HOST and MODERATOR may publish.
-    const canPublish = ['HOST', 'MODERATOR'].includes(String(participant.participant_role).toUpperCase());
+    const canShareScreen = ['HOST', 'MODERATOR'].includes(String(participant.participant_role).toUpperCase());
     return this.media.createJoinConfig({
       meetingId,
       providerRoomId: room.provider_room_id,
       userId: a.id,
-      canPublish,
+      // All admitted participants retain microphone/camera publishing; screen
+      // publication is a separate, role-scoped capability enforced by LiveKit.
+      canPublish: true,
+      canPublishSources: canShareScreen
+        ? ['camera', 'microphone', 'screen_share', 'screen_share_audio']
+        : ['camera', 'microphone'],
     });
   }
 
