@@ -87,7 +87,23 @@ export class ResaGroupMeetingService {
       this.db.get<any[]>('resa_group_meeting_events', token,
         `?select=id,actor_user_id,event_type,payload,created_at&meeting_id=eq.${id}&order=created_at.asc&limit=200`),
     ]);
-    return { ...meeting, participants, room: rooms[0] ?? null, events };
+    const profileRows = participants.length
+      ? await this.db.rpc<any[]>('resa_profiles_for_ids', token, {
+        p_user_ids: participants.map((participant) => participant.user_id),
+      })
+      : [];
+    const profileById = new Map(profileRows.map((profile) => [profile.id, profile]));
+    const visibleParticipants = participants.map((participant) => {
+      const profile = profileById.get(participant.user_id);
+      return {
+        ...participant,
+        display_name: profile?.display_name?.trim()
+          || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim()
+          || 'Membro RESA',
+        avatar_url: profile?.avatar_url ?? null,
+      };
+    });
+    return { ...meeting, participants: visibleParticipants, room: rooms[0] ?? null, events };
   }
 
   async create(token: string, input: {
