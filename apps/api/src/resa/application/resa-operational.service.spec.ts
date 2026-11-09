@@ -110,7 +110,7 @@ describe('ResaOperationalService live permissions', () => {
     expect(media.createJoinConfig).toHaveBeenCalledWith(expect.objectContaining({
       userId: 'viewer-user',
       name: expect.any(String),
-      canPublish: true,
+      canPublish: false,
     }));
   });
 
