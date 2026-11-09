@@ -96,6 +96,21 @@ export class SpiritualMinistryService {
     return this.directory?.listByLeader?.(userId, token, department) ?? [];
   }
 
+  async assignLeader(ministryId: string, token: string, userId: string, role: string) {
+    if (!this.isUuid(ministryId) || !this.isUuid(userId)) throw new BadRequestException("Valid ministry and user ids are required.");
+    const normalizedRole = typeof role === "string" ? role.trim().slice(0, 80) : "";
+    if (!normalizedRole) throw new BadRequestException("A ministry leader role is required.");
+    const leader = await this.directory?.assignLeader?.(ministryId, userId, normalizedRole, token);
+    if (!leader) throw new BadRequestException("The selected user must be an active member of this organization and hold the required ministry role.");
+    return leader;
+  }
+
+  async removeLeader(ministryId: string, token: string, leaderId: string) {
+    if (!this.isUuid(ministryId) || !this.isUuid(leaderId)) throw new BadRequestException("Valid ministry and leader ids are required.");
+    const removed = await this.directory?.removeLeader?.(ministryId, leaderId, token);
+    if (!removed) throw new BadRequestException("The ministry leader assignment was not found.");
+    return { success: true };
+  }
   async createProgram(ministryId: string, token: string, input: MinistryProgramRequestInput): Promise<MinistryProgramRecord | null> {
     if (!this.isUuid(ministryId)) throw new BadRequestException('A valid ministry id is required.');
     const program = this.normalizeProgram(input, true);
