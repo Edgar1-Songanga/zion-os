@@ -292,6 +292,7 @@ export class ResaSocialService {
                 .slice(0, 3)
                 .reduce((sum, score) => sum + score, 0) * 0.5,
           ),
+          recommendationTopicKeys: topicKeysByContent.get(item.id) ?? [],
         };
       });
     const ranked = mode === 'for_you'

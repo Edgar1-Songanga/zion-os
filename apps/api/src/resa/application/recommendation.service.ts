@@ -13,6 +13,12 @@ export interface RecommendationContext {
   topicInterestScore?: number;
 }
 
+type DiversifiableItem = {
+  id: string;
+  author_id?: string;
+  recommendationTopicKeys?: string[];
+};
+
 @Injectable()
 export class ResaRecommendationService {
   score(context: RecommendationContext): number {
@@ -32,10 +38,44 @@ export class ResaRecommendationService {
       + dwell + completion + learnedInterest - repeatPenalty - explicitDisinterest;
   }
 
-  rank<T extends { id: string }>(items: Array<T & RecommendationContext>): Array<T & RecommendationContext & { score: number }> {
-    return items
+  rank<T extends DiversifiableItem & RecommendationContext>(
+    items: Array<T>,
+  ): Array<T & { score: number }> {
+    const remaining = items
       .map((item) => ({ ...item, score: this.score(item) }))
-      .filter((item) => Number.isFinite(item.score))
-      .sort((a, b) => b.score - a.score);
+      .filter((item) => Number.isFinite(item.score));
+    const ranked: Array<T & { score: number }> = [];
+    const recentAuthors: string[] = [];
+    const recentTopics: string[][] = [];
+
+    // Greedy re-ranking preserves relevance while preventing one creator or
+    // topic from monopolizing consecutive positions in the visible feed page.
+    while (remaining.length) {
+      let bestIndex = 0;
+      let bestAdjustedScore = Number.NEGATIVE_INFINITY;
+      for (let index = 0; index < remaining.length; index += 1) {
+        const candidate = remaining[index];
+        const author = candidate.author_id;
+        const authorPenalty = !author ? 0
+          : recentAuthors[0] === author ? 18
+            : recentAuthors.includes(author) ? 8 : 0;
+        const candidateTopics = candidate.recommendationTopicKeys ?? [];
+        const recentTopicSet = new Set(recentTopics.flat());
+        const topicOverlap = candidateTopics.filter((topic) => recentTopicSet.has(topic)).length;
+        const topicPenalty = Math.min(topicOverlap * 5, 12);
+        const adjustedScore = candidate.score - authorPenalty - topicPenalty;
+        if (adjustedScore > bestAdjustedScore) {
+          bestAdjustedScore = adjustedScore;
+          bestIndex = index;
+        }
+      }
+      const [selected] = remaining.splice(bestIndex, 1);
+      ranked.push(selected);
+      if (selected.author_id) recentAuthors.unshift(selected.author_id);
+      recentAuthors.splice(3);
+      recentTopics.unshift(selected.recommendationTopicKeys ?? []);
+      recentTopics.splice(2);
+    }
+    return ranked;
   }
 }
