@@ -72,6 +72,7 @@ export default function MinistryDashboard({ ministry, onUpdated }: MinistryDashb
   const [leaders, setLeaders] = useState<MinistryLeader[]>(ministry.leadership ?? []);
   const [canManageLeaders, setCanManageLeaders] = useState(false);
   const [leaderUserId, setLeaderUserId] = useState("");
+  const [eligibleMembers, setEligibleMembers] = useState<Array<{ id: string; user_id: string; status: string; roles?: { key?: string; name?: string } | Array<{ key?: string; name?: string }> }>>([]);
   const [leaderRole, setLeaderRole] = useState("Dirigente departamental");
   const [leaderSaving, setLeaderSaving] = useState(false);
   const [leaderError, setLeaderError] = useState<string | null>(null);
@@ -202,6 +203,39 @@ export default function MinistryDashboard({ ministry, onUpdated }: MinistryDashb
     void checkLeaderManagementAccess();
     return () => { active = false; };
   }, [ministry.organizationId]);
+
+  useEffect(() => {
+    let active = true;
+    async function loadEligibleLeaderMembers() {
+      if (!canManageLeaders || !ministry.organizationId) {
+        if (active) setEligibleMembers([]);
+        return;
+      }
+      try {
+        const rows = await resaRequest<Array<{ id: string; user_id: string; status: string; roles?: { key?: string; name?: string } | Array<{ key?: string; name?: string }> }>>(
+          "/v1/organizations/" + encodeURIComponent(ministry.organizationId) + "/memberships",
+        );
+        const departmentKey = ministry.department.toLowerCase();
+        const allowedRoles = departmentKey.includes("stewardship")
+          ? ["stewardship_manager"]
+          : departmentKey.includes("youth")
+            ? ["youth_director", "ministry_leader", "department_leader", "pastor"]
+            : ["ministry_leader", "department_leader", "pastor"];
+        const eligible = (rows ?? []).filter((member) => {
+          const role = Array.isArray(member.roles) ? member.roles[0] : member.roles;
+          return member.status.toUpperCase() === "ACTIVE" && allowedRoles.includes(role?.key ?? "");
+        });
+        if (active) {
+          setEligibleMembers(eligible);
+          if (!eligible.some((member) => member.user_id === leaderUserId)) setLeaderUserId("");
+        }
+      } catch {
+        if (active) setEligibleMembers([]);
+      }
+    }
+    void loadEligibleLeaderMembers();
+    return () => { active = false; };
+  }, [canManageLeaders, ministry.organizationId, ministry.department]);
 
   async function assignLeader(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -453,11 +487,12 @@ export default function MinistryDashboard({ ministry, onUpdated }: MinistryDashb
             <form onSubmit={assignLeader} className="mt-6 space-y-3 rounded-xl border border-slate-100 bg-slate-50 p-4">
               <h3 className="font-semibold text-[#0C1A3D]">Atribuir dirigente</h3>
               <p className="text-xs leading-5 text-slate-500">Introduza o identificador de um membro ativo da organização. Para Mordomia, a conta também tem de ter a função institucional de Mordomia atribuída.</p>
-              <input value={leaderUserId} onChange={(event) => setLeaderUserId(event.target.value)} placeholder="ID da conta do membro" aria-label="ID da conta do dirigente" className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#C8A24A]" required />
+              <select value={leaderUserId} onChange={(event) => setLeaderUserId(event.target.value)} aria-label="Selecionar membro dirigente" className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#C8A24A]" required><option value="">Selecionar membro com função compatível</option>{eligibleMembers.map((member) => <option key={member.id} value={member.user_id}>{member.user_id}</option>)}</select>
+              {eligibleMembers.length === 0 && <p className="text-xs text-amber-700">Não há membros ativos com a função institucional exigida. Atribua primeiro a função no painel de permissões.</p>}
               <input value={leaderRole} onChange={(event) => setLeaderRole(event.target.value)} placeholder="Função no ministério" aria-label="Função no ministério" className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#C8A24A]" required maxLength={80} />
               {leaderError && <p role="alert" className="text-sm text-red-700">{leaderError}</p>}
               {leaderMessage && <p role="status" className="text-sm text-emerald-700">{leaderMessage}</p>}
-              <button type="submit" disabled={leaderSaving || !leaderUserId.trim()} className="rounded-xl bg-[#0C1A3D] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40">{leaderSaving ? "A guardar…" : "Atribuir e verificar dirigente"}</button>
+              <button type="submit" disabled={leaderSaving || !leaderUserId.trim() || eligibleMembers.length === 0} className="rounded-xl bg-[#0C1A3D] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40">{leaderSaving ? "A guardar…" : "Atribuir e verificar dirigente"}</button>
             </form>
           )}
         </Card>
