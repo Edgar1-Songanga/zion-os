@@ -783,3 +783,66 @@ describe('ResaSocialService feeds', () => {
   });
 
 });
+
+
+describe('ResaSocialService institutional publishing authorization', () => {
+  const organizationId = '55555555-5555-4555-8555-555555555555';
+  const ministryId = '66666666-6666-4666-8666-666666666666';
+  let service: ResaSocialService;
+  let rpcSpy: jest.SpyInstance;
+  let postSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    const identity = { getCurrentUser: jest.fn().mockResolvedValue({ id: ACTOR_ID }) };
+    service = new ResaSocialService(identity as never, new ResaRecommendationService());
+    rpcSpy = jest.spyOn(SupabaseRestClient.prototype, 'rpc').mockResolvedValue(true as never);
+    postSpy = jest.spyOn(SupabaseRestClient.prototype, 'post').mockResolvedValue([{ id: 'institutional-post' }] as never);
+  });
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it('requires server authorization before attributing a publication to an organization', async () => {
+    await service.createContent('session-token', {
+      type: 'text', title: 'Institutional update', visibility: 'public', organization_id: organizationId,
+    });
+
+    expect(rpcSpy).toHaveBeenCalledWith('resa_can_publish_institutional_content', 'session-token', {
+      p_organization_id: organizationId, p_ministry_id: null,
+    });
+    expect(postSpy).toHaveBeenCalledWith('resa_contents', 'session-token', expect.objectContaining({
+      author_id: ACTOR_ID, organization_id: organizationId, ministry_id: null,
+    }));
+  });
+
+  it('rejects an organization attribution when the server denies publication', async () => {
+    rpcSpy.mockResolvedValueOnce(false as never);
+
+    await expect(service.createContent('session-token', {
+      type: 'text', title: 'Unauthorized update', organization_id: organizationId,
+    })).rejects.toThrow('Não tem autorização');
+
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+
+  it('requires an organization and server authorization for ministry attribution', async () => {
+    await expect(service.createContent('session-token', {
+      type: 'text', title: 'Invalid attribution', ministry_id: ministryId,
+    })).rejects.toThrow('organization_id is required');
+
+    expect(rpcSpy).not.toHaveBeenCalled();
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+
+  it('rejects malformed organization and ministry identifiers before database writes', async () => {
+    await expect(service.createContent('session-token', {
+      type: 'text', title: 'Invalid organization', organization_id: 'not-a-uuid',
+    })).rejects.toThrow('organization_id is invalid');
+
+    await expect(service.createContent('session-token', {
+      type: 'text', title: 'Invalid ministry', organization_id: organizationId, ministry_id: 'not-a-uuid',
+    })).rejects.toThrow('ministry_id is invalid');
+
+    expect(rpcSpy).not.toHaveBeenCalled();
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+});
