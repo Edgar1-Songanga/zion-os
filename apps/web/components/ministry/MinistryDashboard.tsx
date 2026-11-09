@@ -227,7 +227,7 @@ export default function MinistryDashboard({ ministry, onUpdated }: MinistryDashb
         });
         if (active) {
           setEligibleMembers(eligible);
-          if (!eligible.some((member) => member.user_id === leaderUserId)) setLeaderUserId("");
+          setLeaderUserId((current) => eligible.some((member) => member.user_id === current) ? current : "");
         }
       } catch {
         if (active) setEligibleMembers([]);
