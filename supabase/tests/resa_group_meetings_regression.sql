@@ -101,6 +101,10 @@ update public.resa_group_meeting_participants
 set status='ACCEPTED'
 where meeting_id='97100000-0000-4000-8000-000000000001'
   and user_id='97000000-0000-4000-8000-000000000003';
+update public.resa_group_meeting_participants
+set status='PRESENT', joined_at=now()
+where meeting_id='97100000-0000-4000-8000-000000000001'
+  and user_id='97000000-0000-4000-8000-000000000003';
 
 do $test$
 begin
@@ -147,9 +151,29 @@ values (
 );
 reset role;
 
--- Moderator can create and lock the room, but cannot elevate roles.
+-- Moderator can grant/revoke presenter permission dynamically, but cannot appoint another moderator.
 select set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000002',false);
 set role authenticated;
+update public.resa_group_meeting_participants
+set participant_role='PRESENTER'
+where meeting_id='97100000-0000-4000-8000-000000000001'
+  and user_id='97000000-0000-4000-8000-000000000003';
+do $test$
+begin
+  if not exists (
+    select 1 from public.resa_group_meeting_participants
+    where meeting_id='97100000-0000-4000-8000-000000000001'
+      and user_id='97000000-0000-4000-8000-000000000003'
+      and participant_role='PRESENTER'
+  ) then
+    raise exception 'Moderator could not grant presenter role';
+  end if;
+end;
+$test$;
+update public.resa_group_meeting_participants
+set participant_role='PARTICIPANT'
+where meeting_id='97100000-0000-4000-8000-000000000001'
+  and user_id='97000000-0000-4000-8000-000000000003';
 insert into public.resa_group_meeting_rooms (
   meeting_id, channel_name, provider, provider_room_id
 ) values (
