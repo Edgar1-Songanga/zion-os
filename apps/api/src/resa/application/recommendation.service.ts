@@ -7,6 +7,10 @@ export interface RecommendationContext {
   feedback?: 'not_interested' | 'hide_author' | 'report';
   contentType: string;
   ageHours: number;
+  viewDurationMs?: number;
+  viewCount?: number;
+  completedViews?: number;
+  topicInterestScore?: number;
 }
 
 @Injectable()
