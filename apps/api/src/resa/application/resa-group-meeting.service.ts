@@ -28,6 +28,12 @@ export class ResaGroupMeetingService {
     @Inject(MEDIA_PROVIDER) private readonly media: MediaProvider,
   ) {}
 
+  private requireGroupSfu() {
+    if (!this.media.createJoinConfig || !this.media.setParticipantPermissions || !this.media.removeParticipant) {
+      throw new BadGatewayException('RESA group meetings require the configured LiveKit SFU provider');
+    }
+  }
+
   private async actor(token: string) {
     const user = await this.identity.getCurrentUser(token);
     if (!user?.id) throw new NotFoundException('Authenticated user was not found');
@@ -113,6 +119,7 @@ export class ResaGroupMeetingService {
     visibility?: unknown;
     max_participants?: unknown;
   }) {
+    this.requireGroupSfu();
     const actor = await this.actor(token);
     const title = this.text(input.title, 'title', 2, 160);
     const scheduledAt = this.text(input.scheduled_at, 'scheduled_at', 1, 80);
@@ -145,6 +152,9 @@ export class ResaGroupMeetingService {
     let mediaRoom: Awaited<ReturnType<MediaProvider['createRoom']>> | null = null;
     try {
       mediaRoom = await this.media.createRoom({ meetingId: meeting.id, channelName, maxParticipants });
+      if (mediaRoom.provider !== 'ZION_SFU' || !mediaRoom.providerRoomId) {
+        throw new BadGatewayException('Group meetings require a LiveKit SFU room');
+      }
       const roomRows = await this.db.post<any[]>('resa_group_meeting_rooms', token, {
         meeting_id: meeting.id,
         channel_name: channelName,
@@ -276,7 +286,7 @@ export class ResaGroupMeetingService {
     const room = rooms[0];
     if (!room || room.status !== 'OPEN') throw new BadRequestException('Meeting room is not open');
     if (room.locked) throw new ForbiddenException('Meeting room is locked');
-    if (!this.media.createJoinConfig) throw new BadGatewayException('Media provider does not expose join configuration');
+    this.requireGroupSfu();
     const role = String(participant.participant_role).toUpperCase();
     const canPublish = role !== 'VIEWER';
     const canShareScreen = ['HOST', 'MODERATOR', 'PRESENTER'].includes(role);
