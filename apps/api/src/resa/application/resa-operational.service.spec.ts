@@ -99,6 +99,21 @@ describe('ResaOperationalService live permissions', () => {
     }));
   });
 
+  it('grants publishing to a moderator but not to an ordinary viewer', async () => {
+    actorId = 'live-moderator';
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_live_sessions') return [{ id: LIVE_ID, host_id: 'host-user', status: 'live', visibility: 'public' }] as never;
+      if (table === 'resa_live_moderators') return [{ moderator_user_id: actorId }] as never;
+      return [] as never;
+    });
+
+    const config = await service.liveJoinConfig('session-token', LIVE_ID);
+
+    expect(config.isModerator).toBe(true);
+    expect(config.role).toBe('moderator');
+    expect(media.createJoinConfig).toHaveBeenCalledWith(expect.objectContaining({ userId: actorId, canPublish: true }));
+  });
+
   it('joins a public live as a non-publishing viewer', async () => {
     actorId = 'viewer-user';
     getSpy.mockResolvedValueOnce([{ id: LIVE_ID, host_id: 'host-user', status: 'live', visibility: 'public' }] as never);
