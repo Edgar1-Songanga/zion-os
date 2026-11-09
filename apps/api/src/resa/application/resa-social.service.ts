@@ -425,7 +425,24 @@ export class ResaSocialService {
     if (!['public', 'followers', 'community', 'organization', 'private'].includes(visibility)) throw new BadRequestException('Invalid visibility');
     const communityId = typeof input.community_id === 'string' && input.community_id.trim() ? input.community_id.trim() : null;
     const organizationId = typeof input.organization_id === 'string' && input.organization_id.trim() ? input.organization_id.trim() : null;
+    const ministryId = typeof input.ministry_id === 'string' && input.ministry_id.trim() ? input.ministry_id.trim() : null;
     if (visibility === 'community' && !communityId) throw new BadRequestException('community_id is required for community-only content');
+    if (ministryId && !organizationId) throw new BadRequestException('organization_id is required when ministry_id is provided');
+    if (organizationId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(organizationId)) {
+      throw new BadRequestException('organization_id is invalid');
+    }
+    if (ministryId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ministryId)) {
+      throw new BadRequestException('ministry_id is invalid');
+    }
+    if (organizationId) {
+      const canPublish = await this.db.rpc<boolean>('resa_can_publish_institutional_content', token, {
+        p_organization_id: organizationId,
+        p_ministry_id: ministryId,
+      });
+      if (canPublish !== true) {
+        throw new ForbiddenException('Não tem autorização para publicar em nome desta organização ou ministério.');
+      }
+    }
     if (visibility === 'organization' && !organizationId) throw new BadRequestException('organization_id is required for organization-only content');
     const mediaType = input.media_type === 'image' || input.media_type === 'video' ? input.media_type : null;
     const mediaUrl = typeof input.media_url === 'string' && input.media_url.trim() ? input.media_url.trim() : null;
@@ -434,7 +451,7 @@ export class ResaSocialService {
     if (visibility !== 'public' && (mediaType || mediaUrl || mediaPath)) {
       throw new BadRequestException('Media attachments currently require public visibility. Private media delivery is being secured separately.');
     }
-    const body = { author_id: a.id, type, title: typeof input.title === 'string' ? input.title.trim() || null : null, body: typeof input.body === 'string' ? input.body.trim() || null : null, visibility, language: typeof input.language === 'string' && input.language.trim() ? input.language.trim() : 'pt', organization_id: organizationId, community_id: communityId, ministry_id: input.ministry_id ?? null, scripture_references: Array.isArray(input.scripture_references) ? input.scripture_references.slice(0, 50) : [], media_type: mediaType, media_url: mediaUrl, media_path: mediaPath };
+    const body = { author_id: a.id, type, title: typeof input.title === 'string' ? input.title.trim() || null : null, body: typeof input.body === 'string' ? input.body.trim() || null : null, visibility, language: typeof input.language === 'string' && input.language.trim() ? input.language.trim() : 'pt', organization_id: organizationId, community_id: communityId, ministry_id: ministryId, scripture_references: Array.isArray(input.scripture_references) ? input.scripture_references.slice(0, 50) : [], media_type: mediaType, media_url: mediaUrl, media_path: mediaPath };
     if (!body.body && !body.title) throw new BadRequestException('title or body is required');
     const rows = await this.db.post<any[]>('resa_contents', token, body); return rows[0];
   }
