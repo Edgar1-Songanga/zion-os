@@ -6,7 +6,8 @@ insert into auth.users(id,email) values
  ('97000000-0000-4000-8000-000000000001','meeting-host@example.test'),
  ('97000000-0000-4000-8000-000000000002','meeting-moderator@example.test'),
  ('97000000-0000-4000-8000-000000000003','meeting-participant@example.test'),
- ('97000000-0000-4000-8000-000000000004','meeting-outsider@example.test')
+ ('97000000-0000-4000-8000-000000000004','meeting-outsider@example.test'),
+ ('97000000-0000-4000-8000-000000000005','meeting-invitee@example.test')
 on conflict (id) do nothing;
 
 -- Host creates a private meeting; the database trigger creates the immutable HOST participant.
@@ -38,6 +39,15 @@ insert into public.resa_group_meeting_participants (
 ) values (
   '97100000-0000-4000-8000-000000000003',
   '97000000-0000-4000-8000-000000000002',
+  'PARTICIPANT', 'INVITED', '97000000-0000-4000-8000-000000000001'
+);
+
+-- A second invitee remains pending and must not inherit room-content access.
+insert into public.resa_group_meeting_participants (
+  meeting_id, user_id, participant_role, status, invited_by
+) values (
+  '97100000-0000-4000-8000-000000000001',
+  '97000000-0000-4000-8000-000000000005',
   'PARTICIPANT', 'INVITED', '97000000-0000-4000-8000-000000000001'
 );
 update public.resa_group_meetings
@@ -267,6 +277,41 @@ insert into public.resa_group_meeting_rooms (
 update public.resa_group_meeting_rooms
 set locked=true, lock_reason='Regression test lock'
 where meeting_id='97100000-0000-4000-8000-000000000001';
+reset role;
+
+-- An invitee may see the meeting and their own invitation, but not the roster or room content.
+select set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000005',false);
+set role authenticated;
+do $test$
+begin
+  if (select count(*) from public.resa_group_meetings where id='97100000-0000-4000-8000-000000000001') <> 1 then
+    raise exception 'Invitee could not view the meeting invitation';
+  end if;
+  if (select count(*) from public.resa_group_meeting_participants where meeting_id='97100000-0000-4000-8000-000000000001') <> 1 then
+    raise exception 'Unaccepted invitee could read the full participant roster';
+  end if;
+  if (select count(*) from public.resa_group_meeting_rooms where meeting_id='97100000-0000-4000-8000-000000000001') <> 0 then
+    raise exception 'Unaccepted invitee could read private room metadata';
+  end if;
+  if (select count(*) from public.resa_group_meeting_events where meeting_id='97100000-0000-4000-8000-000000000001') <> 0 then
+    raise exception 'Unaccepted invitee could read meeting events';
+  end if;
+  if (select count(*) from public.resa_group_meeting_messages where meeting_id='97100000-0000-4000-8000-000000000001') <> 0 then
+    raise exception 'Unaccepted invitee could read meeting chat';
+  end if;
+  begin
+    insert into public.resa_group_meeting_messages(meeting_id, sender_id, body)
+    values (
+      '97100000-0000-4000-8000-000000000001',
+      '97000000-0000-4000-8000-000000000005',
+      'This message must be denied before acceptance.'
+    );
+    raise exception 'Unaccepted invitee was able to send meeting chat';
+  exception when insufficient_privilege or check_violation then
+    null;
+  end;
+end;
+$test$;
 reset role;
 
 -- Outsiders cannot discover private meeting data or read its roster, room, events or chat.
