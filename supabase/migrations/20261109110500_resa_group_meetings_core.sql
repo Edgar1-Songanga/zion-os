@@ -161,6 +161,8 @@ declare
   v_max_participants integer;
   v_active_count integer;
 begin
+  perform pg_advisory_xact_lock(hashtextextended(new.meeting_id::text, 0));
+
   select m.max_participants
     into v_max_participants
   from public.resa_group_meetings m
