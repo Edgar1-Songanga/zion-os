@@ -27,6 +27,7 @@ export interface MediaProvider {
     userId: string;
     name?: string;
     canPublish?: boolean;
+    canPublishSources?: string[];
   }): Promise<MediaJoinConfig>;
   setParticipantPublishing?(input: {
     roomId: string;
