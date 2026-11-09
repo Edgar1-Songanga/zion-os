@@ -637,5 +637,26 @@ end;
 $test$;
 reset role;
 
+do $test$
+begin
+  if not exists (
+    select 1 from pg_indexes
+    where schemaname='public'
+      and tablename='resa_group_meeting_hand_raises'
+      and indexname='resa_group_meeting_hand_raises_user_id_idx'
+  ) then
+    raise exception 'Hand raise user foreign key index is missing';
+  end if;
+  if not exists (
+    select 1 from pg_indexes
+    where schemaname='public'
+      and tablename='resa_group_meeting_hand_raises'
+      and indexname='resa_group_meeting_hand_raises_resolved_by_idx'
+  ) then
+    raise exception 'Hand raise resolver foreign key index is missing';
+  end if;
+end;
+$test$;
+
 rollback;
 select 'RESA group meeting RLS and role authorization regression passed' as result;
