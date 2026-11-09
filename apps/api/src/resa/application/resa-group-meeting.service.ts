@@ -473,7 +473,11 @@ export class ResaGroupMeetingService {
 
   async raiseHand(token: string, meetingId: string) {
     const id = this.id(meetingId, 'meeting_id');
-    const actor = await this.requireAcceptedMember(token, id);
+    const actor = await this.actor(token);
+    const participant = await this.participant(token, id, actor.id);
+    if (!participant || participant.status !== 'PRESENT') {
+      throw new ForbiddenException('Join the meeting before raising your hand');
+    }
     const meetings = await this.db.get<any[]>('resa_group_meetings', token,
       `?select=id,status&id=eq.${id}&limit=1`);
     if (!meetings[0]) throw new NotFoundException('Meeting not found');
