@@ -152,9 +152,10 @@ export class SupabaseMinistryDirectory implements MinistryDirectoryPort {
     );
     const membership = memberships[0];
     const assignedRole = Array.isArray(membership?.roles) ? membership.roles[0] : membership?.roles;
-    const requiredRoles = ministry.department === "stewardship"
+    const departmentKey = String(ministry.department ?? "").toLowerCase();
+    const requiredRoles = departmentKey.includes("stewardship")
       ? ["stewardship_manager"]
-      : ministry.department === "youth"
+      : departmentKey.includes("youth")
         ? ["youth_director", "ministry_leader", "department_leader", "pastor"]
         : ["ministry_leader", "department_leader", "pastor"];
     if (!membership || !requiredRoles.includes(assignedRole?.key ?? "")) return null;
