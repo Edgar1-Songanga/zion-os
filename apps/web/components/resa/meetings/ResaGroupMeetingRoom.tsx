@@ -10,6 +10,8 @@ type MeetingParticipant = {
   participant_role: MeetingRole;
   status: string;
   joined_at?: string | null;
+  display_name?: string;
+  avatar_url?: string | null;
 };
 type MeetingMessage = {
   id: string;
@@ -308,7 +310,7 @@ export default function ResaGroupMeetingRoom({
             {participants.map((person) => (
               <div key={person.user_id} className="rounded-xl bg-white/[0.05] p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-xs font-medium">{person.user_id === userId ? "Tu" : person.user_id.slice(0, 8) + "…"}</span>
+                  <span className="truncate text-xs font-medium">{person.user_id === userId ? "Tu" : person.display_name || person.user_id.slice(0, 8) + "…"}</span>
                   <span className="text-[10px] text-slate-400">{person.participant_role}</span>
                 </div>
                 {["HOST", "MODERATOR"].includes(role) && person.user_id !== userId && !["HOST", "MODERATOR"].includes(person.participant_role) && ["ACCEPTED", "PRESENT"].includes(person.status) && (
