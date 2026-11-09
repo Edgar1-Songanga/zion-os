@@ -1,14 +1,14 @@
 -- Persist raise-hand requests for RESA group meetings.
 create table if not exists public.resa_group_meeting_hand_raises (
+  id uuid primary key default gen_random_uuid(),
   meeting_id uuid not null references public.resa_group_meetings(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
   status text not null default 'WAITING'
     check (status in ('WAITING', 'ACKNOWLEDGED', 'DISMISSED', 'WITHDRAWN')),
   raised_at timestamptz not null default now(),
   resolved_at timestamptz,
-  resolved_by uuid references auth.users(id) on delete set null,
+  resolved_by uuid references auth.users(id) on delete restrict,
   created_at timestamptz not null default now(),
-  primary key (meeting_id, user_id),
   check (
     (status = 'WAITING' and resolved_at is null and resolved_by is null)
     or (status = 'WITHDRAWN' and resolved_at is not null and resolved_by is null)
