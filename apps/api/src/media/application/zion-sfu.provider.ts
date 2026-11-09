@@ -52,12 +52,7 @@ export class ZionSfuProvider implements MediaProvider {
         roomJoin: true,
         room: input.providerRoomId,
         canPublish,
-        ...(canPublish && input.canPublishSources ? { canPublishSources: input.canPublishSources.map((source) => ({
-          camera: TrackSource.CAMERA,
-          microphone: TrackSource.MICROPHONE,
-          screen_share: TrackSource.SCREEN_SHARE,
-          screen_share_audio: TrackSource.SCREEN_SHARE_AUDIO,
-        })[source]) } : {}),
+        ...(canPublish && input.canPublishSources ? { canPublishSources: this.toTrackSources(input.canPublishSources) } : {}),
         canSubscribe: true,
         canPublishData: true,
       };
@@ -80,12 +75,37 @@ export class ZionSfuProvider implements MediaProvider {
     }
   }
 
+  private toTrackSources(sources: MediaTrackSource[]): TrackSource[] {
+    const sourceMap: Record<MediaTrackSource, TrackSource> = {
+      camera: TrackSource.CAMERA,
+      microphone: TrackSource.MICROPHONE,
+      screen_share: TrackSource.SCREEN_SHARE,
+      screen_share_audio: TrackSource.SCREEN_SHARE_AUDIO,
+    };
+    return [...new Set(sources)].map((source) => sourceMap[source]);
+  }
+
   async setParticipantPublishing(input: { roomId: string; identity: string; canPublish: boolean }): Promise<void> {
+    return this.setParticipantPermissions({
+      ...input,
+      canPublishSources: input.canPublish ? ['camera', 'microphone'] : [],
+    });
+  }
+
+  async setParticipantPermissions(input: {
+    roomId: string;
+    identity: string;
+    canPublish: boolean;
+    canPublishSources?: MediaTrackSource[];
+  }): Promise<void> {
     try {
+      const canPublishSources = input.canPublish
+        ? this.toTrackSources(input.canPublishSources ?? ['camera', 'microphone'])
+        : [];
       await this.client().updateParticipant(input.roomId, input.identity, {
         permission: {
           canPublish: input.canPublish,
-          ...(input.canPublish ? { canPublishSources: [TrackSource.CAMERA, TrackSource.MICROPHONE] } : {}),
+          ...(input.canPublish ? { canPublishSources } : {}),
           canSubscribe: true,
           canPublishData: true,
         },
