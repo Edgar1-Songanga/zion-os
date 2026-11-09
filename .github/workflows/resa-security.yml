@@ -184,7 +184,7 @@ jobs:
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_interaction_audience_regression.sql
       - name: Apply RESA group meeting persistence and RLS
         run: |
-          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261109110500_resa_group_meetings_core.sql
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261109112400_resa_group_meetings_core.sql
       - name: Verify RESA group meeting membership, role and room boundaries
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_group_meetings_regression.sql
