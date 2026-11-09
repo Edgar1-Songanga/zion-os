@@ -73,3 +73,35 @@ with check (
   )
   and submitted_by = (select auth.uid())
 );
+
+-- Allow verified global administrators and organization owners to assign local roles.
+-- The organization owner role itself remains non-assignable through this flow.
+create or replace function private.can_assign_org_role(target_org uuid, target_role_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = pg_catalog, public, private, auth
+as $function$
+  select (
+    private.is_verified_zion_global_admin()
+    and exists (
+      select 1
+      from public.roles target_role
+      where target_role.id = target_role_id
+        and target_role.key <> 'organization_owner'
+    )
+  ) or exists (
+    select 1
+    from public.organization_memberships actor_membership
+    join public.role_permissions actor_rp on actor_rp.role_id = actor_membership.role_id
+    join public.permissions actor_permission on actor_permission.id = actor_rp.permission_id
+    join public.roles target_role on target_role.id = target_role_id
+    where actor_membership.organization_id = target_org
+      and actor_membership.user_id = auth.uid()
+      and actor_membership.status = 'ACTIVE'
+      and actor_permission.key = 'membership.role.assign'
+      and target_role.key <> 'organization_owner'
+  );
+$function$;
+
