@@ -8,7 +8,7 @@ const USER_ID = '97000000-0000-4000-8000-000000000002';
 describe('GovernanceService mediaJoinConfig', () => {
   let service: GovernanceService;
   let getSpy: jest.SpyInstance;
-  let media: { createJoinConfig: jest.Mock };
+  let media: { createJoinConfig: jest.Mock; removeParticipant: jest.Mock };
   const participant = (role: string, status = 'PRESENT') => ({
     id: 'participant-row',
     participant_role: role,
@@ -18,6 +18,7 @@ describe('GovernanceService mediaJoinConfig', () => {
   beforeEach(() => {
     getSpy = jest.spyOn(SupabaseRestClient.prototype, 'get').mockResolvedValue([] as never);
     media = {
+      removeParticipant: jest.fn().mockResolvedValue(undefined),
       createJoinConfig: jest.fn().mockResolvedValue({
         mode: 'SFU',
         provider: 'ZION_SFU',
@@ -93,5 +94,47 @@ describe('GovernanceService mediaJoinConfig', () => {
 
     await expect(service.mediaJoinConfig('session-token', MEETING_ID))
       .rejects.toBeInstanceOf(ForbiddenException);
+  });
+});
+
+
+describe('GovernanceService participant removal', () => {
+  it('evicts a removed participant from the active SFU room', async () => {
+    const getSpy = jest.spyOn(SupabaseRestClient.prototype, 'get')
+      .mockResolvedValueOnce([{ id: 'moderator-row', participant_role: 'HOST', status: 'PRESENT' }] as never)
+      .mockResolvedValueOnce([{ id: 'target-row', status: 'PRESENT' }] as never)
+      .mockResolvedValueOnce([{ provider_room_id: 'room-1' }] as never);
+    const upsertSpy = jest.spyOn(SupabaseRestClient.prototype, 'upsert')
+      .mockResolvedValue([{ meeting_id: MEETING_ID, user_id: 'target-user', removed: true }] as never);
+    const patchSpy = jest.spyOn(SupabaseRestClient.prototype, 'patch')
+      .mockResolvedValue([] as never);
+    const postSpy = jest.spyOn(SupabaseRestClient.prototype, 'post')
+      .mockResolvedValue([{}] as never);
+    const media = {
+      createJoinConfig: jest.fn(),
+      removeParticipant: jest.fn().mockResolvedValue(undefined),
+    };
+    const identity = { getCurrentUser: jest.fn().mockResolvedValue({ id: USER_ID }) };
+    const service = new GovernanceService(identity as never, media as never);
+
+    await service.moderateParticipant('session-token', MEETING_ID, 'target-user', { removed: true });
+
+    expect(patchSpy).toHaveBeenCalledWith(
+      'governance_meeting_participants',
+      'session-token',
+      expect.objectContaining({ status: 'REMOVED' }),
+      expect.stringContaining('user_id=eq.target-user'),
+    );
+    expect(media.removeParticipant).toHaveBeenCalledWith({
+      roomId: 'room-1',
+      identity: 'target-user',
+    });
+    expect(postSpy).toHaveBeenCalledWith(
+      'governance_meeting_room_events',
+      'session-token',
+      expect.objectContaining({ event_type: 'MODERATOR_ACTION' }),
+    );
+    expect(getSpy).toHaveBeenCalledTimes(3);
+    expect(upsertSpy).toHaveBeenCalledTimes(1);
   });
 });

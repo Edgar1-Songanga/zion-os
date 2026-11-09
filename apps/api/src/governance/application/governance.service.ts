@@ -300,6 +300,26 @@ export class GovernanceService {
       await this.db.patch('governance_meeting_participants', token,
         { status: 'REMOVED', left_at: new Date().toISOString() },
         `?meeting_id=eq.${meetingId}&user_id=eq.${targetUserId}`);
+
+      // Persisting REMOVED in the database prevents new tokens, but does not
+      // invalidate an already-issued LiveKit token. Evict the live participant
+      // from the SFU immediately so moderation takes effect in the active call.
+      const room = (await this.db.get<any[]>('governance_meeting_rooms', token,
+        `?select=provider_room_id&meeting_id=eq.${meetingId}&limit=1`))[0];
+      if (room?.provider_room_id && this.media.removeParticipant) {
+        await this.media.removeParticipant({
+          roomId: room.provider_room_id,
+          identity: targetUserId,
+        });
+      } else if (room?.provider_room_id && this.media.setParticipantPermissions) {
+        // Provider fallback: revoke publishing if participant eviction is unavailable.
+        await this.media.setParticipantPermissions({
+          roomId: room.provider_room_id,
+          identity: targetUserId,
+          canPublish: false,
+          canPublishSources: [],
+        });
+      }
     }
 
     await this.recordRoomEvent(token, meetingId, 'MODERATOR_ACTION', {
