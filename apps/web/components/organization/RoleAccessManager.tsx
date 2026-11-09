@@ -41,7 +41,7 @@ export default function RoleAccessManager() {
       const app = auth.user?.app_metadata ?? {};
       const isVerifiedGlobalAdmin = app.zion_global_role === "global_admin" && app.zion_verified === true;
       const [roleResult, actorResult, memberResult] = await Promise.all([
-        supabase.from("roles").select("id,key,name").order("name"),
+        supabase.from("roles").select("id,key,name").neq("key", "moderator").order("name"),
         supabase.from("organization_memberships").select("roles(key)").eq("organization_id", id).eq("user_id", auth.user?.id ?? "").eq("status", "ACTIVE"),
         resaRequest<Membership[]>("/v1/organizations/" + encodeURIComponent(id) + "/memberships"),
       ]);
