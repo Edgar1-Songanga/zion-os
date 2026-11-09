@@ -48,6 +48,17 @@ describe('ResaGroupMeetingService', () => {
 
   afterEach(() => jest.restoreAllMocks());
 
+  it('refuses to create group meetings without source-aware LiveKit permissions', async () => {
+    media.setParticipantPermissions = undefined as never;
+
+    await expect(service.create('session-token', {
+      title: 'Team planning',
+      scheduled_at: new Date(Date.now() + 60_000).toISOString(),
+    })).rejects.toBeInstanceOf(BadGatewayException);
+
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+
   it('creates a meeting, provisions the SFU room and persists room metadata', async () => {
     postSpy
       .mockResolvedValueOnce([{ id: MEETING_ID, host_user_id: HOST_ID, status: 'SCHEDULED' }] as never)
