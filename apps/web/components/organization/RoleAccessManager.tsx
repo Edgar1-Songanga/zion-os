@@ -38,6 +38,8 @@ export default function RoleAccessManager() {
     try {
       const supabase = createClient();
       const { data: auth } = await supabase.auth.getUser();
+      const app = auth.user?.app_metadata ?? {};
+      const isVerifiedGlobalAdmin = app.zion_global_role === "global_admin" && app.zion_verified === true;
       const [roleResult, actorResult, memberResult] = await Promise.all([
         supabase.from("roles").select("id,key,name").order("name"),
         supabase.from("organization_memberships").select("roles(key)").eq("organization_id", id).eq("user_id", auth.user?.id ?? "").eq("status", "ACTIVE"),
@@ -45,12 +47,10 @@ export default function RoleAccessManager() {
       ]);
 
       if (roleResult.error) throw roleResult.error;
-      if (actorResult.error) throw actorResult.error;
+      if (actorResult.error && !isVerifiedGlobalAdmin) throw actorResult.error;
       setRoles((roleResult.data ?? []) as RoleOption[]);
       setMemberships(memberResult ?? []);
 
-      const app = auth.user?.app_metadata ?? {};
-      const isVerifiedGlobalAdmin = app.zion_global_role === "global_admin" && app.zion_verified === true;
       const isOrganizationOwner = (actorResult.data ?? []).some((row: any) => {
         const nested = Array.isArray(row.roles) ? row.roles[0] : row.roles;
         return nested?.key === "organization_owner";
@@ -113,7 +113,10 @@ export default function RoleAccessManager() {
         {!loading && organizationId && memberships.length === 0 && <p className="p-6 text-sm text-slate-500">Não há membros registados nesta organização.</p>}
         {!loading && memberships.length > 0 && (
           <div className="divide-y divide-slate-100">
-            {memberships.map((item) => (
+            {memberships.map((item) => {
+              const currentRole = Array.isArray(item.roles) ? item.roles[0] : item.roles;
+              const isOwnerRole = currentRole?.key === "organization_owner" || roles.find((role) => role.id === item.role_id)?.key === "organization_owner";
+              return (
               <div key={item.id} className="grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_minmax(180px,0.8fr)_auto] sm:items-center">
                 <p className="truncate font-mono text-xs text-slate-700" title={item.user_id}>{item.user_id}</p>
                 <div>
@@ -122,7 +125,7 @@ export default function RoleAccessManager() {
                     <select
                       aria-label={"Função de " + item.user_id}
                       value={item.role_id}
-                      disabled={savingId === item.id || item.status.toUpperCase() !== "ACTIVE" || roleName(item.roles, roles.find((role) => role.id === item.role_id)?.key) === "organization_owner"}
+                      disabled={savingId === item.id || item.status.toUpperCase() !== "ACTIVE" || isOwnerRole}
                       onChange={(event) => void changeRole(item, event.target.value)}
                       className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-[#C8A24A] disabled:bg-slate-100 disabled:text-slate-500"
                     >
@@ -134,7 +137,7 @@ export default function RoleAccessManager() {
                 </div>
                 <span className={item.status.toUpperCase() === "ACTIVE" ? "w-fit rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800" : "w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600"}>{item.status}</span>
               </div>
-            ))}
+            );})}
           </div>
         )}
       </div>
