@@ -159,10 +159,12 @@ export class GovernanceService {
     // Publishing is a server-enforced capability. Until the meeting model supports
     // individually delegated presenter grants, only HOST and MODERATOR may publish.
     const canShareScreen = ['HOST', 'MODERATOR'].includes(String(participant.participant_role).toUpperCase());
-    return this.media.createJoinConfig({
+    const joinConfig = await this.media.createJoinConfig({
       meetingId,
       providerRoomId: room.provider_room_id,
       userId: a.id,
+      // Bound cached credentials; a removed participant must not retain a long-lived token.
+      ttl: '10m',
       // All admitted participants retain microphone/camera publishing; screen
       // publication is a separate, role-scoped capability enforced by LiveKit.
       canPublish: true,
@@ -170,6 +172,18 @@ export class GovernanceService {
         ? ['camera', 'microphone', 'screen_share', 'screen_share_audio']
         : ['camera', 'microphone'],
     });
+
+    // Revalidate membership and role after token minting to close the
+    // permission-change race between the initial read and credential issuance.
+    const currentParticipant = (await this.db.get<any[]>('governance_meeting_participants', token,
+      `?select=id,status,participant_role&meeting_id=eq.${meetingId}&user_id=eq.${a.id}&limit=1`))[0];
+    if (!currentParticipant || !['INVITED', 'ACCEPTED', 'PRESENT'].includes(currentParticipant.status)) {
+      throw new ForbiddenException('Meeting access changed while preparing the join token');
+    }
+    if (currentParticipant.participant_role !== participant.participant_role) {
+      throw new ForbiddenException('Meeting permissions changed; request a fresh join token');
+    }
+    return joinConfig;
   }
 
   async room(token: string, meetingId: string) {
