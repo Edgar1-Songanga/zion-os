@@ -80,8 +80,11 @@ export default async function Dashboard() {
     if (has("stewardship_manager")) {
       areas.push({ title: "Mordomia Cristã", description: "Operações e relatórios do departamento de Mordomia atribuído.", href: "/stewardship" });
     }
-    if (has("pastor", "ministry_leader", "department_leader", "sabbath_school_director", "youth_director")) {
+    if (has("pastor", "ministry_leader", "department_leader", "sabbath_school_director")) {
       areas.push({ title: "Ministérios e departamentos", description: "Gestão da área ministerial atribuída.", href: "/ministry" });
+    }
+    if (has("youth_director")) {
+      areas.push({ title: "Ministério Jovem", description: "Gestão dos programas e atividades juvenis atribuídos.", href: "/youth" });
     }
     if (has("hr_manager", "organization_owner", "organization_admin")) {
       areas.push({ title: "Recursos humanos", description: "Gestão de pessoas nos níveis autorizados.", href: "/hr" });
