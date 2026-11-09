@@ -1,3 +1,5 @@
+export type MediaTrackSource = 'camera' | 'microphone' | 'screen_share' | 'screen_share_audio';
+
 export type MediaRoom = {
   provider: string;
   providerRoomId?: string | null;
@@ -27,6 +29,7 @@ export interface MediaProvider {
     userId: string;
     name?: string;
     canPublish?: boolean;
+    canPublishSources?: MediaTrackSource[];
   }): Promise<MediaJoinConfig>;
   setParticipantPublishing?(input: {
     roomId: string;

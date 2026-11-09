@@ -263,6 +263,10 @@ export default function MeetingRoom({ meetingId }: Props) {
   }
 
   async function toggleScreenShare() {
+    if (!isModerator) {
+      setError("A partilha de ecrã está reservada ao anfitrião e aos moderadores desta reunião.");
+      return;
+    }
     if (mediaBroadcasting) {
       setError("Pare primeiro a transmissão do leitor antes de iniciar outra partilha.");
       return;
@@ -442,7 +446,7 @@ export default function MeetingRoom({ meetingId }: Props) {
           <button onClick={toggleCamera} className="rounded-xl border border-white/10 bg-white/10 px-5 py-3 text-sm hover:bg-white/15">
             {camera ? "Câmara ligada" : "Câmara desligada"}
           </button>
-          <button onClick={() => void toggleScreenShare()} className="rounded-xl border border-white/10 bg-white/10 px-5 py-3 text-sm hover:bg-white/15">
+          <button onClick={() => void toggleScreenShare()} disabled={!connected || !isModerator || mediaBroadcasting} aria-pressed={sharing} title={!isModerator ? "Apenas anfitrião e moderadores podem apresentar" : undefined} className="rounded-xl border border-white/10 bg-white/10 px-5 py-3 text-sm hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40">
             {sharing ? "Parar partilha" : "Partilhar apresentação/ecrã"}
           </button>
         </div>

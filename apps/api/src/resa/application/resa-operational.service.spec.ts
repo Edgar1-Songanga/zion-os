@@ -99,6 +99,21 @@ describe('ResaOperationalService live permissions', () => {
     }));
   });
 
+  it('grants publishing to a moderator but not to an ordinary viewer', async () => {
+    actorId = 'live-moderator';
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_live_sessions') return [{ id: LIVE_ID, host_id: 'host-user', status: 'live', visibility: 'public' }] as never;
+      if (table === 'resa_live_moderators') return [{ moderator_user_id: actorId }] as never;
+      return [] as never;
+    });
+
+    const config = await service.liveJoinConfig('session-token', LIVE_ID);
+
+    expect(config.isModerator).toBe(true);
+    expect(config.role).toBe('moderator');
+    expect(media.createJoinConfig).toHaveBeenCalledWith(expect.objectContaining({ userId: actorId, canPublish: true }));
+  });
+
   it('joins a public live as a non-publishing viewer', async () => {
     actorId = 'viewer-user';
     getSpy.mockResolvedValueOnce([{ id: LIVE_ID, host_id: 'host-user', status: 'live', visibility: 'public' }] as never);
@@ -110,7 +125,7 @@ describe('ResaOperationalService live permissions', () => {
     expect(media.createJoinConfig).toHaveBeenCalledWith(expect.objectContaining({
       userId: 'viewer-user',
       name: expect.any(String),
-      canPublish: true,
+      canPublish: false,
     }));
   });
 
@@ -130,7 +145,7 @@ describe('ResaOperationalService live permissions', () => {
     expect(config.role).toBe('viewer');
     expect(media.createJoinConfig).toHaveBeenCalledWith(expect.objectContaining({
       userId: 'authorized-viewer',
-      canPublish: true,
+      canPublish: false,
     }));
   });
 
@@ -151,7 +166,7 @@ describe('ResaOperationalService live permissions', () => {
     expect(media.createJoinConfig).toHaveBeenCalledWith(expect.objectContaining({
       userId: 'organization-member',
       name: expect.any(String),
-      canPublish: true,
+      canPublish: false,
     }));
   });
 
@@ -183,7 +198,9 @@ describe('ResaOperationalService live permissions', () => {
     expect(config.attendee_microphone_on_join).toBe(microphone);
     expect(media.createJoinConfig).toHaveBeenCalledWith(expect.objectContaining({
       userId: 'viewer-user',
-      canPublish: publish,
+      // Global attendee permission allows a moderator to promote a viewer; it does not
+      // grant every viewer publish rights in the SFU token.
+      canPublish: false,
     }));
   });
 
@@ -348,9 +365,35 @@ describe('ResaOperationalService live permissions', () => {
     expect(config.isHost).toBe(false);
     expect(media.createJoinConfig).toHaveBeenCalledWith(expect.objectContaining({
       userId: 'invited-viewer',
-      canPublish: true,
+      canPublish: false,
       providerRoomId: 'zion-live-' + LIVE_ID,
     }));
+  });
+
+  it('issues direct-call media credentials only to an active conversation member', async () => {
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_calls') return [{ id: LIVE_ID, conversation_id: CONVERSATION_ID, status: 'active' }] as never;
+      if (table === 'resa_conversation_members') return [{ conversation_id: CONVERSATION_ID }] as never;
+      return [] as never;
+    });
+
+    await service.callJoinConfig('session-token', LIVE_ID);
+
+    expect(media.createJoinConfig).toHaveBeenCalledWith(expect.objectContaining({
+      meetingId: LIVE_ID,
+      providerRoomId: 'zion-call-' + LIVE_ID,
+      userId: actorId,
+    }));
+  });
+
+  it('denies direct-call media credentials to a non-member', async () => {
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_calls') return [{ id: LIVE_ID, conversation_id: CONVERSATION_ID, status: 'active' }] as never;
+      return [] as never;
+    });
+
+    await expect(service.callJoinConfig('session-token', LIVE_ID)).rejects.toBeInstanceOf(NotFoundException);
+    expect(media.createJoinConfig).not.toHaveBeenCalled();
   });
 
   it('does not expose chat messages for a private live to a non-host', async () => {

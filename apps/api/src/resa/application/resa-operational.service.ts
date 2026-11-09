@@ -489,19 +489,20 @@ export class ResaOperationalService {
     if (!this.media.createJoinConfig) throw new BadRequestException('Media provider does not expose a join configuration');
     const profile = (await this.profilesById(token, [actor.id], actor.id)).get(actor.id);
     const displayName = this.profileDisplayName(profile, actor.email ?? 'Membro RESA');
+    const moderatorRows = isHost ? [] : await this.db.get<any[]>('resa_live_moderators', token, `?select=moderator_user_id&live_id=eq.${id}&moderator_user_id=eq.${actor.id}&limit=1`);
+    const isModerator = isHost || moderatorRows.length > 0;
     const config = await this.media.createJoinConfig({
       meetingId: id,
       providerRoomId: 'zion-live-' + id,
       userId: actor.id,
       name: displayName,
-      // Publishing permissions are enforced in the SFU, not just in the client UI.
-      canPublish: isHost || live.attendee_publish_allowed !== false,
+      // Viewers receive subscribe-only grants. Host/moderators can publish;
+      // a viewer is granted publishing later only after an explicit speak approval.
+      canPublish: isModerator,
     });
     if (config.mode !== 'SFU' || !config.joinUrl || !config.token) {
       throw new BadGatewayException('LiveKit is not configured for RESA live sessions');
     }
-    const moderatorRows = isHost ? [] : await this.db.get<any[]>('resa_live_moderators', token, `?select=moderator_user_id&live_id=eq.${id}&moderator_user_id=eq.${actor.id}&limit=1`);
-    const isModerator = isHost || moderatorRows.length > 0;
     return {
       ...config,
       displayName,

@@ -147,7 +147,7 @@ export class GovernanceService {
     if (room.locked) throw new BadRequestException('Meeting room is locked');
 
     const participant = (await this.db.get<any[]>('governance_meeting_participants', token,
-      `?select=id,status&meeting_id=eq.${meetingId}&user_id=eq.${a.id}&limit=1`))[0];
+      `?select=id,status,participant_role&meeting_id=eq.${meetingId}&user_id=eq.${a.id}&limit=1`))[0];
     if (!participant || !['INVITED','ACCEPTED','PRESENT'].includes(participant.status)) {
       throw new BadRequestException('You are not an active meeting participant');
     }
@@ -156,10 +156,19 @@ export class GovernanceService {
       throw new BadRequestException('Media provider does not expose a join configuration');
     }
 
+    // Publishing is a server-enforced capability. Until the meeting model supports
+    // individually delegated presenter grants, only HOST and MODERATOR may publish.
+    const canShareScreen = ['HOST', 'MODERATOR'].includes(String(participant.participant_role).toUpperCase());
     return this.media.createJoinConfig({
       meetingId,
       providerRoomId: room.provider_room_id,
       userId: a.id,
+      // All admitted participants retain microphone/camera publishing; screen
+      // publication is a separate, role-scoped capability enforced by LiveKit.
+      canPublish: true,
+      canPublishSources: canShareScreen
+        ? ['camera', 'microphone', 'screen_share', 'screen_share_audio']
+        : ['camera', 'microphone'],
     });
   }
 
