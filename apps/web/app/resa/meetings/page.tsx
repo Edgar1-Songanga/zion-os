@@ -208,7 +208,7 @@ export default function ResaGroupMeetingsPage() {
   const isHost = details?.host_user_id === userId;
   const canModerate = ["HOST", "MODERATOR"].includes(role);
   const invited = currentParticipant?.status === "INVITED";
-  const accepted = ["ACCEPTED", "PRESENT"].includes(currentParticipant?.status ?? "");
+  const accepted = ["ACCEPTED", "PRESENT", "LEFT"].includes(currentParticipant?.status ?? "");
   const canJoin = details?.status === "OPEN" && accepted && !details.room?.locked;
   const canPublicJoin = details?.visibility === "PUBLIC"
     && ["SCHEDULED", "OPEN"].includes(details.status)
