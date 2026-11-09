@@ -86,8 +86,7 @@ as $function$
   select (
     private.is_verified_zion_global_admin()
     and exists (
-      select 1
-      from public.roles target_role
+      select 1 from public.roles target_role
       where target_role.id = target_role_id
         and target_role.key <> 'organization_owner'
     )
@@ -105,3 +104,35 @@ as $function$
   );
 $function$;
 
+create or replace function private.can_update_org_membership(target_org uuid, target_membership uuid, target_role_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = pg_catalog, public, private, auth
+as $function$
+  select private.has_org_permission(target_org, 'membership.manage')
+    and (
+      not exists (
+        select 1
+        from public.organization_memberships current_membership
+        join public.roles current_role on current_role.id = current_membership.role_id
+        where current_membership.id = target_membership
+          and current_role.key = 'organization_owner'
+      )
+      or exists (
+        select 1 from public.roles target_role
+        where target_role.id = target_role_id
+          and target_role.key = 'organization_owner'
+      )
+    )
+    and (
+      private.can_assign_org_role(target_org, target_role_id)
+      or exists (
+        select 1 from public.organization_memberships current_membership
+        where current_membership.id = target_membership
+          and current_membership.organization_id = target_org
+          and current_membership.role_id = target_role_id
+      )
+    );
+$function$;
