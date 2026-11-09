@@ -96,6 +96,7 @@ as $function$
     select 1
     from public.resa_group_meeting_participants p
     where p.meeting_id = p_meeting_id
+      and p_user_id = auth.uid()
       and p.user_id = p_user_id
       and p.status in ('INVITED', 'ACCEPTED', 'PRESENT', 'LEFT')
   );
@@ -115,6 +116,7 @@ as $function$
     select 1
     from public.resa_group_meeting_participants p
     where p.meeting_id = p_meeting_id
+      and p_user_id = auth.uid()
       and p.user_id = p_user_id
       and p.participant_role = 'HOST'
       and p.status in ('ACCEPTED', 'PRESENT')
@@ -135,15 +137,16 @@ as $function$
     select 1
     from public.resa_group_meeting_participants p
     where p.meeting_id = p_meeting_id
+      and p_user_id = auth.uid()
       and p.user_id = p_user_id
       and p.participant_role in ('HOST', 'MODERATOR')
       and p.status in ('ACCEPTED', 'PRESENT')
   );
 $function$;
 
-revoke all on function private.resa_is_group_meeting_member(uuid, uuid) from public, anon;
-revoke all on function private.resa_is_group_meeting_host(uuid, uuid) from public, anon;
-revoke all on function private.resa_is_group_meeting_moderator(uuid, uuid) from public, anon;
+revoke all on function private.resa_is_group_meeting_member(uuid, uuid) from public, anon, authenticated;
+revoke all on function private.resa_is_group_meeting_host(uuid, uuid) from public, anon, authenticated;
+revoke all on function private.resa_is_group_meeting_moderator(uuid, uuid) from public, anon, authenticated;
 grant execute on function private.resa_is_group_meeting_member(uuid, uuid) to authenticated;
 grant execute on function private.resa_is_group_meeting_host(uuid, uuid) to authenticated;
 grant execute on function private.resa_is_group_meeting_moderator(uuid, uuid) to authenticated;
@@ -274,8 +277,9 @@ revoke all on table public.resa_group_meetings,
   public.resa_group_meeting_rooms,
   public.resa_group_meeting_events,
   public.resa_group_meeting_messages
-from anon;
+from public, anon;
 
+grant usage on schema private to authenticated;
 grant select, insert, update on table public.resa_group_meetings to authenticated;
 grant select, insert, update on table public.resa_group_meeting_participants to authenticated;
 grant select, insert, update on table public.resa_group_meeting_rooms to authenticated;
