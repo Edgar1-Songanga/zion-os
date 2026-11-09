@@ -1,7 +1,7 @@
 import { BadGatewayException, Injectable } from '@nestjs/common';
-import { AccessToken, RoomServiceClient, VideoGrant } from 'livekit-server-sdk';
+import { AccessToken, RoomServiceClient, TrackSource, VideoGrant } from 'livekit-server-sdk';
 import { env } from '../../config/env';
-import { MediaJoinConfig, MediaProvider, MediaRoom } from './media-provider';
+import { MediaJoinConfig, MediaProvider, MediaRoom, MediaTrackSource } from './media-provider';
 
 @Injectable()
 export class ZionSfuProvider implements MediaProvider {
@@ -42,7 +42,7 @@ export class ZionSfuProvider implements MediaProvider {
     }
   }
 
-  async createJoinConfig(input: { meetingId: string; providerRoomId?: string | null; userId: string; name?: string; canPublish?: boolean }): Promise<MediaJoinConfig> {
+  async createJoinConfig(input: { meetingId: string; providerRoomId?: string | null; userId: string; name?: string; canPublish?: boolean; canPublishSources?: MediaTrackSource[] }): Promise<MediaJoinConfig> {
     if (!input.providerRoomId || !this.configured()) {
       throw new BadGatewayException('ZION media server is not configured');
     }
@@ -52,7 +52,12 @@ export class ZionSfuProvider implements MediaProvider {
         roomJoin: true,
         room: input.providerRoomId,
         canPublish,
-        ...(canPublish && input.canPublishSources ? { canPublishSources: input.canPublishSources as VideoGrant['canPublishSources'] } : {}),
+        ...(canPublish && input.canPublishSources ? { canPublishSources: input.canPublishSources.map((source) => ({
+          camera: TrackSource.CAMERA,
+          microphone: TrackSource.MICROPHONE,
+          screen_share: TrackSource.SCREEN_SHARE,
+          screen_share_audio: TrackSource.SCREEN_SHARE_AUDIO,
+        })[source]) } : {}),
         canSubscribe: true,
         canPublishData: true,
       };
@@ -80,7 +85,7 @@ export class ZionSfuProvider implements MediaProvider {
       await this.client().updateParticipant(input.roomId, input.identity, {
         permission: {
           canPublish: input.canPublish,
-          ...(input.canPublish ? { canPublishSources: ['camera', 'microphone'] as VideoGrant['canPublishSources'] } : {}),
+          ...(input.canPublish ? { canPublishSources: [TrackSource.CAMERA, TrackSource.MICROPHONE] } : {}),
           canSubscribe: true,
           canPublishData: true,
         },
