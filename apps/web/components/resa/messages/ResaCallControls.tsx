@@ -71,7 +71,7 @@ export default function ResaCallControls({ conversationId, autoStart = null, onA
           void roomRef.current?.disconnect(true);
           roomRef.current = null;
           callRef.current = null;
-          setCall(null); setActive(false); setConnected(false); setReconnecting(false);
+          setCall(null); setActive(false); setConnected(false); setReconnecting(false); setScreenShare(false);
         }
         if (incoming?.id === next.id && ["ended", "declined", "missed"].includes(next.status)) setIncoming(null);
       }).subscribe();
