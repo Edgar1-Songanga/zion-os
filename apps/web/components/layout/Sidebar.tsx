@@ -109,8 +109,9 @@ export default function Sidebar() {
   const isOrganizationManager = hasRole("organization_owner", "organization_admin", "organization_leader");
   const isMinistryManager = hasRole(
     "organization_owner", "organization_admin", "organization_leader", "pastor",
-    "ministry_leader", "department_leader", "sabbath_school_director", "youth_director", "stewardship_manager",
+    "ministry_leader", "department_leader", "sabbath_school_director", "youth_director",
   );
+  const isStewardshipManager = hasRole("stewardship_manager", "stewardship_leader");
 
   const sections = uniqueSections([
     {
@@ -136,6 +137,7 @@ export default function Sidebar() {
       title: "Ministérios e participação",
       items: [
         ...(isMinistryManager ? [{ name: "Ministério Jovem", path: "/youth" }] : []),
+        ...(isStewardshipManager ? [{ name: "Mordomia Cristã", path: "/stewardship" }] : []),
       ],
     },
     {
@@ -144,6 +146,7 @@ export default function Sidebar() {
         ...(globalAdmin ? [{ name: "Administração Global", path: "/admin" }] : []),
         ...(isOrganizationManager ? [{ name: "Administração da Igreja", path: "/church-administration" }] : []),
         ...(isMinistryManager ? [{ name: "Ministérios e departamentos", path: "/ministry" }] : []),
+        ...(isStewardshipManager ? [{ name: "Mordomia Cristã", path: "/stewardship" }] : []),
         ...(hasRole("secretary", "organization_owner", "organization_admin") ? [{ name: "Secretaria", path: "/secretariat" }] : []),
         ...(hasRole("finance_manager", "organization_owner", "organization_admin") ? [{ name: "Finanças", path: "/finance" }] : []),
         ...(hasRole("hr_manager", "organization_owner", "organization_admin") ? [{ name: "Recursos Humanos", path: "/hr" }] : []),
@@ -155,7 +158,7 @@ export default function Sidebar() {
 
   const nestedActiveRoutes = new Set([
     "/admin", "/church-administration", "/secretariat", "/finance", "/hr",
-    "/payroll", "/reports", "/ministry", "/youth", "/resa", "/sabbath-school",
+    "/payroll", "/reports", "/ministry", "/youth", "/stewardship", "/resa", "/sabbath-school",
   ]);
 
   return (
