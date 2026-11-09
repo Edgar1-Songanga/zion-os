@@ -49,7 +49,7 @@ export default function Sidebar() {
     const supabase = createClient();
     let active = true;
     const loadAccess = async (user: { id: string; app_metadata?: Record<string, unknown> } | null) => {
-      setGlobalAdmin(user?.app_metadata?.zion_global_role === "global_admin");
+      setGlobalAdmin(user?.app_metadata?.zion_global_role === "global_admin" && user?.app_metadata?.zion_verified === true);
       if (!user) {
         setRoleKeys([]);
         return;
@@ -108,8 +108,8 @@ export default function Sidebar() {
   const hasRole = (...keys: string[]) => globalAdmin || roleKeys.some((key) => keys.includes(key));
   const isOrganizationManager = hasRole("organization_owner", "organization_admin", "organization_leader");
   const isMinistryManager = hasRole(
-    "organization_owner", "organization_admin", "organization_leader",
-    "ministry_leader", "department_leader", "sabbath_school_director", "youth_director",
+    "organization_owner", "organization_admin", "organization_leader", "pastor",
+    "ministry_leader", "department_leader", "sabbath_school_director", "youth_director", "stewardship_manager",
   );
 
   const sections = uniqueSections([
@@ -135,7 +135,7 @@ export default function Sidebar() {
     {
       title: "Ministérios e participação",
       items: [
-        { name: "Ministério Jovem", path: "/youth" },
+        ...(isMinistryManager ? [{ name: "Ministério Jovem", path: "/youth" }] : []),
       ],
     },
     {
