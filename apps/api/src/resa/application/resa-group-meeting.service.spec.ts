@@ -63,6 +63,7 @@ describe('ResaGroupMeetingService', () => {
     expect(media.createRoom).toHaveBeenCalledWith({
       meetingId: MEETING_ID,
       channelName: 'resa:group:' + MEETING_ID,
+      maxParticipants: 100,
     });
     expect(postSpy).toHaveBeenNthCalledWith(2, 'resa_group_meeting_rooms', 'session-token',
       expect.objectContaining({ meeting_id: MEETING_ID, provider_room_id: 'zion-group-' + MEETING_ID }));
