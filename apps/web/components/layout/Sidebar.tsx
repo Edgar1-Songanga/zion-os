@@ -109,9 +109,10 @@ export default function Sidebar() {
   const isOrganizationManager = hasRole("organization_owner", "organization_admin", "organization_leader");
   const isMinistryManager = hasRole(
     "organization_owner", "organization_admin", "organization_leader", "pastor",
-    "ministry_leader", "department_leader", "sabbath_school_director", "youth_director",
+    "ministry_leader", "department_leader", "sabbath_school_director",
   );
   const isStewardshipManager = !globalAdmin && hasRole("stewardship_manager");
+  const isYouthDirector = hasRole("youth_director");
 
   const sections = uniqueSections([
     {
@@ -136,7 +137,7 @@ export default function Sidebar() {
     {
       title: "Ministérios e participação",
       items: [
-        ...(isMinistryManager ? [{ name: "Ministério Jovem", path: "/youth" }] : []),
+        ...(isMinistryManager || isYouthDirector ? [{ name: "Ministério Jovem", path: "/youth" }] : []),
         ...(isStewardshipManager ? [{ name: "Mordomia Cristã", path: "/stewardship" }] : []),
       ],
     },
