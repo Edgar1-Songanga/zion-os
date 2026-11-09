@@ -75,6 +75,13 @@ export class MinistryController {
     return this.ministries.updateProgram(id, programId, this.token(authorization), body);
   }
 
+  @Get("my-assignments")
+  async listMyAssignments(@Headers("authorization") authorization: string | undefined) {
+    const token = this.token(authorization);
+    const user = await this.identity.getCurrentUser(token);
+    return this.ministries.listMyAssignments(user.id, token);
+  }
+
   @Get(':id')
   get(@Headers('authorization') authorization: string | undefined, @Param('id') id: string) {
     return this.ministries.get(id, this.token(authorization));
