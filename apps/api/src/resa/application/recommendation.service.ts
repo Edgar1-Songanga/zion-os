@@ -23,7 +23,13 @@ export class ResaRecommendationService {
     const spiritualRelevance = ['prayer', 'bible_study', 'sermon', 'testimony'].includes(context.contentType) ? 6 : 0;
     const freshness = Math.max(0, 24 - Math.max(0, context.ageHours)) * 0.8;
     const diversity = context.followedAuthor ? 0 : 4;
-    return relationship + interaction + save + spiritualRelevance + freshness + diversity;
+    const dwell = Math.min(Math.max(context.viewDurationMs ?? 0, 0) / 1000, 90) * 0.16;
+    const completion = Math.min(Math.max(context.completedViews ?? 0, 0), 5) * 2;
+    const learnedInterest = Math.min(Math.max(context.topicInterestScore ?? 0, 0), 80) * 0.25;
+    const repeatPenalty = Math.min(Math.max((context.viewCount ?? 0) - 2, 0) * 6, 24);
+    const explicitDisinterest = context.feedback === 'not_interested' ? 100 : 0;
+    return relationship + interaction + save + spiritualRelevance + freshness + diversity
+      + dwell + completion + learnedInterest - repeatPenalty - explicitDisinterest;
   }
 
   rank<T extends { id: string }>(items: Array<T & RecommendationContext>): Array<T & RecommendationContext & { score: number }> {
