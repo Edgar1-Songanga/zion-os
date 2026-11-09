@@ -224,27 +224,40 @@ begin
     raise exception 'Group meeting participant identity is immutable' using errcode = '42501';
   end if;
 
-  if new.participant_role is distinct from old.participant_role
-     and not private.resa_is_group_meeting_host(old.meeting_id, auth.uid()) then
-    if not private.resa_is_group_meeting_moderator(old.meeting_id, auth.uid())
-       or new.participant_role not in ('PRESENTER', 'PARTICIPANT', 'VIEWER') then
-      raise exception 'Only the host can appoint moderators; moderators may grant presenter status' using errcode = '42501';
+  if new.participant_role is distinct from old.participant_role then
+    if old.participant_role = 'HOST' or new.participant_role = 'HOST' then
+      raise exception 'The meeting host role is immutable' using errcode = '42501';
+    end if;
+    if not private.resa_is_group_meeting_host(old.meeting_id, auth.uid()) then
+      if not private.resa_is_group_meeting_moderator(old.meeting_id, auth.uid())
+         or new.participant_role not in ('PRESENTER', 'PARTICIPANT', 'VIEWER') then
+        raise exception 'Only the host can appoint moderators; moderators may grant presenter status' using errcode = '42501';
+      end if;
     end if;
   end if;
 
-  if new.status is distinct from old.status
-     and not (
-       (
-         auth.uid() = old.user_id
-         and (
-           (old.status = 'INVITED' and new.status in ('ACCEPTED', 'DECLINED'))
-           or (old.status = 'ACCEPTED' and new.status in ('PRESENT', 'LEFT'))
-           or (old.status = 'PRESENT' and new.status = 'LEFT')
-         )
-       )
-       or private.resa_is_group_meeting_moderator(old.meeting_id, auth.uid())
-     ) then
-    raise exception 'Not authorized to change this participant status' using errcode = '42501';
+  if new.status is distinct from old.status then
+    if old.participant_role = 'HOST' then
+      raise exception 'The meeting host cannot be removed or leave the meeting' using errcode = '42501';
+    end if;
+    if old.participant_role = 'MODERATOR'
+       and new.status = 'REMOVED'
+       and not private.resa_is_group_meeting_host(old.meeting_id, auth.uid()) then
+      raise exception 'Only the host can remove another moderator' using errcode = '42501';
+    end if;
+    if not (
+      (
+        auth.uid() = old.user_id
+        and (
+          (old.status = 'INVITED' and new.status in ('ACCEPTED', 'DECLINED'))
+          or (old.status = 'ACCEPTED' and new.status in ('PRESENT', 'LEFT'))
+          or (old.status = 'PRESENT' and new.status = 'LEFT')
+        )
+      )
+      or private.resa_is_group_meeting_moderator(old.meeting_id, auth.uid())
+    ) then
+      raise exception 'Not authorized to change this participant status' using errcode = '42501';
+    end if;
   end if;
 
   if new.status = 'PRESENT' and new.joined_at is null then
