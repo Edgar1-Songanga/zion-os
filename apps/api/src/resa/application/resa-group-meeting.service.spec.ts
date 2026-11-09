@@ -187,7 +187,7 @@ describe('ResaGroupMeetingService', () => {
 
     expect(patchSpy).toHaveBeenCalledWith('resa_group_meeting_participants', 'session-token',
       expect.objectContaining({ status: 'PRESENT' }),
-      expect.stringContaining('status=in.(ACCEPTED,PRESENT)'));
+      expect.stringContaining('status=in.(ACCEPTED,PRESENT,LEFT)'));
     expect(result.status).toBe('PRESENT');
   });
 
