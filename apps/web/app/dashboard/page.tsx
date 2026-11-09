@@ -24,15 +24,18 @@ export default async function Dashboard() {
   const globalAdminVerified = isGlobalAdmin && metadata.zion_verified === true;
 
   let roleKeys: string[] = [];
-  const { data: memberships } = await supabase
+  let accessLookupFailed = false;
+  const { data: memberships, error: membershipError } = await supabase
     .from("organization_memberships")
     .select("role_id")
     .eq("user_id", claims.sub)
     .eq("status", "ACTIVE");
+  if (membershipError) accessLookupFailed = true;
 
   const roleIds = [...new Set((memberships ?? []).map((item) => item.role_id).filter(Boolean))];
   if (roleIds.length > 0) {
-    const { data: roles } = await supabase.from("roles").select("key").in("id", roleIds);
+    const { data: roles, error: rolesError } = await supabase.from("roles").select("key").in("id", roleIds);
+    if (rolesError) accessLookupFailed = true;
     roleKeys = (roles ?? []).map((role) => role.key).filter(Boolean);
   }
 
@@ -80,6 +83,16 @@ export default async function Dashboard() {
     if (has("payroll_manager", "organization_owner", "organization_admin")) {
       areas.push({ title: "Processamento salarial", description: "Operações de processamento salarial.", href: "/payroll" });
     }
+  }
+
+  if (!globalAdminVerified && !isGlobalAdmin && areas.length === 0) {
+    areas.push({
+      title: accessLookupFailed ? "Não foi possível carregar as permissões" : "Área administrativa não atribuída",
+      description: accessLookupFailed
+        ? "A consulta das funções falhou. Nenhuma permissão foi presumida; tente novamente ou peça uma revisão técnica da conta."
+        : "Esta conta não apresenta uma função organizacional ativa. Um administrador autorizado deve atribuir a função e a organização corretas.",
+      href: "/dashboard",
+    });
   }
 
   areas.push(
