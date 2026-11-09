@@ -90,6 +90,26 @@ begin
   exception when insufficient_privilege then
     null;
   end;
+
+  begin
+    update public.resa_group_meeting_participants
+    set participant_role='MODERATOR'
+    where meeting_id='97100000-0000-4000-8000-000000000001'
+      and user_id='97000000-0000-4000-8000-000000000001';
+    raise exception 'Moderator was able to demote the host';
+  exception when insufficient_privilege then
+    null;
+  end;
+
+  begin
+    update public.resa_group_meeting_participants
+    set status='REMOVED'
+    where meeting_id='97100000-0000-4000-8000-000000000001'
+      and user_id='97000000-0000-4000-8000-000000000001';
+    raise exception 'Moderator was able to remove the host';
+  exception when insufficient_privilege then
+    null;
+  end;
 end;
 $test$;
 reset role;
