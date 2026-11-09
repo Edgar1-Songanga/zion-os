@@ -13,6 +13,8 @@ type MeetingParticipant = {
   participant_role: MeetingRole;
   status: string;
   joined_at?: string | null;
+  display_name?: string;
+  avatar_url?: string | null;
 };
 type MeetingSummary = {
   id: string;
@@ -395,7 +397,7 @@ export default function ResaGroupMeetingsPage() {
                     <div className="mt-2 space-y-2">
                       {details.participants.map((person) => (
                         <div key={person.user_id} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2">
-                          <span className="truncate text-xs text-slate-700">{person.user_id === userId ? "Tu" : person.user_id.slice(0, 8) + "…"}</span>
+                          <span className="truncate text-xs text-slate-700">{person.user_id === userId ? "Tu" : person.display_name || person.user_id.slice(0, 8) + "…"}</span>
                           <span className="shrink-0 text-[10px] font-semibold text-slate-500">{person.participant_role} · {person.status}</span>
                         </div>
                       ))}
