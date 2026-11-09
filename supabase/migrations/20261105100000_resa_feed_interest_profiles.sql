@@ -41,7 +41,7 @@ returns void
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 declare
   actor_id uuid := auth.uid();
   content_type text;
