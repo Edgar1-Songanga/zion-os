@@ -45,8 +45,20 @@ describe('SpiritualMinistryService ministry profile management', () => {
       }),
       getById: jest.fn().mockResolvedValue(null),
       listByOrganization: jest.fn().mockResolvedValue([]),
+      listByLeader: jest.fn().mockResolvedValue([]),
     };
     service = new SpiritualMinistryService(directory);
+  });
+
+  it('returns only the authenticated user\'s assigned ministry records', async () => {
+    const assigned: MinistryRecord[] = [];
+    directory.listByLeader.mockResolvedValue(assigned);
+    await expect(service.listMyAssignments(creatorId, 'access-token')).resolves.toBe(assigned);
+    expect(directory.listByLeader).toHaveBeenCalledWith(creatorId, 'access-token');
+  });
+
+  it('rejects an invalid user id for assigned ministry lookup', async () => {
+    await expect(service.listMyAssignments('not-a-uuid', 'access-token')).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('preserves the original create contract when optional profile metadata is omitted', async () => {
