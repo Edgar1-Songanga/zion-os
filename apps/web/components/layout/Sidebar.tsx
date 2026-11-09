@@ -111,7 +111,7 @@ export default function Sidebar() {
     "organization_owner", "organization_admin", "organization_leader", "pastor",
     "ministry_leader", "department_leader", "sabbath_school_director", "youth_director",
   );
-  const isStewardshipManager = hasRole("stewardship_manager", "stewardship_leader");
+  const isStewardshipManager = !globalAdmin && hasRole("stewardship_manager");
 
   const sections = uniqueSections([
     {
