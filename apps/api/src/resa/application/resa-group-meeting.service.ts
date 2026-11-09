@@ -434,8 +434,9 @@ export class ResaGroupMeetingService {
     if (target.participant_role === 'MODERATOR' && moderator.participant_role !== 'HOST') {
       throw new ForbiddenException('Only the host can remove another moderator');
     }
-    if (target.status === 'PRESENT') {
+    if (['ACCEPTED', 'PRESENT', 'LEFT'].includes(target.status)) {
       if (!this.media.removeParticipant) throw new BadGatewayException('Media provider cannot remove participants');
+      // Revoke cached LiveKit credentials even if the participant is currently offline.
       await this.media.removeParticipant({ roomId: await this.roomProviderId(token, id), identity: targetId });
     }
     const patch: Record<string, unknown> = { status: 'REMOVED' };
