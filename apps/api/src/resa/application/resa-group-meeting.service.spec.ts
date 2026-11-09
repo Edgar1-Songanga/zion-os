@@ -136,6 +136,34 @@ describe('ResaGroupMeetingService', () => {
     }));
   });
 
+  it('admits a public visitor as a subscribe-only viewer', async () => {
+    actorId = PARTICIPANT_ID;
+    getSpy
+      .mockResolvedValueOnce([{ id: MEETING_ID, visibility: 'PUBLIC', status: 'OPEN' }] as never)
+      .mockResolvedValueOnce([] as never);
+    postSpy.mockResolvedValueOnce([{
+      meeting_id: MEETING_ID, user_id: PARTICIPANT_ID, participant_role: 'VIEWER', status: 'ACCEPTED',
+    }] as never);
+
+    const result = await service.joinPublic('session-token', MEETING_ID);
+
+    expect(postSpy).toHaveBeenCalledWith('resa_group_meeting_participants', 'session-token', {
+      meeting_id: MEETING_ID,
+      user_id: PARTICIPANT_ID,
+      participant_role: 'VIEWER',
+      status: 'ACCEPTED',
+    });
+    expect(result.participant_role).toBe('VIEWER');
+  });
+
+  it('does not admit public viewers to private meetings', async () => {
+    actorId = PARTICIPANT_ID;
+    getSpy.mockResolvedValueOnce([{ id: MEETING_ID, visibility: 'INVITE_ONLY', status: 'OPEN' }] as never);
+
+    await expect(service.joinPublic('session-token', MEETING_ID)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+
   it('rejects joining a locked meeting room', async () => {
     actorId = PARTICIPANT_ID;
     getSpy
