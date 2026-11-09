@@ -6,8 +6,8 @@ const accessProfiles = [
   {
     title: "Membro",
     description: "Perfil pessoal, jornada espiritual, comunidade e pedidos de oração.",
-    destination: "/dashboard",
-    label: "Entrar como membro",
+    destination: "/resa",
+    label: "Entrar na comunidade RESA",
     icon: "01",
   },
   {
