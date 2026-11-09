@@ -39,6 +39,7 @@ export default function Home() {
         <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Link href="/auth/sign-up" className="inline-flex rounded-full bg-[var(--zion-gold)] px-9 py-4 font-semibold tracking-wide text-[var(--zion-dark)] shadow-[var(--zion-shadow-lg)] transition hover:-translate-y-0.5 hover:bg-[var(--zion-warm)]">CREATE ACCOUNT</Link>
           <Link href="/auth/sign-in" className="inline-flex rounded-full border border-white/25 bg-white/5 px-9 py-4 font-semibold tracking-wide text-white transition hover:bg-white/10">SIGN IN</Link>
+          <Link href="/auth/access" className="inline-flex rounded-full border border-[#C8A24A]/50 px-9 py-4 font-semibold tracking-wide text-[var(--zion-warm)] transition hover:bg-white/10">ESCOLHER ÁREA DE ACESSO</Link>
         </div>
         <p className="mt-5 text-sm text-white/65">A representar uma igreja? <Link href="/church-registration" className="font-semibold text-[var(--zion-warm)] underline underline-offset-4">Registar organização</Link></p>
 

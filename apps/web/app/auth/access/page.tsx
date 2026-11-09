@@ -6,8 +6,8 @@ const accessProfiles = [
   {
     title: "Membro",
     description: "Perfil pessoal, jornada espiritual, comunidade e pedidos de oração.",
-    destination: "/dashboard",
-    label: "Entrar como membro",
+    destination: "/resa",
+    label: "Entrar na comunidade RESA",
     icon: "01",
   },
   {
@@ -16,6 +16,13 @@ const accessProfiles = [
     destination: "/ministry",
     label: "Entrar na área departamental",
     icon: "02",
+  },
+  {
+    title: "Mordomia Cristã",
+    description: "Relatórios e operações do departamento de Mordomia, mediante atribuição confirmada.",
+    destination: "/stewardship",
+    label: "Entrar em Mordomia",
+    icon: "03",
   },
   {
     title: "Ministério Jovem",

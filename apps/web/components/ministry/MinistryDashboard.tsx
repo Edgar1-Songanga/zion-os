@@ -4,9 +4,10 @@ import { useEffect, useState, type FormEvent } from "react";
 import Card from "../ui/Card";
 import StatCard from "../ui/StatCard";
 import { resaRequest } from "@/lib/resa/api";
+import { createClient } from "@/lib/supabase/client";
 import { getMinistryCatalogEntry } from "./ministry-catalog";
 import MinistryBibleStudyWorkspace from "./MinistryBibleStudyWorkspace";
-import type { Ministry, MinistryProgram, ProgramStatus } from "./types";
+import type { Ministry, MinistryLeader, MinistryProgram, ProgramStatus } from "./types";
 
 type ProgramForm = {
   name: string;
@@ -68,9 +69,18 @@ export default function MinistryDashboard({ ministry, onUpdated }: MinistryDashb
   const [editingProgramId, setEditingProgramId] = useState<string | null>(null);
   const [programSaving, setProgramSaving] = useState(false);
   const [programError, setProgramError] = useState<string | null>(null);
+  const [leaders, setLeaders] = useState<MinistryLeader[]>(ministry.leadership ?? []);
+  const [canManageLeaders, setCanManageLeaders] = useState(false);
+  const [leaderUserId, setLeaderUserId] = useState("");
+  const [eligibleMembers, setEligibleMembers] = useState<Array<{ id: string; user_id: string; status: string; roles?: { key?: string; name?: string } | Array<{ key?: string; name?: string }> }>>([]);
+  const [leaderRole, setLeaderRole] = useState("Dirigente departamental");
+  const [leaderSaving, setLeaderSaving] = useState(false);
+  const [leaderError, setLeaderError] = useState<string | null>(null);
+  const [leaderMessage, setLeaderMessage] = useState<string | null>(null);
 
   useEffect(() => {
     setForm(formFromMinistry(ministry));
+    setLeaders(ministry.leadership ?? []);
     setSaveError(null);
   }, [
     ministry.id,
@@ -156,6 +166,120 @@ export default function MinistryDashboard({ ministry, onUpdated }: MinistryDashb
       setSaveError(reason instanceof Error ? reason.message : "Não foi possível guardar o perfil ministerial.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  useEffect(() => {
+    let active = true;
+    setCanManageLeaders(false);
+    async function checkLeaderManagementAccess() {
+      if (!ministry.organizationId) {
+        if (active) setCanManageLeaders(false);
+        return;
+      }
+      const supabase = createClient();
+      const { data: auth } = await supabase.auth.getUser();
+      const metadata = auth.user?.app_metadata ?? {};
+      if (metadata.zion_global_role === "global_admin" && metadata.zion_verified === true) {
+        if (active) setCanManageLeaders(true);
+        return;
+      }
+      if (!auth.user) {
+        if (active) setCanManageLeaders(false);
+        return;
+      }
+      const { data } = await supabase
+        .from("organization_memberships")
+        .select("roles(key)")
+        .eq("organization_id", ministry.organizationId)
+        .eq("user_id", auth.user.id)
+        .eq("status", "ACTIVE");
+      const keys = (data ?? []).map((row: any) => {
+        const role = Array.isArray(row.roles) ? row.roles[0] : row.roles;
+        return role?.key;
+      });
+      if (active) setCanManageLeaders(keys.some((key: string) => ["organization_owner", "organization_admin"].includes(key)));
+    }
+    void checkLeaderManagementAccess();
+    return () => { active = false; };
+  }, [ministry.organizationId]);
+
+  useEffect(() => {
+    let active = true;
+    async function loadEligibleLeaderMembers() {
+      if (!canManageLeaders || !ministry.organizationId) {
+        if (active) setEligibleMembers([]);
+        return;
+      }
+      try {
+        const rows = await resaRequest<Array<{ id: string; user_id: string; status: string; roles?: { key?: string; name?: string } | Array<{ key?: string; name?: string }> }>>(
+          "/v1/organizations/" + encodeURIComponent(ministry.organizationId) + "/memberships",
+        );
+        const departmentKey = ministry.department.toLowerCase();
+        const allowedRoles = departmentKey.includes("stewardship")
+          ? ["stewardship_manager"]
+          : departmentKey.includes("youth")
+            ? ["youth_director", "ministry_leader", "department_leader", "pastor"]
+            : ["ministry_leader", "department_leader", "pastor"];
+        const eligible = (rows ?? []).filter((member) => {
+          const role = Array.isArray(member.roles) ? member.roles[0] : member.roles;
+          return member.status.toUpperCase() === "ACTIVE" && allowedRoles.includes(role?.key ?? "");
+        });
+        if (active) {
+          setEligibleMembers(eligible);
+          setLeaderUserId((current) => eligible.some((member) => member.user_id === current) ? current : "");
+        }
+      } catch {
+        if (active) setEligibleMembers([]);
+      }
+    }
+    void loadEligibleLeaderMembers();
+    return () => { active = false; };
+  }, [canManageLeaders, ministry.organizationId, ministry.department]);
+
+  async function assignLeader(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canManageLeaders || !leaderUserId.trim() || leaderSaving) return;
+    setLeaderSaving(true);
+    setLeaderError(null);
+    setLeaderMessage(null);
+    try {
+      const saved = await resaRequest<{ id: string; user_id: string; role: string; verified: boolean }>(
+        "/v1/ministries/" + encodeURIComponent(ministry.id) + "/leaders",
+        { method: "POST", body: JSON.stringify({ user_id: leaderUserId.trim(), role: leaderRole.trim() }) },
+      );
+      const next = [...leaders.filter((item) => item.userId !== saved.user_id), {
+        id: saved.id, userId: saved.user_id, name: saved.user_id, role: saved.role, verified: saved.verified,
+      }];
+      setLeaders(next);
+      onUpdated?.({ ...ministry, leadership: next, metrics: { ...ministry.metrics, leaders: next.length } });
+      setLeaderUserId("");
+      setLeaderMessage("Dirigente associado e verificado para este ministério.");
+    } catch (reason) {
+      setLeaderError(reason instanceof Error ? reason.message : "Não foi possível atribuir este dirigente.");
+    } finally {
+      setLeaderSaving(false);
+    }
+  }
+
+  async function removeLeader(leader: MinistryLeader) {
+    if (!canManageLeaders || leaderSaving) return;
+    setLeaderSaving(true);
+    setLeaderError(null);
+    setLeaderMessage(null);
+    try {
+      await resaRequest(
+        "/v1/ministries/" + encodeURIComponent(ministry.id) + "/leaders/" + encodeURIComponent(leader.id),
+        { method: "DELETE" },
+      );
+      const next = leaders.filter((item) => item.id !== leader.id);
+      setLeaders(next);
+      onUpdated?.({ ...ministry, leadership: next, metrics: { ...ministry.metrics, leaders: next.length } });
+      setLeaderMessage("Atribuição do dirigente removida.");
+    } catch (reason) {
+      setLeaderError(reason instanceof Error ? reason.message : "Não foi possível remover a atribuição.");
+    } finally {
+      setLeaderSaving(false);
     }
   }
 
@@ -349,13 +473,28 @@ export default function MinistryDashboard({ ministry, onUpdated }: MinistryDashb
         <Card>
           <h2 className="text-lg font-semibold text-[#0C1A3D]">Dirigentes</h2>
           <div className="mt-5 space-y-4">
-            {ministry.leadership?.length ? ministry.leadership.map((leader) => (
-              <div key={leader.id} className="flex items-center justify-between gap-4 border-b border-slate-100 pb-3">
+            {leaders.length ? leaders.map((leader) => (
+              <div key={leader.id} className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-3">
                 <div><p className="font-medium text-[#0C1A3D]">{leader.name}</p><p className="text-sm text-slate-500">{leader.role}</p></div>
-                {leader.verified && <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">Verificado</span>}
+                <div className="flex items-center gap-2">
+                  {leader.verified && <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">Verificado</span>}
+                  {canManageLeaders && <button type="button" disabled={leaderSaving} onClick={() => void removeLeader(leader)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-red-300 hover:text-red-700 disabled:opacity-40">Remover</button>}
+                </div>
               </div>
             )) : <p className="text-sm text-slate-500">Nenhuma liderança registada.</p>}
           </div>
+          {canManageLeaders && (
+            <form onSubmit={assignLeader} className="mt-6 space-y-3 rounded-xl border border-slate-100 bg-slate-50 p-4">
+              <h3 className="font-semibold text-[#0C1A3D]">Atribuir dirigente</h3>
+              <p className="text-xs leading-5 text-slate-500">Introduza o identificador de um membro ativo da organização. Para Mordomia, a conta também tem de ter a função institucional de Mordomia atribuída.</p>
+              <select value={leaderUserId} onChange={(event) => setLeaderUserId(event.target.value)} aria-label="Selecionar membro dirigente" className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#C8A24A]" required><option value="">Selecionar membro com função compatível</option>{eligibleMembers.map((member) => <option key={member.id} value={member.user_id}>{member.user_id}</option>)}</select>
+              {eligibleMembers.length === 0 && <p className="text-xs text-amber-700">Não há membros ativos com a função institucional exigida. Atribua primeiro a função no painel de permissões.</p>}
+              <input value={leaderRole} onChange={(event) => setLeaderRole(event.target.value)} placeholder="Função no ministério" aria-label="Função no ministério" className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#C8A24A]" required maxLength={80} />
+              {leaderError && <p role="alert" className="text-sm text-red-700">{leaderError}</p>}
+              {leaderMessage && <p role="status" className="text-sm text-emerald-700">{leaderMessage}</p>}
+              <button type="submit" disabled={leaderSaving || !leaderUserId.trim() || eligibleMembers.length === 0} className="rounded-xl bg-[#0C1A3D] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40">{leaderSaving ? "A guardar…" : "Atribuir e verificar dirigente"}</button>
+            </form>
+          )}
         </Card>
 
         <Card>

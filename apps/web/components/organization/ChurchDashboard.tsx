@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { resaRequest } from "@/lib/resa/api";
 import { OrganizationSelector, type ZionOrganization } from "@/components/organization/OrganizationSelector";
+import RoleAccessManager from "@/components/organization/RoleAccessManager";
 
 type MinistryReport = { id: string; title: string; status: string; submitted_at?: string };
 type Ministry = {
@@ -192,6 +193,8 @@ export default function ChurchDashboard() {
             ))}
           </div>
         </section>
+
+        <RoleAccessManager />
 
         <section>
           <div className="mb-4">

@@ -45,8 +45,32 @@ describe('SpiritualMinistryService ministry profile management', () => {
       }),
       getById: jest.fn().mockResolvedValue(null),
       listByOrganization: jest.fn().mockResolvedValue([]),
+      listByLeader: jest.fn().mockResolvedValue([]),
+      assignLeader: jest.fn().mockResolvedValue({ id: "00000000-0000-4000-8000-000000000005", user_id: creatorId, role: "Dirigente", verified: true }),
+      removeLeader: jest.fn().mockResolvedValue(true),
     };
     service = new SpiritualMinistryService(directory);
+  });
+
+  it('returns only the authenticated user\'s assigned ministry records', async () => {
+    const assigned: MinistryRecord[] = [];
+    (directory.listByLeader as jest.Mock).mockResolvedValue(assigned);
+    await expect(service.listMyAssignments(creatorId, 'access-token')).resolves.toBe(assigned);
+    expect(directory.listByLeader).toHaveBeenCalledWith(creatorId, 'access-token', undefined);
+  });
+
+  it('rejects an invalid user id for assigned ministry lookup', async () => {
+    await expect(service.listMyAssignments('not-a-uuid', 'access-token')).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('assigns a verified ministry leader through the scoped directory', async () => {
+    const leader = await service.assignLeader(ministryId, 'access-token', creatorId, 'Dirigente');
+    expect(leader.verified).toBe(true);
+    expect(directory.assignLeader).toHaveBeenCalledWith(ministryId, creatorId, 'Dirigente', 'access-token');
+  });
+
+  it('removes a ministry leader assignment through the scoped directory', async () => {
+    await expect(service.removeLeader(ministryId, 'access-token', '00000000-0000-4000-8000-000000000005')).resolves.toEqual({ success: true });
   });
 
   it('preserves the original create contract when optional profile metadata is omitted', async () => {

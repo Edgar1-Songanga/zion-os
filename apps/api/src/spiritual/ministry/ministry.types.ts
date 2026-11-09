@@ -97,4 +97,7 @@ export interface MinistryDirectoryPort {
   ): Promise<MinistryProgramRecord | null>;
   getById(id: string, token?: string): Promise<MinistryRecord | null>;
   listByOrganization(organizationId: string, token?: string): Promise<MinistryRecord[]>;
+  listByLeader?(userId: string, token?: string, department?: string): Promise<MinistryRecord[]>;
+  assignLeader?(ministryId: string, userId: string, role: string, token: string): Promise<{ id: string; user_id: string; role: string; verified: boolean } | null>;
+  removeLeader?(ministryId: string, leaderId: string, token: string): Promise<boolean>;
 }

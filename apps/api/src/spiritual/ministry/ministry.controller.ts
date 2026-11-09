@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Patch, Post, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, UnauthorizedException } from '@nestjs/common';
 import { SpiritualMinistryService } from './ministry.service';
 import { IdentityService } from '../../identity/application/identity.service';
 
@@ -14,6 +14,8 @@ type MinistryBody = {
   official_url?: string | null;
   source_label?: string | null;
 };
+
+type MinistryLeaderBody = { user_id: string; role: string };
 
 type MinistryProgramBody = {
   name?: string;
@@ -56,6 +58,23 @@ export class MinistryController {
     return this.ministries.update(id, this.token(authorization), body);
   }
 
+  @Post(':id/leaders')
+  assignLeader(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+    @Body() body: MinistryLeaderBody,
+  ) {
+    return this.ministries.assignLeader(id, this.token(authorization), body.user_id, body.role);
+  }
+
+  @Delete(':id/leaders/:leaderId')
+  removeLeader(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+    @Param('leaderId') leaderId: string,
+  ) {
+    return this.ministries.removeLeader(id, this.token(authorization), leaderId);
+  }
   @Post(':id/programs')
   createProgram(
     @Headers('authorization') authorization: string | undefined,
@@ -73,6 +92,20 @@ export class MinistryController {
     @Body() body: MinistryProgramBody,
   ) {
     return this.ministries.updateProgram(id, programId, this.token(authorization), body);
+  }
+
+  @Get("my-assignments/stewardship")
+  async listMyStewardshipAssignments(@Headers("authorization") authorization: string | undefined) {
+    const token = this.token(authorization);
+    const user = await this.identity.getCurrentUser(token);
+    return this.ministries.listMyAssignments(user.id, token, "stewardship");
+  }
+
+  @Get("my-assignments")
+  async listMyAssignments(@Headers("authorization") authorization: string | undefined) {
+    const token = this.token(authorization);
+    const user = await this.identity.getCurrentUser(token);
+    return this.ministries.listMyAssignments(user.id, token);
   }
 
   @Get(':id')

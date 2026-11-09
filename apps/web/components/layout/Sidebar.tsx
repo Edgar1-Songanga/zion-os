@@ -49,7 +49,7 @@ export default function Sidebar() {
     const supabase = createClient();
     let active = true;
     const loadAccess = async (user: { id: string; app_metadata?: Record<string, unknown> } | null) => {
-      setGlobalAdmin(user?.app_metadata?.zion_global_role === "global_admin");
+      setGlobalAdmin(user?.app_metadata?.zion_global_role === "global_admin" && user?.app_metadata?.zion_verified === true);
       if (!user) {
         setRoleKeys([]);
         return;
@@ -108,9 +108,11 @@ export default function Sidebar() {
   const hasRole = (...keys: string[]) => globalAdmin || roleKeys.some((key) => keys.includes(key));
   const isOrganizationManager = hasRole("organization_owner", "organization_admin", "organization_leader");
   const isMinistryManager = hasRole(
-    "organization_owner", "organization_admin", "organization_leader",
-    "ministry_leader", "department_leader", "sabbath_school_director", "youth_director",
+    "organization_owner", "organization_admin", "organization_leader", "pastor",
+    "ministry_leader", "department_leader", "sabbath_school_director",
   );
+  const isStewardshipManager = !globalAdmin && hasRole("stewardship_manager");
+  const isYouthDirector = hasRole("youth_director");
 
   const sections = uniqueSections([
     {
@@ -135,7 +137,8 @@ export default function Sidebar() {
     {
       title: "Ministérios e participação",
       items: [
-        { name: "Ministério Jovem", path: "/youth" },
+        ...(isMinistryManager || isYouthDirector ? [{ name: "Ministério Jovem", path: "/youth" }] : []),
+        ...(isStewardshipManager ? [{ name: "Mordomia Cristã", path: "/stewardship" }] : []),
       ],
     },
     {
@@ -144,18 +147,19 @@ export default function Sidebar() {
         ...(globalAdmin ? [{ name: "Administração Global", path: "/admin" }] : []),
         ...(isOrganizationManager ? [{ name: "Administração da Igreja", path: "/church-administration" }] : []),
         ...(isMinistryManager ? [{ name: "Ministérios e departamentos", path: "/ministry" }] : []),
+        ...(isStewardshipManager ? [{ name: "Mordomia Cristã", path: "/stewardship" }] : []),
         ...(hasRole("secretary", "organization_owner", "organization_admin") ? [{ name: "Secretaria", path: "/secretariat" }] : []),
         ...(hasRole("finance_manager", "organization_owner", "organization_admin") ? [{ name: "Finanças", path: "/finance" }] : []),
         ...(hasRole("hr_manager", "organization_owner", "organization_admin") ? [{ name: "Recursos Humanos", path: "/hr" }] : []),
         ...(hasRole("payroll_manager", "organization_owner", "organization_admin") ? [{ name: "Processamento salarial", path: "/payroll" }] : []),
-        ...(hasRole("organization_owner", "organization_admin", "finance_manager", "hr_manager", "payroll_manager", "secretary") ? [{ name: "Relatórios", path: "/reports" }] : []),
+        ...(hasRole("organization_owner", "organization_admin") ? [{ name: "Relatórios", path: "/reports" }] : []),
       ],
     },
   ]);
 
   const nestedActiveRoutes = new Set([
     "/admin", "/church-administration", "/secretariat", "/finance", "/hr",
-    "/payroll", "/reports", "/ministry", "/youth", "/resa", "/sabbath-school",
+    "/payroll", "/reports", "/ministry", "/youth", "/stewardship", "/resa", "/sabbath-school",
   ]);
 
   return (

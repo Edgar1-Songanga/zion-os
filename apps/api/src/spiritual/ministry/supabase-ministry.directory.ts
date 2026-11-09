@@ -119,6 +119,61 @@ export class SupabaseMinistryDirectory implements MinistryDirectoryPort {
     return Promise.all(rows.map((row) => this.hydrate(row, token)));
   }
 
+  async listByLeader(userId: string, token?: string, department?: string): Promise<MinistryRecord[]> {
+    if (!token) return [];
+    const assignments = await this.db.get<Array<{ ministry_id: string }>>(
+      "ministry_leaders",
+      token,
+      `?select=ministry_id&user_id=eq.${encodeURIComponent(userId)}&verified=eq.true&order=created_at.asc`,
+    );
+    let ministryIds = [...new Set(assignments.map((assignment) => assignment.ministry_id).filter(Boolean))];
+    if (department && ministryIds.length > 0) {
+      const scoped = await this.db.get<Array<{ id: string }>>(
+        "ministries",
+        token,
+        `?select=id&id=in.(${ministryIds.join(",")})&department=eq.${encodeURIComponent(department)}`,
+      );
+      const allowedIds = new Set(scoped.map((row) => row.id));
+      ministryIds = ministryIds.filter((id) => allowedIds.has(id));
+    }
+    const records = await Promise.all(ministryIds.map((id) => this.getById(id, token)));
+    return records.filter((record): record is MinistryRecord => Boolean(record));
+  }
+
+  async assignLeader(ministryId: string, userId: string, role: string, token: string) {
+    const ministryRows = await this.db.get<Array<{ id: string; organization_id: string; department: string }>>(
+      "ministries", token, "?select=id,organization_id,department&id=eq." + encodeURIComponent(ministryId) + "&limit=1",
+    );
+    const ministry = ministryRows[0];
+    if (!ministry) return null;
+    const memberships = await this.db.get<Array<{ id: string; roles?: { key?: string } | Array<{ key?: string }> }>>(
+      "organization_memberships", token,
+      "?select=id,roles(key)&organization_id=eq." + encodeURIComponent(ministry.organization_id) + "&user_id=eq." + encodeURIComponent(userId) + "&status=eq.ACTIVE&limit=1",
+    );
+    const membership = memberships[0];
+    const assignedRole = Array.isArray(membership?.roles) ? membership.roles[0] : membership?.roles;
+    const departmentKey = String(ministry.department ?? "").toLowerCase();
+    const requiredRoles = departmentKey.includes("stewardship")
+      ? ["stewardship_manager"]
+      : departmentKey.includes("youth")
+        ? ["youth_director", "ministry_leader", "department_leader", "pastor"]
+        : ["ministry_leader", "department_leader", "pastor"];
+    if (!membership || !requiredRoles.includes(assignedRole?.key ?? "")) return null;
+    const rows = await this.db.upsert<Array<{ id: string; user_id: string; role: string; verified: boolean }>>(
+      "ministry_leaders", token,
+      { ministry_id: ministryId, user_id: userId, role, verified: true },
+      "?on_conflict=ministry_id,user_id",
+    );
+    return rows[0] ?? null;
+  }
+
+  async removeLeader(ministryId: string, leaderId: string, token: string): Promise<boolean> {
+    const removed = await this.db.delete<Array<{ id: string }>>(
+      "ministry_leaders", token,
+      "?id=eq." + encodeURIComponent(leaderId) + "&ministry_id=eq." + encodeURIComponent(ministryId),
+    );
+    return removed.length > 0;
+  }
   private async hydrate(row: any, token: string): Promise<MinistryRecord> {
     const [organization, leaders, programs, reports, members] = await Promise.all([
       this.db.get<any[]>('organizations', token, `?select=name,organization_type&id=eq.${encodeURIComponent(row.organization_id)}&limit=1`),
@@ -143,7 +198,7 @@ export class SupabaseMinistryDirectory implements MinistryDirectoryPort {
       createdAt: row.created_at,
       department: row.department,
       organization: organization[0] ? { church: organization[0].name, district: row.department } : {},
-      leadership: leaders.map((leader) => ({ ...leader, name: leader.user_id })),
+      leadership: leaders.map((leader) => ({ ...leader, userId: leader.user_id, name: leader.user_id })),
       programs: programs.map((program) => this.mapProgram(program)),
       reports,
       metrics: {
