@@ -86,12 +86,16 @@ export class ZionSfuProvider implements MediaProvider {
 
   async setRoomPublishingForAttendees(input: { roomId: string; hostIdentity: string; canPublish: boolean }): Promise<void> {
     try {
+      // The room-wide switch is a safety lock, not a blanket presenter grant.
+      // Opening the gate must not promote every spectator; only an explicit
+      // allow_speak action may grant publishing to an individual participant.
+      if (input.canPublish) return;
       const client = this.client();
       const participants = await client.listParticipants(input.roomId);
       await Promise.all(participants
         .filter((participant) => participant.identity !== input.hostIdentity)
         .map((participant) => client.updateParticipant(input.roomId, participant.identity, {
-          permission: { canPublish: input.canPublish, canSubscribe: true, canPublishData: true },
+          permission: { canPublish: false, canSubscribe: true, canPublishData: true },
         })));
     } catch (error) {
       throw new BadGatewayException(error instanceof Error ? error.message : 'Room publishing policy could not be applied');
