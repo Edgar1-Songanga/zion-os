@@ -55,6 +55,13 @@ begin
       using errcode = '42501';
   end if;
 
+  if new.status is not distinct from old.status
+     and row(new.resolved_at, new.resolved_by)
+       is distinct from row(old.resolved_at, old.resolved_by) then
+    raise exception 'Raise-hand resolution metadata is immutable'
+      using errcode = '42501';
+  end if;
+
   if new.status is distinct from old.status then
     if old.status <> 'WAITING' then
       raise exception 'A resolved raise-hand request cannot be changed'
