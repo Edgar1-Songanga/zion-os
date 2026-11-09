@@ -287,10 +287,12 @@ export class ResaGroupMeetingService {
     if (!room || room.status !== 'OPEN') throw new BadRequestException('Meeting room is not open');
     if (room.locked) throw new ForbiddenException('Meeting room is locked');
     this.requireGroupSfu();
+    const createJoinConfig = this.media.createJoinConfig;
+    if (!createJoinConfig) throw new BadGatewayException('Media provider does not expose join configuration');
     const role = String(participant.participant_role).toUpperCase();
     const canPublish = role !== 'VIEWER';
     const canShareScreen = ['HOST', 'MODERATOR', 'PRESENTER'].includes(role);
-    return this.media.createJoinConfig({
+    return createJoinConfig.call(this.media, {
       meetingId: id,
       providerRoomId: room.provider_room_id,
       userId: actor.id,
