@@ -11,6 +11,19 @@ describe('SupabaseMinistryDirectory program operations', () => {
     db = (directory as any).db;
   });
 
+  it('returns only verified ministry assignments for the authenticated user', async () => {
+    const get = jest.spyOn(db, 'get').mockImplementation(async (table: string) => {
+      if (table === 'ministry_leaders') return [{ ministry_id: ministryId }];
+      if (table === 'ministries') return [{ id: ministryId, organization_id: '00000000-0000-4000-8000-000000000003', name: 'Mordomia Cristã', department: 'stewardship', status: 'active' }];
+      if (table === 'organizations') return [{ name: 'Igreja Local', organization_type: 'LOCAL_CHURCH' }];
+      return [];
+    });
+    const records = await directory.listByLeader('00000000-0000-4000-8000-000000000004', 'user-access-token');
+    expect(get).toHaveBeenCalledWith('ministry_leaders', 'user-access-token', expect.stringContaining('verified=eq.true'));
+    expect(records).toHaveLength(1);
+    expect(records[0].department).toBe('stewardship');
+  });
+
   it('creates an organization-scoped program and maps database dates to the API shape', async () => {
     const post = jest.spyOn(db, 'post').mockResolvedValue([{
       id: programId,
