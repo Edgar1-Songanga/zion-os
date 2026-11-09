@@ -520,8 +520,10 @@ export class ResaOperationalService {
   async listLiveModerators(token: string, liveId: string) {
     const actor = await this.actor(token);
     const id = this.id(liveId, 'live_id');
-    const live = (await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id&id=eq.${id}&limit=1`))[0];
-    if (!live || live.host_id !== actor.id) throw new NotFoundException('Live session not found or you are not its host');
+    const live = (await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status&id=eq.${id}&limit=1`))[0];
+    // RLS on resa_live_sessions proves this caller can access the Live; the
+    // moderator roster policy then exposes identities only for that same Live.
+    if (!live || live.status !== 'live') throw new NotFoundException('Live session not found or you cannot access it');
     return this.db.get<any[]>('resa_live_moderators', token, `?select=live_id,moderator_user_id,granted_by,created_at&live_id=eq.${id}&order=created_at.asc`);
   }
 
