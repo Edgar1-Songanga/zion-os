@@ -191,6 +191,9 @@ jobs:
       - name: Apply RESA group meeting accepted-member content privacy
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261109113735_resa_group_meeting_accepted_member_privacy.sql
+      - name: Apply RESA group meeting moderator status guard
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261109134000_resa_group_meeting_moderator_status_guard.sql
       - name: Verify RESA group meeting membership, role and room boundaries
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_group_meetings_regression.sql

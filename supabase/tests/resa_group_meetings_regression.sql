@@ -93,6 +93,21 @@ insert into public.resa_group_meeting_participants (
   'PARTICIPANT', 'INVITED', '97000000-0000-4000-8000-000000000002'
 );
 
+-- A moderator cannot accept or otherwise forge another participant's lifecycle state.
+do $test$
+begin
+  begin
+    update public.resa_group_meeting_participants
+    set status='ACCEPTED'
+    where meeting_id='97100000-0000-4000-8000-000000000001'
+      and user_id='97000000-0000-4000-8000-000000000003';
+    raise exception 'Moderator was able to accept an invitation on behalf of a participant';
+  exception when insufficient_privilege then
+    null;
+  end;
+end;
+$test$;
+
 do $test$
 begin
   begin
@@ -263,6 +278,27 @@ update public.resa_group_meeting_participants
 set status='PRESENT', joined_at=now(), left_at=null
 where meeting_id='97100000-0000-4000-8000-000000000001'
   and user_id='97000000-0000-4000-8000-000000000003';
+reset role;
+
+-- Moderators retain the intended removal capability.
+select set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000002',false);
+set role authenticated;
+update public.resa_group_meeting_participants
+set status='REMOVED'
+where meeting_id='97100000-0000-4000-8000-000000000001'
+  and user_id='97000000-0000-4000-8000-000000000003';
+do $test$
+begin
+  if not exists (
+    select 1 from public.resa_group_meeting_participants
+    where meeting_id='97100000-0000-4000-8000-000000000001'
+      and user_id='97000000-0000-4000-8000-000000000003'
+      and status='REMOVED'
+  ) then
+    raise exception 'Moderator could not remove an ordinary participant';
+  end if;
+end;
+$test$;
 reset role;
 
 select set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000002',false);
