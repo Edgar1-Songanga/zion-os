@@ -142,7 +142,7 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
 
     const attachRemote = (track: any, _publication: any, participant: any) => {
       if (!participant?.identity) return;
-      const isScreenShare = track.source === Track.Source.ScreenShare;
+      const isScreenShare = track.source === Track.Source.ScreenShare && track.kind === Track.Kind.Video;
       const target = isScreenShare ? remoteScreenRef.current : remoteRef.current;
       if (!target) return;
       const element = track.attach() as HTMLMediaElement;
@@ -158,10 +158,11 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
         const tile = document.createElement("div");
         tile.className = "relative min-h-[180px] overflow-hidden rounded-2xl border border-white/10 bg-slate-950";
         tile.dataset.participant = participant.identity;
+        tile.dataset.trackSource = String(track.source ?? "media");
         tile.appendChild(video);
         const label = document.createElement("span");
         label.className = "absolute bottom-2 left-2 rounded-lg border border-white/10 bg-black/70 px-2.5 py-1.5 text-xs font-semibold text-white backdrop-blur";
-        label.textContent = participantName;
+        label.textContent = participantName + (isScreenShare ? " · Ecrã partilhado" : "");
         tile.appendChild(label);
         target.appendChild(tile);
       } else if (track.kind === Track.Kind.Audio) {
