@@ -1,10 +1,15 @@
 import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query, UnauthorizedException } from '@nestjs/common';
 import { ResaOperationalService } from '../application/resa-operational.service';
 import { ResaLiveEgressService } from '../application/resa-live-egress.service';
+import { ResaGroupMeetingService } from '../application/resa-group-meeting.service';
 
 @Controller('v1/resa')
 export class ResaOperationalController {
-  constructor(private readonly operational: ResaOperationalService, private readonly liveEgress: ResaLiveEgressService) {}
+  constructor(
+    private readonly operational: ResaOperationalService,
+    private readonly liveEgress: ResaLiveEgressService,
+    private readonly groupMeetings: ResaGroupMeetingService,
+  ) {}
 
   private token(authorization?: string) {
     const token = authorization?.replace(/^Bearer\s+/i, '').trim();
@@ -92,6 +97,109 @@ export class ResaOperationalController {
   @Post('live/:liveId/messages')
   sendLiveChatMessage(@Headers('authorization') authorization: string | undefined, @Param('liveId') liveId: string, @Body() body: { body: string }) {
     return this.operational.sendLiveChatMessage(this.token(authorization), liveId, body.body);
+  }
+
+  @Get('group-meetings')
+  groupMeetingsList(@Headers('authorization') authorization?: string, @Query('limit') limit?: string) {
+    return this.groupMeetings.list(this.token(authorization), Number(limit) || 30);
+  }
+
+  @Post('group-meetings')
+  createGroupMeeting(@Headers('authorization') authorization: string | undefined, @Body() body: any) {
+    return this.groupMeetings.create(this.token(authorization), body);
+  }
+
+  @Get('group-meetings/:meetingId')
+  getGroupMeeting(@Headers('authorization') authorization: string | undefined, @Param('meetingId') meetingId: string) {
+    return this.groupMeetings.get(this.token(authorization), meetingId);
+  }
+
+  @Post('group-meetings/:meetingId/invitations')
+  inviteGroupMeetingParticipant(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('meetingId') meetingId: string,
+    @Body() body: { user_id: string; role?: 'PARTICIPANT' | 'VIEWER' | 'MODERATOR' },
+  ) {
+    return this.groupMeetings.invite(this.token(authorization), meetingId, body.user_id, body.role ?? 'PARTICIPANT');
+  }
+
+  @Post('group-meetings/:meetingId/invitation-response')
+  respondToGroupMeetingInvitation(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('meetingId') meetingId: string,
+    @Body() body: { response: 'ACCEPTED' | 'DECLINED' },
+  ) {
+    return this.groupMeetings.respond(this.token(authorization), meetingId, body.response);
+  }
+
+  @Post('group-meetings/:meetingId/start')
+  startGroupMeeting(@Headers('authorization') authorization: string | undefined, @Param('meetingId') meetingId: string) {
+    return this.groupMeetings.start(this.token(authorization), meetingId);
+  }
+
+  @Post('group-meetings/:meetingId/join')
+  joinGroupMeeting(@Headers('authorization') authorization: string | undefined, @Param('meetingId') meetingId: string) {
+    return this.groupMeetings.joinConfig(this.token(authorization), meetingId);
+  }
+
+  @Post('group-meetings/:meetingId/presence')
+  updateGroupMeetingPresence(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('meetingId') meetingId: string,
+    @Body() body: { status: 'PRESENT' | 'LEFT' },
+  ) {
+    return this.groupMeetings.setPresence(this.token(authorization), meetingId, body.status);
+  }
+
+  @Patch('group-meetings/:meetingId/participants/:userId/presenter')
+  setGroupMeetingPresenter(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('meetingId') meetingId: string,
+    @Param('userId') userId: string,
+    @Body() body: { enabled: boolean },
+  ) {
+    return this.groupMeetings.setPresenter(this.token(authorization), meetingId, userId, body.enabled === true);
+  }
+
+  @Post('group-meetings/:meetingId/participants/:userId/remove')
+  removeGroupMeetingParticipant(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('meetingId') meetingId: string,
+    @Param('userId') userId: string,
+  ) {
+    return this.groupMeetings.removeParticipant(this.token(authorization), meetingId, userId);
+  }
+
+  @Patch('group-meetings/:meetingId/room/lock')
+  lockGroupMeetingRoom(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('meetingId') meetingId: string,
+    @Body() body: { locked: boolean; reason?: string },
+  ) {
+    return this.groupMeetings.lock(this.token(authorization), meetingId, body.locked === true, body.reason);
+  }
+
+  @Post('group-meetings/:meetingId/end')
+  endGroupMeeting(@Headers('authorization') authorization: string | undefined, @Param('meetingId') meetingId: string) {
+    return this.groupMeetings.end(this.token(authorization), meetingId);
+  }
+
+  @Get('group-meetings/:meetingId/messages')
+  groupMeetingMessages(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('meetingId') meetingId: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.groupMeetings.messages(this.token(authorization), meetingId, Number(limit) || 100);
+  }
+
+  @Post('group-meetings/:meetingId/messages')
+  sendGroupMeetingMessage(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('meetingId') meetingId: string,
+    @Body() body: { body: string },
+  ) {
+    return this.groupMeetings.sendMessage(this.token(authorization), meetingId, body.body);
   }
 
   @Post('calls/:callId/join') callJoinConfig(@Headers('authorization') authorization: string | undefined, @Param('callId') callId: string) {
