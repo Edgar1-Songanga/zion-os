@@ -100,7 +100,15 @@ drop policy if exists resa_group_meeting_hand_raises_read
 create policy resa_group_meeting_hand_raises_read
 on public.resa_group_meeting_hand_raises
 for select to authenticated
-using (private.resa_is_group_meeting_member(meeting_id, (select auth.uid())));
+using (
+  exists (
+    select 1
+    from public.resa_group_meeting_participants p
+    where p.meeting_id = public.resa_group_meeting_hand_raises.meeting_id
+      and p.user_id = (select auth.uid())
+      and p.status in ('ACCEPTED', 'PRESENT', 'LEFT')
+  )
+);
 
 drop policy if exists resa_group_meeting_hand_raises_insert
   on public.resa_group_meeting_hand_raises;
