@@ -108,7 +108,7 @@ with check (
     from public.resa_group_meetings m
     join public.resa_group_meeting_participants p
       on p.meeting_id = m.id
-    where m.id = meeting_id
+    where m.id = public.resa_group_meeting_hand_raises.meeting_id
       and m.status = 'OPEN'
       and p.user_id = (select auth.uid())
       and p.status in ('ACCEPTED', 'PRESENT')
