@@ -13,6 +13,7 @@ const administrationAreas = [
   { title: "Folha salarial", description: "Processos e operações de processamento salarial.", href: "/payroll", tag: "Pessoal" },
   { title: "Relatórios", description: "Indicadores e relatórios operacionais disponíveis.", href: "/reports", tag: "Controlo" },
   { title: "Ministérios e departamentos", description: "Estrutura ministerial, equipas e atividade departamental.", href: "/ministry", tag: "Departamentos" },
+  { title: "Mordomia Cristã", description: "Relatórios e operações específicas do departamento.", href: "/stewardship", tag: "Mordomia" },
   { title: "Painel da igreja", description: "Visão institucional, unidades e estrutura da organização.", href: "/church-administration", tag: "Organização" },
 ];
 
