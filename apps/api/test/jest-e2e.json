@@ -10,6 +10,8 @@
         "tsconfig": {
           "module": "CommonJS",
           "moduleResolution": "Node",
+          "resolvePackageJsonExports": false,
+          "resolvePackageJsonImports": false,
           "target": "ES2022",
           "esModuleInterop": true,
           "experimentalDecorators": true,
