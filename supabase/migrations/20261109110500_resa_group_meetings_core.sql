@@ -26,7 +26,7 @@ create table if not exists public.resa_group_meeting_participants (
   meeting_id uuid not null references public.resa_group_meetings(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
   participant_role text not null default 'PARTICIPANT'
-    check (participant_role in ('HOST', 'MODERATOR', 'PARTICIPANT', 'VIEWER')),
+    check (participant_role in ('HOST', 'MODERATOR', 'PRESENTER', 'PARTICIPANT', 'VIEWER')),
   status text not null default 'INVITED'
     check (status in ('INVITED', 'ACCEPTED', 'PRESENT', 'LEFT', 'DECLINED', 'REMOVED')),
   invited_by uuid references auth.users(id) on delete set null,
@@ -226,15 +226,32 @@ begin
 
   if new.participant_role is distinct from old.participant_role
      and not private.resa_is_group_meeting_host(old.meeting_id, auth.uid()) then
-    raise exception 'Only the host or a moderator can change participant roles' using errcode = '42501';
+    if not private.resa_is_group_meeting_moderator(old.meeting_id, auth.uid())
+       or new.participant_role not in ('PRESENTER', 'PARTICIPANT', 'VIEWER') then
+      raise exception 'Only the host can appoint moderators; moderators may grant presenter status' using errcode = '42501';
+    end if;
   end if;
 
   if new.status is distinct from old.status
      and not (
-       (auth.uid() = old.user_id and new.status in ('ACCEPTED', 'DECLINED', 'LEFT'))
+       (
+         auth.uid() = old.user_id
+         and (
+           (old.status = 'INVITED' and new.status in ('ACCEPTED', 'DECLINED'))
+           or (old.status = 'ACCEPTED' and new.status in ('PRESENT', 'LEFT'))
+           or (old.status = 'PRESENT' and new.status = 'LEFT')
+         )
+       )
        or private.resa_is_group_meeting_moderator(old.meeting_id, auth.uid())
      ) then
     raise exception 'Not authorized to change this participant status' using errcode = '42501';
+  end if;
+
+  if new.status = 'PRESENT' and new.joined_at is null then
+    raise exception 'A present participant must have joined_at' using errcode = '42501';
+  end if;
+  if new.status = 'LEFT' and old.status = 'PRESENT' and new.left_at is null then
+    raise exception 'A leaving participant must have left_at' using errcode = '42501';
   end if;
   return new;
 end;
