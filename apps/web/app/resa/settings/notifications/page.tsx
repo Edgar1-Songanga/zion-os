@@ -82,6 +82,7 @@ export default function ResaNotificationSettingsPage() {
           quiet_end: preferences.quiet_end || null,
           sound_enabled: preferences.sound_enabled,
           vibration_enabled: preferences.vibration_enabled,
+          sound_style: preferences.sound_style,
         }),
       });
       setPreferences((current) => ({ ...current, ...saved }));
@@ -135,6 +136,16 @@ export default function ResaNotificationSettingsPage() {
                   <span className="text-sm font-medium text-[var(--zion-dark)]">Vibrar em dispositivos compatíveis</span>
                   <input type="checkbox" checked={preferences.vibration_enabled} onChange={(event) => update("vibration_enabled", event.target.checked)} className="h-5 w-5 accent-[var(--zion-primary)]" />
                 </label>
+                <div className="rounded-xl border border-[var(--zion-border)] p-4">
+                  <label htmlFor="notification-sound-style" className="block text-sm font-semibold text-[var(--zion-dark)]">Estilo do som de alerta</label>
+                  <select id="notification-sound-style" value={preferences.sound_style} onChange={(event) => update("sound_style", event.target.value as Preferences["sound_style"])} disabled={!preferences.sound_enabled} className="mt-2 w-full rounded-lg border border-[var(--zion-border)] bg-white px-3 py-2 text-sm text-[var(--zion-dark)] disabled:opacity-50">
+                    <option value="soft">Suave</option>
+                    <option value="chime">Sino</option>
+                    <option value="classic">Clássico</option>
+                    <option value="silent">Sem som</option>
+                  </select>
+                  <p className="mt-2 text-xs leading-5 text-[var(--zion-muted)]">A escolha é guardada na tua conta e aplicada aos alertas compatíveis deste dispositivo.</p>
+                </div>
                 <div className="rounded-xl border border-[var(--zion-border)] p-4">
                   <label htmlFor="quiet-start" className="block text-sm font-semibold text-[var(--zion-dark)]">Início do período silencioso</label>
                   <input id="quiet-start" type="time" value={preferences.quiet_start ?? ""} onChange={(event) => update("quiet_start", event.target.value || null)} className="mt-2 rounded-lg border border-[var(--zion-border)] bg-white px-3 py-2 text-sm text-[var(--zion-dark)]" />
