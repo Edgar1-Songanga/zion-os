@@ -33,9 +33,15 @@ begin
       end,
       updated_at = now();
 
-    insert into public.account_verification_requests (user_id, requested_type, status)
-    values (new.id, 'founder', 'pending')
-    on conflict (user_id) where status = 'pending' do nothing;
+    if exists (
+      select 1
+      from public.account_identity_status
+      where user_id = new.id and is_founder = true and verification_status = 'pending'
+    ) then
+      insert into public.account_verification_requests (user_id, requested_type, status)
+      values (new.id, 'founder', 'pending')
+      on conflict (user_id) where status = 'pending' do nothing;
+    end if;
   else
     update public.account_identity_status
     set is_founder = false,
