@@ -7,9 +7,11 @@ on:
       - "supabase/migrations/*verified_global_admin*"
       - "supabase/migrations/*duplicate_local_church*"
       - "supabase/migrations/*audited_local_church_archive*"
+      - "supabase/migrations/*global_person_identity_registry*"
       - "supabase/tests/institutional*"
       - "supabase/tests/organization_duplicate_guard*"
       - "supabase/tests/organization_archive_regression*"
+      - "supabase/tests/person_identity_regression*"
       - ".github/workflows/institutional-hierarchy.yml"
   push:
     branches: [main]
@@ -58,6 +60,10 @@ jobs:
         run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261110121500_audited_local_church_archive.sql
       - name: Verify scoped archive permissions, access revocation and audit history
         run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/organization_archive_regression.sql
+      - name: Apply global person identity registry
+        run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261110123000_global_person_identity_registry.sql
+      - name: Verify identity matching, membership reuse and duplicate guard
+        run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/person_identity_regression.sql
       - name: Stop disposable PostgreSQL
         if: always()
         run: docker rm -f zion-hierarchy-postgres || true
