@@ -103,6 +103,38 @@ export class OrganizationsService {
     return organization;
   }
 
+  async listArchivableLocalChurches(accessToken: string) {
+    await this.identity.getCurrentUser(accessToken);
+    return this.db.rpc<Array<Pick<Organization, 'id' | 'name' | 'slug' | 'parent_id' | 'is_active'>>>(
+      'zion_list_archivable_local_churches',
+      accessToken,
+      {},
+    );
+  }
+
+  async archiveLocalChurch(accessToken: string, organizationId: string, reason: string) {
+    this.assertUuid(organizationId, 'organizationId');
+    await this.identity.getCurrentUser(accessToken);
+    if (typeof reason !== 'string' || reason.trim().length < 3 || reason.trim().length > 500) {
+      throw new BadRequestException('A reason between 3 and 500 characters is required.');
+    }
+    const archived = await this.db.rpc<Organization>(
+      'zion_archive_local_church',
+      accessToken,
+      { p_organization_id: organizationId, p_reason: reason.trim() },
+    );
+    if (!archived?.id || archived.is_active !== false) {
+      throw new BadRequestException('The local church was not archived.');
+    }
+    return archived;
+  }
+
+  private assertUuid(value: string, field: string) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) {
+      throw new BadRequestException(`${field} must be a valid UUID.`);
+    }
+  }
+
   async memberships(accessToken: string, organizationId: string) {
     return this.db.get(
       'organization_memberships',
