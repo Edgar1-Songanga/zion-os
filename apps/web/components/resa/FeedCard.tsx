@@ -30,6 +30,18 @@ type ResaContent = {
   reposted_by_id?: string | null;
   reposted_by_display_name?: string | null;
   viewer_reposted?: boolean;
+  is_institutional?: boolean;
+  institution_name?: string;
+  institution_type?: string;
+  ministry_name?: string | null;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  location?: string | null;
+  meeting_day?: number | null;
+  meeting_time?: string | null;
+  room_label?: string | null;
+  activity_type?: string | null;
+  institutional_status?: string | null;
 };
 
 type CommentItem = {
@@ -286,7 +298,11 @@ export default function FeedCard({ content }: { content: ResaContent }) {
     <article id={`resa-post-${content.feed_item_id || content.id}`} className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.05)] transition-shadow hover:shadow-[0_18px_55px_rgba(15,23,42,0.08)]">
       <div className="p-6 sm:p-7">
         <header className="flex items-start gap-4">
-          {content.author_avatar_url ? (
+          {content.is_institutional ? (
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#102653] text-sm font-bold text-white shadow-sm">
+              {(content.institution_name || "I").trim().slice(0, 1).toUpperCase()}
+            </div>
+          ) : content.author_avatar_url ? (
             <img src={content.author_avatar_url} alt="" loading="lazy" className="h-12 w-12 shrink-0 rounded-2xl object-cover" />
           ) : (
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#0C1A3D] text-sm font-bold text-white shadow-sm">
@@ -295,18 +311,22 @@ export default function FeedCard({ content }: { content: ResaContent }) {
           )}
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <Link
-                href={"/resa/profile/" + encodeURIComponent(content.author_id)}
-                className="font-semibold text-[#0C1A3D] underline-offset-4 hover:underline"
-                aria-label="Abrir perfil do membro"
-              >
-                {content.author_display_name?.trim() || t("resaProfile")}
-              </Link>
+              {content.is_institutional ? (
+                <span className="font-semibold text-[#0C1A3D]">{content.institution_name || "Instituição"}</span>
+              ) : (
+                <Link
+                  href={"/resa/profile/" + encodeURIComponent(content.author_id)}
+                  className="font-semibold text-[#0C1A3D] underline-offset-4 hover:underline"
+                  aria-label="Abrir perfil do membro"
+                >
+                  {content.author_display_name?.trim() || t("resaProfile")}
+                </Link>
+              )}
               <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-500">
-                <ResaIcon name={meta.icon} size={12} />
-                {t(meta.labelKey as Parameters<typeof t>[0])}
+                {content.is_institutional ? "Publicação institucional" : <><ResaIcon name={meta.icon} size={12} />{t(meta.labelKey as Parameters<typeof t>[0])}</>}
               </span>
             </div>
+            {content.is_institutional && content.ministry_name && <p className="mt-1 text-xs font-medium text-slate-500">{content.ministry_name}</p>}
             <p className="mt-1 text-xs text-slate-400">{new Date(content.created_at).toLocaleString(locale)}</p>
           </div>
         </header>
@@ -314,6 +334,19 @@ export default function FeedCard({ content }: { content: ResaContent }) {
         <div className="mt-6">
           {content.title && <h4 className="mb-2 text-lg font-semibold tracking-tight text-[#0C1A3D]">{content.title}</h4>}
           {content.body && <p className="whitespace-pre-wrap text-[15px] leading-7 text-slate-700">{renderLinkedText(content.body)}</p>}
+          {content.is_institutional && (
+            <div className="mt-4 flex flex-wrap gap-2 rounded-2xl border border-blue-100 bg-blue-50/50 p-3 text-xs text-slate-600">
+              {content.type === "institutional_class" && typeof content.meeting_day === "number" && (
+                <span className="rounded-lg bg-white px-3 py-2 font-medium">Sábado / Dia: {["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"][content.meeting_day] || "Dia definido pela igreja"}</span>
+              )}
+              {content.meeting_time && <span className="rounded-lg bg-white px-3 py-2 font-medium">Hora: {content.meeting_time.slice(0, 5)}</span>}
+              {content.room_label && <span className="rounded-lg bg-white px-3 py-2 font-medium">Local: {content.room_label}</span>}
+              {content.starts_at && <span className="rounded-lg bg-white px-3 py-2 font-medium">Início: {new Date(content.starts_at).toLocaleString(locale)}</span>}
+              {content.ends_at && <span className="rounded-lg bg-white px-3 py-2 font-medium">Fim: {new Date(content.ends_at).toLocaleString(locale)}</span>}
+              {content.location && <span className="rounded-lg bg-white px-3 py-2 font-medium">Local: {content.location}</span>}
+              <span className="ml-auto self-center text-[10px] font-semibold uppercase tracking-wide text-blue-700">Gerido no ZION</span>
+            </div>
+          )}
           {content.media_type === "image" && mediaUrl && (
             <img src={mediaUrl} alt={content.title || t("publishedOnResa")} loading="lazy" className="mt-4 max-h-[620px] w-full rounded-2xl object-cover" />
           )}
@@ -323,7 +356,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
         </div>
       </div>
 
-      <div className="relative flex flex-wrap gap-2 border-t border-slate-100 bg-slate-50/50 px-6 py-4 sm:px-7">
+      {!content.is_institutional && <div className="relative flex flex-wrap gap-2 border-t border-slate-100 bg-slate-50/50 px-6 py-4 sm:px-7">
         <Link href={"/resa/messages?to=" + encodeURIComponent(content.author_id)} className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-white hover:text-[#0C1A3D]"><ResaIcon name="message" size={16} />{t("message")}</Link>
         <Link href={"/resa/messages?to=" + encodeURIComponent(content.author_id) + "&call=audio"} className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-white hover:text-[#0C1A3D]" aria-label={t("call")}><span aria-hidden="true">☎</span>{t("call")}</Link>
         <button type="button" onClick={() => void toggleReaction()} className={`inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium transition ${
@@ -398,7 +431,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
             </div>
           </div>
         )}
-      </div>
+      </div>}
 
       {actionFeedback && <p role="status" aria-live="polite" className="border-t border-slate-100 bg-blue-50 px-6 py-2.5 text-xs text-[#0C1A3D] sm:px-7">{actionFeedback}</p>}
 
