@@ -42,7 +42,7 @@ jobs:
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.ZION_SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.ZION_SUPABASE_DB_PASSWORD }}
-      ZION_SUPABASE_PROJECT_REF: ${{ vars.ZION_SUPABASE_PROJECT_REF }}
+      ZION_SUPABASE_PROJECT_REF: wwdchvadowqakvrxcnkz
     steps:
       - name: Checkout exact main commit
         uses: actions/checkout@v4
@@ -125,7 +125,7 @@ jobs:
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.ZION_SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.ZION_SUPABASE_DB_PASSWORD }}
-      ZION_SUPABASE_PROJECT_REF: ${{ vars.ZION_SUPABASE_PROJECT_REF }}
+      ZION_SUPABASE_PROJECT_REF: wwdchvadowqakvrxcnkz
       ZION_SUPABASE_DB_URL: ${{ secrets.ZION_SUPABASE_DB_URL }}
       EXPECTED_PLAN_SHA256: ${{ inputs.expected_plan_sha256 }}
     steps:
