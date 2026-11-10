@@ -12,6 +12,7 @@ describe('ResaGroupMeetingService', () => {
   let getSpy: jest.SpyInstance;
   let postSpy: jest.SpyInstance;
   let patchSpy: jest.SpyInstance;
+  let rpcSpy: jest.SpyInstance;
   let media: {
     createRoom: jest.Mock;
     openRoom: jest.Mock;
@@ -27,6 +28,7 @@ describe('ResaGroupMeetingService', () => {
     getSpy = jest.spyOn(SupabaseRestClient.prototype, 'get').mockResolvedValue([] as never);
     postSpy = jest.spyOn(SupabaseRestClient.prototype, 'post').mockResolvedValue([] as never);
     patchSpy = jest.spyOn(SupabaseRestClient.prototype, 'patch').mockResolvedValue([] as never);
+    rpcSpy = jest.spyOn(SupabaseRestClient.prototype, 'rpc').mockResolvedValue([] as never);
     media = {
       createRoom: jest.fn().mockResolvedValue({
         provider: 'ZION_SFU',
@@ -290,6 +292,83 @@ describe('ResaGroupMeetingService', () => {
       expect.objectContaining({ status: 'PRESENT' }),
       expect.stringContaining('status=in.(ACCEPTED,PRESENT,LEFT)'));
     expect(result.status).toBe('PRESENT');
+  });
+
+  it('allows only the host to appoint a moderator and grants live screen-share sources', async () => {
+    actorId = HOST_ID;
+    getSpy
+      .mockResolvedValueOnce([{ participant_role: 'HOST', status: 'PRESENT' }] as never)
+      .mockResolvedValueOnce([{ participant_role: 'PARTICIPANT', status: 'PRESENT' }] as never)
+      .mockResolvedValueOnce([{ provider_room_id: 'zion-group-' + MEETING_ID }] as never);
+    patchSpy.mockResolvedValueOnce([{ participant_role: 'MODERATOR', status: 'PRESENT' }] as never);
+    postSpy.mockResolvedValueOnce([{ event_type: 'ROLE_CHANGED' }] as never);
+
+    await service.setModerator('session-token', MEETING_ID, PARTICIPANT_ID, true);
+
+    expect(media.setParticipantPermissions).toHaveBeenCalledWith({
+      roomId: 'zion-group-' + MEETING_ID,
+      identity: PARTICIPANT_ID,
+      canPublish: true,
+      canPublishSources: ['camera', 'microphone', 'screen_share', 'screen_share_audio'],
+    });
+    expect(patchSpy).toHaveBeenCalledWith('resa_group_meeting_participants', 'session-token',
+      { participant_role: 'MODERATOR' }, expect.stringContaining('user_id=eq.' + PARTICIPANT_ID));
+  });
+
+  it('prevents a moderator from appointing another moderator', async () => {
+    actorId = MODERATOR_ID;
+    getSpy.mockResolvedValueOnce([{ participant_role: 'MODERATOR', status: 'PRESENT' }] as never);
+
+    await expect(service.setModerator('session-token', MEETING_ID, PARTICIPANT_ID, true))
+      .rejects.toBeInstanceOf(ForbiddenException);
+    expect(patchSpy).not.toHaveBeenCalled();
+    expect(media.setParticipantPermissions).not.toHaveBeenCalled();
+  });
+
+  it('returns meeting chat with the sender profile name instead of a technical identifier', async () => {
+    actorId = PARTICIPANT_ID;
+    getSpy
+      .mockResolvedValueOnce([{
+        meeting_id: MEETING_ID, user_id: PARTICIPANT_ID,
+        participant_role: 'PARTICIPANT', status: 'PRESENT',
+      }] as never)
+      .mockResolvedValueOnce([{
+        id: 'message-1', meeting_id: MEETING_ID, sender_id: HOST_ID,
+        body: 'Bom dia', created_at: new Date().toISOString(),
+      }] as never);
+    rpcSpy.mockResolvedValueOnce([{
+      id: HOST_ID, display_name: 'Edgar Songanga', first_name: 'Edgar',
+      last_name: 'Songanga', avatar_url: 'https://cdn.example.test/avatar.png',
+    }] as never);
+
+    const messages = await service.messages('session-token', MEETING_ID);
+
+    expect(messages[0]).toEqual(expect.objectContaining({
+      sender_id: HOST_ID,
+      sender_display_name: 'Edgar Songanga',
+      sender_avatar_url: 'https://cdn.example.test/avatar.png',
+    }));
+  });
+
+  it('returns the authenticated sender profile with a newly sent meeting message', async () => {
+    actorId = PARTICIPANT_ID;
+    getSpy.mockResolvedValueOnce([{
+      meeting_id: MEETING_ID, user_id: PARTICIPANT_ID,
+      participant_role: 'PARTICIPANT', status: 'PRESENT',
+    }] as never);
+    postSpy.mockResolvedValueOnce([{
+      id: 'message-2', meeting_id: MEETING_ID, sender_id: PARTICIPANT_ID,
+      body: 'Boa tarde', created_at: new Date().toISOString(),
+    }] as never);
+    rpcSpy.mockResolvedValueOnce([{
+      id: PARTICIPANT_ID, display_name: 'Ana Silva', first_name: 'Ana',
+      last_name: 'Silva', avatar_url: null,
+    }] as never);
+
+    const message = await service.sendMessage('session-token', MEETING_ID, 'Boa tarde');
+
+    expect(message.sender_display_name).toBe('Ana Silva');
+    expect(message.sender_avatar_url).toBeNull();
   });
 
   it('updates live SFU permissions before persisting presenter promotion', async () => {
