@@ -11,30 +11,28 @@ immutable
 strict
 set search_path = pg_catalog
 as $$
-  select case
-    when normalized_name = '' then
-      btrim(regexp_replace(regexp_replace(normalized_full_name, '[^a-z0-9]+', ' ', 'g'), '[[:space:]]+', ' ', 'g'))
-    else normalized_name
-  end
-  from (
-    select
-      btrim(regexp_replace(regexp_replace(
-        regexp_replace(
-          translate(lower(btrim(p_name)),
-            'áàâãäéèêëíìîïóòôõöúùûüçñ',
-            'aaaaaeeeeiiiiooooouuuucn'
-          ),
-          '^(igreja adventista do setimo dia|igreja adventista|iasd)[[:space:][:punct:]]*',
-          '',
-          'i'
+  with normalized as (
+    select btrim(regexp_replace(
+      regexp_replace(
+        translate(lower(btrim(p_name)),
+          'áàâãäéèêëíìîïóòôõöúùûüçñ',
+          'aaaaaeeeeiiiiooooouuuucn'
         ),
         '[^a-z0-9]+', ' ', 'g'
-      ), '[[:space:]]+', ' ', 'g')) as normalized_name,
-      translate(lower(btrim(p_name)),
-        'áàâãäéèêëíìîïóòôõöúùûüçñ',
-        'aaaaaeeeeiiiiooooouuuucn'
-      ) as normalized_full_name
-  ) source;
+      ),
+      '[[:space:]]+', ' ', 'g'
+    )) as full_name
+  )
+  select case
+    when full_name ~ '^(igreja adventista do setimo dia|igreja adventista|i a s d|iasd)([[:space:]]+|$)'
+      then btrim(regexp_replace(
+        full_name,
+        '^(igreja adventista do setimo dia|igreja adventista|i a s d|iasd)([[:space:]]+|$)',
+        ''
+      ))
+    else full_name
+  end
+  from normalized;
 $$;
 
 create or replace function private.guard_duplicate_local_church_name()
