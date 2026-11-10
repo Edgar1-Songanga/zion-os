@@ -193,7 +193,7 @@ returns table (
 language plpgsql
 security definer
 set search_path to 'pg_catalog', 'public', 'private', 'auth'
-as $
+as $list$
 begin
   if auth.uid() is null then
     raise exception 'Authentication is required.'
@@ -221,7 +221,7 @@ begin
     )
   order by o.name asc;
 end;
-$;
+$list$;
 
 revoke all on function private.zion_list_archivable_local_churches() from public, anon, authenticated;
 
@@ -235,9 +235,9 @@ returns public.organizations
 language sql
 security definer
 set search_path to 'pg_catalog', 'public', 'private', 'auth'
-as $
+as $archive$
   select private.zion_archive_local_church(p_organization_id, p_reason);
-$;
+$archive$;
 
 create or replace function public.zion_list_archivable_local_churches()
 returns table (
@@ -250,9 +250,9 @@ returns table (
 language sql
 security definer
 set search_path to 'pg_catalog', 'public', 'private', 'auth'
-as $
+as $list_api$
   select * from private.zion_list_archivable_local_churches();
-$;
+$list_api$;
 
 revoke all on function public.zion_archive_local_church(uuid, text) from public, anon;
 revoke all on function public.zion_list_archivable_local_churches() from public, anon;
