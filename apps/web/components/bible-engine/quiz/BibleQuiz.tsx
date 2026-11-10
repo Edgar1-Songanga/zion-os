@@ -27,6 +27,9 @@ async function getReviewStorageKey(): Promise<string> {
     return REVIEW_STORAGE_KEY + ":guest";
   }
 }
+const primaryActionClass = "inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#233b63] bg-gradient-to-b from-[#142b50] to-[#071126] px-5 py-3 text-sm font-bold text-white shadow-[0_10px_26px_rgba(7,17,38,0.18),inset_0_1px_0_rgba(255,255,255,0.12)] transition duration-200 hover:-translate-y-0.5 hover:from-[#1b3a68] hover:to-[#0c1a3d] hover:shadow-[0_14px_32px_rgba(7,17,38,0.24)] active:translate-y-0 active:scale-[0.99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-[#c8a24a]";
+const secondaryActionClass = "inline-flex min-h-11 items-center justify-center rounded-2xl border border-[#c8a24a]/40 bg-[#fbf8f0] px-4 py-3 text-sm font-semibold text-[#765b16] transition duration-200 hover:-translate-y-0.5 hover:border-[#c8a24a]/70 hover:bg-[#f7efd9] active:translate-y-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-[#c8a24a] disabled:cursor-not-allowed disabled:opacity-40";
+
 const MODE_LABELS: Record<PlayMode, string> = {
   junior: "Júnior",
   classic: "Clássico",
@@ -559,7 +562,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
             {syncMessage && <p role="status" className="mx-auto mt-4 max-w-xl rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600">{syncMessage}</p>}
             {savingProgress && <p className="mt-3 text-xs text-slate-400">A sincronizar progresso…</p>}
             <div className="mt-6 flex flex-wrap justify-center gap-3">
-              {!passed && <button type="button" onClick={restartLevel} className="rounded-xl bg-[#0C1A3D] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#152b54]">Tentar novamente</button>}
+              {!passed && <button type="button" onClick={restartLevel} className={primaryActionClass}>Tentar novamente</button>}
               {passed && levelIndex < LEVELS.length - 1 && <button type="button" onClick={nextLevel} className="rounded-xl bg-[#0C1A3D] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#152b54]">Desbloquear próximo nível →</button>}
               {passed && levelIndex === LEVELS.length - 1 && <button type="button" onClick={restartJourney} className="rounded-xl bg-[#0C1A3D] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#152b54]">Recomeçar jornada</button>}
             </div>
@@ -589,7 +592,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
                       : "border-slate-200 bg-white text-slate-700 hover:border-[#C8A24A]/60 hover:bg-[#FBF8F0]";
                 return (
                   <button key={option} type="button" disabled={selectedOption !== null || isHidden} onClick={() => chooseAnswer(option)}
-                    className={"flex min-h-14 items-center gap-3 rounded-xl border p-4 text-left text-sm font-medium transition disabled:cursor-default " + style}>
+                    className={"flex min-h-14 items-center gap-3 rounded-2xl border p-4 text-left text-sm font-medium shadow-[0_2px_10px_rgba(15,23,42,0.025)] transition duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c8a24a] disabled:cursor-default " + style}>
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-current/15 text-[11px]">{String.fromCharCode(65 + index)}</span>
                     <span>{option}</span>
                     {selectedOption !== null && isAnswer && <span className="ml-auto">✓</span>}
@@ -616,7 +619,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
               <p className="text-xs text-slate-400">{levelCorrect} acerto(s) nesta fase · mínimo {requiredCorrect}</p>
               <div className="flex flex-wrap gap-2">
                 <button type="button" disabled={selectedOption !== null || hintUsed} onClick={revealHint}
-                  className="rounded-xl border border-[#C8A24A]/40 px-4 py-3 text-sm font-semibold text-[#8B6F16] transition hover:bg-[#FBF8F0] disabled:cursor-not-allowed disabled:opacity-40">
+                  className={secondaryActionClass}>
                   {hintUsed ? "Dica usada" : "✦ Pedir uma dica"}
                 </button>
                 <button type="button" disabled={selectedOption !== null} onClick={skipQuestion}
@@ -628,7 +631,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
             {hintNudge && selectedOption === null && (
               <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#D4AF37]/30 bg-[#FBF8F0] p-4">
                 <p className="text-sm text-slate-700">Precisas de uma ajuda? Uma pista pode desbloquear a resposta.</p>
-                <button type="button" onClick={revealHint} disabled={hintUsed} className="rounded-lg bg-[#0C1A3D] px-4 py-2 text-xs font-semibold text-white disabled:opacity-40">
+                <button type="button" onClick={revealHint} disabled={hintUsed} className={primaryActionClass + " min-h-10 px-4 py-2 text-xs"}>
                   {hintUsed ? "Já usaste a dica" : "Mostrar pista"}
                 </button>
               </div>
