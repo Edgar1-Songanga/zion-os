@@ -9,6 +9,7 @@ declare
   restricted_org uuid := 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
   active_candidate uuid;
   deceased_candidate uuid;
+  same_church_candidate uuid;
   active_identity uuid;
   deceased_identity uuid;
   visible_count integer;
@@ -43,6 +44,12 @@ begin
     restricted_org, 'Ana', 'Silva', date '1990-05-12', 'FEMALE', 'ACTIVE'
   );
 
+  insert into public.church_member_records(
+    organization_id, first_name, last_name, birth_date, gender, membership_status
+  ) values (
+    source_org, 'Ana', 'Silva', date '1990-05-12', 'FEMALE', 'ACTIVE'
+  ) returning id into same_church_candidate;
+
   if active_identity = deceased_identity then
     raise exception 'Fixture unexpectedly reused a global identity before human review';
   end if;
@@ -53,8 +60,16 @@ begin
       source_org, ' Ana ', ' Silva ', date '1990-05-12', 'FEMALE'
     );
 
-  if visible_count <> 2 then
-    raise exception 'Expected two candidates within authorized jurisdictions; got %', visible_count;
+  if visible_count <> 3 then
+    raise exception 'Expected same-church and cross-church candidates within authorized jurisdictions; got %', visible_count;
+  end if;
+
+  if not exists (
+    select 1 from public.find_zion_member_identity_candidates(
+      source_org, 'Ana', 'Silva', date '1990-05-12', 'FEMALE'
+    ) c where c.candidate_member_record_id = same_church_candidate
+  ) then
+    raise exception 'Same-church duplicate candidate was not returned for review';
   end if;
 
   if not exists (
@@ -117,7 +132,7 @@ begin
    where event_type = 'CANDIDATES_VIEWED'
      and source_organization_id = source_org;
 
-  if audit_count <> 5 then
+  if audit_count <> 6 then
     raise exception 'Expected two privacy-safe candidate-view audit events; got %', audit_count;
   end if;
 
