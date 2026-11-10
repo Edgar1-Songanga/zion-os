@@ -117,5 +117,8 @@ jobs:
       - name: Test Frame migration manifest
         run: node --test apps/api/scripts/frame-migration-manifest.test.cjs
 
+      - name: Test target-bound Frame production plan
+        run: node --test apps/api/scripts/frame-production-plan.test.cjs
+
       - name: Check whitespace
         run: git diff --check
