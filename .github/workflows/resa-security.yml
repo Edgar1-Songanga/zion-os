@@ -6,6 +6,7 @@ on:
       - "supabase/migrations/*resa*"
       - "supabase/migrations/*department*"
       - "supabase/tests/resa_security*"
+      - "supabase/tests/resa_institutional_publication_bridge*"
       - "supabase/tests/resa_account_level_enforcement_regression.sql"
       - "supabase/tests/resa_call_security*"
       - "supabase/tests/resa_member_privacy_regression.sql"
@@ -209,3 +210,28 @@ jobs:
       - name: Stop disposable PostgreSQL
         if: always()
         run: docker rm -f zion-resa-security-postgres || true
+  institutional-publication-bridge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start disposable PostgreSQL
+        run: |
+          docker run --rm -d --name zion-resa-institutional-postgres \
+            -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:16
+          for attempt in $(seq 1 30); do
+            if docker exec zion-resa-institutional-postgres pg_isready -U postgres; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+      - name: Prepare isolated institutional source schema
+        run: |
+          docker exec -i zion-resa-institutional-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_institutional_publication_bridge_fixture.sql
+      - name: Apply canonical institutional publication projection
+        run: |
+          docker exec -i zion-resa-institutional-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261110065000_resa_institutional_publication_bridge.sql
+      - name: Verify source synchronization, unpublishing and RLS
+        run: |
+          docker exec -i zion-resa-institutional-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_institutional_publication_bridge_regression.sql
+      - name: Stop disposable PostgreSQL
+        if: always()
+        run: docker rm -f zion-resa-institutional-postgres || true
