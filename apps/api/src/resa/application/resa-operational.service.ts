@@ -335,6 +335,103 @@ export class ResaOperationalService {
     };
   }
 
+  async listLiveHandRaises(token: string, liveId: string) {
+    const actor = await this.actor(token);
+    const live = await this.assertLiveChatAccess(token, liveId);
+    const rows = await this.db.get<any[]>(
+      'resa_live_hand_raises',
+      token,
+      `?select=id,live_id,user_id,status,raised_at&live_id=eq.${live.id}&status=eq.WAITING&order=raised_at.asc&limit=100`,
+    );
+    const profiles = await this.profilesById(token, rows.map((row) => row.user_id), actor.id);
+    return rows.map((row) => ({
+      id: row.id,
+      live_id: row.live_id,
+      user_id: row.user_id,
+      status: row.status,
+      raised_at: row.raised_at,
+      name: this.profileDisplayName(profiles.get(row.user_id), row.user_id === actor.id ? 'Tu' : 'Membro RESA'),
+    }));
+  }
+
+  async raiseLiveHand(token: string, liveId: string) {
+    const actor = await this.actor(token);
+    const live = await this.assertLiveChatAccess(token, liveId);
+    if (live.host_id === actor.id) throw new BadRequestException('O anfitrião não precisa de pedir a palavra.');
+    const existing = await this.db.get<any[]>(
+      'resa_live_hand_raises',
+      token,
+      `?select=id,live_id,user_id,status,raised_at&live_id=eq.${live.id}&user_id=eq.${actor.id}&status=eq.WAITING&limit=1`,
+    );
+    let row = existing[0];
+    if (!row) {
+      try {
+        row = (await this.db.post<any[]>('resa_live_hand_raises', token, {
+          live_id: live.id,
+          user_id: actor.id,
+          status: 'WAITING',
+        }))[0];
+      } catch (error) {
+        // Concurrent taps may race the partial unique index. Re-read the winning
+        // request so the endpoint remains idempotent for the same participant.
+        const concurrent = await this.db.get<any[]>(
+          'resa_live_hand_raises',
+          token,
+          `?select=id,live_id,user_id,status,raised_at&live_id=eq.${live.id}&user_id=eq.${actor.id}&status=eq.WAITING&limit=1`,
+        );
+        if (!concurrent[0]) throw error;
+        row = concurrent[0];
+      }
+    }
+    if (!row?.id) throw new BadGatewayException('O pedido de palavra não foi guardado.');
+    const profiles = await this.profilesById(token, [actor.id], actor.id);
+    return {
+      id: row.id,
+      live_id: row.live_id,
+      user_id: row.user_id,
+      status: row.status,
+      raised_at: row.raised_at,
+      name: this.profileDisplayName(profiles.get(actor.id), 'Tu'),
+    };
+  }
+
+  async withdrawLiveHand(token: string, liveId: string) {
+    const actor = await this.actor(token);
+    const live = await this.assertLiveChatAccess(token, liveId);
+    const rows = await this.db.patch<any[]>(
+      'resa_live_hand_raises',
+      token,
+      { status: 'WITHDRAWN' },
+      `?live_id=eq.${live.id}&user_id=eq.${actor.id}&status=eq.WAITING`,
+    );
+    if (!rows[0]) throw new NotFoundException('Não existe pedido de palavra pendente para retirar.');
+    return { id: rows[0].id, live_id: live.id, user_id: actor.id, status: 'WITHDRAWN' };
+  }
+
+  async resolveLiveHand(token: string, liveId: string, requestId: string, decision: unknown) {
+    const actor = await this.actor(token);
+    const live = await this.assertLiveChatAccess(token, liveId);
+    if (decision !== 'APPROVED' && decision !== 'DECLINED') {
+      throw new BadRequestException('A decisão deve ser APPROVED ou DECLINED.');
+    }
+    const isHost = live.host_id === actor.id;
+    const moderator = isHost ? [] : await this.db.get<any[]>(
+      'resa_live_moderators',
+      token,
+      `?select=live_id&live_id=eq.${live.id}&moderator_user_id=eq.${actor.id}&limit=1`,
+    );
+    if (!isHost && !moderator.length) throw new ForbiddenException('Só o anfitrião ou um moderador pode resolver pedidos de palavra.');
+    const id = this.id(requestId, 'request_id');
+    const rows = await this.db.patch<any[]>(
+      'resa_live_hand_raises',
+      token,
+      { status: decision, resolved_at: new Date().toISOString(), resolved_by: actor.id },
+      `?id=eq.${id}&live_id=eq.${live.id}&status=eq.WAITING`,
+    );
+    if (!rows[0]) throw new NotFoundException('Pedido pendente não encontrado.');
+    return { id: rows[0].id, live_id: live.id, user_id: rows[0].user_id, status: rows[0].status };
+  }
+
   async createLiveSession(token: string, input: { title: unknown; description?: unknown; visibility?: unknown; community_id?: unknown; scheduled_at?: unknown; organization_id?: unknown; organization_unit_id?: unknown; ministry_id?: unknown; password?: unknown }) {
     const actor = await this.actor(token);
     const visibility = input.visibility ?? 'public';

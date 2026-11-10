@@ -99,6 +99,31 @@ export class ResaOperationalController {
     return this.operational.sendLiveChatMessage(this.token(authorization), liveId, body.body);
   }
 
+  @Get('live/:liveId/hand-raises')
+  listLiveHandRaises(@Headers('authorization') authorization: string | undefined, @Param('liveId') liveId: string) {
+    return this.operational.listLiveHandRaises(this.token(authorization), liveId);
+  }
+
+  @Post('live/:liveId/hand-raises')
+  raiseLiveHand(@Headers('authorization') authorization: string | undefined, @Param('liveId') liveId: string) {
+    return this.operational.raiseLiveHand(this.token(authorization), liveId);
+  }
+
+  @Delete('live/:liveId/hand-raises/me')
+  withdrawLiveHand(@Headers('authorization') authorization: string | undefined, @Param('liveId') liveId: string) {
+    return this.operational.withdrawLiveHand(this.token(authorization), liveId);
+  }
+
+  @Patch('live/:liveId/hand-raises/:requestId')
+  resolveLiveHand(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('liveId') liveId: string,
+    @Param('requestId') requestId: string,
+    @Body() body: { decision: 'APPROVED' | 'DECLINED' },
+  ) {
+    return this.operational.resolveLiveHand(this.token(authorization), liveId, requestId, body?.decision);
+  }
+
   @Get('group-meetings')
   groupMeetingsList(@Headers('authorization') authorization?: string, @Query('limit') limit?: string) {
     return this.groupMeetings.list(this.token(authorization), Number(limit) || 30);

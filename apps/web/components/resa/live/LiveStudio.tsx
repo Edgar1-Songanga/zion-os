@@ -7,10 +7,11 @@ import { resaRequest } from "@/lib/resa/api";
 type JoinConfig = { joinUrl: string; token: string; roomId: string; displayName?: string; isHost?: boolean; isModerator?: boolean; role?: "host" | "moderator" | "viewer"; hostIdentity?: string; trustedModeratorIdentities?: string[]; attendee_publish_allowed?: boolean; attendee_camera_on_join?: boolean; attendee_microphone_on_join?: boolean };
 type LiveMessage = { id: string; identity: string; name: string; text: string; sentAt: number };
 type PersistedLiveMessage = { id: string; sender_id: string; name: string; text: string; sent_at: string };
-type Participant = { identity: string; name: string };
+type Participant = { identity: string; name: string; requestId?: string };
 type LivePacket =
   | { type: "chat"; text: string; name?: string }
   | { type: "hand_raise"; name?: string }
+  | { type: "hand_raise_declined"; name?: string }
   | { type: "speak_granted"; name?: string }
   | { type: "speak_revoked"; name?: string }
   | { type: "moderator_roster_changed"; name?: string }
@@ -137,6 +138,23 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
   }, []);
 
   useEffect(() => {
+    if (!connected) return;
+    const refreshHandRaiseQueue = () => {
+      void resaRequest<Array<{ id: string; user_id: string; name: string; status: string }>>(
+        "/v1/resa/live/" + liveId + "/hand-raises",
+      ).then((rows) => {
+        setRaisedHands(rows.map((row) => ({ identity: row.user_id, name: row.name, requestId: row.id })));
+        setHandRaised(rows.some((row) => row.user_id === selfIdentity));
+      }).catch(() => {
+        // Queue polling is recoverable; the realtime data channel remains available.
+      });
+    };
+    refreshHandRaiseQueue();
+    const timer = window.setInterval(refreshHandRaiseQueue, 5000);
+    return () => window.clearInterval(timer);
+  }, [connected, liveId, selfIdentity]);
+
+  useEffect(() => {
     if (!joinMode) { setStarting(false); return; }
     setStarting(true);
     let mounted = true;
@@ -220,8 +238,10 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
             sentAt: Date.now(),
           }].slice(-200));
         } else if (packet.type === "hand_raise") {
-          setRaisedHands((current) => current.some((item) => item.identity === identity) ? current : [...current, { identity, name }]);
-          if (room.localParticipant.identity !== identity) setNotice(name + " levantou a mão.");
+          if (room.localParticipant.identity !== identity) setNotice(name + " levantou a mão. A fila está a sincronizar.");
+        } else if (packet.type === "hand_raise_declined" && identity !== room.localParticipant.identity && trustedModeratorIdentitiesRef.current.has(identity)) {
+          setHandRaised(false);
+          setNotice("O teu pedido para falar foi recusado pela moderação.");
         } else if (packet.type === "speak_granted" && identity !== room.localParticipant.identity && trustedModeratorIdentitiesRef.current.has(identity)) {
           setNotice("A moderação autorizou a tua participação. Já podes ativar o microfone, a câmara e partilhar o ecrã.");
           setCanSpeak(true);
@@ -260,7 +280,7 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
       }
     };
 
-    const loadMessageHistory = () => {
+  const loadMessageHistory = () => {
       void resaRequest<PersistedLiveMessage[]>("/v1/resa/live/" + liveId + "/messages?limit=100")
         .then((history) => {
           if (mounted) setMessages(history.map((item) => ({ id: item.id, identity: item.sender_id, name: item.name, text: item.text, sentAt: Date.parse(item.sent_at) || Date.now() })));
@@ -662,11 +682,43 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
 
   async function raiseHand() {
     try {
-      await sendPacket({ type: "hand_raise", name: roomRef.current?.localParticipant.name || "Participante" });
+      await resaRequest("/v1/resa/live/" + liveId + "/hand-raises", { method: "POST" });
       setHandRaised(true);
-      setNotice("Pedido enviado ao anfitrião.");
+      try {
+        await sendPacket({ type: "hand_raise", name: roomRef.current?.localParticipant.name || "Participante" });
+        setNotice("Pedido enviado e guardado. O anfitrião será notificado.");
+      } catch {
+        setNotice("Pedido guardado. A fila do anfitrião será atualizada automaticamente.");
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Não foi possível levantar a mão.");
+      setError(e instanceof Error ? e.message : "Não foi possível guardar o pedido de palavra.");
+    }
+  }
+
+  async function withdrawHandRaise() {
+    try {
+      await resaRequest("/v1/resa/live/" + liveId + "/hand-raises/me", { method: "DELETE" });
+      setRaisedHands((current) => current.filter((item) => item.identity !== selfIdentity));
+      setHandRaised(false);
+      setNotice("Pedido de palavra retirado.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível retirar o pedido.");
+    }
+  }
+
+  async function declineHandRaise(identity: string) {
+    const request = raisedHands.find((item) => item.identity === identity);
+    if (!request?.requestId) return;
+    try {
+      await resaRequest("/v1/resa/live/" + liveId + "/hand-raises/" + encodeURIComponent(request.requestId), {
+        method: "PATCH",
+        body: JSON.stringify({ decision: "DECLINED" }),
+      });
+      await sendPacket({ type: "hand_raise_declined", name: roomRef.current?.localParticipant.name || "Moderação" }, identity);
+      setRaisedHands((current) => current.filter((item) => item.identity !== identity));
+      setNotice("Pedido de palavra recusado.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível recusar o pedido.");
     }
   }
 
@@ -716,6 +768,13 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
         method: "PATCH",
         body: JSON.stringify({ action }),
       });
+      const pendingRequest = raisedHands.find((item) => item.identity === identity);
+      if (action === "allow_speak" && pendingRequest?.requestId) {
+        await resaRequest("/v1/resa/live/" + liveId + "/hand-raises/" + encodeURIComponent(pendingRequest.requestId), {
+          method: "PATCH",
+          body: JSON.stringify({ decision: "APPROVED" }),
+        });
+      }
       if (action === "allow_speak") {
         await sendPacket({ type: "speak_granted", name: roomRef.current?.localParticipant.name || "Anfitrião" }, identity);
         setRaisedHands((current) => current.filter((item) => item.identity !== identity));
@@ -981,7 +1040,7 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
                 </label>}
                 <button type="button" onClick={() => void refreshMediaDevices()} className="self-end rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-white/10">Atualizar dispositivos</button>
               </div>}
-              {!isHost && <button onClick={() => void raiseHand()} disabled={!connected || handRaised} className="rounded-xl bg-white/10 px-3 py-2.5 text-xs font-semibold text-white disabled:opacity-40">{handRaised ? "✋ Mão levantada" : "✋ Pedir a palavra"}</button>}
+              {!isHost && <button onClick={() => void (handRaised ? withdrawHandRaise() : raiseHand())} disabled={!connected} className="rounded-xl bg-white/10 px-3 py-2.5 text-xs font-semibold text-white disabled:opacity-40">{handRaised ? "Retirar pedido" : "✋ Pedir a palavra"}</button>}
               {isHost && <button onClick={() => void endLive()} disabled={ending} className="rounded-xl border border-rose-300/20 bg-rose-500/[0.07] px-3 py-2.5 text-xs font-semibold text-rose-200/90 transition hover:bg-rose-500/15 disabled:opacity-50">{ending ? "A encerrar…" : "Encerrar live"}</button>}
             </div>
             {isHost && <div className="rounded-2xl border border-white/10 bg-black/10 p-3"><p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Ferramentas do anfitrião</p>{hostControls}</div>}
@@ -1022,7 +1081,7 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
                     <span className="flex min-w-0 items-center gap-2"><span aria-hidden="true" className="text-xl">✋</span><span className="truncate">{person.name}</span></span>
                     <div className="flex shrink-0 gap-1">
                       <button onClick={() => void moderate(person.identity, "allow_speak")} className="rounded-lg bg-sky-300 px-2 py-1.5 text-xs font-bold text-[#07142c]">Autorizar</button>
-                      <button onClick={() => setRaisedHands((current) => current.filter((item) => item.identity !== person.identity))} aria-label={"Fechar pedido de " + person.name} className="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-slate-300 hover:bg-white/10">Fechar</button>
+                      <button onClick={() => void declineHandRaise(person.identity)} aria-label={"Recusar pedido de " + person.name} className="rounded-lg border border-white/10 px-2 py-1.5 text-xs text-slate-300 hover:bg-white/10">Recusar</button>
                     </div>
                   </div>)}
                 </div>}
