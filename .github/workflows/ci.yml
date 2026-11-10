@@ -117,5 +117,29 @@ jobs:
       - name: Test Frame migration manifest
         run: node --test apps/api/scripts/frame-migration-manifest.test.cjs
 
+      - name: Test target-bound Frame production plan
+        run: node --test apps/api/scripts/frame-production-plan.test.cjs
+
+      - name: Start disposable PostgreSQL for Frame audit guard
+        run: |
+          docker run --rm -d --name zion-frame-audit-postgres \
+            -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:16
+          for attempt in $(seq 1 30); do
+            if docker exec zion-frame-audit-postgres pg_isready -U postgres; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+
+      - name: Verify Frame audit log is append-only
+        run: |
+          set -euo pipefail
+          docker exec -i zion-frame-audit-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/frame_audit_append_only_fixture.sql
+          docker exec -i zion-frame-audit-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261110170000_frame_audit_append_only.sql
+          docker exec -i zion-frame-audit-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/frame_audit_append_only_regression.sql
+
+      - name: Stop disposable PostgreSQL
+        if: always()
+        run: docker rm -f zion-frame-audit-postgres || true
+
       - name: Check whitespace
         run: git diff --check

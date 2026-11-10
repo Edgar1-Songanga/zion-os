@@ -1,0 +1,209 @@
+name: Frame — exclusive production migrations
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "plan = read-only preview; execute = apply the exact approved plan"
+        required: true
+        type: choice
+        options:
+          - plan
+          - execute
+      expected_plan_sha256:
+        description: "Required for execute: SHA-256 printed by a successful plan run"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zion-frame-production-migrations
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Build and validate immutable production plan
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      plan_sha256: ${{ steps.plan.outputs.plan_sha256 }}
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.ZION_SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.ZION_SUPABASE_DB_PASSWORD }}
+      ZION_SUPABASE_PROJECT_REF: ${{ vars.ZION_SUPABASE_PROJECT_REF }}
+    steps:
+      - name: Checkout exact main commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Validate Frame configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_ACCESS_TOKEN"
+          test -n "$SUPABASE_DB_PASSWORD"
+          test -n "$ZION_SUPABASE_PROJECT_REF"
+
+      - name: Generate immutable plan
+        id: plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          node apps/api/scripts/frame-production-plan.cjs > "$RUNNER_TEMP/frame-plan.json"
+          PLAN_SHA="$(node apps/api/scripts/frame-production-plan.cjs --hash-only)"
+          echo "plan_sha256=$PLAN_SHA" >> "$GITHUB_OUTPUT"
+          echo "FRAME_PLAN_SHA256=$PLAN_SHA" >> "$GITHUB_STEP_SUMMARY"
+          cat "$RUNNER_TEMP/frame-plan.json" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Link production project
+        run: supabase link --project-ref "$ZION_SUPABASE_PROJECT_REF"
+
+      - name: Capture remote migration ledger
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase migration list --linked | tee "$RUNNER_TEMP/remote-migrations-before.txt"
+
+      - name: Dry-run complete migration queue
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db push --linked --include-all --dry-run 2>&1 | tee "$RUNNER_TEMP/frame-dry-run.txt"
+
+      - name: Require exact plan hash for execution mode
+        if: inputs.mode == 'execute'
+        shell: bash
+        env:
+          EXPECTED_PLAN_SHA256: ${{ inputs.expected_plan_sha256 }}
+          ACTUAL_PLAN_SHA256: ${{ steps.plan.outputs.plan_sha256 }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_PLAN_SHA256" =~ ^[a-f0-9]{64}$ ]]
+          test "$EXPECTED_PLAN_SHA256" = "$ACTUAL_PLAN_SHA256"
+
+      - name: Upload read-only plan and dry-run evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: frame-production-plan-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/frame-plan.json
+            ${{ runner.temp }}/remote-migrations-before.txt
+            ${{ runner.temp }}/frame-dry-run.txt
+          if-no-files-found: error
+          retention-days: 30
+
+  execute:
+    name: Execute approved production plan through Frame only
+    if: github.ref == 'refs/heads/main' && inputs.mode == 'execute'
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: zion-production-migrations
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.ZION_SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.ZION_SUPABASE_DB_PASSWORD }}
+      ZION_SUPABASE_PROJECT_REF: ${{ vars.ZION_SUPABASE_PROJECT_REF }}
+      ZION_SUPABASE_DB_URL: ${{ secrets.ZION_SUPABASE_DB_URL }}
+      EXPECTED_PLAN_SHA256: ${{ inputs.expected_plan_sha256 }}
+    steps:
+      - name: Checkout exact approved commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install locked PostgreSQL client
+        run: python -m pip install "psycopg[binary]==3.2.9"
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Validate executor credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_ACCESS_TOKEN"
+          test -n "$SUPABASE_DB_PASSWORD"
+          test -n "$ZION_SUPABASE_DB_URL"
+
+      - name: Recompute and verify approval binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          node apps/api/scripts/frame-production-plan.cjs > "$RUNNER_TEMP/frame-plan.json"
+          ACTUAL_PLAN_SHA256="$(node apps/api/scripts/frame-production-plan.cjs --hash-only)"
+          [[ "$EXPECTED_PLAN_SHA256" =~ ^[a-f0-9]{64}$ ]]
+          test "$ACTUAL_PLAN_SHA256" = "$EXPECTED_PLAN_SHA256"
+          echo "Approved Frame plan: $ACTUAL_PLAN_SHA256" >> "$GITHUB_STEP_SUMMARY"
+          echo "FRAME_PLAN_FILE=$RUNNER_TEMP/frame-plan.json" >> "$GITHUB_ENV"
+
+      - name: Re-link and repeat dry-run after approval
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase link --project-ref "$ZION_SUPABASE_PROJECT_REF"
+          supabase db push --linked --include-all --dry-run 2>&1 | tee "$RUNNER_TEMP/frame-approved-dry-run.txt"
+
+      - name: Apply production migrations under database lock and audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python apps/api/scripts/frame-execute-locked.py -- supabase db push --linked --include-all --yes 2>&1 | tee "$RUNNER_TEMP/frame-execution.txt"
+
+      - name: Verify migration ledger is converged
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase migration list --linked | tee "$RUNNER_TEMP/remote-migrations-after.txt"
+          supabase db push --linked --include-all --dry-run 2>&1 | tee "$RUNNER_TEMP/frame-post-verify.txt"
+          if grep -Eiq 'would apply|pending migration|applying migration' "$RUNNER_TEMP/frame-post-verify.txt"; then
+            echo "Frame post-verification found pending migrations." >&2
+            exit 1
+          fi
+
+      - name: Preserve sanitized execution evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frame-production-execution-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/frame-approved-dry-run.txt
+            ${{ runner.temp }}/frame-execution.txt
+            ${{ runner.temp }}/remote-migrations-after.txt
+            ${{ runner.temp }}/frame-post-verify.txt
+          if-no-files-found: warn
+          retention-days: 90
+
+  reject-non-main:
+    name: Reject dispatch outside main
+    if: github.ref != 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "Frame production migration runs are only permitted from main." >&2
+          exit 1
