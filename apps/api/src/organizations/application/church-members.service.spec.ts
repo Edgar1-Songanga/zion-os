@@ -47,6 +47,39 @@ describe('ChurchMembersService', () => {
     );
   });
 
+  it('archives a member as REMOVED instead of hard-deleting the record', async () => {
+    patchSpy.mockResolvedValueOnce([{ id: memberId, membership_status: 'REMOVED' }] as never);
+    const result = await service.remove(accessToken, organizationId, memberId);
+    expect(result.membership_status).toBe('REMOVED');
+    expect(patchSpy).toHaveBeenCalledWith(
+      'church_member_records',
+      accessToken,
+      { membership_status: 'REMOVED', updated_by: actor.id },
+      `?id=eq.${memberId}&organization_id=eq.${organizationId}`,
+    );
+  });
+
+  it('lists deceased and removed records across only RLS-authorized organizations', async () => {
+    await service.listByStatus(accessToken, 'DECEASED');
+    expect(getSpy).toHaveBeenCalledWith(
+      'church_member_records',
+      accessToken,
+      expect.stringContaining('membership_status=eq.DECEASED'),
+    );
+  });
+
+  it('rejects global member register filters outside deceased and removed states', async () => {
+    await expect(service.listByStatus(accessToken, 'ACTIVE')).rejects.toBeInstanceOf(BadRequestException);
+    expect(getSpy).not.toHaveBeenCalled();
+  });
+
+  it('prevents direct status edits from bypassing the audited removal workflow', async () => {
+    await expect(service.update(accessToken, organizationId, memberId, {
+      membership_status: 'REMOVED',
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(patchSpy).not.toHaveBeenCalled();
+  });
+
   it('rejects an empty required name before writing to the database', async () => {
     await expect(service.create(accessToken, organizationId, { first_name: ' ', last_name: 'Silva' }))
       .rejects.toBeInstanceOf(BadRequestException);

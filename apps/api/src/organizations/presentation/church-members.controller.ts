@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Patch, Post, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, UnauthorizedException } from '@nestjs/common';
 import { ChurchMembersService } from '../application/church-members.service';
 
 type MemberBody = {
@@ -51,6 +51,15 @@ export class ChurchMembersController {
     @Body() body: MemberBody,
   ) {
     return this.members.update(this.token(authorization), organizationId, memberId, body);
+  }
+
+  @Delete(':memberId')
+  remove(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('organizationId') organizationId: string,
+    @Param('memberId') memberId: string,
+  ) {
+    return this.members.remove(this.token(authorization), organizationId, memberId);
   }
 
   @Get(':memberId/status-history')

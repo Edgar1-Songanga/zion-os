@@ -2,7 +2,8 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { IdentityService } from '../../identity/application/identity.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 
-const STATUSES = ['ACTIVE', 'TRANSFERRED', 'DECEASED', 'DISMISSED', 'INACTIVE'] as const;
+const STATUSES = ['ACTIVE', 'TRANSFERRED', 'DECEASED', 'DISMISSED', 'INACTIVE', 'REMOVED'] as const;
+const ARCHIVE_STATUSES = ['DECEASED', 'REMOVED'] as const;
 const GENDERS = ['FEMALE', 'MALE', 'UNSPECIFIED'] as const;
 
 type MemberRecord = {
@@ -94,6 +95,32 @@ export class ChurchMembersService {
     return updated[0];
   }
 
+  async listByStatus(accessToken: string, status: string) {
+    await this.identity.getCurrentUser(accessToken);
+    if (!(ARCHIVE_STATUSES as readonly string[]).includes(status)) {
+      throw new BadRequestException('Only DECEASED or REMOVED records can be listed globally.');
+    }
+    return this.db.get<MemberRecord[]>(
+      'church_member_records',
+      accessToken,
+      `?select=id,organization_id,member_number,first_name,last_name,birth_date,gender,membership_status,joined_on,updated_at&membership_status=eq.${status}&order=last_name.asc,first_name.asc&limit=500`,
+    );
+  }
+
+  async remove(accessToken: string, organizationId: string, memberId: string) {
+    this.assertUuid(organizationId, 'organizationId');
+    this.assertUuid(memberId, 'memberId');
+    const user = await this.identity.getCurrentUser(accessToken);
+    const updated = await this.db.patch<MemberRecord[]>(
+      'church_member_records',
+      accessToken,
+      { membership_status: 'REMOVED', updated_by: user.id },
+      `?id=eq.${memberId}&organization_id=eq.${organizationId}`,
+    );
+    if (!updated[0]) throw new NotFoundException('Member record not found or not accessible.');
+    return updated[0];
+  }
+
   async statusHistory(accessToken: string, organizationId: string, memberId: string) {
     this.assertUuid(organizationId, 'organizationId');
     this.assertUuid(memberId, 'memberId');
@@ -150,6 +177,9 @@ export class ChurchMembersService {
       result.gender = input.gender;
     }
     if (input.membership_status !== undefined) {
+      if (input.membership_status === 'REMOVED') {
+        throw new BadRequestException('Use the member removal workflow to set REMOVED status.');
+      }
       if (!(STATUSES as readonly string[]).includes(input.membership_status)) {
         throw new BadRequestException('membership_status is not supported.');
       }
