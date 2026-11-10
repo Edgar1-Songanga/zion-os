@@ -78,7 +78,10 @@ jobs:
       - name: Harden direct-message trigger search path
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108111255_harden_resa_message_trigger_search_path.sql
-      - name: Verify profile, message, call, follow and group-invite privacy
+      - name: Apply non-recursive conversation membership identity policy
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261016063000_resa_conversation_participant_identity.sql
+      - name: Verify profile, message, call, follow, group-invite and conversation membership privacy
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_member_privacy_regression.sql
       - name: Apply content audience visibility RLS
