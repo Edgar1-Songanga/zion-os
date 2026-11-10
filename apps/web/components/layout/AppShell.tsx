@@ -4,16 +4,19 @@ import { usePathname } from "next/navigation";
 import Sidebar from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
 import Footer from "@/components/layout/Footer";
+import SessionPermissionRefresh from "@/components/auth/SessionPermissionRefresh";
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isResa = pathname === "/resa" || pathname.startsWith("/resa/");
 
   if (isResa) {
-    return <>{children}</>;
+    return <><SessionPermissionRefresh />{children}</>;
   }
 
   return (
+    <>
+    <SessionPermissionRefresh />
     <div className="flex min-h-screen">
       <Sidebar />
       <div className="flex flex-1 flex-col">
@@ -22,5 +25,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <Footer />
       </div>
     </div>
+    </>
   );
 }
