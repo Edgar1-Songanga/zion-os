@@ -1,0 +1,46 @@
+name: Global member identity and transfer regression
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/*global_member_identity_transfer*"
+      - "supabase/tests/global_member_identity_transfer*"
+      - ".github/workflows/global-member-identity-transfer.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/*global_member_identity_transfer*"
+      - "supabase/tests/global_member_identity_transfer*"
+      - ".github/workflows/global-member-identity-transfer.yml"
+permissions:
+  contents: read
+jobs:
+  member-identity-transfer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start disposable PostgreSQL
+        run: |
+          docker run --rm -d --name zion-member-identity-postgres \
+            -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:16
+          for attempt in $(seq 1 30); do
+            if docker exec zion-member-identity-postgres pg_isready -U postgres; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+      - name: Prepare isolated member schema
+        run: docker exec -i zion-member-identity-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/global_member_identity_transfer_fixture.sql
+      - name: Apply identity and transfer migration
+        run: docker exec -i zion-member-identity-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261110160000_global_member_identity_transfer_integrity.sql
+      - name: Install production-equivalent transfer trigger
+        run: |
+          docker exec -i zion-member-identity-postgres psql -U postgres -v ON_ERROR_STOP=1 <<'SQL'
+          create trigger church_member_transfer_apply
+          after update of status on public.church_member_transfers
+          for each row when (new.status = 'ACCEPTED' and old.status is distinct from new.status)
+          execute function public.apply_church_member_transfer_acceptance();
+          SQL
+      - name: Verify identity creation and atomic transfer
+        run: docker exec -i zion-member-identity-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/global_member_identity_transfer_regression.sql
+      - name: Stop disposable PostgreSQL
+        if: always()
+        run: docker rm -f zion-member-identity-postgres || true
