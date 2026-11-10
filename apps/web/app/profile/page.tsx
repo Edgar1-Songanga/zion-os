@@ -5,6 +5,7 @@ import { resaRequest } from "@/lib/resa/api";
 import { createClient } from "@/lib/supabase/client";
 import ResaSocialNetwork from "@/components/resa/social/ResaSocialNetwork";
 import YouthPersonalJourney from "@/components/youth/dashboard/YouthPersonalJourney";
+import VerificationCenter from "@/components/profile/verification/VerificationCenter";
 
 type Profile = {
   id: string;
@@ -194,6 +195,7 @@ export default function ProfilePage() {
           </div>
         </form>
 
+        <VerificationCenter />
         {profile.id && <ResaSocialNetwork userId={profile.id} />}
       </div>
     </main>

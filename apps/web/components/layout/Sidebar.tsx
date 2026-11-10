@@ -144,7 +144,7 @@ export default function Sidebar() {
     {
       title: "Administração",
       items: [
-        ...(globalAdmin ? [{ name: "Administração Global", path: "/admin" }] : []),
+        ...(globalAdmin ? [{ name: "Administração Global", path: "/admin" }, { name: "Verificação de contas", path: "/admin/verification" }] : []),
         ...(isOrganizationManager ? [{ name: "Administração da Igreja", path: "/church-administration" }] : []),
         ...(isMinistryManager ? [{ name: "Ministérios e departamentos", path: "/ministry" }] : []),
         ...(isStewardshipManager ? [{ name: "Mordomia Cristã", path: "/stewardship" }] : []),
