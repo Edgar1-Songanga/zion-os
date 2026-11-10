@@ -268,26 +268,8 @@ export default function SecretariatPage() {
     setSaving(true);
     setError("");
     setNotice("");
+    setIdentityCandidates([]);
     try {
-      if (!editingMember && payload.birth_date) {
-        const candidates = await resaRequest<IdentityCandidate[]>(
-          `/v1/organizations/${encodeURIComponent(organizationId)}/church-members/identity-candidates`,
-          {
-            method: "POST",
-            body: JSON.stringify({
-              first_name: payload.first_name,
-              last_name: payload.last_name,
-              birth_date: payload.birth_date,
-              gender: payload.gender,
-            }),
-          },
-        );
-        setIdentityCandidates(candidates);
-        if (candidates.length > 0) {
-          setNotice("");
-          return;
-        }
-      }
       const path = `/v1/organizations/${encodeURIComponent(organizationId)}/church-members${editingMember ? `/${encodeURIComponent(editingMember.id)}` : ""}`;
       await resaRequest<Member>(path, {
         method: editingMember ? "PATCH" : "POST",
