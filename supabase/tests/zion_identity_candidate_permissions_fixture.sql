@@ -5,7 +5,7 @@ create table public.zion_test_org_permissions (
   primary key (actor_id, organization_id, permission_key)
 );
 
-create or replace function private.has_org_permission(target_org uuid, permission_key text)
+create or replace function private.has_org_permission(target_org uuid, p_permission_key text)
 returns boolean
 language sql
 stable
@@ -17,6 +17,6 @@ as $function$
     from public.zion_test_org_permissions p
     where p.actor_id = auth.uid()
       and p.organization_id = target_org
-      and p.permission_key = has_org_permission.permission_key
+      and p.permission_key = p_permission_key
   );
 $function$;
