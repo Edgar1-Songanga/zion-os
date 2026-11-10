@@ -69,7 +69,21 @@ begin
     'app_metadata', jsonb_build_object('zion_global_role', 'member', 'zion_verified', false)
   )::text, true);
 
-  archived := private.zion_archive_local_church(church_id, 'Approved church closure test');
+  if not has_function_privilege('authenticated', 'public.zion_archive_local_church(uuid,text)', 'EXECUTE')
+    or not has_function_privilege('authenticated', 'public.zion_list_archivable_local_churches()', 'EXECUTE') then
+    raise exception 'Authenticated API RPC grants are missing';
+  end if;
+
+  if has_function_privilege('anon', 'public.zion_archive_local_church(uuid,text)', 'EXECUTE')
+    or has_function_privilege('anon', 'public.zion_list_archivable_local_churches()', 'EXECUTE') then
+    raise exception 'Anonymous access to church archive RPCs must remain blocked';
+  end if;
+
+  if not exists (select 1 from public.zion_list_archivable_local_churches() where id = church_id) then
+    raise exception 'Mission secretary could not see a church in their archive scope';
+  end if;
+
+  archived := public.zion_archive_local_church(church_id, 'Approved church closure test');
   if archived.is_active or archived.archived_at is null or archived.archived_by <> actor then
     raise exception 'Mission secretary archive did not persist the expected archive metadata';
   end if;
