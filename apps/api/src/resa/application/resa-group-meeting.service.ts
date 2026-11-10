@@ -347,6 +347,67 @@ export class ResaGroupMeetingService {
     return rows[0];
   }
 
+  async setModerator(token: string, meetingId: string, userId: string, enabled: boolean) {
+    const id = this.id(meetingId, 'meeting_id');
+    const targetId = this.id(userId, 'user_id');
+    const { actor, participant } = await this.requireModerator(token, id);
+    if (participant.participant_role !== 'HOST') {
+      throw new ForbiddenException('Only the host can appoint or remove meeting moderators');
+    }
+    if (targetId === actor.id) throw new BadRequestException('The host role cannot be changed here');
+    const target = await this.participant(token, id, targetId);
+    if (!target || !['ACCEPTED', 'PRESENT', 'LEFT'].includes(target.status)) {
+      throw new NotFoundException('Active participant not found');
+    }
+    if (target.participant_role === 'HOST') {
+      throw new BadRequestException('The host role cannot be reassigned');
+    }
+    const previousRole = target.participant_role;
+    const nextRole = enabled ? 'MODERATOR' : 'PARTICIPANT';
+    if (previousRole === nextRole) return target;
+    if (!enabled && previousRole !== 'MODERATOR') return target;
+
+    if (target.status === 'PRESENT') {
+      if (!this.media.setParticipantPermissions) {
+        throw new BadGatewayException('Media provider cannot update participant permissions');
+      }
+      await this.media.setParticipantPermissions({
+        roomId: await this.roomProviderId(token, id),
+        identity: targetId,
+        canPublish: true,
+        canPublishSources: enabled ? PRESENTER_SOURCES : PARTICIPANT_SOURCES,
+      });
+    }
+
+    try {
+      const rows = await this.db.patch<any[]>('resa_group_meeting_participants', token,
+        { participant_role: nextRole }, `?meeting_id=eq.${id}&user_id=eq.${targetId}`);
+      if (!rows[0]) throw new Error('Moderator role was not persisted');
+      await this.recordEvent(token, id, actor.id, 'ROLE_CHANGED', {
+        target_user_id: targetId, from: previousRole, to: nextRole,
+      });
+      return rows[0];
+    } catch {
+      if (target.status === 'PRESENT' && this.media.setParticipantPermissions) {
+        try {
+          await this.media.setParticipantPermissions({
+            roomId: await this.roomProviderId(token, id),
+            identity: targetId,
+            canPublish: true,
+            canPublishSources: previousRole === 'MODERATOR' || previousRole === 'PRESENTER'
+              ? PRESENTER_SOURCES : PARTICIPANT_SOURCES,
+          });
+        } catch {
+          console.error(JSON.stringify({
+            event: 'resa_group_meeting_moderator_permission_rollback_failed',
+            meetingId: id,
+          }));
+        }
+      }
+      throw new BadGatewayException('Moderator permissions could not be updated safely');
+    }
+  }
+
   async setPresenter(token: string, meetingId: string, userId: string, enabled: boolean) {
     const id = this.id(meetingId, 'meeting_id');
     const targetId = this.id(userId, 'user_id');
@@ -539,7 +600,8 @@ export class ResaGroupMeetingService {
     const size = Math.min(Math.max(Number(limit) || 100, 1), 200);
     const rows = await this.db.get<any[]>('resa_group_meeting_messages', token,
       `?select=id,meeting_id,sender_id,body,created_at&meeting_id=eq.${id}&order=created_at.desc&limit=${size}`);
-    return rows.reverse();
+    const messages = rows.reverse();
+    return this.withMessageProfiles(token, messages);
   }
 
   async sendMessage(token: string, meetingId: string, rawBody: unknown) {
@@ -550,7 +612,26 @@ export class ResaGroupMeetingService {
       meeting_id: id, sender_id: actor.id, body,
     });
     if (!rows[0]) throw new BadGatewayException('Meeting message was not persisted');
-    return rows[0];
+    return (await this.withMessageProfiles(token, [rows[0]]))[0];
+  }
+
+  private async withMessageProfiles(token: string, messages: any[]) {
+    const senderIds = [...new Set(messages.map((message) => message.sender_id).filter(Boolean))];
+    if (!senderIds.length) return messages;
+    const profiles = await this.db.rpc<any[]>('resa_profiles_for_ids', token, {
+      p_user_ids: senderIds,
+    });
+    const byId = new Map(profiles.map((profile) => [profile.id, profile]));
+    return messages.map((message) => {
+      const profile = byId.get(message.sender_id);
+      return {
+        ...message,
+        sender_display_name: profile?.display_name?.trim()
+          || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim()
+          || 'Membro RESA',
+        sender_avatar_url: profile?.avatar_url ?? null,
+      };
+    });
   }
 
   async recordEvent(token: string, meetingId: string, actorId: string, eventType: string, payload: unknown = {}) {

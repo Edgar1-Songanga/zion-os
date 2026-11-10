@@ -19,6 +19,8 @@ type MeetingMessage = {
   sender_id: string;
   body: string;
   created_at: string;
+  sender_display_name?: string;
+  sender_avatar_url?: string | null;
 };
 type HandRaise = {
   id: string;
@@ -54,6 +56,7 @@ export default function ResaGroupMeetingRoom({
   const [cameraOn, setCameraOn] = useState(false);
   const [microphoneOn, setMicrophoneOn] = useState(false);
   const [screenShareOn, setScreenShareOn] = useState(false);
+  const [screenShareSupported, setScreenShareSupported] = useState(false);
   const [shareSystemAudio, setShareSystemAudio] = useState(false);
   const [chat, setChat] = useState<MeetingMessage[]>([]);
   const [handRaises, setHandRaises] = useState<HandRaise[]>([]);
@@ -64,6 +67,15 @@ export default function ResaGroupMeetingRoom({
   const [busy, setBusy] = useState<string | null>(null);
   const canShareScreen = ["HOST", "MODERATOR", "PRESENTER"].includes(role);
   const canPublish = role !== "VIEWER";
+
+  useEffect(() => {
+    const supported = Boolean(
+      window.isSecureContext &&
+      navigator.mediaDevices &&
+      "getDisplayMedia" in navigator.mediaDevices
+    );
+    setScreenShareSupported(supported);
+  }, []);
 
   const refreshPeople = useCallback((room: Room) => {
     setPeople([
@@ -111,9 +123,12 @@ export default function ResaGroupMeetingRoom({
   useEffect(() => {
     if (!connected) return;
     void loadHandRaises();
-    const interval = window.setInterval(() => void loadHandRaises(), 5000);
+    const interval = window.setInterval(() => {
+      void loadHandRaises();
+      void onRefresh();
+    }, 5000);
     return () => window.clearInterval(interval);
-  }, [connected, loadHandRaises]);
+  }, [connected, loadHandRaises, onRefresh]);
 
   useEffect(() => {
     let active = true;
@@ -125,6 +140,8 @@ export default function ResaGroupMeetingRoom({
       if (!participant?.identity) return;
       const isScreenShare = track.source === Track.Source.ScreenShare && track.kind === Track.Kind.Video;
       const target = isScreenShare ? remoteScreenRef.current : remoteRef.current;
+      const profileName = participants.find((person) => person.user_id === participant.identity)?.display_name;
+      const participantName = profileName || participant.name || "Participante";
       if (!target) return;
       const element = track.attach() as HTMLMediaElement;
       element.autoplay = true;
@@ -141,7 +158,7 @@ export default function ResaGroupMeetingRoom({
         tile.appendChild(video);
         const label = document.createElement("span");
         label.className = "absolute bottom-2 left-2 rounded-lg bg-black/70 px-2.5 py-1 text-xs font-semibold text-white";
-        label.textContent = (participant.name || participant.identity) + (isScreenShare ? " · Ecrã partilhado" : "");
+        label.textContent = participantName + (isScreenShare ? " · Ecrã partilhado" : "");
         tile.appendChild(label);
         target.appendChild(tile);
       } else {
@@ -270,10 +287,33 @@ export default function ResaGroupMeetingRoom({
   const setScreenShare = async () => {
     const room = roomRef.current;
     if (!room || !canShareScreen) return;
+    if (!screenShareSupported) {
+      setError("Este navegador ou dispositivo não disponibiliza captura de ecrã para reuniões. Abre a reunião num navegador de computador compatível, como Chrome ou Edge, e confirma que estás num endereço HTTPS.");
+      return;
+    }
     try {
       await room.localParticipant.setScreenShareEnabled(!screenShareOn, { audio: !screenShareOn && shareSystemAudio });
+      setError(null);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "A partilha de ecrã não está disponível neste dispositivo.");
+      const detail = cause instanceof Error ? cause.message : String(cause);
+      setError(/not supported|unsupported|getdisplaymedia/i.test(detail)
+        ? "A captura de ecrã não é suportada por este navegador/dispositivo. Experimenta Chrome ou Edge num computador, com HTTPS."
+        : detail || "Não foi possível iniciar a partilha. Confirma as permissões do navegador e tenta novamente.");
+    }
+  };
+
+  const changeModerator = async (targetId: string, enabled: boolean) => {
+    setBusy(targetId);
+    try {
+      await resaRequest(`/v1/resa/group-meetings/${meetingId}/participants/${targetId}/moderator`, {
+        method: "PATCH",
+        body: JSON.stringify({ enabled }),
+      });
+      onRefresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível alterar a função de moderador.");
+    } finally {
+      setBusy(null);
     }
   };
 
@@ -397,8 +437,12 @@ export default function ResaGroupMeetingRoom({
             <button disabled={!connected || handBusy} onClick={() => void toggleHandRaise()} className={`rounded-xl px-4 py-3 text-sm font-semibold disabled:opacity-40 ${myHandRaised ? "bg-amber-300 text-slate-950" : "bg-white/10 text-white"}`}>
               {myHandRaised ? "Baixar a mão" : "Levantar a mão"}
             </button>
-            <button disabled={!connected || !canShareScreen} onClick={() => void setScreenShare()} className={`rounded-xl px-4 py-3 text-sm font-semibold disabled:opacity-40 ${screenShareOn ? "bg-emerald-400 text-slate-950" : "bg-white/10 text-white"}`}>
-              {screenShareOn ? "Parar partilha" : "Partilhar ecrã"}
+            <button
+              disabled={!connected || (!canShareScreen && handBusy)}
+              onClick={() => void (canShareScreen ? setScreenShare() : toggleHandRaise())}
+              className={`rounded-xl px-4 py-3 text-sm font-semibold disabled:opacity-40 ${screenShareOn ? "bg-emerald-400 text-slate-950" : "bg-white/10 text-white"}`}
+            >
+              {screenShareOn ? "Parar partilha" : canShareScreen ? "Partilhar ecrã" : myHandRaised ? "Pedido de palavra enviado" : "Pedir para partilhar ecrã"}
             </button>
           </div>
           {canShareScreen && !screenShareOn && (
@@ -412,8 +456,9 @@ export default function ResaGroupMeetingRoom({
               Incluir áudio do separador/ecrã (quando suportado)
             </label>
           )}
+          {!screenShareSupported && <p role="status" className="mt-3 rounded-xl border border-amber-300/20 bg-amber-300/10 p-3 text-center text-xs leading-5 text-amber-100">Este navegador/dispositivo não suporta a captura de ecrã nesta reunião. Para partilhar, usa um navegador de computador compatível e HTTPS.</p>}
           {!canPublish && <p className="mt-3 text-center text-xs text-slate-400">Estás a participar como espectador; podes ver e ouvir, mas não publicar áudio ou vídeo.</p>}
-          {canPublish && !canShareScreen && <p className="mt-3 text-center text-xs text-slate-400">A partilha de ecrã requer autorização do anfitrião ou de um moderador.</p>}
+          {canPublish && !canShareScreen && <p className="mt-3 text-center text-xs text-slate-400">Pede a palavra para partilhar. O anfitrião pode conceder-te permissão de apresentação ou nomear-te moderador.</p>}
         </div>
 
         <aside className="flex min-h-[360px] flex-col rounded-2xl border border-white/10 bg-white/[0.04]">
@@ -426,13 +471,20 @@ export default function ResaGroupMeetingRoom({
               <div key={person.user_id} className="rounded-xl bg-white/[0.05] p-3">
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate text-xs font-medium">{person.user_id === userId ? "Tu" : person.display_name || person.user_id.slice(0, 8) + "…"}</span>
-                  <span className="text-[10px] text-slate-400">{person.participant_role}</span>
+                  <span className="text-[10px] text-slate-400">{person.participant_role === "HOST" ? "Anfitrião" : person.participant_role === "MODERATOR" ? "Administrador da reunião" : person.participant_role === "PRESENTER" ? "Apresentador" : person.participant_role === "VIEWER" ? "Espectador" : "Participante"}</span>
                 </div>
-                {["HOST", "MODERATOR"].includes(role) && person.user_id !== userId && !["HOST", "MODERATOR"].includes(person.participant_role) && ["ACCEPTED", "PRESENT"].includes(person.status) && (
-                  <div className="mt-2 flex gap-2">
-                    <button disabled={busy === person.user_id} onClick={() => void changePresenter(person.user_id, person.participant_role !== "PRESENTER")} className="rounded-lg border border-sky-400/30 px-2 py-1 text-[10px] font-semibold text-sky-200 disabled:opacity-50">
-                      {person.participant_role === "PRESENTER" ? "Retirar apresentação" : "Dar apresentação"}
-                    </button>
+                {["HOST", "MODERATOR"].includes(role) && person.user_id !== userId && ["ACCEPTED", "PRESENT"].includes(person.status) && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {person.participant_role !== "HOST" && person.participant_role !== "MODERATOR" && (
+                      <button disabled={busy === person.user_id} onClick={() => void changePresenter(person.user_id, person.participant_role !== "PRESENTER")} className="rounded-lg border border-sky-400/30 px-2 py-1 text-[10px] font-semibold text-sky-200 disabled:opacity-50">
+                        {person.participant_role === "PRESENTER" ? "Retirar apresentação" : "Dar permissão de ecrã"}
+                      </button>
+                    )}
+                    {role === "HOST" && person.participant_role !== "HOST" && (
+                      <button disabled={busy === person.user_id} onClick={() => void changeModerator(person.user_id, person.participant_role !== "MODERATOR")} className="rounded-lg border border-violet-400/30 px-2 py-1 text-[10px] font-semibold text-violet-200 disabled:opacity-50">
+                        {person.participant_role === "MODERATOR" ? "Retirar administrador" : "Tornar administrador"}
+                      </button>
+                    )}
                     <button disabled={busy === person.user_id} onClick={() => void removeParticipant(person.user_id)} className="rounded-lg border border-rose-400/30 px-2 py-1 text-[10px] font-semibold text-rose-200 disabled:opacity-50">Remover</button>
                   </div>
                 )}
@@ -473,7 +525,7 @@ export default function ResaGroupMeetingRoom({
             <div className="max-h-64 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
               {chat.map((message) => (
                 <div key={message.id} className="rounded-xl bg-white/[0.06] px-3 py-2">
-                  <p className="text-[10px] font-semibold text-sky-200">{message.sender_id === userId ? "Tu" : message.sender_id.slice(0, 8) + "…"}</p>
+                  <p className="text-[10px] font-semibold text-sky-200">{(message.sender_display_name || participants.find((person) => person.user_id === message.sender_id)?.display_name || "Membro RESA") + (message.sender_id === userId ? " · Tu" : "")}</p>
                   <p className="mt-1 break-words text-xs leading-5 text-slate-200">{message.body}</p>
                 </div>
               ))}
