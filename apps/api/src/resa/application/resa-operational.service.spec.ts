@@ -19,6 +19,7 @@ describe('ResaOperationalService live permissions', () => {
     setParticipantPermissions: jest.Mock;
     setRoomPublishingForAttendees: jest.Mock;
     removeParticipant: jest.Mock;
+    setParticipantAudioMuted: jest.Mock;
   };
   let actorId = 'host-user';
 
@@ -35,6 +36,7 @@ describe('ResaOperationalService live permissions', () => {
       setParticipantPermissions: jest.fn().mockResolvedValue(undefined),
       setRoomPublishingForAttendees: jest.fn().mockResolvedValue(undefined),
       removeParticipant: jest.fn().mockResolvedValue(undefined),
+      setParticipantAudioMuted: jest.fn().mockResolvedValue(undefined),
     };
     const identity = { getCurrentUser: jest.fn().mockImplementation(async () => ({ id: actorId })) };
     service = new ResaOperationalService(identity as never, media as never);
@@ -338,6 +340,29 @@ describe('ResaOperationalService live permissions', () => {
       canPublishSources: ['camera', 'microphone', 'screen_share', 'screen_share_audio'],
     });
     expect(media.setParticipantPublishing).not.toHaveBeenCalled();
+  });
+
+  it('mutes a participant audio track without revoking camera publishing', async () => {
+    getSpy.mockResolvedValueOnce([{
+      id: LIVE_ID, host_id: 'host-user', status: 'live', attendee_publish_allowed: true,
+    }] as never);
+    const result = await service.moderateLiveParticipant('session-token', LIVE_ID, TARGET_ID, 'mute_audio');
+    expect(result).toEqual(expect.objectContaining({ identity: TARGET_ID, action: 'mute_audio', applied: true }));
+    expect(media.setParticipantAudioMuted).toHaveBeenCalledWith({
+      roomId: 'zion-live-' + LIVE_ID, identity: TARGET_ID, muted: true,
+    });
+    expect(media.setParticipantPermissions).not.toHaveBeenCalled();
+  });
+
+  it('restores participant audio without changing camera permissions', async () => {
+    getSpy.mockResolvedValueOnce([{
+      id: LIVE_ID, host_id: 'host-user', status: 'live', attendee_publish_allowed: true,
+    }] as never);
+    await service.moderateLiveParticipant('session-token', LIVE_ID, TARGET_ID, 'unmute_audio');
+    expect(media.setParticipantAudioMuted).toHaveBeenCalledWith({
+      roomId: 'zion-live-' + LIVE_ID, identity: TARGET_ID, muted: false,
+    });
+    expect(media.setParticipantPermissions).not.toHaveBeenCalled();
   });
 
   it('does not let a host reopen one participant while the global publishing lock is active', async () => {
