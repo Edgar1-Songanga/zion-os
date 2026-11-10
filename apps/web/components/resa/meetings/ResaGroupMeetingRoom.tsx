@@ -77,9 +77,13 @@ export default function ResaGroupMeetingRoom({
         `/v1/resa/group-meetings/${meetingId}/messages?limit=100`,
       );
       setChat((current) => {
-        const byId = new Map(current.map((message) => [message.id, message]));
-        for (const message of rows) byId.set(message.id, message);
-        return [...byId.values()]
+        const merged = [...current];
+        for (const message of rows) {
+          const index = merged.findIndex((item) => item.id === message.id);
+          if (index >= 0) merged[index] = message;
+          else merged.push(message);
+        }
+        return merged
           .sort((left, right) => Date.parse(left.created_at) - Date.parse(right.created_at))
           .slice(-200);
       });
