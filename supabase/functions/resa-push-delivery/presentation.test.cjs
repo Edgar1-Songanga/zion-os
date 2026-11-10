@@ -1,6 +1,6 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-import { buildPushPresentation } from "./presentation.mjs";
+const assert = require("node:assert/strict");
+const test = require("node:test");
+const presentationModule = import("./presentation.mjs");
 
 const sensitiveEvent = (type) => ({
   type,
@@ -8,7 +8,8 @@ const sensitiveEvent = (type) => ({
   body: "Conta 1234 recebeu 987654 Kz; referência confidencial",
 });
 
-test("financial event types never expose supplied title or body", () => {
+test("financial event types never expose supplied title or body", async () => {
+  const { buildPushPresentation } = await presentationModule;
   for (const type of ["bank.transfer", "payment.completed", "transaction.created", "finance.alert"]) {
     const event = sensitiveEvent(type);
     const presentation = buildPushPresentation(event);
@@ -21,7 +22,8 @@ test("financial event types never expose supplied title or body", () => {
   }
 });
 
-test("RESA messages retain generic privacy-safe copy", () => {
+test("RESA messages retain generic privacy-safe copy", async () => {
+  const { buildPushPresentation } = await presentationModule;
   const presentation = buildPushPresentation(sensitiveEvent("resa.message.new"));
   assert.equal(presentation.category, "message");
   assert.equal(presentation.title, "Nova mensagem no RESA");
@@ -29,14 +31,16 @@ test("RESA messages retain generic privacy-safe copy", () => {
   assert.equal(presentation.priority, "high");
 });
 
-test("calls retain incoming-call presentation and precedence", () => {
+test("calls retain incoming-call presentation and precedence", async () => {
+  const { buildPushPresentation } = await presentationModule;
   const presentation = buildPushPresentation(sensitiveEvent("video_call.incoming"));
   assert.equal(presentation.category, "call");
   assert.equal(presentation.title, "Videochamada recebida no RESA");
   assert.equal(presentation.body, "Toca para abrir o RESA e atender.");
 });
 
-test("ordinary notifications preserve their authored copy", () => {
+test("ordinary notifications preserve their authored copy", async () => {
+  const { buildPushPresentation } = await presentationModule;
   const presentation = buildPushPresentation({
     type: "zion.announcement",
     title: "Reunião às 18h",
