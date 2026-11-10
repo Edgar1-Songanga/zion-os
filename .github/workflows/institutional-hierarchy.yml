@@ -5,14 +5,18 @@ on:
     paths:
       - "supabase/migrations/*hierarchy*"
       - "supabase/migrations/*verified_global_admin*"
+      - "supabase/migrations/*duplicate_local_church*"
       - "supabase/tests/institutional*"
+      - "supabase/tests/organization_duplicate_guard*"
       - ".github/workflows/institutional-hierarchy.yml"
   push:
     branches: [main]
     paths:
       - "supabase/migrations/*institutional*"
       - "supabase/migrations/*verified_global_admin*"
+      - "supabase/migrations/*duplicate_local_church*"
       - "supabase/tests/institutional*"
+      - "supabase/tests/organization_duplicate_guard*"
       - ".github/workflows/institutional-hierarchy.yml"
 
 permissions:
@@ -42,6 +46,10 @@ jobs:
         run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261106220320_verified_global_admin_organization_unit_permissions.sql
       - name: Verify valid levels, invalid parent relationships and privileged creation
         run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/institutional_hierarchy_regression.sql
+      - name: Apply duplicate local church name guard
+        run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261110103000_prevent_duplicate_local_churches.sql
+      - name: Verify duplicate church names are blocked per jurisdiction
+        run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/organization_duplicate_guard_regression.sql
       - name: Stop disposable PostgreSQL
         if: always()
         run: docker rm -f zion-hierarchy-postgres || true
