@@ -101,6 +101,29 @@ export default function InstitutionalHierarchyManager() {
     }
   }
 
+  async function archiveChurch(organization: Organization) {
+    const reason = window.prompt(`Motivo para arquivar a igreja "${organization.name}" (3 a 500 caracteres):`);
+    if (reason === null) return;
+    if (reason.trim().length < 3 || reason.trim().length > 500) {
+      setError("Indique um motivo entre 3 e 500 caracteres.");
+      return;
+    }
+    if (!window.confirm(`Confirma o arquivo da igreja "${organization.name}"? Os registos históricos serão preservados e os acessos locais serão desativados.`)) return;
+    setSaving(true); setError(""); setNotice("");
+    try {
+      const archived = await resaRequest<Organization>(`/v1/organizations/${encodeURIComponent(organization.id)}/archive`, {
+        method: "POST",
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
+      setOrganizations((current) => current.map((item) => item.id === archived.id ? { ...item, ...archived, is_active: false } : item));
+      setNotice(`"${organization.name}" foi arquivada com histórico preservado.`);
+    } catch (reasonError) {
+      setError(reasonError instanceof Error ? reasonError.message : "Não foi possível arquivar a igreja.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const byId = new Map(organizations.map((organization) => [organization.id, organization]));
   const sorted = [...organizations].sort((a, b) => {
     const rank = (value: string) => ["GENERAL_CONFERENCE", "DIVISION", "UNION", "CONFERENCE", "MISSION", "LOCAL_CHURCH"].indexOf(value);
@@ -161,7 +184,7 @@ export default function InstitutionalHierarchyManager() {
                 const parent = organization.parent_id ? byId.get(organization.parent_id) : null;
                 return <article key={organization.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
                   <div><p className="text-xs font-semibold uppercase tracking-wide text-[#8B6F16]">{labels[organization.organization_type] ?? organization.organization_type}</p><h3 className="mt-1 font-semibold text-[#0C1A3D]">{organization.name}</h3><p className="mt-1 text-xs text-slate-500">{parent ? `Superior: ${parent.name}` : "Nível superior / sem organização superior"} · /​{organization.slug}</p></div>
-                  <span className={organization.is_active ? "rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700" : "rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600"}>{organization.is_active ? "Ativa" : "Inativa"}</span>
+                  <div className="flex flex-wrap items-center gap-2"><span className={organization.is_active ? "rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700" : "rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600"}>{organization.is_active ? "Ativa" : "Arquivada / inativa"}</span>{organization.organization_type === "LOCAL_CHURCH" && organization.is_active && <button type="button" disabled={saving} onClick={() => void archiveChurch(organization)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 disabled:opacity-50">Arquivar igreja</button>}</div>
                 </article>;
               })}
             </div>
