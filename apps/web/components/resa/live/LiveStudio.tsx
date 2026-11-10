@@ -237,8 +237,7 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
             sentAt: Date.now(),
           }].slice(-200));
         } else if (packet.type === "hand_raise") {
-          setRaisedHands((current) => current.some((item) => item.identity === identity) ? current : [...current, { identity, name }]);
-          if (room.localParticipant.identity !== identity) setNotice(name + " levantou a mão.");
+          if (room.localParticipant.identity !== identity) setNotice(name + " levantou a mão. A fila está a sincronizar.");
         } else if (packet.type === "speak_granted" && identity !== room.localParticipant.identity && trustedModeratorIdentitiesRef.current.has(identity)) {
           setNotice("A moderação autorizou a tua participação. Já podes ativar o microfone, a câmara e partilhar o ecrã.");
           setCanSpeak(true);
