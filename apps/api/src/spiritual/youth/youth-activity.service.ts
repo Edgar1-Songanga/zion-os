@@ -110,6 +110,11 @@ export class YouthActivityService {
       throw new BadRequestException('Registration is closed for this activity.');
     }
     const userId = requestedUserId ? this.uuid(requestedUserId, 'user_id') : actor.id;
+    // The database self-registration policy only permits auth.uid() to register itself.
+    // Reject delegated registration here instead of leaking a PostgREST RLS error.
+    if (userId !== actor.id) {
+      throw new BadRequestException('Participants must register themselves. Club leaders manage attendance after registration.');
+    }
     await this.assertActiveClubMember(token, activity.club_id, userId);
     const existing = await this.db.get<any[]>(
       'youth_activity_participants', token,
