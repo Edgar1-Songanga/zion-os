@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { VerificationService } from './verification.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 
@@ -51,6 +51,14 @@ describe('VerificationService', () => {
 
   it('rejects unsupported verification types before writing', async () => {
     await expect(service.requestVerification('token', 'global_admin')).rejects.toBeInstanceOf(BadRequestException);
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not allow ordinary accounts to request founder verification', async () => {
+    getSpy.mockResolvedValueOnce([{
+      user_id: USER_ID, is_founder: false, verification_status: 'not_verified', verification_type: null, verified_at: null,
+    }]).mockResolvedValueOnce([]);
+    await expect(service.requestVerification('token', 'founder')).rejects.toBeInstanceOf(ForbiddenException);
     expect(postSpy).not.toHaveBeenCalled();
   });
 
