@@ -72,7 +72,7 @@ export default function VerificationReviewPanel() {
         {notice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</p>}
         <section className="space-y-4">
           {loading && <p className="rounded-2xl bg-white p-6 text-sm text-slate-500">A carregar pedidos…</p>}
-          {!loading && requests.length === 0 && <p className="rounded-2xl bg-white p-6 text-sm text-slate-500">Não existem pedidos pendentes.</p>}
+          {!loading && requests.length === 0 && <p className="rounded-2xl bg-white p-6 text-sm text-slate-500">Não existem pedidos pendentes disponíveis para a sua revisão. Pedidos da própria conta são excluídos por segurança.</p>}
           {requests.map((request) => (
             <article key={request.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
