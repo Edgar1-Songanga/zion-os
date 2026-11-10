@@ -246,6 +246,25 @@ describe('ResaGroupMeetingService', () => {
     await expect(service.messages('session-token', MEETING_ID)).rejects.toBeInstanceOf(ForbiddenException);
   });
 
+  it('returns the most recent meeting messages in chronological order', async () => {
+    actorId = PARTICIPANT_ID;
+    getSpy
+      .mockResolvedValueOnce([{
+        meeting_id: MEETING_ID, user_id: PARTICIPANT_ID,
+        participant_role: 'PARTICIPANT', status: 'ACCEPTED',
+      }] as never)
+      .mockResolvedValueOnce([
+        { id: 'newer', meeting_id: MEETING_ID, sender_id: HOST_ID, body: 'Second', created_at: '2026-11-10T10:02:00.000Z' },
+        { id: 'older', meeting_id: MEETING_ID, sender_id: HOST_ID, body: 'First', created_at: '2026-11-10T10:01:00.000Z' },
+      ] as never);
+
+    const result = await service.messages('session-token', MEETING_ID, 100);
+
+    expect(getSpy).toHaveBeenNthCalledWith(2, 'resa_group_meeting_messages', 'session-token',
+      `?select=id,meeting_id,sender_id,body,created_at&meeting_id=eq.${MEETING_ID}&order=created_at.desc&limit=100`);
+    expect(result.map((message) => message.id)).toEqual(['older', 'newer']);
+  });
+
   it('does not allow invited users to send meeting chat messages before accepting', async () => {
     actorId = PARTICIPANT_ID;
     getSpy.mockResolvedValueOnce([{
