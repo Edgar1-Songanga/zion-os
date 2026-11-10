@@ -59,6 +59,7 @@ const BAPTISM_STATUS_LABELS: Record<BaptismRecord["status"], string> = {
 type MemberTransfer = {
   id: string;
   member_record_id: string;
+  destination_member_record_id: string | null;
   origin_organization_id: string;
   destination_organization_id: string;
   status: "DRAFT" | "SUBMITTED" | "ACCEPTED" | "REJECTED" | "CANCELLED";
@@ -797,7 +798,7 @@ export default function SecretariatPage() {
             const isOrigin = transfer.origin_organization_id === organizationId;
             return <div key={transfer.id} className="space-y-3 p-5 sm:p-7">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div><p className="font-semibold">{member ? `${member.first_name} ${member.last_name}` : "Registo de membro"}</p><p className="mt-1 text-xs text-slate-500">{isOrigin ? "Saída para" : "Entrada de"} organização · {(isOrigin ? transfer.destination_organization_id : transfer.origin_organization_id).slice(0, 8)}… · Pedido: {dateLabel(transfer.request_date)}</p>{transfer.reason && <p className="mt-2 text-sm text-slate-600">{transfer.reason}</p>}{transfer.decision_note && <p className="mt-1 text-sm text-slate-600">Decisão: {transfer.decision_note}</p>}</div>
+                <div><p className="font-semibold">{member ? `${member.first_name} ${member.last_name}` : "Registo de membro"}</p><p className="mt-1 text-xs text-slate-500">{isOrigin ? "Saída para" : "Entrada de"} organização · {(isOrigin ? transfer.destination_organization_id : transfer.origin_organization_id).slice(0, 8)}… · Pedido: {dateLabel(transfer.request_date)}</p>{transfer.reason && <p className="mt-2 text-sm text-slate-600">{transfer.reason}</p>}{transfer.destination_member_record_id && <p className="mt-1 text-xs text-emerald-700">Novo registo de destino criado: {transfer.destination_member_record_id.slice(0, 8)}… · mesma identidade global</p>}{transfer.decision_note && <p className="mt-1 text-sm text-slate-600">Decisão: {transfer.decision_note}</p>}</div>
                 <span className="inline-flex w-fit rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold">{TRANSFER_STATUS_LABELS[transfer.status]}</span>
               </div>
               <div className="flex flex-wrap items-center gap-3">
