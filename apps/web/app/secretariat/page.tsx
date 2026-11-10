@@ -282,7 +282,7 @@ export default function SecretariatPage() {
         );
         setIdentityCandidates(candidates);
         if (candidates.length > 0) {
-          setNotice("Foram encontrados registos potencialmente correspondentes. A criação foi suspensa para revisão humana; nenhum membro foi associado ou fundido automaticamente.");
+          setNotice("");
           return;
         }
       }
@@ -314,7 +314,7 @@ export default function SecretariatPage() {
           );
           setIdentityCandidates(candidates);
           setError("");
-          setNotice("Foi detectado um registo correspondente durante a gravação. A criação foi suspensa para revisão humana.");
+          setNotice("");
         } catch (lookupReason) {
           setError(lookupReason instanceof Error ? lookupReason.message : message);
         }
