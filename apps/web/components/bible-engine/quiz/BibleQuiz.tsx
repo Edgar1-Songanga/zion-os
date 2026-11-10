@@ -563,7 +563,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
             {savingProgress && <p className="mt-3 text-xs text-slate-400">A sincronizar progresso…</p>}
             <div className="mt-6 flex flex-wrap justify-center gap-3">
               {!passed && <button type="button" onClick={restartLevel} className={primaryActionClass}>Tentar novamente</button>}
-              {passed && levelIndex < LEVELS.length - 1 && <button type="button" onClick={nextLevel} className="rounded-xl bg-[#0C1A3D] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#152b54]">Desbloquear próximo nível →</button>}
+              {passed && levelIndex < LEVELS.length - 1 && <button type="button" onClick={nextLevel} className={primaryActionClass}>Desbloquear próximo nível →</button>}
               {passed && levelIndex === LEVELS.length - 1 && <button type="button" onClick={restartJourney} className="rounded-xl bg-[#0C1A3D] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#152b54]">Recomeçar jornada</button>}
             </div>
           </div>
