@@ -37,6 +37,25 @@ begin
 end;
 $backfill$;
 
+alter table public.church_member_transfers
+  add column if not exists destination_member_record_id uuid;
+
+do $transfer_fk$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'church_member_transfers_destination_member_fk'
+      and conrelid = 'public.church_member_transfers'::regclass
+  ) then
+    alter table public.church_member_transfers
+      add constraint church_member_transfers_destination_member_fk
+      foreign key (destination_member_record_id)
+      references public.church_member_records(id)
+      on delete restrict;
+  end if;
+end;
+$transfer_fk$;
+
 alter table public.church_member_records
   alter column person_identity_id set not null;
 
@@ -245,6 +264,124 @@ $candidates$;
 
 revoke all on function public.zion_find_person_identity_candidates(uuid, text, text, date, text) from public, anon;
 grant execute on function public.zion_find_person_identity_candidates(uuid, text, text, date, text) to authenticated;
+
+-- A transfer keeps the global person identity and creates/activates one membership
+-- record in the destination church, while retaining the origin record as transferred.
+create or replace function public.apply_church_member_transfer_acceptance()
+returns trigger
+language plpgsql
+security definer
+set search_path to 'pg_catalog', 'public', 'private', 'auth'
+as $transfer$
+declare
+  v_source public.church_member_records%rowtype;
+  v_destination public.organizations%rowtype;
+  v_destination_member_id uuid;
+  v_destination_status text;
+  v_actor uuid := coalesce(new.decided_by, auth.uid());
+begin
+  select * into v_source
+  from public.church_member_records
+  where id = new.member_record_id
+    and organization_id = new.origin_organization_id
+  for update;
+
+  if not found or v_source.membership_status <> 'ACTIVE' then
+    raise exception 'The origin member record is not active or is not accessible to this transfer.'
+      using errcode = '55000';
+  end if;
+
+  select * into v_destination
+  from public.organizations
+  where id = new.destination_organization_id
+    and is_active
+    and organization_type = 'LOCAL_CHURCH';
+
+  if not found then
+    raise exception 'The destination must be an active local church.'
+      using errcode = '22023';
+  end if;
+
+  if v_actor is null then
+    raise exception 'A transfer decision actor is required.'
+      using errcode = '42501';
+  end if;
+
+  select id, membership_status
+    into v_destination_member_id, v_destination_status
+  from public.church_member_records
+  where organization_id = new.destination_organization_id
+    and person_identity_id = v_source.person_identity_id
+  for update;
+
+  if found then
+    if v_destination_status in ('ACTIVE', 'DECEASED', 'REMOVED', 'DISMISSED') then
+      raise exception 'This person already has a non-transferable member record in the destination church.'
+        using errcode = '23505';
+    end if;
+
+    update public.church_member_records
+    set membership_status = 'ACTIVE',
+        joined_on = new.request_date,
+        updated_by = v_actor
+    where id = v_destination_member_id;
+  else
+    insert into public.church_member_records (
+      organization_id,
+      person_identity_id,
+      member_number,
+      first_name,
+      last_name,
+      birth_date,
+      gender,
+      phone,
+      email,
+      address,
+      baptism_date,
+      membership_status,
+      joined_on,
+      notes,
+      created_by,
+      updated_by
+    ) values (
+      new.destination_organization_id,
+      v_source.person_identity_id,
+      null,
+      v_source.first_name,
+      v_source.last_name,
+      v_source.birth_date,
+      v_source.gender,
+      v_source.phone,
+      v_source.email,
+      v_source.address,
+      v_source.baptism_date,
+      'ACTIVE',
+      new.request_date,
+      null,
+      v_actor,
+      v_actor
+    )
+    returning id into v_destination_member_id;
+  end if;
+
+  update public.church_member_records
+  set membership_status = 'TRANSFERRED',
+      updated_by = v_actor
+  where id = v_source.id
+    and membership_status = 'ACTIVE';
+
+  new.destination_member_record_id := v_destination_member_id;
+  return new;
+end;
+$transfer$;
+
+drop trigger if exists church_member_transfer_apply on public.church_member_transfers;
+drop trigger if exists church_member_transfer_z_destination_record on public.church_member_transfers;
+create trigger church_member_transfer_z_destination_record
+before update of status on public.church_member_transfers
+for each row
+when (new.status = 'ACCEPTED' and old.status is distinct from new.status)
+execute function public.apply_church_member_transfer_acceptance();
 
 comment on table public.zion_person_identities is
   'Canonical global identity for one real person. A person can have multiple church membership records linked to the same identity.';
