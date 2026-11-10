@@ -50,7 +50,8 @@ export default function ResaNavigation() {
   const [profile, setProfile] = useState<ProfilePreview | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
-  const moreRef = useRef<HTMLDivElement>(null);
+  const desktopMoreRef = useRef<HTMLDivElement>(null);
+  const mobileMoreRef = useRef<HTMLDivElement>(null);
   const accountRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -69,7 +70,7 @@ export default function ResaNavigation() {
   useEffect(() => {
     function closeMenus(event: MouseEvent) {
       const target = event.target as Node;
-      if (!moreRef.current?.contains(target)) setMoreOpen(false);
+      if (!desktopMoreRef.current?.contains(target) && !mobileMoreRef.current?.contains(target)) setMoreOpen(false);
       if (!accountRef.current?.contains(target)) setAccountOpen(false);
     }
     document.addEventListener("mousedown", closeMenus);
@@ -127,7 +128,7 @@ export default function ResaNavigation() {
             );
           })}
         </nav>
-        <div ref={moreRef} className="relative mt-2 w-full px-2">
+        <div ref={desktopMoreRef} className="relative mt-2 w-full px-2">
           <button type="button" onClick={() => setMoreOpen((v) => !v)} aria-expanded={moreOpen} aria-haspopup="menu" aria-label="Mais áreas do RESA" title="Mais áreas" className={`flex w-full flex-col items-center gap-1 rounded-2xl py-3 text-slate-500 transition hover:bg-slate-100 hover:text-[#091735] ${activeMore || moreOpen ? "bg-slate-100 text-[#091735]" : ""}`}>
             <ResaIcon name="more" size={19} /><span className="text-[9px] font-semibold">Mais</span>
           </button>
@@ -145,7 +146,7 @@ export default function ResaNavigation() {
               <span className={`flex h-8 w-10 items-center justify-center rounded-xl ${active ? "bg-[#edf3fb]" : ""}`}><ResaIcon name={icon} size={19} /></span><span className="truncate">{name}</span>
             </Link>;
           })}
-          <div className="relative flex min-w-0 flex-1 items-center justify-center" ref={moreRef}>
+          <div className="relative flex min-w-0 flex-1 items-center justify-center" ref={mobileMoreRef}>
             <button type="button" onClick={() => setMoreOpen((v) => !v)} aria-expanded={moreOpen} aria-haspopup="menu" className={`flex w-full flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold ${activeMore || moreOpen ? "text-[#0b1c39]" : "text-slate-400"}`}>
               <span className={`flex h-8 w-10 items-center justify-center rounded-xl ${activeMore || moreOpen ? "bg-[#edf3fb]" : ""}`}><ResaIcon name="more" size={19} /></span><span>Mais</span>
             </button>
