@@ -177,6 +177,9 @@ export class ChurchMembersService {
       result.gender = input.gender;
     }
     if (input.membership_status !== undefined) {
+      if (input.membership_status === 'REMOVED') {
+        throw new BadRequestException('Use the member removal workflow to set REMOVED status.');
+      }
       if (!(STATUSES as readonly string[]).includes(input.membership_status)) {
         throw new BadRequestException('membership_status is not supported.');
       }
