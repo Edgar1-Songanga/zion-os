@@ -144,5 +144,28 @@ jobs:
         if: always()
         run: docker rm -f zion-frame-audit-postgres || true
 
+      - name: Start disposable PostgreSQL for identity candidate review
+        run: |
+          docker run --rm -d --name zion-identity-review-postgres \
+            -e POSTGRES_PASSWORD=postgres -p 5433:5432 postgres:16
+          for attempt in $(seq 1 30); do
+            if docker exec zion-identity-review-postgres pg_isready -U postgres; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+
+      - name: Verify jurisdiction-safe identity candidate discovery
+        run: |
+          set -euo pipefail
+          docker exec -i zion-identity-review-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/global_member_identity_transfer_fixture.sql
+          docker exec -i zion-identity-review-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/zion_identity_candidate_permissions_fixture.sql
+          docker exec -i zion-identity-review-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261110160000_global_member_identity_transfer_integrity.sql
+          docker exec -i zion-identity-review-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261110180000_zion_identity_candidate_discovery.sql
+          docker exec -i zion-identity-review-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/zion_identity_candidate_discovery_regression.sql
+
+      - name: Stop identity candidate PostgreSQL
+        if: always()
+        run: docker rm -f zion-identity-review-postgres || true
+
       - name: Check whitespace
         run: git diff --check
