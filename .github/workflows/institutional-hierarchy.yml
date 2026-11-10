@@ -20,9 +20,11 @@ on:
       - "supabase/migrations/*verified_global_admin*"
       - "supabase/migrations/*duplicate_local_church*"
       - "supabase/migrations/*audited_local_church_archive*"
+      - "supabase/migrations/*global_person_identity_registry*"
       - "supabase/tests/institutional*"
       - "supabase/tests/organization_duplicate_guard*"
       - "supabase/tests/organization_archive_regression*"
+      - "supabase/tests/person_identity_regression*"
       - ".github/workflows/institutional-hierarchy.yml"
 
 permissions:
