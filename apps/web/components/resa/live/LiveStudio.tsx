@@ -11,6 +11,7 @@ type Participant = { identity: string; name: string; requestId?: string };
 type LivePacket =
   | { type: "chat"; text: string; name?: string }
   | { type: "hand_raise"; name?: string }
+  | { type: "hand_raise_declined"; name?: string }
   | { type: "speak_granted"; name?: string }
   | { type: "speak_revoked"; name?: string }
   | { type: "moderator_roster_changed"; name?: string }
@@ -238,6 +239,9 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
           }].slice(-200));
         } else if (packet.type === "hand_raise") {
           if (room.localParticipant.identity !== identity) setNotice(name + " levantou a mão. A fila está a sincronizar.");
+        } else if (packet.type === "hand_raise_declined" && identity !== room.localParticipant.identity && trustedModeratorIdentitiesRef.current.has(identity)) {
+          setHandRaised(false);
+          setNotice("O teu pedido para falar foi recusado pela moderação.");
         } else if (packet.type === "speak_granted" && identity !== room.localParticipant.identity && trustedModeratorIdentitiesRef.current.has(identity)) {
           setNotice("A moderação autorizou a tua participação. Já podes ativar o microfone, a câmara e partilhar o ecrã.");
           setCanSpeak(true);
@@ -706,6 +710,7 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
         method: "PATCH",
         body: JSON.stringify({ decision: "DECLINED" }),
       });
+      await sendPacket({ type: "hand_raise_declined", name: roomRef.current?.localParticipant.name || "Moderação" }, identity);
       setRaisedHands((current) => current.filter((item) => item.identity !== identity));
       setNotice("Pedido de palavra recusado.");
     } catch (e) {
