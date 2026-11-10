@@ -8,7 +8,7 @@ Before enabling execution, a repository administrator must configure:
 
 1. GitHub Actions secrets:
    - `ZION_SUPABASE_ACCESS_TOKEN`: Supabase access token scoped to the ZION project.
-   - `ZION_SUPABASE_DB_PASSWORD`: production database password.
+   - `ZION_SUPABASE_DB_PASSWORD`: production database password for Supabase CLI linking.\n   - `ZION_SUPABASE_DB_URL`: PostgreSQL connection URI for the dedicated lock/audit session; keep it server-side and never print it.
 2. GitHub Actions variable:
    - `ZION_SUPABASE_PROJECT_REF`: exact 20-character production project reference.
 3. GitHub Environment `zion-production-migrations`:
@@ -34,7 +34,7 @@ Review the complete plan and dry-run output. The plan hash is printed in the Act
 
 Dispatch the same workflow from the same `main` commit with mode `execute` and the exact reviewed `expected_plan_sha256`.
 
-The executor serializes runs, recomputes and compares the plan hash, repeats the dry-run after the approval gate, waits at the protected `zion-production-migrations` GitHub Environment, rechecks the plan hash after approval, applies migrations using Supabase CLI, captures the resulting ledger, and performs a post-run dry-run.
+The executor serializes runs, recomputes and compares the plan hash, repeats the dry-run after the approval gate, waits at the protected `zion-production-migrations` GitHub Environment, and rechecks the plan hash after approval. A dedicated PostgreSQL session holds a database advisory lock while Supabase CLI applies the queue. Frame writes started/succeeded/failed events to `audit_logs`, captures the resulting ledger, and performs a post-run dry-run.
 
 A changed commit, migration byte, target project, or plan invalidates the approval. Never bypass a failed hash check.
 
@@ -44,7 +44,7 @@ A changed commit, migration byte, target project, or plan invalidates the approv
 - Pull requests do not receive production credentials.
 - The executor runs only from `main`, behind the protected GitHub Environment.
 - The workflow is serialized and revalidates the exact plan before execution.
-- The CLI migration ledger is checked before and after execution.
+- A PostgreSQL advisory lock prevents concurrent Frame executors.\n- Frame lifecycle events are written to the existing audit log; the append-only trigger migration prevents updates and deletes.\n- The CLI migration ledger is checked before and after execution.
 - Execution evidence is retained as a GitHub Actions artifact.
 
 The workflow cannot configure GitHub Environment reviewers or remove credentials from other external systems. Those settings must be independently checked before production execution is enabled. Supabase CLI execution is not a substitute for authenticated application E2E, backup verification, or a tested rollback/recovery plan. Investigate failed migrations; do not blindly retry or manually edit the migration ledger.
