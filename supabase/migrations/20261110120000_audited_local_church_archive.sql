@@ -183,4 +183,48 @@ $$;
 revoke all on function private.zion_archive_local_church(uuid, text) from public, anon;
 grant execute on function private.zion_archive_local_church(uuid, text) to authenticated;
 
+create or replace function private.zion_list_archivable_local_churches()
+returns table (
+  id uuid,
+  name text,
+  slug text,
+  parent_id uuid,
+  is_active boolean
+)
+language plpgsql
+security definer
+set search_path = pg_catalog, public, private, auth
+as $
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication is required.'
+      using errcode = '42501';
+  end if;
+
+  return query
+  select o.id, o.name, o.slug, o.parent_id, o.is_active
+  from public.organizations o
+  where o.organization_type = 'LOCAL_CHURCH'
+    and o.is_active
+    and o.archived_at is null
+    and (
+      private.is_verified_zion_global_admin()
+      or (
+        o.parent_id is not null
+        and exists (
+          select 1 from public.organizations m
+          where m.id = o.parent_id
+            and m.organization_type = 'MISSION'
+            and m.is_active
+        )
+        and private.has_org_permission(o.parent_id, 'organization.archive')
+      )
+    )
+  order by o.name asc;
+end;
+$;
+
+revoke all on function private.zion_list_archivable_local_churches() from public, anon;
+grant execute on function private.zion_list_archivable_local_churches() to authenticated;
+
 commit;
