@@ -80,6 +80,6 @@ jobs:
       - name: Apply spiritual chat base schema
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261106104948_spiritual_chat_persistence.sql
       - name: Apply statement-level auth lookup optimization
-        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261110051000_spiritual_chat_rls_initplan_optimization.sql
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261110050104_spiritual_chat_rls_initplan_optimization.sql
       - name: Verify owner isolation and optimized policies
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/spiritual-chat-rls-regression.sql
