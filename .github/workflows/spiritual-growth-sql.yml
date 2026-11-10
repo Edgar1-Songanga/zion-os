@@ -83,3 +83,35 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261110050104_spiritual_chat_rls_initplan_optimization.sql
       - name: Verify owner isolation and optimized policies
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/spiritual-chat-rls-regression.sql
+  ministries-duplicate-index:
+    name: PostgreSQL ministries duplicate index regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: zion_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d zion_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: zion_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare ministries and composite foreign keys
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/fixtures/ministries-duplicate-index-fixture.sql
+      - name: Remove redundant unique index
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261110052000_remove_duplicate_ministries_index.sql
+      - name: Verify the constraint-backed index and foreign keys remain valid
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/ministries-duplicate-index-regression.sql
