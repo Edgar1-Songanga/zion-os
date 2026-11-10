@@ -28,6 +28,25 @@ create table public.organizations (
   updated_at timestamptz not null default now()
 );
 
+alter table public.organizations enable row level security;
+
+create table public.church_member_records (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id),
+  member_number text,
+  first_name text not null,
+  last_name text not null,
+  birth_date date,
+  gender text,
+  membership_status text not null default 'ACTIVE',
+  created_by uuid,
+  updated_by uuid,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.church_member_records enable row level security;
+grant select, insert, update on public.church_member_records to authenticated;
+
 create table public.organization_memberships (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
