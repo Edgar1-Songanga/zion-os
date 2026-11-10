@@ -683,9 +683,13 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
   async function raiseHand() {
     try {
       await resaRequest("/v1/resa/live/" + liveId + "/hand-raises", { method: "POST" });
-      await sendPacket({ type: "hand_raise", name: roomRef.current?.localParticipant.name || "Participante" });
       setHandRaised(true);
-      setNotice("Pedido enviado e guardado. O anfitrião será notificado.");
+      try {
+        await sendPacket({ type: "hand_raise", name: roomRef.current?.localParticipant.name || "Participante" });
+        setNotice("Pedido enviado e guardado. O anfitrião será notificado.");
+      } catch {
+        setNotice("Pedido guardado. A fila do anfitrião será atualizada automaticamente.");
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível guardar o pedido de palavra.");
     }
