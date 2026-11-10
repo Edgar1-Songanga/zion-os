@@ -41,6 +41,7 @@ export default function LivePage() {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [studioLive, setStudioLive] = useState<LiveSession | null>(null);
+  const [sharedLiveId, setSharedLiveId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -57,7 +58,9 @@ export default function LivePage() {
   useEffect(() => {
     const sharedLiveId = new URLSearchParams(window.location.search).get("live");
     if (sharedLiveId && /^[0-9a-f-]{16,80}$/i.test(sharedLiveId)) {
-      setStudioLive({ id: sharedLiveId, title: "Live partilhada", status: "live", visibility: "private", is_host: false });
+      // A shared URL must never force-open a media session on page load.
+      // Let the recipient explicitly choose to enter, especially when a link is stale.
+      setSharedLiveId(sharedLiveId);
     }
     void load();
     void resaRequest<OrganizationOption[]>("/v1/organizations")
@@ -151,6 +154,20 @@ export default function LivePage() {
         </section>
 
         {error && <div role="alert" className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
+
+        {sharedLiveId && (
+          <section aria-labelledby="shared-live-title" className="mt-6 flex flex-col gap-4 rounded-3xl border border-sky-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-6">
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-sky-700">Convite RESA Live</p>
+              <h2 id="shared-live-title" className="mt-1 text-lg font-semibold text-[#0C1A3D]">Recebeste um link de transmissão</h2>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">O estúdio só será aberto quando confirmares. Se a transmissão já tiver terminado, o servidor impedirá a entrada.</p>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <button type="button" onClick={() => { setStudioLive({ id: sharedLiveId, title: "Live partilhada", status: "live", visibility: "private", is_host: false }); setSharedLiveId(null); }} className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#0C1A3D] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#152b54] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8A24A]">Continuar para a Live</button>
+              <button type="button" onClick={() => { setSharedLiveId(null); const url = new URL(window.location.href); url.searchParams.delete("live"); window.history.replaceState({}, "", url.pathname + url.search + url.hash); }} className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0C1A3D]">Ignorar</button>
+            </div>
+          </section>
+        )}
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[360px_1fr]">
           <form onSubmit={createLive} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
