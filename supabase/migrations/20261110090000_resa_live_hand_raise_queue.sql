@@ -20,6 +20,11 @@ create unique index if not exists resa_live_hand_raises_one_waiting_per_user
 
 create index if not exists resa_live_hand_raises_live_status_raised_idx
   on public.resa_live_hand_raises (live_id, status, raised_at asc);
+create index if not exists resa_live_hand_raises_user_id_idx
+  on public.resa_live_hand_raises (user_id);
+create index if not exists resa_live_hand_raises_resolved_by_idx
+  on public.resa_live_hand_raises (resolved_by)
+  where resolved_by is not null;
 
 alter table public.resa_live_hand_raises enable row level security;
 
