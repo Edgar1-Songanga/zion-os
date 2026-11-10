@@ -84,6 +84,8 @@ export class ChurchMembersService {
     return this.db.rpc<Array<{
       candidate_member_record_id: string;
       candidate_organization_id: string;
+      candidate_organization_name: string;
+      candidate_member_number: string | null;
       first_name: string;
       last_name: string;
       birth_date: string;
