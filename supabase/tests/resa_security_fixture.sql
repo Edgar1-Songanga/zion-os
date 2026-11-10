@@ -119,6 +119,34 @@ create table public.resa_live_access_grants (
   primary key (live_id, user_id)
 );
 
+create table public.resa_live_moderators (
+  live_id uuid not null references public.resa_live_sessions(id) on delete cascade,
+  moderator_user_id uuid not null references auth.users(id) on delete cascade,
+  granted_by uuid not null references auth.users(id),
+  created_at timestamptz not null default now(),
+  primary key (live_id, moderator_user_id)
+);
+
+create or replace function private.resa_has_live_access(p_live_id uuid)
+returns boolean language sql stable security definer
+set search_path = pg_catalog
+as $fixture$
+  select exists (
+    select 1 from public.resa_live_sessions live
+    where live.id = p_live_id
+      and (
+        live.host_id = auth.uid()
+        or live.visibility = 'public'
+        or exists (
+          select 1 from public.resa_live_access_grants grant_row
+          where grant_row.live_id = live.id
+            and grant_row.user_id = auth.uid()
+            and grant_row.expires_at > now()
+        )
+      )
+  )
+$fixture$;
+
 create table public.organizations (
   id uuid primary key,
   name text not null default 'Test organization',
