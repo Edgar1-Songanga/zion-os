@@ -785,6 +785,64 @@ describe('ResaSocialService feeds', () => {
 });
 
 
+describe('ResaSocialService comment thread integrity', () => {
+  let service: ResaSocialService;
+  let getSpy: jest.SpyInstance;
+  let postSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    const identity = { getCurrentUser: jest.fn().mockResolvedValue({ id: ACTOR_ID }) };
+    service = new ResaSocialService(identity as never, new ResaRecommendationService());
+    getSpy = jest.spyOn(SupabaseRestClient.prototype, 'get').mockResolvedValue([{
+      id: 'parent-comment',
+      content_id: 'post-1',
+      status: 'active',
+      author_id: FOLLOWED_ID,
+    }] as never);
+    postSpy = jest.spyOn(SupabaseRestClient.prototype, 'post').mockResolvedValue([{ id: 'reply-1' }] as never);
+  });
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it('accepts a reply only when its parent belongs to the same active publication', async () => {
+    await service.comment('session-token', 'post-1', { body: 'A reply', parent_id: 'parent-comment' });
+
+    expect(getSpy).toHaveBeenCalledWith('resa_comments', 'session-token', expect.stringContaining('id=eq.parent-comment'));
+    expect(postSpy).toHaveBeenCalledWith('resa_comments', 'session-token', {
+      content_id: 'post-1',
+      author_id: ACTOR_ID,
+      body: 'A reply',
+      parent_id: 'parent-comment',
+    });
+  });
+
+  it('rejects a parent comment belonging to a different publication', async () => {
+    getSpy.mockResolvedValueOnce([{
+      id: 'parent-comment',
+      content_id: 'post-2',
+      status: 'active',
+      author_id: FOLLOWED_ID,
+    }] as never);
+
+    await expect(service.comment('session-token', 'post-1', { body: 'Hijack thread', parent_id: 'parent-comment' }))
+      .rejects.toThrow('mesma publicação');
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+
+  it('rejects replies to hidden or deleted comments', async () => {
+    getSpy.mockResolvedValueOnce([{
+      id: 'parent-comment',
+      content_id: 'post-1',
+      status: 'hidden',
+      author_id: FOLLOWED_ID,
+    }] as never);
+
+    await expect(service.comment('session-token', 'post-1', { body: 'Reply', parent_id: 'parent-comment' }))
+      .rejects.toThrow('comentário activo');
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+});
+
 describe('ResaSocialService mention authorization', () => {
   let service: ResaSocialService;
   let getSpy: jest.SpyInstance;
