@@ -110,6 +110,7 @@ create table public.resa_live_sessions (
   status text not null,
   password_hash text
 );
+grant select on public.resa_live_sessions to authenticated;
 
 create table public.resa_live_access_grants (
   live_id uuid not null references public.resa_live_sessions(id) on delete cascade,
