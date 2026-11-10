@@ -40,6 +40,31 @@ describe('ResaSocialService feeds', () => {
 
   afterEach(() => jest.restoreAllMocks());
 
+
+  it('rejects follows to private profiles before writing a social edge', async () => {
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'profiles') return [{ id: FOLLOWED_ID, privacy: { profile_visibility: 'private', follow_policy: 'auto' } }] as never;
+      return [] as never;
+    });
+    const upsertSpy = jest.spyOn(SupabaseRestClient.prototype, 'upsert');
+
+    await expect(service.follow('session-token', FOLLOWED_ID))
+      .rejects.toThrow('Este perfil é privado e não aceita novos seguidores sem aprovação.');
+    expect(upsertSpy).not.toHaveBeenCalled();
+  });
+
+  it('rejects follows when the target disabled new followers', async () => {
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'profiles') return [{ id: FOLLOWED_ID, privacy: { profile_visibility: 'public', follow_policy: 'none' } }] as never;
+      return [] as never;
+    });
+    const upsertSpy = jest.spyOn(SupabaseRestClient.prototype, 'upsert');
+
+    await expect(service.follow('session-token', FOLLOWED_ID))
+      .rejects.toThrow('Este perfil não aceita novos seguidores.');
+    expect(upsertSpy).not.toHaveBeenCalled();
+  });
+
   it('issues a short-lived private media URL only for an accessible owned-path object', async () => {
     getSpy.mockResolvedValueOnce([{
       id: 'private-post',

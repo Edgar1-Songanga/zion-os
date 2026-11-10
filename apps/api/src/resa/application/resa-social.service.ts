@@ -594,6 +594,9 @@ export class ResaSocialService {
     if (actor.id === followedId) throw new BadRequestException('You cannot follow yourself');
     const targets = await this.db.get<any[]>('profiles', token, `?select=id,privacy&id=eq.${encodeURIComponent(followedId)}&limit=1`);
     if (!targets[0]) throw new NotFoundException('Profile not found');
+    if (targets[0].privacy?.profile_visibility === 'private') {
+      throw new ForbiddenException('Este perfil é privado e não aceita novos seguidores sem aprovação.');
+    }
     if (targets[0].privacy?.follow_policy === 'none') throw new ForbiddenException('Este perfil não aceita novos seguidores.');
     const rows = await this.db.upsert<any[]>('resa_follows', token, { follower_id: actor.id, followed_id: followedId }, '?on_conflict=follower_id,followed_id');
     return rows[0];

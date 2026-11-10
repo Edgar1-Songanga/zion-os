@@ -12,11 +12,15 @@ on:
       - "supabase/tests/resa_member_privacy_regression.sql"
       - "supabase/tests/resa_four_level_profile_visibility.sql"
       - "supabase/tests/resa_content_audience_visibility_regression.sql"
+      - "supabase/tests/resa_interaction_audience_regression.sql"
       - "supabase/tests/resa_media_visibility_regression.sql"
       - "supabase/tests/resa_event_community_audience_regression.sql"
       - "supabase/tests/resa_user_blocking_regression.sql"
+      - "supabase/migrations/*resa_follow_privacy_database_guard*"
+      - "supabase/tests/resa_follow_privacy_regression.sql"
       - "supabase/tests/resa_engagement_aggregate_regression.sql"
       - "supabase/tests/resa_story_view_tracking_regression.sql"
+      - "supabase/tests/resa_interaction_audience_regression.sql"
       - "supabase/tests/resa_live_hand_raise_queue_regression.sql"
       - "supabase/migrations/*live_hand_raise*"
       - "supabase/tests/resa_security_fixture.sql"
@@ -120,6 +124,12 @@ jobs:
       - name: Apply block-aware profile visibility
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108134500_resa_blocked_profile_visibility.sql
+      - name: Apply database-enforced follow privacy
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261110210000_resa_follow_privacy_database_guard.sql
+      - name: Verify private-profile and disabled-follow policies cannot be bypassed
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_follow_privacy_regression.sql
       - name: Verify RESA user blocking and interaction boundaries
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_user_blocking_regression.sql

@@ -22,6 +22,8 @@ values
  ('96000000-0000-4000-8000-000000000012','96000000-0000-4000-8000-000000000001','text','Public post','Visible to all','public','active')
 on conflict (id) do nothing;
 
+-- The follower creates their own relationship before the outsider scenario begins.
+select set_config('request.jwt.claim.sub','96000000-0000-4000-8000-000000000002',false);
 insert into public.resa_follows(follower_id,followed_id)
 values ('96000000-0000-4000-8000-000000000002','96000000-0000-4000-8000-000000000001')
 on conflict do nothing;
