@@ -96,7 +96,7 @@ export class DepartmentOperationsController {
   @Post('personal-follow-ups')
   createFollowUp(
     @Headers('authorization') authorization: string | undefined,
-    @Body() body: { organization_id: string; ministry_id: string; display_name: string; contact_method: 'IN_PERSON' | 'PHONE' | 'EMAIL'; contact_locator: string; consent_method: 'VERBAL' | 'WRITTEN' | 'DIGITAL'; consent_confirmed: boolean; assigned_to: string },
+    @Body() body: { organization_id: string; ministry_id: string; display_name: string; contact_method: 'IN_PERSON' | 'PHONE' | 'EMAIL'; contact_locator: string; consent_method: 'VERBAL' | 'WRITTEN' | 'DIGITAL'; consent_confirmed: boolean; assigned_to: string; member_record_id?: string | null },
   ) {
     return this.token(authorization).then((token) => this.operations.createFollowUp(token, body.organization_id, body.ministry_id, body));
   }
