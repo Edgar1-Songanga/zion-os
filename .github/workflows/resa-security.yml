@@ -17,8 +17,12 @@ on:
       - "supabase/tests/resa_user_blocking_regression.sql"
       - "supabase/tests/resa_engagement_aggregate_regression.sql"
       - "supabase/tests/resa_story_view_tracking_regression.sql"
+      - "supabase/tests/resa_live_hand_raise_queue_regression.sql"
+      - "supabase/migrations/*live_hand_raise*"
       - "supabase/tests/resa_security_fixture.sql"
       - "supabase/tests/resa_group_meetings_regression.sql"
+      - "supabase/tests/resa_live_hand_raise_queue_regression.sql"
+      - "supabase/migrations/*live_hand_raise*"
       - ".github/workflows/resa-security.yml"
   push:
     branches: [main]
@@ -210,6 +214,9 @@ jobs:
       - name: Apply persistent RESA Live Studio hand-raise queue
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261110073355_resa_live_hand_raise_queue.sql
+      - name: Grant authenticated parent-session reads for hand-raise RLS
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261110095500_grant_live_session_select_for_hand_raise_rls.sql
       - name: Verify RESA Live Studio hand-raise persistence and RLS
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_live_hand_raise_queue_regression.sql
