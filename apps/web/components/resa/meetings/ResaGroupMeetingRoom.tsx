@@ -123,9 +123,12 @@ export default function ResaGroupMeetingRoom({
   useEffect(() => {
     if (!connected) return;
     void loadHandRaises();
-    const interval = window.setInterval(() => void loadHandRaises(), 5000);
+    const interval = window.setInterval(() => {
+      void loadHandRaises();
+      void onRefresh();
+    }, 5000);
     return () => window.clearInterval(interval);
-  }, [connected, loadHandRaises]);
+  }, [connected, loadHandRaises, onRefresh]);
 
   useEffect(() => {
     let active = true;
