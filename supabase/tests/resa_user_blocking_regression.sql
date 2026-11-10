@@ -21,6 +21,8 @@ insert into public.resa_follows(follower_id,followed_id) values
 on conflict do nothing;
 
 
+select set_config('request.jwt.claim.sub','95000000-0000-4000-8000-000000000001',false);
+
 -- Existing direct and group conversations must not become a bypass after a block.
 -- Seed these relationships before the blocker is applied, as real users may block
 -- someone with whom they already have a conversation.
