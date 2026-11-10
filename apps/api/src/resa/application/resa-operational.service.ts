@@ -644,12 +644,12 @@ export class ResaOperationalService {
     return { liveId: id, moderatorUserId: moderatorId, enabled: false };
   }
 
-  async moderateLiveParticipant(token: string, liveId: string, identity: string, action: 'allow_speak' | 'revoke_speak' | 'remove') {
+  async moderateLiveParticipant(token: string, liveId: string, identity: string, action: 'allow_speak' | 'revoke_speak' | 'remove' | 'mute_audio' | 'unmute_audio') {
     const actor = await this.actor(token);
     const id = this.id(liveId, 'live_id');
     const participantIdentity = this.text(identity, 'participant_identity', 1, 128);
     if (participantIdentity === actor.id) throw new BadRequestException('The host cannot moderate their own connection');
-    if (!['allow_speak', 'revoke_speak', 'remove'].includes(action)) throw new BadRequestException('Invalid participant moderation action');
+    if (!['allow_speak', 'revoke_speak', 'remove', 'mute_audio', 'unmute_audio'].includes(action)) throw new BadRequestException('Invalid participant moderation action');
     const live = (await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status,attendee_publish_allowed&id=eq.${id}&limit=1`))[0];
     if (!live) throw new NotFoundException('Live session not found');
     if (participantIdentity === live.host_id) throw new BadRequestException('The host cannot be moderated by another participant');
@@ -664,6 +664,13 @@ export class ResaOperationalService {
     if (action === 'remove') {
       if (!this.media.removeParticipant) throw new BadGatewayException('Media provider does not support participant removal');
       await this.media.removeParticipant({ roomId: 'zion-live-' + id, identity: participantIdentity });
+    } else if (action === 'mute_audio' || action === 'unmute_audio') {
+      if (!this.media.setParticipantAudioMuted) throw new BadGatewayException('Media provider does not support audio-only moderation');
+      await this.media.setParticipantAudioMuted({
+        roomId: 'zion-live-' + id,
+        identity: participantIdentity,
+        muted: action === 'mute_audio',
+      });
     } else {
       if (!this.media.setParticipantPermissions) throw new BadGatewayException('Media provider does not support source-scoped publishing permissions');
       const canPublish = action === 'allow_speak';
