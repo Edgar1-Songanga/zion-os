@@ -7,6 +7,7 @@ import { resaRequest } from "@/lib/resa/api";
 import { createClient } from "@/lib/supabase/client";
 import { getMinistryCatalogEntry } from "./ministry-catalog";
 import MinistryBibleStudyWorkspace from "./MinistryBibleStudyWorkspace";
+import MinistryResaPublicationComposer from "./MinistryResaPublicationComposer";
 import type { Ministry, MinistryLeader, MinistryProgram, ProgramStatus } from "./types";
 
 type ProgramForm = {
@@ -371,6 +372,14 @@ export default function MinistryDashboard({ ministry, onUpdated }: MinistryDashb
               <a href={officialUrl} target="_blank" rel="noreferrer" className="inline-flex text-sm font-semibold text-[#0C1A3D] underline decoration-[#C8A24A] underline-offset-4">
                 Consultar referência oficial: {sourceLabel ?? "Igreja Adventista"}
               </a>
+            )}
+
+            {ministry.organizationId && (
+              <MinistryResaPublicationComposer
+                ministryId={ministry.id}
+                organizationId={ministry.organizationId}
+                ministryName={ministry.name}
+              />
             )}
 
             {(ministryKey.includes("sabbath-school-personal-ministries") || ministryKey.includes("evangelism")) && (
