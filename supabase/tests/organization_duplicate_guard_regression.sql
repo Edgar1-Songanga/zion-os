@@ -55,6 +55,20 @@ begin
     raise exception 'The same church name should be allowed in a different Mission';
   end if;
 
+  -- A root/unassigned registration has no territorial scope, so it must not
+  -- duplicate a church already registered under any Mission.
+  rejected := false;
+  begin
+    insert into public.organizations(name, slug, organization_type)
+    values ('IASD Bairro Central ' || suffix,
+            'dup-guard-root-bypass-' || suffix, 'LOCAL_CHURCH');
+  exception when unique_violation then
+    rejected := true;
+  end;
+  if not rejected then
+    raise exception 'An unassigned local church bypassed an existing Mission name';
+  end if;
+
   -- Legacy churches without a parent are treated as one unassigned jurisdiction.
   insert into public.organizations(name, slug, organization_type)
   values ('IASD Legacy Guard ' || suffix, 'dup-guard-legacy-one-' || suffix, 'LOCAL_CHURCH');
