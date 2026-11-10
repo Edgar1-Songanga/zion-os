@@ -55,7 +55,7 @@ jobs:
       - name: Verify duplicate church names are blocked per jurisdiction
         run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/organization_duplicate_guard_regression.sql
       - name: Apply audited local church archive workflow
-        run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261110120000_audited_local_church_archive.sql
+        run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261110121500_audited_local_church_archive.sql
       - name: Verify scoped archive permissions, access revocation and audit history
         run: docker exec -i zion-hierarchy-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/organization_archive_regression.sql
       - name: Stop disposable PostgreSQL
