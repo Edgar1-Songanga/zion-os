@@ -25,7 +25,7 @@ export class ChurchMemberTransfersService {
     return this.db.get(
       'church_member_transfers',
       accessToken,
-      `?select=id,member_record_id,origin_organization_id,destination_organization_id,status,request_date,reason,document_reference,requested_by,submitted_at,decided_by,decided_at,decision_note,created_at,updated_at&or=(origin_organization_id.eq.${organizationId},destination_organization_id.eq.${organizationId})&order=created_at.desc&limit=200`,
+      `?select=id,member_record_id,destination_member_record_id,origin_organization_id,destination_organization_id,status,request_date,reason,document_reference,requested_by,submitted_at,decided_by,decided_at,decision_note,created_at,updated_at&or=(origin_organization_id.eq.${organizationId},destination_organization_id.eq.${organizationId})&order=created_at.desc&limit=200`,
     );
   }
 
