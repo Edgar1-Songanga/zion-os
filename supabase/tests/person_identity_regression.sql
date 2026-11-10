@@ -30,7 +30,7 @@ begin
   insert into public.church_member_records(
     organization_id, first_name, last_name, birth_date, gender, membership_status
   ) values (
-    origin_church_id, 'Ana', 'Silva', '1988-03-12', 'FEMALE', 'ACTIVE'
+    origin_church_id, 'Ána', 'Silva', '1988-03-12', 'FEMALE', 'ACTIVE'
   ) returning id, person_identity_id into origin_member_id, identity_id;
 
   if identity_id is null then
