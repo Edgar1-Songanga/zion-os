@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { resaRequest } from "@/lib/resa/api";
 import { playNotificationAlert, unlockNotificationAudio, type NotificationAlertPreferences } from "@/lib/notifications/notification-alerts";
@@ -9,6 +9,7 @@ type CallAlertRow = { id: string; initiator_id: string; status: string; kind: "a
 const STOP_STATUSES = new Set(["active", "ended", "declined", "missed"]);
 
 export default function GlobalResaCallAlerts() {
+  const [incomingCall, setIncomingCall] = useState<CallAlertRow | null>(null);
   useEffect(() => {
     const unlock = () => unlockNotificationAudio();
     window.addEventListener("pointerdown", unlock, { once: true });
@@ -24,6 +25,7 @@ export default function GlobalResaCallAlerts() {
     const stop = (callId: string) => {
       cleanups.get(callId)?.();
       cleanups.delete(callId);
+      setIncomingCall((current) => current?.id === callId ? null : current);
       pending.delete(callId);
       const timer = stopTimers.get(callId);
       if (timer !== undefined) window.clearTimeout(timer);
@@ -37,6 +39,7 @@ export default function GlobalResaCallAlerts() {
         let preferences: NotificationAlertPreferences = {};
         try { preferences = await resaRequest<NotificationAlertPreferences>("/v1/notifications/preferences"); } catch { /* Use safe local defaults. */ }
         if (disposed || !pending.has(call.id)) return;
+        setIncomingCall(call);
         cleanups.set(call.id, playNotificationAlert(call.kind === "video" ? "resa.call.video" : "resa.call.audio", preferences, true));
         // Never leave a ringtone or vibration running indefinitely if realtime misses
         // the terminal UPDATE (for example, after a mobile network handoff).
@@ -64,8 +67,7 @@ export default function GlobalResaCallAlerts() {
         const ids = Array.from(cleanups.keys());
         const { data } = await supabase.from("resa_calls").select("id,status").in("id", ids);
         if (disposed || !data) return;
-        const stillRinging = new Set(data.filter((row) => row.status === "ringing").map((row) => row.id));
-        for (const id of ids) if (!stillRinging.has(id)) stop(id);
+        for (const row of data) if (row.status !== "ringing") stop(row.id);
       }, 2500);
 
     });
@@ -81,5 +83,14 @@ export default function GlobalResaCallAlerts() {
       if (channel) void supabase.removeChannel(channel);
     };
   }, []);
-  return null;
+  return incomingCall ? (
+    <div role="alertdialog" aria-live="assertive" aria-label="Chamada recebida" className="fixed inset-x-3 top-3 z-[100] mx-auto flex max-w-md items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-white p-4 text-[#0C1A3D] shadow-2xl">
+      <div className="min-w-0">
+        <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Chamada recebida</p>
+        <p className="mt-1 truncate text-sm font-semibold">{incomingCall.kind === "video" ? "Videochamada" : "Chamada de áudio"} no RESA</p>
+        <p className="mt-0.5 text-xs text-slate-500">Abra a conversa para atender ou recusar.</p>
+      </div>
+      <a href={"/resa/messages?conversation=" + encodeURIComponent(incomingCall.conversation_id)} className="shrink-0 rounded-xl bg-[#0C1A3D] px-4 py-3 text-xs font-bold text-white">Abrir chamada</a>
+    </div>
+  ) : null;
 }
