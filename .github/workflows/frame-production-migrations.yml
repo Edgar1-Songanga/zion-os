@@ -1,6 +1,15 @@
 name: Frame — exclusive production migrations
 
 on:
+  # Safe, read-only plan after migration or Frame-gate changes land on main.
+  # Execution remains manual and protected by the production Environment.
+  push:
+    branches:
+      - main
+    paths:
+      - 'supabase/migrations/**'
+      - 'apps/api/scripts/frame-migration-manifest.cjs'
+      - '.github/workflows/frame-production-migrations.yml'
   workflow_dispatch:
     inputs:
       mode:
