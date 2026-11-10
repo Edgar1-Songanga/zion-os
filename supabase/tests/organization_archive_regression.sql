@@ -38,6 +38,8 @@ begin
 
   insert into public.organization_memberships(organization_id, user_id, status, role_id)
   values (mission_id, actor, 'ACTIVE', secretary_role);
+  insert into public.organization_memberships(organization_id, user_id, status, role_id)
+  values (church_id, actor, 'ACTIVE', secretary_role);
 
   -- Direct deactivation must not bypass the audited RPC.
   blocked := false;
@@ -85,6 +87,12 @@ begin
     where organization_id = mission_id and user_id = actor and status <> 'ACTIVE'
   ) then
     raise exception 'Archiving a church unexpectedly changed the Mission secretary membership';
+  end if;
+  if exists (
+    select 1 from public.organization_memberships
+    where organization_id = church_id and user_id = actor and status <> 'INACTIVE'
+  ) then
+    raise exception 'Archiving a church did not deactivate its local access memberships';
   end if;
 end;
 $$;
