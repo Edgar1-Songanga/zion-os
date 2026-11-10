@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { IdentityService } from '../../identity/application/identity.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 import { ChurchMembersService } from './church-members.service';
@@ -12,6 +12,7 @@ describe('ChurchMembersService', () => {
   let getSpy: jest.SpyInstance;
   let postSpy: jest.SpyInstance;
   let patchSpy: jest.SpyInstance;
+  let rpcSpy: jest.SpyInstance;
 
   beforeEach(() => {
     jest.restoreAllMocks();
@@ -20,6 +21,7 @@ describe('ChurchMembersService', () => {
     getSpy = jest.spyOn(SupabaseRestClient.prototype, 'get').mockResolvedValue([] as never);
     postSpy = jest.spyOn(SupabaseRestClient.prototype, 'post').mockResolvedValue([] as never);
     patchSpy = jest.spyOn(SupabaseRestClient.prototype, 'patch').mockResolvedValue([] as never);
+    rpcSpy = jest.spyOn(SupabaseRestClient.prototype, 'rpc').mockResolvedValue([] as never);
   });
 
   it('lists only records in the requested organization and requires an authenticated identity', async () => {
@@ -45,6 +47,97 @@ describe('ChurchMembersService', () => {
         updated_by: actor.id,
       }),
     );
+  });
+
+  it('returns permission-scoped identity candidates for a full name and birth date', async () => {
+    const candidate = {
+      member_record_id: memberId,
+      person_identity_id: 'b8f9b7a2-2f75-4f93-9c74-9e1b7e9b28d2',
+      organization_id: 'd4c2d6a1-2f6a-49f8-9b6c-1a1a4b3c5d6e',
+      organization_name: 'Igreja Central',
+      member_number: '0042',
+      first_name: 'Ana',
+      last_name: 'Silva',
+      birth_date: '1990-05-12',
+      gender: 'FEMALE',
+      membership_status: 'ACTIVE',
+    };
+    rpcSpy.mockResolvedValueOnce([candidate] as never);
+    const result = await service.findIdentityCandidates(accessToken, organizationId, {
+      first_name: 'Ana', last_name: 'Silva', birth_date: '1990-05-12', gender: 'FEMALE',
+    });
+    expect(result).toEqual([candidate]);
+    expect(rpcSpy).toHaveBeenCalledWith('zion_find_person_identity_candidates', accessToken, expect.objectContaining({
+      p_organization_id: organizationId,
+      p_first_name: 'Ana',
+      p_last_name: 'Silva',
+      p_birth_date: '1990-05-12',
+      p_gender: 'FEMALE',
+    }));
+  });
+
+  it('blocks a second church record when a possible global identity exists and none is selected', async () => {
+    rpcSpy.mockResolvedValueOnce([{
+      member_record_id: memberId,
+      person_identity_id: 'b8f9b7a2-2f75-4f93-9c74-9e1b7e9b28d2',
+      organization_id: 'd4c2d6a1-2f6a-49f8-9b6c-1a1a4b3c5d6e',
+      organization_name: 'Igreja Central',
+      member_number: '0042',
+      first_name: 'Ana',
+      last_name: 'Silva',
+      birth_date: '1990-05-12',
+      gender: 'FEMALE',
+      membership_status: 'ACTIVE',
+    }] as never);
+    await expect(service.create(accessToken, organizationId, {
+      first_name: 'Ana', last_name: 'Silva', birth_date: '1990-05-12', gender: 'FEMALE',
+    })).rejects.toBeInstanceOf(ConflictException);
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+
+  it('reuses the existing global identity when a verified candidate is selected', async () => {
+    const identityId = 'b8f9b7a2-2f75-4f93-9c74-9e1b7e9b28d2';
+    rpcSpy.mockResolvedValueOnce([{
+      member_record_id: memberId,
+      person_identity_id: identityId,
+      organization_id: 'd4c2d6a1-2f6a-49f8-9b6c-1a1a4b3c5d6e',
+      organization_name: 'Igreja Central',
+      member_number: '0042',
+      first_name: 'Ana',
+      last_name: 'Silva',
+      birth_date: '1990-05-12',
+      gender: 'FEMALE',
+      membership_status: 'ACTIVE',
+    }] as never);
+    postSpy.mockResolvedValueOnce([{ id: '9a3d8a5b-4c2f-4a8d-9e1f-6d7c8b9a0f12' }] as never);
+    await service.create(accessToken, organizationId, {
+      first_name: 'Ana', last_name: 'Silva', birth_date: '1990-05-12', gender: 'FEMALE',
+      matched_member_record_id: memberId,
+    });
+    expect(postSpy).toHaveBeenCalledWith('church_member_records', accessToken, expect.objectContaining({
+      organization_id: organizationId,
+      person_identity_id: identityId,
+    }));
+  });
+
+  it('rejects selecting an existing record from the same church instead of creating a duplicate', async () => {
+    rpcSpy.mockResolvedValueOnce([{
+      member_record_id: memberId,
+      person_identity_id: 'b8f9b7a2-2f75-4f93-9c74-9e1b7e9b28d2',
+      organization_id: organizationId,
+      organization_name: 'Igreja local',
+      member_number: '0042',
+      first_name: 'Ana',
+      last_name: 'Silva',
+      birth_date: '1990-05-12',
+      gender: 'FEMALE',
+      membership_status: 'ACTIVE',
+    }] as never);
+    await expect(service.create(accessToken, organizationId, {
+      first_name: 'Ana', last_name: 'Silva', birth_date: '1990-05-12', gender: 'FEMALE',
+      matched_member_record_id: memberId,
+    })).rejects.toBeInstanceOf(ConflictException);
+    expect(postSpy).not.toHaveBeenCalled();
   });
 
   it('archives a member as REMOVED instead of hard-deleting the record', async () => {
