@@ -29,11 +29,23 @@ type ResaContent = {
   comment_count?: number;
   share_count?: number;
   feed_item_id?: string;
-  feed_item_type?: "content" | "repost";
+  feed_item_type?: "content" | "repost" | "institutional";
   is_repost?: boolean;
   reposted_by_id?: string | null;
   reposted_by_display_name?: string | null;
   viewer_reposted?: boolean;
+  is_institutional?: boolean;
+  institution_name?: string;
+  institution_type?: string;
+  ministry_name?: string | null;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  location?: string | null;
+  meeting_day?: number | null;
+  meeting_time?: string | null;
+  room_label?: string | null;
+  activity_type?: string | null;
+  institutional_status?: string | null;
 };
 
 function newestFirst(items: ResaContent[]): ResaContent[] {
@@ -267,7 +279,7 @@ export default function ResaLiveFeed() {
 
       {!loading && !error && items.map((item) => (
         <div key={item.feed_item_id || item.id}>
-          {item.visibility === "public" ? (
+          {item.visibility === "public" && !item.is_institutional ? (
             <FeedImpressionTracker contentId={item.id}>
               <FeedCard content={item} />
             </FeedImpressionTracker>

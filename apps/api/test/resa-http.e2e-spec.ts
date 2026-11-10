@@ -24,6 +24,7 @@ describe('RESA HTTP contracts (e2e)', () => {
     getCurrentUser: jest.fn(),
   };
   const social = {
+    listContent: jest.fn(),
     feed: jest.fn(),
     createContent: jest.fn(),
     blockProfile: jest.fn(),
@@ -117,6 +118,52 @@ describe('RESA HTTP contracts (e2e)', () => {
       .expect(401);
 
     expect(identity.getCurrentUser).toHaveBeenCalledWith(TOKEN);
+  });
+
+  it('serves institutional publications in the authenticated personalized RESA feed', async () => {
+    social.feed.mockResolvedValueOnce({
+      items: [
+        {
+          id: 'content-1',
+          author_id: USER_ID,
+          type: 'text',
+          title: 'Community reflection',
+          visibility: 'public',
+          language: 'pt',
+          created_at: '2026-11-10T08:00:00.000Z',
+        },
+        {
+          id: 'institution-1',
+          author_id: '97100000-0000-4000-8000-000000000002',
+          type: 'bible_study',
+          title: 'Jovens Adultos',
+          body: 'Classe da Escola Sabatina',
+          visibility: 'public',
+          language: 'pt',
+          created_at: '2026-11-10T07:00:00.000Z',
+          is_institutional: true,
+          institution_name: 'Igreja Central',
+          ministry_name: 'Escola Sabatina',
+          feed_item_type: 'institutional',
+        },
+      ],
+      next_cursor: null,
+      has_more: false,
+    });
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/resa/feed?limit=10')
+      .set('Authorization', AUTHORIZATION)
+      .expect(200);
+
+    expect(response.body.items).toHaveLength(2);
+    expect(response.body.items[1]).toMatchObject({
+      is_institutional: true,
+      institution_name: 'Igreja Central',
+      ministry_name: 'Escola Sabatina',
+      feed_item_type: 'institutional',
+    });
+    expect(social.feed).toHaveBeenCalledWith(TOKEN, 10, 'for_you', undefined);
   });
 
   it('routes personalized feed filters and pagination to the social service', async () => {
