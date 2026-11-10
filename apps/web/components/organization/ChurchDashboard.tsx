@@ -20,6 +20,7 @@ type Ministry = {
 type Membership = { id: string; user_id: string; status?: string; role_id?: string };
 type OrganizationUnit = { id: string; organization_id: string; parent_id: string | null; name: string; unit_type: string; description: string | null; is_active: boolean };
 type OrganizationNode = { id: string; name: string; organization_type: string; parent_id: string | null; depth: number };
+type ArchivableChurch = { id: string; name: string; slug: string; parent_id: string | null; is_active: boolean };
 type YouthReport = {
   clubs_total?: number;
   clubs_active?: number;
@@ -70,6 +71,10 @@ export default function ChurchDashboard() {
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
+  const [archivableChurches, setArchivableChurches] = useState<ArchivableChurch[]>([]);
+  const [archiveBusyId, setArchiveBusyId] = useState("");
+  const [archiveMessage, setArchiveMessage] = useState("");
+  const [archiveError, setArchiveError] = useState("");
 
   const refresh = useCallback(async (id: string) => {
     if (!id) return;
@@ -122,6 +127,39 @@ export default function ChurchDashboard() {
     if (organizationId) void refresh(organizationId);
   }, [organizationId, refresh]);
 
+  const loadArchivableChurches = useCallback(async () => {
+    try {
+      const rows = await resaRequest<ArchivableChurch[]>("/v1/organizations/archivable-local-churches");
+      setArchivableChurches(rows ?? []);
+    } catch {
+      setArchivableChurches([]);
+    }
+  }, []);
+
+  useEffect(() => { void loadArchivableChurches(); }, [loadArchivableChurches]);
+
+  async function archiveChurch(church: ArchivableChurch) {
+    const reason = window.prompt(`Motivo para arquivar "${church.name}" (3 a 500 caracteres):`);
+    if (reason === null) return;
+    if (reason.trim().length < 3 || reason.trim().length > 500) {
+      setArchiveError("Indique um motivo entre 3 e 500 caracteres.");
+      return;
+    }
+    if (!window.confirm(`Confirma o arquivo de "${church.name}"? Os dados históricos serão preservados e os acessos locais serão desativados.`)) return;
+    setArchiveBusyId(church.id); setArchiveError(""); setArchiveMessage("");
+    try {
+      await resaRequest(`/v1/organizations/${encodeURIComponent(church.id)}/archive`, {
+        method: "POST", body: JSON.stringify({ reason: reason.trim() }),
+      });
+      setArchivableChurches((current) => current.filter((item) => item.id !== church.id));
+      setArchiveMessage(`"${church.name}" foi arquivada com histórico preservado.`);
+    } catch (reasonError) {
+      setArchiveError(reasonError instanceof Error ? reasonError.message : "Não foi possível arquivar a igreja.");
+    } finally {
+      setArchiveBusyId("");
+    }
+  }
+
   const allReports = ministries.flatMap((ministry) =>
     (ministry.reports ?? []).map((report) => ({ ...report, ministryName: ministry.name })),
   );
@@ -168,6 +206,15 @@ export default function ChurchDashboard() {
             {loading ? "A atualizar…" : "Atualizar dados"}
           </button>
         </section>
+
+        {archivableChurches.length > 0 && (
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+            <div className="mb-4"><p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9B7A34]">Governança da Missão</p><h2 className="mt-2 text-xl font-semibold">Igrejas sob a sua responsabilidade</h2><p className="mt-1 text-sm text-slate-500">Apenas igrejas locais pertencentes à Missão em que a sua conta tem permissão específica de arquivo.</p></div>
+            {archiveError && <p role="alert" className="mb-3 rounded-xl bg-red-50 p-3 text-sm text-red-700">{archiveError}</p>}
+            {archiveMessage && <p role="status" className="mb-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{archiveMessage}</p>}
+            <div className="divide-y divide-slate-100">{archivableChurches.map((church) => <article key={church.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><div><p className="font-semibold text-[#0C1A3D]">{church.name}</p><p className="mt-1 text-xs text-slate-500">Igreja local · {church.slug}</p></div><button type="button" disabled={Boolean(archiveBusyId)} onClick={() => void archiveChurch(church)} className="rounded-xl border border-red-200 px-4 py-2 text-xs font-semibold text-red-700 disabled:opacity-50">{archiveBusyId === church.id ? "A arquivar…" : "Arquivar igreja"}</button></article>)}</div>
+          </section>
+        )}
 
         {errors.length > 0 && (
           <div role="alert" className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
