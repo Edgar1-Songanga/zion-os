@@ -43,7 +43,6 @@ set search_path = pg_catalog, public, private
 as $$
 declare
   normalized_name text;
-  scope_key text;
 begin
   if new.organization_type <> 'LOCAL_CHURCH' then
     return new;
@@ -55,14 +54,15 @@ begin
       using errcode = '22023';
   end if;
 
-  scope_key := coalesce(new.parent_id::text, 'legacy-unassigned-jurisdiction');
-  perform pg_advisory_xact_lock(hashtextextended(scope_key || ':' || normalized_name, 0));
+  -- Serialize same-name creation across scopes: an unassigned/root church
+  -- cannot race a scoped church registration and bypass the duplicate check.
+  perform pg_advisory_xact_lock(hashtextextended('local-church-name:' || normalized_name, 0));
 
   if exists (
     select 1
     from public.organizations existing
     where existing.organization_type = 'LOCAL_CHURCH'
-      and existing.parent_id is not distinct from new.parent_id
+      and (new.parent_id is null or existing.parent_id is not distinct from new.parent_id)
       and existing.id is distinct from new.id
       and private.normalize_local_church_name(existing.name) = normalized_name
   ) then
