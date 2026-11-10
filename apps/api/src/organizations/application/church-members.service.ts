@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { IdentityService } from '../../identity/application/identity.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 
@@ -9,6 +9,7 @@ const GENDERS = ['FEMALE', 'MALE', 'UNSPECIFIED'] as const;
 type MemberRecord = {
   id: string;
   organization_id: string;
+  person_identity_id: string;
   member_number: string | null;
   first_name: string;
   last_name: string;
@@ -25,6 +26,19 @@ type MemberRecord = {
   updated_at: string;
 };
 
+type IdentityCandidate = {
+  member_record_id: string;
+  person_identity_id: string;
+  organization_id: string;
+  organization_name: string;
+  member_number: string | null;
+  first_name: string;
+  last_name: string;
+  birth_date: string;
+  gender: string | null;
+  membership_status: string;
+};
+
 type MemberInput = {
   member_number?: string | null;
   first_name?: string;
@@ -38,6 +52,7 @@ type MemberInput = {
   membership_status?: string;
   joined_on?: string | null;
   notes?: string | null;
+  matched_member_record_id?: string | null;
 };
 
 @Injectable()
@@ -52,7 +67,7 @@ export class ChurchMembersService {
     return this.db.get<MemberRecord[]>(
       'church_member_records',
       accessToken,
-      `?select=id,organization_id,member_number,first_name,last_name,birth_date,gender,phone,email,address,baptism_date,membership_status,joined_on,notes,created_at,updated_at&organization_id=eq.${organizationId}&order=last_name.asc,first_name.asc&limit=100`,
+      `?select=id,organization_id,person_identity_id,member_number,first_name,last_name,birth_date,gender,phone,email,address,baptism_date,membership_status,joined_on,notes,created_at,updated_at&organization_id=eq.${organizationId}&order=last_name.asc,first_name.asc&limit=100`,
     );
   }
 
@@ -63,6 +78,33 @@ export class ChurchMembersService {
     if (!values.first_name || !values.last_name) {
       throw new BadRequestException('first_name and last_name are required.');
     }
+
+    const candidates = await this.lookupIdentityCandidates(accessToken, organizationId, {
+      first_name: String(values.first_name),
+      last_name: String(values.last_name),
+      birth_date: values.birth_date as string | null,
+      gender: values.gender as string | null,
+    });
+
+    const matchedRecordId = input?.matched_member_record_id;
+    if (matchedRecordId) {
+      this.assertUuid(matchedRecordId, 'matched_member_record_id');
+      const candidate = candidates.find((item) => item.member_record_id === matchedRecordId);
+      if (!candidate) {
+        throw new BadRequestException('The selected identity candidate is no longer valid. Search again before saving.');
+      }
+      if (candidate.organization_id === organizationId) {
+        throw new ConflictException('This person already has a member record in the selected church. Edit the existing record instead.');
+      }
+      values.person_identity_id = candidate.person_identity_id;
+    } else if (candidates.length > 0) {
+      throw new ConflictException({
+        code: 'POSSIBLE_DUPLICATE_MEMBER',
+        message: 'Possible existing member identities were found. Select the correct person before creating another church record.',
+        candidates,
+      });
+    }
+
     const created = await this.db.post<MemberRecord[]>(
       'church_member_records',
       accessToken,
@@ -93,6 +135,41 @@ export class ChurchMembersService {
     );
     if (!updated[0]) throw new NotFoundException('Member record not found or not accessible.');
     return updated[0];
+  }
+
+  async findIdentityCandidates(
+    accessToken: string,
+    organizationId: string,
+    input: { first_name: string; last_name: string; birth_date: string; gender?: string | null },
+  ) {
+    this.assertUuid(organizationId, 'organizationId');
+    await this.identity.getCurrentUser(accessToken);
+    if (!input?.first_name?.trim() || !input?.last_name?.trim() || !this.isValidDate(input.birth_date)) {
+      throw new BadRequestException('First name, last name and a valid birth date are required for identity matching.');
+    }
+    if (input.gender != null && !(GENDERS as readonly string[]).includes(input.gender)) {
+      throw new BadRequestException('gender is not supported.');
+    }
+    return this.lookupIdentityCandidates(accessToken, organizationId, input);
+  }
+
+  private async lookupIdentityCandidates(
+    accessToken: string,
+    organizationId: string,
+    input: { first_name: string; last_name: string; birth_date?: string | null; gender?: string | null },
+  ) {
+    if (!input.birth_date || !input.first_name?.trim() || !input.last_name?.trim()) return [];
+    return this.db.rpc<IdentityCandidate[]>(
+      'zion_find_person_identity_candidates',
+      accessToken,
+      {
+        p_organization_id: organizationId,
+        p_first_name: input.first_name.trim(),
+        p_last_name: input.last_name.trim(),
+        p_birth_date: input.birth_date,
+        p_gender: input.gender ?? null,
+      },
+    );
   }
 
   async listByStatus(accessToken: string, status: string) {
