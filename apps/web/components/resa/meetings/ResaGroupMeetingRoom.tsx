@@ -76,11 +76,23 @@ export default function ResaGroupMeetingRoom({
       const rows = await resaRequest<MeetingMessage[]>(
         `/v1/resa/group-meetings/${meetingId}/messages?limit=100`,
       );
-      setChat(rows);
+      setChat((current) => {
+        const byId = new Map(current.map((message) => [message.id, message]));
+        for (const message of rows) byId.set(message.id, message);
+        return [...byId.values()]
+          .sort((left, right) => Date.parse(left.created_at) - Date.parse(right.created_at))
+          .slice(-200);
+      });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Não foi possível carregar o chat.");
     }
   }, [meetingId]);
+
+  useEffect(() => {
+    if (!connected) return;
+    const interval = window.setInterval(() => void loadChat(), 5000);
+    return () => window.clearInterval(interval);
+  }, [connected, loadChat]);
 
   const loadHandRaises = useCallback(async () => {
     try {
