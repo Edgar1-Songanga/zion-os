@@ -525,7 +525,7 @@ export default function ResaGroupMeetingRoom({
             <div className="max-h-64 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
               {chat.map((message) => (
                 <div key={message.id} className="rounded-xl bg-white/[0.06] px-3 py-2">
-                  <p className="text-[10px] font-semibold text-sky-200">{message.sender_id === userId ? "Tu" : message.sender_display_name || participants.find((person) => person.user_id === message.sender_id)?.display_name || "Membro RESA"}</p>
+                  <p className="text-[10px] font-semibold text-sky-200">{(message.sender_display_name || participants.find((person) => person.user_id === message.sender_id)?.display_name || "Membro RESA") + (message.sender_id === userId ? " · Tu" : "")}</p>
                   <p className="mt-1 break-words text-xs leading-5 text-slate-200">{message.body}</p>
                 </div>
               ))}
