@@ -181,6 +181,16 @@ export class ResaOperationalController {
     return this.groupMeetings.setPresence(this.token(authorization), meetingId, body.status);
   }
 
+  @Patch('group-meetings/:meetingId/participants/:userId/moderator')
+  setGroupMeetingModerator(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('meetingId') meetingId: string,
+    @Param('userId') userId: string,
+    @Body() body: { enabled: boolean },
+  ) {
+    return this.groupMeetings.setModerator(this.token(authorization), meetingId, userId, body.enabled === true);
+  }
+
   @Patch('group-meetings/:meetingId/participants/:userId/presenter')
   setGroupMeetingPresenter(
     @Headers('authorization') authorization: string | undefined,
