@@ -67,6 +67,14 @@ describe('VerificationService', () => {
     expect(getSpy).toHaveBeenCalledWith('account_verification_requests', 'token', expect.stringContaining('status=eq.pending'));
   });
 
+  it('does not show a global administrator their own verification request', async () => {
+    getSpy.mockResolvedValueOnce([
+      { id: REQUEST_ID, user_id: USER_ID, requested_type: 'personal', submitted_at: '2026-11-10T08:00:00Z', evidence_refs: [] },
+      { id: '55555555-5555-4555-8555-555555555555', user_id: '66666666-6666-4666-8666-666666666666', requested_type: 'pastor', submitted_at: '2026-11-10T08:01:00Z', evidence_refs: [] },
+    ]);
+    await expect(service.pendingRequests('token')).resolves.toHaveLength(1);
+  });
+
   it('reviews a request through the atomic database workflow', async () => {
     rpcSpy.mockResolvedValueOnce({ request_id: REQUEST_ID, decision: 'approved' });
     await service.review('token', REQUEST_ID, 'approved', 'Evidence checked');

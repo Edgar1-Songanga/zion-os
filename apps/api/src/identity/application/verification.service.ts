@@ -71,8 +71,8 @@ export class VerificationService {
   }
 
   async pendingRequests(accessToken: string) {
-    await this.identity.requireGlobalAdmin(accessToken);
-    return this.db.get<Array<{
+    const reviewer = await this.identity.requireGlobalAdmin(accessToken);
+    const requests = await this.db.get<Array<{
       id: string;
       user_id: string;
       requested_type: RequestType;
@@ -83,6 +83,7 @@ export class VerificationService {
       accessToken,
       '?select=id,user_id,requested_type,submitted_at,evidence_refs&status=eq.pending&order=submitted_at.asc&limit=200',
     );
+    return requests.filter((request) => request.user_id !== reviewer.id);
   }
 
   async review(accessToken: string, requestId: string, decision: string, reason?: string) {
