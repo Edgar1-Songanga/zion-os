@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query, UnauthorizedException } from '@nestjs/common';
 import { ChurchMembersService } from '../application/church-members.service';
 
 type MemberBody = {
@@ -14,6 +14,7 @@ type MemberBody = {
   membership_status?: string;
   joined_on?: string | null;
   notes?: string | null;
+  matched_member_record_id?: string | null;
 };
 
 @Controller('v1/organizations/:organizationId/church-members')
@@ -24,6 +25,23 @@ export class ChurchMembersController {
     const token = authorization?.replace(/^Bearer\s+/i, '').trim();
     if (!token) throw new UnauthorizedException('Bearer token is required');
     return token;
+  }
+
+  @Get('identity-candidates')
+  findIdentityCandidates(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('organizationId') organizationId: string,
+    @Query('firstName') firstName: string,
+    @Query('lastName') lastName: string,
+    @Query('birthDate') birthDate: string,
+    @Query('gender') gender?: string,
+  ) {
+    return this.members.findIdentityCandidates(this.token(authorization), organizationId, {
+      first_name: firstName,
+      last_name: lastName,
+      birth_date: birthDate,
+      gender: gender || null,
+    });
   }
 
   @Get()
