@@ -16,7 +16,7 @@ type Member = {
   email: string | null;
   address: string | null;
   baptism_date: string | null;
-  membership_status: "ACTIVE" | "TRANSFERRED" | "DECEASED" | "DISMISSED" | "INACTIVE";
+  membership_status: "ACTIVE" | "TRANSFERRED" | "DECEASED" | "DISMISSED" | "INACTIVE" | "REMOVED";
   joined_on: string | null;
   notes: string | null;
   created_at: string;
@@ -98,8 +98,9 @@ const STATUS_LABELS: Record<Member["membership_status"], string> = {
   ACTIVE: "Activo",
   TRANSFERRED: "Transferido",
   DECEASED: "Falecido",
-  DISMISSED: "Removido",
+  DISMISSED: "Desfiliado",
   INACTIVE: "Inactivo",
+  REMOVED: "Registo removido",
 };
 
 function dateLabel(value: string | null) {
@@ -120,6 +121,11 @@ export default function SecretariatPage() {
   const [historyMemberId, setHistoryMemberId] = useState("");
   const [history, setHistory] = useState<StatusEvent[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [archiveStatus, setArchiveStatus] = useState<"DECEASED" | "REMOVED">("DECEASED");
+  const [archiveMembers, setArchiveMembers] = useState<Member[]>([]);
+  const [archiveQuery, setArchiveQuery] = useState("");
+  const [archiveLoading, setArchiveLoading] = useState(false);
+  const [archiveError, setArchiveError] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [familyRelationships, setFamilyRelationships] = useState<FamilyRelationship[]>([]);
@@ -194,6 +200,31 @@ export default function SecretariatPage() {
   useEffect(() => {
     if (organizationId) void loadMembers(organizationId);
   }, [organizationId, loadMembers]);
+
+  const loadArchive = useCallback(async (status: "DECEASED" | "REMOVED") => {
+    setArchiveLoading(true);
+    setArchiveError("");
+    try {
+      const data = await resaRequest<Member[]>(`/v1/church-members/status/${status}`);
+      setArchiveMembers(data);
+    } catch (reason) {
+      setArchiveMembers([]);
+      setArchiveError(reason instanceof Error ? reason.message : "Não foi possível consultar o arquivo de membros.");
+    } finally {
+      setArchiveLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadArchive(archiveStatus);
+  }, [archiveStatus, loadArchive]);
+
+  const filteredArchiveMembers = useMemo(() => {
+    const normalized = archiveQuery.trim().toLocaleLowerCase("pt");
+    if (!normalized) return archiveMembers;
+    return archiveMembers.filter((member) => [member.member_number, member.first_name, member.last_name, member.organization_id]
+      .some((value) => value?.toLocaleLowerCase("pt").includes(normalized)));
+  }, [archiveMembers, archiveQuery]);
 
   const filteredMembers = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("pt");
@@ -563,7 +594,7 @@ export default function SecretariatPage() {
               <label className="grid gap-1.5 text-xs font-medium text-slate-600">Sexo<select name="gender" defaultValue={editingMember?.gender ?? ""} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-[#C8A24A]"><option value="">Não especificado</option><option value="FEMALE">Feminino</option><option value="MALE">Masculino</option><option value="UNSPECIFIED">Não declarado</option></select></label>
               <label className="grid gap-1.5 text-xs font-medium text-slate-600">Telefone<input name="phone" defaultValue={editingMember?.phone ?? ""} maxLength={40} autoComplete="tel" className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#C8A24A]" /></label>
               <label className="grid gap-1.5 text-xs font-medium text-slate-600">Email<input name="email" type="email" defaultValue={editingMember?.email ?? ""} maxLength={254} autoComplete="email" className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#C8A24A]" /></label>
-              <label className="grid gap-1.5 text-xs font-medium text-slate-600">Estado<select name="membership_status" defaultValue={editingMember?.membership_status ?? "ACTIVE"} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-[#C8A24A]">{Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+              <label className="grid gap-1.5 text-xs font-medium text-slate-600">Estado<select name="membership_status" defaultValue={editingMember?.membership_status ?? "ACTIVE"} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-[#C8A24A]">{Object.entries(STATUS_LABELS).filter(([value]) => value !== "REMOVED").map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
               <div className="flex items-end sm:col-span-2 lg:col-span-3">
                 <button type="submit" disabled={saving} className="w-full rounded-xl bg-[#0C1A3D] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#172c55] disabled:opacity-50 sm:w-auto">
                   {saving ? "A guardar…" : editingMember ? "Guardar alterações" : "Guardar registo"}
@@ -605,6 +636,26 @@ export default function SecretariatPage() {
               </table>
             </div>}
         </section>
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-col gap-4 border-b border-slate-100 p-5 sm:flex-row sm:items-end sm:justify-between sm:p-7">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9B7A34]">Arquivo eclesiástico</p>
+              <h2 className="mt-2 text-xl font-semibold">Registo de falecidos e registos removidos</h2>
+              <p className="mt-1 text-sm text-slate-500">Consulta os registos históricos autorizados pela política de acesso da organização. Os registos não são apagados fisicamente.</p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <label className="grid gap-1 text-xs font-medium text-slate-500">Pesquisar no arquivo<input value={archiveQuery} onChange={(event) => setArchiveQuery(event.target.value)} placeholder="Nome, número ou organização" className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /></label>
+              <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => setArchiveStatus("DECEASED")} aria-pressed={archiveStatus === "DECEASED"} className={`rounded-xl px-4 py-2.5 text-sm font-semibold ${archiveStatus === "DECEASED" ? "bg-[#0C1A3D] text-white" : "border border-slate-200 text-slate-700"}`}>Falecidos</button>
+              <button type="button" onClick={() => setArchiveStatus("REMOVED")} aria-pressed={archiveStatus === "REMOVED"} className={`rounded-xl px-4 py-2.5 text-sm font-semibold ${archiveStatus === "REMOVED" ? "bg-[#0C1A3D] text-white" : "border border-slate-200 text-slate-700"}`}>Registos removidos</button>
+              <button type="button" onClick={() => void loadArchive(archiveStatus)} disabled={archiveLoading} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:opacity-50">Actualizar</button>
+              </div>
+            </div>
+          </div>
+          {archiveError && <p role="alert" className="m-5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{archiveError}</p>}
+          {archiveLoading ? <p className="p-6 text-sm text-slate-500">A consultar o arquivo…</p> : filteredArchiveMembers.length === 0 ? <p className="p-6 text-sm text-slate-500">{archiveMembers.length ? "Não existem resultados para esta pesquisa." : "Não existem registos visíveis nesta categoria para as permissões da sessão."}</p> : <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-4 font-semibold">Membro</th><th className="px-5 py-4 font-semibold">Número</th><th className="px-5 py-4 font-semibold">Organização</th><th className="px-5 py-4 font-semibold">Estado</th><th className="px-5 py-4 font-semibold">Última actualização</th></tr></thead><tbody className="divide-y divide-slate-100">{filteredArchiveMembers.map((member) => <tr key={member.id}><td className="px-5 py-4"><p className="font-semibold">{member.first_name} {member.last_name}</p><p className="mt-1 text-xs text-slate-500">Nascimento: {dateLabel(member.birth_date)}</p></td><td className="px-5 py-4 text-slate-600">{member.member_number || "—"}</td><td className="px-5 py-4 font-mono text-xs text-slate-500">{member.organization_id}</td><td className="px-5 py-4">{STATUS_LABELS[member.membership_status] ?? member.membership_status}</td><td className="px-5 py-4 text-slate-600">{new Intl.DateTimeFormat("pt-PT", { dateStyle: "medium" }).format(new Date(member.updated_at))}</td></tr>)}</tbody></table></div>}
+        </section>
+
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-100 p-5 sm:p-7">
             <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9B7A34]">Estrutura familiar</p>
