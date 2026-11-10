@@ -14,10 +14,10 @@ jest.mock('livekit-server-sdk', () => ({
     mutePublishedTrack: mockMutePublishedTrack,
   })),
   TrackSource: {
-    CAMERA: 'CAMERA',
-    MICROPHONE: 'MICROPHONE',
-    SCREEN_SHARE: 'SCREEN_SHARE',
-    SCREEN_SHARE_AUDIO: 'SCREEN_SHARE_AUDIO',
+    CAMERA: 1,
+    MICROPHONE: 2,
+    SCREEN_SHARE: 3,
+    SCREEN_SHARE_AUDIO: 4,
   },
 }));
 
@@ -66,7 +66,7 @@ describe('ZionSfuProvider source-scoped participant permissions', () => {
     expect(mockUpdateParticipant).toHaveBeenCalledWith('room-1', 'participant-1', {
       permission: {
         canPublish: true,
-        canPublishSources: ['CAMERA', 'MICROPHONE'],
+        canPublishSources: [1, 2],
         canSubscribe: true,
         canPublishData: true,
       },
@@ -84,7 +84,7 @@ describe('ZionSfuProvider source-scoped participant permissions', () => {
     expect(mockUpdateParticipant).toHaveBeenCalledWith('room-1', 'presenter-1', {
       permission: {
         canPublish: true,
-        canPublishSources: ['CAMERA', 'MICROPHONE', 'SCREEN_SHARE', 'SCREEN_SHARE_AUDIO'],
+        canPublishSources: [1, 2, 3, 4],
         canSubscribe: true,
         canPublishData: true,
       },
