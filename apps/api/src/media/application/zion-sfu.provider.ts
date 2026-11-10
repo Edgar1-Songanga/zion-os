@@ -140,8 +140,8 @@ export class ZionSfuProvider implements MediaProvider {
       const participant = participants.find((item) => item.identity === input.identity);
       if (!participant) throw new BadGatewayException('Participant is not connected to this live');
       const audioTracks = (participant.tracks ?? []).filter((track) =>
-        String(track.source).toUpperCase().includes('MICROPHONE') ||
-        String(track.type).toUpperCase().includes('AUDIO'),
+        track.source === TrackSource.MICROPHONE ||
+        String(track.source).toUpperCase() === 'MICROPHONE',
       );
       if (!audioTracks.length) throw new BadGatewayException('Participant has no active audio track');
       await Promise.all(audioTracks.map((track) =>
