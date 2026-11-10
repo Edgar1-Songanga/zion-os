@@ -785,6 +785,54 @@ describe('ResaSocialService feeds', () => {
 });
 
 
+describe('ResaSocialService mention authorization', () => {
+  let service: ResaSocialService;
+  let getSpy: jest.SpyInstance;
+  let postSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    const identity = { getCurrentUser: jest.fn().mockResolvedValue({ id: ACTOR_ID }) };
+    service = new ResaSocialService(identity as never, new ResaRecommendationService());
+    getSpy = jest.spyOn(SupabaseRestClient.prototype, 'get').mockImplementation(async (table: string) => {
+      if (table === 'resa_contents') return [{ id: 'owned-post', author_id: ACTOR_ID, moderation_status: 'active' }] as never;
+      if (table === 'profiles') return [{ id: FOLLOWED_ID }] as never;
+      return [] as never;
+    });
+    postSpy = jest.spyOn(SupabaseRestClient.prototype, 'post').mockResolvedValue([{ id: 'mention-1' }] as never);
+  });
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it('only creates a mention on a publication owned by the authenticated author', async () => {
+    await service.mention('session-token', 'owned-post', FOLLOWED_ID);
+
+    expect(getSpy).toHaveBeenCalledWith('resa_contents', 'session-token', expect.stringContaining('id=eq.owned-post'));
+    expect(getSpy).toHaveBeenCalledWith('profiles', 'session-token', expect.stringContaining('id=eq.' + FOLLOWED_ID));
+    expect(postSpy).toHaveBeenCalledWith('resa_mentions', 'session-token', {
+      content_id: 'owned-post',
+      mentioned_user_id: FOLLOWED_ID,
+      mentioned_by: ACTOR_ID,
+    });
+  });
+
+  it('rejects attempts to mention a member on another author publication', async () => {
+    getSpy.mockResolvedValueOnce([{ id: 'other-post', author_id: FOLLOWED_ID, moderation_status: 'active' }] as never);
+
+    await expect(service.mention('session-token', 'other-post', ACTOR_ID))
+      .rejects.toThrow('not owned by this member');
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+
+  it('rejects mentions of nonexistent profiles before writing', async () => {
+    getSpy.mockResolvedValueOnce([{ id: 'owned-post', author_id: ACTOR_ID, moderation_status: 'active' }] as never);
+    getSpy.mockResolvedValueOnce([] as never);
+
+    await expect(service.mention('session-token', 'owned-post', FOLLOWED_ID))
+      .rejects.toThrow('Perfil mencionado não encontrado');
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+});
+
 describe('ResaSocialService institutional publishing authorization', () => {
   const organizationId = '55555555-5555-4555-8555-555555555555';
   const ministryId = '66666666-6666-4666-8666-666666666666';
