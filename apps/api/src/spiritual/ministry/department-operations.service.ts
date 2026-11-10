@@ -185,12 +185,12 @@ export class DepartmentOperationsService {
     this.assertUuid(ministryId, 'ministryId');
     await this.purge(token, organizationId, 'PERSONAL_MINISTRY_FOLLOW_UP');
     return this.db.get<any[]>('personal_ministry_follow_ups', token,
-      `?select=id,organization_id,ministry_id,display_name,contact_method,contact_locator,consent_method,consent_recorded_at,follow_up_status,expires_at,created_at,updated_at&organization_id=eq.${organizationId}&ministry_id=eq.${ministryId}&order=expires_at.asc&limit=500`);
+      `?select=id,organization_id,ministry_id,member_record_id,display_name,contact_method,contact_locator,consent_method,consent_recorded_at,follow_up_status,expires_at,created_at,updated_at&organization_id=eq.${organizationId}&ministry_id=eq.${ministryId}&order=expires_at.asc&limit=500`);
   }
 
   async createFollowUp(token: string, organizationId: string, ministryId: string, input: {
     display_name: string; contact_method: 'IN_PERSON' | 'PHONE' | 'EMAIL'; contact_locator: string;
-    consent_method: 'VERBAL' | 'WRITTEN' | 'DIGITAL'; consent_confirmed: boolean; assigned_to: string;
+    consent_method: 'VERBAL' | 'WRITTEN' | 'DIGITAL'; consent_confirmed: boolean; assigned_to: string; member_record_id?: string | null;
   }) {
     this.assertUuid(organizationId, 'organizationId');
     this.assertUuid(ministryId, 'ministryId');
@@ -200,9 +200,20 @@ export class DepartmentOperationsService {
     if (!['VERBAL', 'WRITTEN', 'DIGITAL'].includes(input.consent_method)) throw new BadRequestException('consent_method is not supported.');
     const locator = this.text(input.contact_locator, 'contact_locator', 2, 254);
     if (input.contact_method === 'EMAIL' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(locator)) throw new BadRequestException('A valid email address is required for EMAIL contact.');
+    let memberRecordId: string | null = null;
+    if (input.member_record_id !== undefined && input.member_record_id !== null && input.member_record_id !== '') {
+      this.assertUuid(input.member_record_id, 'member_record_id');
+      const memberRows = await this.db.get<Array<{ id: string; membership_status: string }>>('church_member_records', token,
+        `?select=id,membership_status&organization_id=eq.${organizationId}&id=eq.${input.member_record_id}&limit=1`);
+      if (!memberRows[0] || ['DECEASED', 'REMOVED'].includes(memberRows[0].membership_status)) {
+        throw new BadRequestException('The selected member is not available for an active pastoral follow-up in this organization.');
+      }
+      memberRecordId = memberRows[0].id;
+    }
     const rows = await this.db.post<any[]>('personal_ministry_follow_ups', token, {
       organization_id: organizationId,
       ministry_id: ministryId,
+      member_record_id: memberRecordId,
       display_name: this.text(input.display_name, 'display_name', 1, 120),
       contact_method: input.contact_method,
       contact_locator: locator,

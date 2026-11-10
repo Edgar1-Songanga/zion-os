@@ -114,6 +114,29 @@ describe('DepartmentOperationsService', () => {
     }));
   });
 
+  it('links a consent-based follow-up to a member in the same organization', async () => {
+    db.get.mockResolvedValueOnce([{ id: memberId, membership_status: 'ACTIVE' }]);
+    await service.createFollowUp('token', orgId, ministryId, {
+      display_name: 'Membro consentido', contact_method: 'IN_PERSON', contact_locator: 'após o culto',
+      consent_method: 'VERBAL', consent_confirmed: true, assigned_to: userId, member_record_id: memberId,
+    });
+    expect(db.get).toHaveBeenCalledWith('church_member_records', 'token',
+      `?select=id,membership_status&organization_id=eq.${orgId}&id=eq.${memberId}&limit=1`);
+    expect(db.post).toHaveBeenCalledWith('personal_ministry_follow_ups', 'token', expect.objectContaining({
+      member_record_id: memberId,
+      consent_recorded_by: userId,
+    }));
+  });
+
+  it('rejects linking pastoral follow-up to deceased, removed, or inaccessible members', async () => {
+    db.get.mockResolvedValueOnce([{ id: memberId, membership_status: 'DECEASED' }]);
+    await expect(service.createFollowUp('token', orgId, ministryId, {
+      display_name: 'Membro', contact_method: 'IN_PERSON', contact_locator: 'após o culto',
+      consent_method: 'VERBAL', consent_confirmed: true, assigned_to: userId, member_record_id: memberId,
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(db.post).not.toHaveBeenCalled();
+  });
+
   it('suppresses stewardship participant totals under five', async () => {
     await expect(service.saveStewardshipReport('token', orgId, ministryId, {
       period_start: '2026-10-01', period_end: '2026-10-31', activities_count: 1,
