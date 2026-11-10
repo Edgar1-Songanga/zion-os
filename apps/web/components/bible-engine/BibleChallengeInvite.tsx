@@ -86,7 +86,7 @@ export default function BibleChallengeInvite() {
           <Link href={messageUrl} className={secondaryAction}>
             Convidar numa conversa
           </Link>
-          <button type="button" onClick={() => void shareInvite()} className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/[0.06] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
+          <button type="button" onClick={() => void shareInvite()} className={secondaryAction}>
             Partilhar convite
           </button>
           <Link href="/resa/live" className={secondaryAction}>
