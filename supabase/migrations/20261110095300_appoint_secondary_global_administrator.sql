@@ -37,7 +37,7 @@ begin
     )
   where id = v_admin_id;
 
-  insert into public.account_identity_status (
+  insert into public.account_identity_status as identity_status (
     user_id, is_founder, verification_status, verification_type, verified_at, updated_at
   )
   values (
@@ -47,7 +47,7 @@ begin
     is_founder = false,
     verification_status = 'verified',
     verification_type = 'platform_admin_appointment',
-    verified_at = coalesce(public.account_identity_status.verified_at, now()),
+    verified_at = coalesce(identity_status.verified_at, now()),
     updated_at = now();
 
   insert into public.audit_logs (
