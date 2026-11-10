@@ -137,6 +137,23 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
   }, []);
 
   useEffect(() => {
+    if (!connected) return;
+    const refreshHandRaiseQueue = () => {
+      void resaRequest<Array<{ id: string; user_id: string; name: string; status: string }>>(
+        "/v1/resa/live/" + liveId + "/hand-raises",
+      ).then((rows) => {
+        setRaisedHands(rows.map((row) => ({ identity: row.user_id, name: row.name, requestId: row.id })));
+        setHandRaised(rows.some((row) => row.user_id === selfIdentity));
+      }).catch(() => {
+        // Queue polling is recoverable; the realtime data channel remains available.
+      });
+    };
+    refreshHandRaiseQueue();
+    const timer = window.setInterval(refreshHandRaiseQueue, 5000);
+    return () => window.clearInterval(timer);
+  }, [connected, liveId, selfIdentity]);
+
+  useEffect(() => {
     if (!joinMode) { setStarting(false); return; }
     setStarting(true);
     let mounted = true;
@@ -259,23 +276,6 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
         // Ignore malformed packets instead of breaking the live session.
       }
     };
-
-    useEffect(() => {
-    if (!connected) return;
-    const refreshHandRaiseQueue = () => {
-      void resaRequest<Array<{ id: string; user_id: string; name: string; status: string }>>(
-        "/v1/resa/live/" + liveId + "/hand-raises",
-      ).then((rows) => {
-        setRaisedHands(rows.map((row) => ({ identity: row.user_id, name: row.name, requestId: row.id })));
-        setHandRaised(rows.some((row) => row.user_id === selfIdentity));
-      }).catch(() => {
-        // Queue polling is recoverable; the realtime data channel remains available.
-      });
-    };
-    refreshHandRaiseQueue();
-    const timer = window.setInterval(refreshHandRaiseQueue, 5000);
-    return () => window.clearInterval(timer);
-  }, [connected, liveId, selfIdentity]);
 
   const loadMessageHistory = () => {
       void resaRequest<PersistedLiveMessage[]>("/v1/resa/live/" + liveId + "/messages?limit=100")
