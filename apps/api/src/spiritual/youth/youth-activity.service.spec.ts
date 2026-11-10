@@ -34,6 +34,14 @@ describe('YouthActivityService validation', () => {
     })).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('rejects registration on behalf of another user before database access', async () => {
+    await expect(service.registerParticipant(
+      'token',
+      '00000000-0000-4000-8000-000000000002',
+      '00000000-0000-4000-8000-000000000003',
+    )).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it('rejects invalid activity identifiers', async () => {
     await expect(service.listClubActivities('token', 'not-a-uuid')).rejects.toBeInstanceOf(BadRequestException);
   });
