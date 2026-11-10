@@ -34,6 +34,10 @@ describe('RESA HTTP contracts (e2e)', () => {
     sendMessage: jest.fn(),
     callJoinConfig: jest.fn(),
     listLiveChatMessages: jest.fn(),
+    listLiveHandRaises: jest.fn(),
+    raiseLiveHand: jest.fn(),
+    withdrawLiveHand: jest.fn(),
+    resolveLiveHand: jest.fn(),
   };
   const liveEgress = {};
   const groupMeetings = {
@@ -244,6 +248,40 @@ describe('RESA HTTP contracts (e2e)', () => {
     );
     expect(operational.listLiveChatMessages).toHaveBeenCalledWith(TOKEN, 'live-1', 40);
     expect(operational.callJoinConfig).toHaveBeenCalledWith(TOKEN, 'call-1');
+  });
+
+  it('routes persistent Live speaker requests and moderator decisions', async () => {
+    operational.listLiveHandRaises.mockResolvedValueOnce([{ id: 'raise-1', user_id: USER_ID, status: 'WAITING' }]);
+    operational.raiseLiveHand.mockResolvedValueOnce({ id: 'raise-1', user_id: USER_ID, status: 'WAITING' });
+    operational.withdrawLiveHand.mockResolvedValueOnce({ id: 'raise-1', user_id: USER_ID, status: 'WITHDRAWN' });
+    operational.resolveLiveHand.mockResolvedValueOnce({ id: 'raise-1', user_id: USER_ID, status: 'APPROVED' });
+
+    const queue = await request(app.getHttpServer())
+      .get('/api/v1/resa/live/live-1/hand-raises')
+      .set('Authorization', AUTHORIZATION)
+      .expect(200);
+    const raised = await request(app.getHttpServer())
+      .post('/api/v1/resa/live/live-1/hand-raises')
+      .set('Authorization', AUTHORIZATION)
+      .expect(201);
+    const withdrawn = await request(app.getHttpServer())
+      .delete('/api/v1/resa/live/live-1/hand-raises/me')
+      .set('Authorization', AUTHORIZATION)
+      .expect(200);
+    const resolved = await request(app.getHttpServer())
+      .patch('/api/v1/resa/live/live-1/hand-raises/raise-1')
+      .set('Authorization', AUTHORIZATION)
+      .send({ decision: 'APPROVED' })
+      .expect(200);
+
+    expect(queue.body[0].id).toBe('raise-1');
+    expect(raised.body.status).toBe('WAITING');
+    expect(withdrawn.body.status).toBe('WITHDRAWN');
+    expect(resolved.body.status).toBe('APPROVED');
+    expect(operational.listLiveHandRaises).toHaveBeenCalledWith(TOKEN, 'live-1');
+    expect(operational.raiseLiveHand).toHaveBeenCalledWith(TOKEN, 'live-1');
+    expect(operational.withdrawLiveHand).toHaveBeenCalledWith(TOKEN, 'live-1');
+    expect(operational.resolveLiveHand).toHaveBeenCalledWith(TOKEN, 'live-1', 'raise-1', 'APPROVED');
   });
 
   it('routes raise, withdraw and moderator resolution for the persisted meeting hand queue', async () => {
