@@ -104,7 +104,7 @@ begin
     raise exception 'Verified global administrator required' using errcode = '42501';
   end if;
 
-  if p_decision not in ('approved', 'rejected') then
+  if p_decision is null or p_decision not in ('approved', 'rejected') then
     raise exception 'Decision must be approved or rejected' using errcode = '22023';
   end if;
 
