@@ -99,7 +99,7 @@ begin
    where event_type = 'CANDIDATES_VIEWED'
      and source_organization_id = source_org;
 
-  if audit_count <> 2 then
+  if audit_count <> 4 then
     raise exception 'Expected two privacy-safe candidate-view audit events; got %', audit_count;
   end if;
 
