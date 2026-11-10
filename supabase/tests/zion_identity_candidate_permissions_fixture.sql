@@ -5,7 +5,7 @@ create table public.zion_test_org_permissions (
   primary key (actor_id, organization_id, permission_key)
 );
 
-create or replace function private.has_org_permission(target_org uuid, p_permission_key text)
+drop function private.has_org_permission(uuid, text);\n\ncreate function private.has_org_permission(target_org uuid, p_permission_key text)
 returns boolean
 language sql
 stable
