@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
 import { IdentityService } from './identity.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 
@@ -10,7 +10,7 @@ export type VerificationStatus = {
   verified_at: string | null;
 };
 
-const REQUEST_TYPES = ['personal', 'professional', 'pastor', 'ministry', 'organization'] as const;
+const REQUEST_TYPES = ['personal', 'professional', 'pastor', 'ministry', 'organization', 'founder'] as const;
 type RequestType = typeof REQUEST_TYPES[number];
 
 @Injectable()
@@ -52,6 +52,9 @@ export class VerificationService {
       throw new BadRequestException('Tipo de verificação inválido.');
     }
     const current = await this.getStatus(accessToken);
+    if (requestedType === 'founder' && !current.is_founder) {
+      throw new ForbiddenException('Apenas a conta de fundador reconhecida pelo servidor pode solicitar esta verificação.');
+    }
     if (current.verification_status === 'verified' || current.verification_status === 'suspended') {
       throw new ConflictException('A conta já tem um estado de verificação que impede um novo pedido.');
     }
