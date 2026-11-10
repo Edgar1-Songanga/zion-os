@@ -73,6 +73,13 @@ describe('ChurchMembersService', () => {
     expect(getSpy).not.toHaveBeenCalled();
   });
 
+  it('prevents direct status edits from bypassing the audited removal workflow', async () => {
+    await expect(service.update(accessToken, organizationId, memberId, {
+      membership_status: 'REMOVED',
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(patchSpy).not.toHaveBeenCalled();
+  });
+
   it('rejects an empty required name before writing to the database', async () => {
     await expect(service.create(accessToken, organizationId, { first_name: ' ', last_name: 'Silva' }))
       .rejects.toBeInstanceOf(BadRequestException);
