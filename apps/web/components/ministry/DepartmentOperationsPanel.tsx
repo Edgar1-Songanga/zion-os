@@ -10,7 +10,7 @@ type RetentionPolicy = { data_domain: RetentionDomain; retention_days: number; a
 type SabbathClass = { id: string; name: string; meeting_day: number | null; meeting_time: string | null; room_label: string | null; is_active: boolean; is_public: boolean };
 type RosterMember = { member_record_id: string; first_name: string; last_name: string };
 type Session = { id: string; attendance_date: string; lesson_reference: string | null; recorded_at: string };
-type FollowUp = { id: string; display_name: string; contact_method: "IN_PERSON" | "PHONE" | "EMAIL"; contact_locator: string; consent_method: string; assigned_to: string; follow_up_status: string; expires_at: string };
+type FollowUp = { id: string; member_record_id: string | null; display_name: string; contact_method: "IN_PERSON" | "PHONE" | "EMAIL"; contact_locator: string; consent_method: string; assigned_to: string; follow_up_status: string; expires_at: string };
 type StewardshipReport = { id: string; period_start: string; period_end: string; activities_count: number; programs_completed_count: number; participants_count: number | null; materials_distributed_count: number };
 type Candidate = { id: string; first_name: string; last_name: string };
 
@@ -282,6 +282,8 @@ function PersonalMinistryOperations({ ministry, organizationId, retention, userI
 }) {
   const [items, setItems] = useState<FollowUp[]>([]);
   const [displayName, setDisplayName] = useState("");
+  const [memberRecordId, setMemberRecordId] = useState("");
+  const [memberCandidates, setMemberCandidates] = useState<Candidate[]>([]);
   const [method, setMethod] = useState<FollowUp["contact_method"]>("IN_PERSON");
   const [locator, setLocator] = useState("");
   const [consentMethod, setConsentMethod] = useState("VERBAL");
@@ -292,12 +294,19 @@ function PersonalMinistryOperations({ ministry, organizationId, retention, userI
     setItems(rows ?? []);
   }, [organizationId, ministry.id]);
   useEffect(() => { void load().catch((e) => setError(e instanceof Error ? e.message : "Não foi possível carregar acompanhamentos.")); }, [load, setError]);
+  useEffect(() => {
+    let active = true;
+    void resaRequest<Candidate[]>(`/v1/department-operations/sabbath/member-candidates?organizationId=${organizationId}`)
+      .then((rows) => { if (active) setMemberCandidates(rows ?? []); })
+      .catch(() => { if (active) setMemberCandidates([]); });
+    return () => { active = false; };
+  }, [organizationId]);
 
   async function create() {
     setBusy(true); setError(null); setNotice(null);
     try {
-      await resaRequest("/v1/department-operations/personal-follow-ups", { method: "POST", body: JSON.stringify({ organization_id: organizationId, ministry_id: ministry.id, display_name: displayName, contact_method: method, contact_locator: locator, consent_method: consentMethod, consent_confirmed: consent, assigned_to: userId }) });
-      setDisplayName(""); setLocator(""); setConsent(false); await load(); setNotice("Contacto registado com consentimento e atribuído à sua conta.");
+      await resaRequest("/v1/department-operations/personal-follow-ups", { method: "POST", body: JSON.stringify({ organization_id: organizationId, ministry_id: ministry.id, display_name: displayName, member_record_id: memberRecordId || null, contact_method: method, contact_locator: locator, consent_method: consentMethod, consent_confirmed: consent, assigned_to: userId }) });
+      setDisplayName(""); setMemberRecordId(""); setLocator(""); setConsent(false); await load(); setNotice("Contacto registado com consentimento e atribuído à sua conta.");
     } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível registar o acompanhamento. Confirme consentimento e política de conservação."); }
     finally { setBusy(false); }
   }
@@ -313,6 +322,7 @@ function PersonalMinistryOperations({ ministry, organizationId, retention, userI
     <div className="space-y-5">
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600">Só registe quem consentiu com este contacto e apenas os dados necessários para o próximo passo. Acompanhamentos sem notas livres; só a pessoa atribuída, a liderança do departamento e a administração podem ver os registos. Prazo: {retention ? `${retention.retention_days} dias` : "não confirmado — gravação bloqueada"}.</div>
       <div className="grid gap-3 md:grid-cols-2">
+        <FieldLabel>Membro registado (opcional)<select value={memberRecordId} onChange={(e) => { setMemberRecordId(e.target.value); const selected = memberCandidates.find((item) => item.id === e.target.value); if (selected) setDisplayName(`${selected.first_name} ${selected.last_name}`); }} className={inputClass}><option value="">Contacto externo / não associado</option>{memberCandidates.map((item) => <option key={item.id} value={item.id}>{item.first_name} {item.last_name}</option>)}</select></FieldLabel>
         <FieldLabel>Nome de referência<input value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={120} className={inputClass} placeholder="Nome usado para o contacto" /></FieldLabel>
         <FieldLabel>Forma de contacto<select value={method} onChange={(e) => setMethod(e.target.value as FollowUp["contact_method"])} className={inputClass}><option value="IN_PERSON">Presencial</option><option value="PHONE">Telefone</option><option value="EMAIL">Email</option></select></FieldLabel>
         <FieldLabel>{method === "IN_PERSON" ? "Referência mínima para o próximo encontro" : method === "PHONE" ? "Telefone" : "Email"}<input value={locator} onChange={(e) => setLocator(e.target.value)} maxLength={254} className={inputClass} placeholder={method === "IN_PERSON" ? "Ex.: após a reunião de sábado" : "Contacto fornecido pela pessoa"} /></FieldLabel>
@@ -323,7 +333,7 @@ function PersonalMinistryOperations({ ministry, organizationId, retention, userI
       <div className="space-y-3 border-t border-slate-100 pt-5">
         <div className="flex flex-wrap items-end justify-between gap-3"><div><h3 className="font-semibold text-[#0C1A3D]">Acompanhamentos visíveis para esta conta</h3><p className="mt-1 text-xs text-slate-500">A liderança do departamento pode consultar os registos conforme as permissões RLS.</p></div><input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filtrar pelo nome" className={`${inputClass} max-w-xs`} /></div>
         {visibleItems.length === 0 && <p className="text-sm text-slate-400">Sem acompanhamentos ativos visíveis para esta conta.</p>}
-        <div className="grid gap-3 lg:grid-cols-2">{visibleItems.map((item) => <article key={item.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex items-start justify-between gap-3"><div><h4 className="font-semibold text-slate-800">{item.display_name}</h4><p className="mt-1 text-xs text-slate-500">{item.contact_method === "IN_PERSON" ? "Presencial" : item.contact_method === "PHONE" ? "Telefone" : "Email"}: {item.contact_locator}</p><p className="mt-1 text-[11px] text-slate-400">Expira em {item.expires_at.slice(0, 10)} · consentimento {item.consent_method.toLowerCase()}</p></div><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px]">{STATUS_LABEL[item.follow_up_status]}</span></div><FieldLabel>Atualizar estado<select value={item.follow_up_status} disabled={busy} onChange={(e) => void setStatus(item, e.target.value)} className={`${inputClass} mt-3`}>{FOLLOW_UP_STATES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></FieldLabel></article>)}</div>
+        <div className="grid gap-3 lg:grid-cols-2">{visibleItems.map((item) => <article key={item.id} className="rounded-2xl border border-slate-200 p-4"><div className="flex items-start justify-between gap-3"><div><h4 className="font-semibold text-slate-800">{item.display_name}</h4>{item.member_record_id && <p className="mt-1 text-[11px] text-slate-500">Ligado ao registo de membro</p>}<p className="mt-1 text-xs text-slate-500">{item.contact_method === "IN_PERSON" ? "Presencial" : item.contact_method === "PHONE" ? "Telefone" : "Email"}: {item.contact_locator}</p><p className="mt-1 text-[11px] text-slate-400">Expira em {item.expires_at.slice(0, 10)} · consentimento {item.consent_method.toLowerCase()}</p></div><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px]">{STATUS_LABEL[item.follow_up_status]}</span></div><FieldLabel>Atualizar estado<select value={item.follow_up_status} disabled={busy} onChange={(e) => void setStatus(item, e.target.value)} className={`${inputClass} mt-3`}>{FOLLOW_UP_STATES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></FieldLabel></article>)}</div>
       </div>
     </div>
   );
