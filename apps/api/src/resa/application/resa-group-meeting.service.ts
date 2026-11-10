@@ -537,8 +537,9 @@ export class ResaGroupMeetingService {
     const id = this.id(meetingId, 'meeting_id');
     await this.requireAcceptedMember(token, id);
     const size = Math.min(Math.max(Number(limit) || 100, 1), 200);
-    return this.db.get<any[]>('resa_group_meeting_messages', token,
-      `?select=id,meeting_id,sender_id,body,created_at&meeting_id=eq.${id}&order=created_at.asc&limit=${size}`);
+    const rows = await this.db.get<any[]>('resa_group_meeting_messages', token,
+      `?select=id,meeting_id,sender_id,body,created_at&meeting_id=eq.${id}&order=created_at.desc&limit=${size}`);
+    return rows.reverse();
   }
 
   async sendMessage(token: string, meetingId: string, rawBody: unknown) {
