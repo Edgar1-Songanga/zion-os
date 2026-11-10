@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.0";
 import webpush from "npm:web-push@3.6.7";
+import { buildPushPresentation } from "./presentation.mjs";
 
 type PushEvent = {
   notification_id: string;
@@ -73,10 +74,7 @@ Deno.serve(async (request: Request) => {
     if (error) throw error;
 
     const type = event.type.toLowerCase();
-    const isMessage = type.startsWith("resa.message");
-    const isCall = type.includes("call") || type.includes("chamada");
-    const isBank = type.includes("bank") || type.includes("payment") || type.includes("transaction") || type.includes("finance");
-    const category = isCall ? "call" : isBank ? "bank" : isMessage ? "message" : "general";
+    const { category, isCall, isMessage, isBank, title, body, priority } = buildPushPresentation(event);
 
     if (!subscriptions?.length) {
       console.info("RESA push delivery result", JSON.stringify({
@@ -90,17 +88,13 @@ Deno.serve(async (request: Request) => {
     }
 
     const payload = JSON.stringify({
-      title: isCall
-        ? (type.includes("video") ? "Videochamada recebida no RESA" : "Chamada recebida no RESA")
-        : isBank
-          ? (event.title || "Alerta financeiro ZION")
-          : isMessage ? "Nova mensagem no RESA" : (event.title || "Notificação RESA"),
-      body: isCall
-        ? "Toca para abrir o RESA e atender."
-        : isMessage ? "Recebeste uma nova mensagem." : (event.body || "Tens uma nova notificação."),
+      // Financial notifications may contain balances, counterparties or transaction
+      // details. Never expose those values on a lock screen or external push provider.
+      title,
+      body,
       url: destination(event),
       category,
-      priority: isCall || isBank ? "critical" : isMessage ? "high" : "normal",
+      priority,
       notificationId: event.notification_id,
       tag: isCall ? "resa-incoming-call-" + String(event.data?.call_id || event.notification_id) : "resa-" + event.notification_id,
     });

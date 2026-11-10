@@ -96,6 +96,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Test RESA push privacy presentation contract
+        run: node --test supabase/functions/resa-push-delivery/presentation.test.cjs
+
       - name: Validate migration names
         shell: bash
         run: |
