@@ -14,7 +14,9 @@ on:
     paths:
       - "supabase/migrations/*institutional*"
       - "supabase/migrations/*verified_global_admin*"
+      - "supabase/migrations/*duplicate_local_church*"
       - "supabase/tests/institutional*"
+      - "supabase/tests/organization_duplicate_guard*"
       - ".github/workflows/institutional-hierarchy.yml"
 
 permissions:
