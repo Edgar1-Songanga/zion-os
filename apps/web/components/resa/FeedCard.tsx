@@ -337,7 +337,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
           {content.is_institutional && (
             <div className="mt-4 flex flex-wrap gap-2 rounded-2xl border border-blue-100 bg-blue-50/50 p-3 text-xs text-slate-600">
               {content.type === "institutional_class" && typeof content.meeting_day === "number" && (
-                <span className="rounded-lg bg-white px-3 py-2 font-medium">Sábado / Dia: {["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"][content.meeting_day] || "Dia definido pela igreja"}</span>
+                <span className="rounded-lg bg-white px-3 py-2 font-medium">Dia: {["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"][content.meeting_day] || "Dia definido pela igreja"}</span>
               )}
               {content.meeting_time && <span className="rounded-lg bg-white px-3 py-2 font-medium">Hora: {content.meeting_time.slice(0, 5)}</span>}
               {content.room_label && <span className="rounded-lg bg-white px-3 py-2 font-medium">Local: {content.room_label}</span>}
