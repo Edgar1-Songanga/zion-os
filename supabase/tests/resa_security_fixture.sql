@@ -228,6 +228,7 @@ create table public.resa_conversation_members (
   role text not null default 'member',
   primary key (conversation_id, user_id)
 );
+alter table public.resa_conversation_members enable row level security;
 create table public.resa_follows (
   follower_id uuid not null references auth.users(id) on delete cascade,
   followed_id uuid not null references auth.users(id) on delete cascade,
