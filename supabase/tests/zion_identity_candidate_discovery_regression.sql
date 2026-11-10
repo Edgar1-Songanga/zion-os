@@ -93,7 +93,8 @@ begin
   select count(*) into visible_count
     from public.find_zion_member_identity_candidates(
       source_org, 'Ana', 'Silva', date '1990-05-12', 'FEMALE'
-    );
+    ) c
+   where c.candidate_organization_id = candidate_org;
 
   if visible_count <> 0 then
     raise exception 'Candidate search exposed records without permission in the candidate church';
