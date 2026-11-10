@@ -228,7 +228,7 @@ jobs:
           docker exec -i zion-resa-institutional-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_institutional_publication_bridge_fixture.sql
       - name: Apply canonical institutional publication projection
         run: |
-          docker exec -i zion-resa-institutional-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261110045000_resa_institutional_publication_bridge.sql
+          docker exec -i zion-resa-institutional-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261110045431_resa_institutional_publication_bridge.sql
       - name: Verify source synchronization, unpublishing and RLS
         run: |
           docker exec -i zion-resa-institutional-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_institutional_publication_bridge_regression.sql
