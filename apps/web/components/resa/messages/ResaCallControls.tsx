@@ -114,6 +114,25 @@ export default function ResaCallControls({ conversationId, peerName = "Membro RE
     };
   }, [supabase]);
 
+  useEffect(() => {
+    if (!active || call?.kind !== "video" || !camera) {
+      if (localVideo.current) {
+        localVideo.current.pause();
+        localVideo.current.srcObject = null;
+      }
+      return;
+    }
+    const video = localVideo.current;
+    const track = roomRef.current?.localParticipant.getTrackPublication(Track.Source.Camera)?.track;
+    if (!video || !track) return;
+    video.srcObject = new MediaStream([track.mediaStreamTrack]);
+    void video.play().catch(() => setError("A câmara foi ligada, mas a pré-visualização não iniciou. Verifique a permissão de câmara do navegador."));
+    return () => {
+      video.pause();
+      video.srcObject = null;
+    };
+  }, [active, camera, call?.id, call?.kind, connected]);
+
   async function otherMembers() {
     if (!userId.current) throw new Error("Sessão ZION não encontrada.");
     const { data, error: queryError } = await supabase.from("resa_conversation_members").select("user_id").eq("conversation_id", conversationId);
@@ -331,14 +350,24 @@ export default function ResaCallControls({ conversationId, peerName = "Membro RE
 
   async function toggleMute() {
     const next = !muted;
-    await roomRef.current?.localParticipant.setMicrophoneEnabled(!next);
-    setMuted(next);
+    try {
+      await roomRef.current?.localParticipant.setMicrophoneEnabled(!next);
+      setMuted(next);
+      setError(null);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível alterar o microfone.");
+    }
   }
 
   async function toggleCamera() {
     const next = !camera;
-    await roomRef.current?.localParticipant.setCameraEnabled(next);
-    setCamera(next);
+    try {
+      await roomRef.current?.localParticipant.setCameraEnabled(next);
+      setCamera(next);
+      setError(null);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível aceder à câmara. Verifique a permissão do navegador.");
+    }
   }
 
   async function toggleScreenShare() {
