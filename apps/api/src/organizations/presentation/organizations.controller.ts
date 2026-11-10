@@ -24,6 +24,11 @@ export class OrganizationsController {
     return this.organizations.create(this.token(authorization), body);
   }
 
+  @Get('archivable-local-churches')
+  listArchivableLocalChurches(@Headers('authorization') authorization: string | undefined) {
+    return this.organizations.listArchivableLocalChurches(this.token(authorization));
+  }
+
   @Post(':organizationId/archive')
   archiveLocalChurch(
     @Headers('authorization') authorization: string | undefined,
