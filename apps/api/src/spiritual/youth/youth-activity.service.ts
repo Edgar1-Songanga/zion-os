@@ -100,6 +100,12 @@ export class YouthActivityService {
   async registerParticipant(token: string, activityId: string, requestedUserId?: string) {
     const actor = await this.identity.getCurrentUser(token);
     const id = this.uuid(activityId, 'activity id');
+    const userId = requestedUserId ? this.uuid(requestedUserId, 'user_id') : actor.id;
+    // The database self-registration policy only permits auth.uid() to register itself.
+    // Reject delegated registration before any activity or participant database access.
+    if (userId !== actor.id) {
+      throw new BadRequestException('Participants must register themselves. Club leaders manage attendance after registration.');
+    }
     const activities = await this.db.get<any[]>(
       'youth_club_activities', token,
       `?select=id,club_id,status&id=eq.${encodeURIComponent(id)}&limit=1`,
@@ -108,12 +114,6 @@ export class YouthActivityService {
     if (!activity) throw new NotFoundException('Activity not found or access denied.');
     if (activity.status === 'CANCELLED' || activity.status === 'COMPLETED') {
       throw new BadRequestException('Registration is closed for this activity.');
-    }
-    const userId = requestedUserId ? this.uuid(requestedUserId, 'user_id') : actor.id;
-    // The database self-registration policy only permits auth.uid() to register itself.
-    // Reject delegated registration here instead of leaking a PostgREST RLS error.
-    if (userId !== actor.id) {
-      throw new BadRequestException('Participants must register themselves. Club leaders manage attendance after registration.');
     }
     await this.assertActiveClubMember(token, activity.club_id, userId);
     const existing = await this.db.get<any[]>(
