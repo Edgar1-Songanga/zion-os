@@ -429,7 +429,7 @@ export default function MessagesPage() {
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef2f8] text-[#0C1A3D]"><ResaIcon name="message" size={18} /></div>
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-[#0C1A3D]">{selectedConversation?.title || "Selecione uma conversa"}</p>
-                <div className="flex items-center justify-between gap-3"><p className="text-xs text-slate-400">{selectedConversation ? "Mensagens privadas" : "Escolha uma conversa para começar"}</p>{selectedConversation && <ResaCallControls conversationId={selectedConversation.id} autoStart={autoStartCallConversationId === selectedConversation.id ? "audio" : null} onAutoStartHandled={() => setAutoStartCallConversationId(null)} />}</div>
+                <div className="flex items-center justify-between gap-3"><p className="text-xs text-slate-400">{selectedConversation ? "Mensagens privadas" : "Escolha uma conversa para começar"}</p>{selectedConversation && <ResaCallControls conversationId={selectedConversation.id} peerName={selectedConversation.members?.find((member) => member.id !== currentUserId)?.display_name || selectedConversation.title || "Membro RESA"} peerAvatarUrl={selectedConversation.members?.find((member) => member.id !== currentUserId)?.avatar_url || null} autoStart={autoStartCallConversationId === selectedConversation.id ? "audio" : null} onAutoStartHandled={() => setAutoStartCallConversationId(null)} />}</div>
               </div>
             </div>
 
