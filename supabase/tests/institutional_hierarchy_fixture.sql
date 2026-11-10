@@ -1,5 +1,6 @@
 create schema if not exists auth;
 create schema if not exists private;
+create table if not exists auth.users (id uuid primary key);
 create role anon;
 create role authenticated;
 
@@ -32,11 +33,12 @@ create table public.organization_memberships (
   organization_id uuid not null references public.organizations(id) on delete cascade,
   user_id uuid not null,
   status text not null default 'ACTIVE',
-  role_id uuid
+  role_id uuid,
+  updated_at timestamptz not null default now()
 );
 
-create table public.roles (id uuid primary key default gen_random_uuid(), key text not null unique);
-create table public.permissions (id uuid primary key default gen_random_uuid(), key text not null unique);
+create table public.roles (id uuid primary key default gen_random_uuid(), key text not null unique, name text);
+create table public.permissions (id uuid primary key default gen_random_uuid(), key text not null unique, name text, description text);
 create table public.role_permissions (role_id uuid not null references public.roles(id), permission_id uuid not null references public.permissions(id), primary key(role_id, permission_id));
 
 create or replace function private.is_org_member(target_org uuid)
@@ -51,6 +53,16 @@ as $function$ select exists (
   join public.permissions p on p.id=rp.permission_id
   where m.organization_id=target_org and m.user_id=auth.uid() and m.status='ACTIVE' and p.key=permission_key
 ) $function$;
+
+create or replace function private.is_verified_zion_global_admin()
+returns boolean language sql stable
+as $function$
+  select coalesce(
+    auth.jwt() -> 'app_metadata' ->> 'zion_global_role' = 'global_admin'
+    and auth.jwt() -> 'app_metadata' -> 'zion_verified' = 'true',
+    false
+  )
+$function$;
 
 create table public.organization_units (
   id uuid primary key default gen_random_uuid(),
