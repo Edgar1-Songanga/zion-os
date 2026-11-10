@@ -77,6 +77,10 @@ begin
     'message'
   )).id into v_group_conversation;
 
+  if (select count(*) from public.resa_conversation_members where conversation_id = v_group_conversation) <> 3 then
+    raise exception 'A conversation member could not read the shared participant list; recursive RLS or membership visibility regression';
+  end if;
+
   begin
     insert into public.resa_conversation_members(conversation_id,user_id,role)
     values (v_group_conversation,'10000000-0000-4000-8000-000000000002'::uuid,'member');
@@ -110,4 +114,26 @@ begin
 end;
 $test$;
 
+reset role;
+
+-- A user cannot enumerate membership rows from a conversation they do not belong to.
+insert into public.resa_conversations(id, created_by, kind, title)
+values ('60000000-0000-4000-8000-000000000001',
+        '10000000-0000-4000-8000-000000000004', 'group', 'Unrelated private group');
+insert into public.resa_conversation_members(conversation_id, user_id, role) values
+ ('60000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000004','owner'),
+ ('60000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000005','member');
+
+set role authenticated;
+select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000001',false);
+do $test$
+begin
+  if exists (
+    select 1 from public.resa_conversation_members
+    where conversation_id = '60000000-0000-4000-8000-000000000001'
+  ) then
+    raise exception 'A non-member can enumerate another conversation participant list';
+  end if;
+end;
+$test$;
 reset role;
