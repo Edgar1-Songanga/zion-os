@@ -179,7 +179,7 @@ export default {
       if (claimError || !claimed) continue;
 
       try {
-        const result = await processJob(job as Job);
+        const result = await processJob(job as Job, ctx.supabaseAdmin);
         const { error: completeError } = await ctx.supabaseAdmin
           .from("zion_jobs")
           .update({ status: "completed", result, last_error: null, locked_at: null, locked_by: null })
