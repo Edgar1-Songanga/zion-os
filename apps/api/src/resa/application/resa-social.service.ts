@@ -759,7 +759,35 @@ export class ResaSocialService {
       .slice(0, size);
   }
   async follows(token: string, userId?: string) { const a = await this.actor(token); return this.db.get('resa_follows', token, `?select=*&follower_id=eq.${userId || a.id}&order=created_at.desc`); }
-  async mention(token: string, contentId: string, mentionedUserId: string) { const a = await this.actor(token); const rows = await this.db.post<any[]>('resa_mentions', token, { content_id: contentId, mentioned_user_id: mentionedUserId, mentioned_by: a.id }); return rows[0]; }
+  async mention(token: string, contentId: string, mentionedUserId: string) {
+    const actor = await this.actor(token);
+    const contentIdValue = this.clean(contentId, 'content_id', 80);
+    const targetId = this.clean(mentionedUserId, 'mentioned_user_id', 80);
+    const contents = await this.db.get<any[]>(
+      'resa_contents',
+      token,
+      `?select=id,author_id,moderation_status&id=eq.${encodeURIComponent(contentIdValue)}&limit=1`,
+    );
+    const content = contents[0];
+    if (!content || content.author_id !== actor.id) {
+      throw new NotFoundException('Publication not found or not owned by this member');
+    }
+    if (content.moderation_status && content.moderation_status !== 'active') {
+      throw new ForbiddenException('Não é possível mencionar alguém numa publicação indisponível.');
+    }
+    const targets = await this.db.get<any[]>(
+      'profiles',
+      token,
+      `?select=id&id=eq.${encodeURIComponent(targetId)}&limit=1`,
+    );
+    if (!targets[0]) throw new NotFoundException('Perfil mencionado não encontrado.');
+    const rows = await this.db.post<any[]>('resa_mentions', token, {
+      content_id: contentIdValue,
+      mentioned_user_id: targetId,
+      mentioned_by: actor.id,
+    });
+    return rows[0];
+  }
   async topic(token: string, name: string) {
     await this.actor(token);
     const cleaned = this.clean(name, 'name', 80).replace(/^#/, '').trim();
