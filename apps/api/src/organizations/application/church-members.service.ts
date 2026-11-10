@@ -86,6 +86,11 @@ export class ChurchMembersService {
       gender: values.gender as string | null,
     });
 
+    const sameChurchCandidate = candidates.find((item) => item.organization_id === organizationId);
+    if (sameChurchCandidate) {
+      throw new ConflictException('This person already has a member record in the selected church. Edit the existing record instead.');
+    }
+
     const matchedRecordId = input?.matched_member_record_id;
     if (matchedRecordId) {
       this.assertUuid(matchedRecordId, 'matched_member_record_id');
