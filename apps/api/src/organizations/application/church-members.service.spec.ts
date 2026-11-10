@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { IdentityService } from '../../identity/application/identity.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 import { ChurchMembersService } from './church-members.service';
@@ -65,6 +65,35 @@ describe('ChurchMembersService', () => {
       birth_date: '1990-05-12',
     })).rejects.toBeInstanceOf(BadRequestException);
     expect(rpcSpy).not.toHaveBeenCalled();
+  });
+
+  it('blocks member creation when authorized identity candidates already exist', async () => {
+    rpcSpy.mockResolvedValueOnce([{
+      candidate_member_record_id: memberId,
+      candidate_organization_id: organizationId,
+      first_name: 'Ana',
+      last_name: 'Silva',
+      birth_date: '1990-05-12',
+      gender: 'FEMALE',
+      membership_status: 'ACTIVE',
+      match_basis: 'EXACT_NAME_AND_BIRTH_DATE',
+    }] as never);
+
+    await expect(service.create(accessToken, organizationId, {
+      first_name: 'Ana',
+      last_name: 'Silva',
+      birth_date: '1990-05-12',
+      gender: 'FEMALE',
+    })).rejects.toBeInstanceOf(ConflictException);
+
+    expect(rpcSpy).toHaveBeenCalledWith('find_zion_member_identity_candidates', accessToken, {
+      p_organization_id: organizationId,
+      p_first_name: 'Ana',
+      p_last_name: 'Silva',
+      p_birth_date: '1990-05-12',
+      p_gender: 'FEMALE',
+    });
+    expect(postSpy).not.toHaveBeenCalled();
   });
 
   it('creates a member with normalized fields and server-derived audit identities', async () => {
