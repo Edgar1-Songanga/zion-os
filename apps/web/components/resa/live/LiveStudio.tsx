@@ -60,6 +60,7 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
   const [screenShare, setScreenShare] = useState(false);
   const [isHost, setIsHost] = useState(false);
   const [isModerator, setIsModerator] = useState(false);
+  const [mutedParticipantIds, setMutedParticipantIds] = useState<string[]>([]);
   const [moderatorIds, setModeratorIds] = useState<string[]>([]);
   const [canSpeak, setCanSpeak] = useState(false);
   const [selfIdentity, setSelfIdentity] = useState("");
@@ -762,7 +763,7 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
     }
   }
 
-  async function moderate(identity: string, action: "allow_speak" | "revoke_speak" | "remove") {
+  async function moderate(identity: string, action: "allow_speak" | "revoke_speak" | "remove" | "mute_audio" | "unmute_audio") {
     try {
       await resaRequest("/v1/resa/live/" + liveId + "/participants/" + encodeURIComponent(identity), {
         method: "PATCH",
@@ -781,10 +782,14 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
       } else if (action === "revoke_speak") {
         await sendPacket({ type: "speak_revoked", name: roomRef.current?.localParticipant.name || "Anfitrião" }, identity);
         setRaisedHands((current) => current.filter((item) => item.identity !== identity));
+      } else if (action === "mute_audio") {
+        setMutedParticipantIds((current) => current.includes(identity) ? current : [...current, identity]);
+      } else if (action === "unmute_audio") {
+        setMutedParticipantIds((current) => current.filter((item) => item !== identity));
       } else if (action === "remove") {
         setRaisedHands((current) => current.filter((item) => item.identity !== identity));
       }
-      setNotice(action === "allow_speak" ? "Participante autorizado a falar e a partilhar o ecrã." : action === "revoke_speak" ? "Permissão de publicação retirada." : "Participante removido da live.");
+      setNotice(action === "allow_speak" ? "Participante autorizado a falar e a partilhar o ecrã." : action === "revoke_speak" ? "Permissão de publicação retirada." : action === "mute_audio" ? "Áudio do participante silenciado; a câmara mantém-se ativa." : action === "unmute_audio" ? "Áudio do participante reativado." : "Participante removido da live.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível aplicar a ação de moderação.");
     }
@@ -1090,6 +1095,7 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
                     <div className="min-w-0"><p className="truncate font-medium">{person.name}</p><p className="text-xs text-slate-500">{person.identity === selfIdentity ? "Este dispositivo" : moderatorIds.includes(person.identity) ? "Co-host · moderador" : isHost ? "Participante" : "Na live"}</p></div>
                     {(isHost || isModerator) && person.identity !== selfIdentity && person.identity !== (roomRef.current?.localParticipant.identity || "") && <div className="flex shrink-0 flex-wrap justify-end gap-1">
                       <button title="Autorizar a falar" onClick={() => void moderate(person.identity, "allow_speak")} className="rounded-lg bg-white/10 px-2 py-1 text-xs">Falar</button>
+                      <button title="Silenciar apenas o áudio, mantendo a câmara ativa" onClick={() => void moderate(person.identity, mutedParticipantIds.includes(person.identity) ? "unmute_audio" : "mute_audio")} className={"rounded-lg px-2 py-1 text-xs " + (mutedParticipantIds.includes(person.identity) ? "bg-amber-300/20 text-amber-100" : "bg-white/10")}>{mutedParticipantIds.includes(person.identity) ? "Ativar áudio" : "Silenciar áudio"}</button>
                       <button title="Retirar permissão de falar" onClick={() => void moderate(person.identity, "revoke_speak")} className="rounded-lg bg-white/10 px-2 py-1 text-xs">Silenciar</button>
                       <button title="Remover da live" onClick={() => void moderate(person.identity, "remove")} className="rounded-lg bg-red-500/20 px-2 py-1 text-xs text-red-200">Remover</button>
                       {isHost && <button title="Delegar ou retirar função de co-host" onClick={() => void toggleModerator(person.identity)} className={"rounded-lg px-2 py-1 text-xs " + (moderatorIds.includes(person.identity) ? "bg-amber-300/20 text-amber-100" : "bg-white/10 text-slate-200")}>{moderatorIds.includes(person.identity) ? "Retirar co-host" : "Tornar co-host"}</button>}
