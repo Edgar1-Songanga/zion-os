@@ -539,7 +539,28 @@ export class ResaSocialService {
     const rows = await this.db.post<any[]>('resa_contents', token, body); return rows[0];
   }
   async comment(token: string, contentId: string, input: { body: string; parent_id?: string | null }) {
-    const a = await this.actor(token); const rows = await this.db.post<any[]>('resa_comments', token, { content_id: contentId, author_id: a.id, body: this.clean(input.body, 'body', 5000), parent_id: input.parent_id ?? null }); return rows[0];
+    const actor = await this.actor(token);
+    const contentIdValue = this.clean(contentId, 'content_id', 80);
+    const body = this.clean(input.body, 'body', 5000);
+    const parentId = input.parent_id ? this.clean(input.parent_id, 'parent_id', 80) : null;
+    if (parentId) {
+      const parents = await this.db.get<any[]>(
+        'resa_comments',
+        token,
+        `?select=id,content_id,status,author_id&id=eq.${encodeURIComponent(parentId)}&limit=1`,
+      );
+      const parent = parents[0];
+      if (!parent || parent.content_id !== contentIdValue || parent.status !== 'active') {
+        throw new BadRequestException('A resposta deve pertencer à mesma publicação e a um comentário activo.');
+      }
+    }
+    const rows = await this.db.post<any[]>('resa_comments', token, {
+      content_id: contentIdValue,
+      author_id: actor.id,
+      body,
+      parent_id: parentId,
+    });
+    return rows[0];
   }
   async comments(token: string, contentId: string, limit = 50, before?: string) {
     await this.actor(token);
