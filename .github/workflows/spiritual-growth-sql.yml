@@ -112,6 +112,6 @@ jobs:
       - name: Prepare ministries and composite foreign keys
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/fixtures/ministries-duplicate-index-fixture.sql
       - name: Remove redundant unique index
-        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261110052000_remove_duplicate_ministries_index.sql
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261110050428_remove_duplicate_ministries_index.sql
       - name: Verify the constraint-backed index and foreign keys remain valid
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/ministries-duplicate-index-regression.sql
