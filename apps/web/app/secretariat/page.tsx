@@ -22,6 +22,18 @@ type Member = {
   created_at: string;
   updated_at: string;
 };
+type IdentityCandidate = {
+  member_record_id: string;
+  person_identity_id: string;
+  organization_id: string;
+  organization_name: string;
+  member_number: string | null;
+  first_name: string;
+  last_name: string;
+  birth_date: string;
+  gender: string | null;
+  membership_status: string;
+};
 type BaptismRecord = {
   id: string;
   organization_id: string;
@@ -128,6 +140,9 @@ export default function SecretariatPage() {
   const [archiveError, setArchiveError] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [identityCandidates, setIdentityCandidates] = useState<IdentityCandidate[]>([]);
+  const [selectedIdentityCandidateId, setSelectedIdentityCandidateId] = useState("");
+  const [identityMessage, setIdentityMessage] = useState("");
   const [familyRelationships, setFamilyRelationships] = useState<FamilyRelationship[]>([]);
   const [familyLoading, setFamilyLoading] = useState(false);
   const [familySaving, setFamilySaving] = useState(false);
@@ -240,7 +255,7 @@ export default function SecretariatPage() {
     if (!organizationId) return;
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
-    const payload = {
+    const payload: Record<string, unknown> = {
       first_name: String(form.get("first_name") ?? "").trim(),
       last_name: String(form.get("last_name") ?? "").trim(),
       member_number: String(form.get("member_number") ?? "").trim() || null,
@@ -255,15 +270,52 @@ export default function SecretariatPage() {
     setSaving(true);
     setError("");
     setNotice("");
+    setIdentityMessage("");
     try {
+      if (!editingMember && payload.birth_date) {
+        const params = new URLSearchParams({
+          firstName: String(payload.first_name),
+          lastName: String(payload.last_name),
+          birthDate: String(payload.birth_date),
+          gender: String(payload.gender ?? ""),
+        });
+        const candidates = await resaRequest<IdentityCandidate[]>(
+          `/v1/organizations/${encodeURIComponent(organizationId)}/church-members/identity-candidates?${params.toString()}`,
+        );
+        setIdentityCandidates(candidates);
+        if (candidates.length > 0) {
+          const selected = candidates.find((candidate) => candidate.member_record_id === selectedIdentityCandidateId);
+          if (!selected) {
+            setSelectedIdentityCandidateId("");
+            setIdentityMessage("Encontrámos registos com os mesmos dados. Confirme se é a mesma pessoa antes de criar uma nova inscrição.");
+            return;
+          }
+          if (selected.organization_id === organizationId) {
+            setSelectedIdentityCandidateId("");
+            setIdentityMessage("Esta pessoa já está registada nesta igreja. Abra o registo existente e corrija-o em vez de criar outro.");
+            return;
+          }
+          payload.matched_member_record_id = selected.member_record_id;
+        } else {
+          setSelectedIdentityCandidateId("");
+        }
+      } else if (!editingMember) {
+        setIdentityCandidates([]);
+        setSelectedIdentityCandidateId("");
+        setIdentityMessage("Sem data de nascimento, a verificação automática de possíveis duplicados fica limitada.");
+      }
+
       const path = `/v1/organizations/${encodeURIComponent(organizationId)}/church-members${editingMember ? `/${encodeURIComponent(editingMember.id)}` : ""}`;
       await resaRequest<Member>(path, {
         method: editingMember ? "PATCH" : "POST",
         body: JSON.stringify(payload),
       });
-      setNotice(editingMember ? "Registo de membro actualizado." : "Registo de membro criado e guardado na base de dados.");
+      setNotice(editingMember ? "Registo de membro actualizado." : "Registo de membro criado e ligado à identidade global.");
       setFormOpen(false);
       setEditingMember(null);
+      setIdentityCandidates([]);
+      setSelectedIdentityCandidateId("");
+      setIdentityMessage("");
       formElement.reset();
       await loadMembers(organizationId);
     } catch (reason) {
@@ -567,7 +619,7 @@ export default function SecretariatPage() {
               className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-40">
               {loading ? "A actualizar…" : "Actualizar"}
             </button>
-            <button type="button" onClick={() => { if (formOpen) { setFormOpen(false); setEditingMember(null); } else { setEditingMember(null); setFormOpen(true); } }} disabled={!organizationId}
+            <button type="button" onClick={() => { if (formOpen) { setFormOpen(false); setEditingMember(null); } else { setEditingMember(null); setIdentityCandidates([]); setSelectedIdentityCandidateId(""); setIdentityMessage(""); setFormOpen(true); } }} disabled={!organizationId}
               className="rounded-xl bg-[#0C1A3D] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#172c55] disabled:opacity-40">
               {formOpen ? "Fechar formulário" : "Adicionar membro"}
             </button>
@@ -595,6 +647,18 @@ export default function SecretariatPage() {
               <label className="grid gap-1.5 text-xs font-medium text-slate-600">Telefone<input name="phone" defaultValue={editingMember?.phone ?? ""} maxLength={40} autoComplete="tel" className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#C8A24A]" /></label>
               <label className="grid gap-1.5 text-xs font-medium text-slate-600">Email<input name="email" type="email" defaultValue={editingMember?.email ?? ""} maxLength={254} autoComplete="email" className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#C8A24A]" /></label>
               <label className="grid gap-1.5 text-xs font-medium text-slate-600">Estado<select name="membership_status" defaultValue={editingMember?.membership_status ?? "ACTIVE"} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm outline-none focus:border-[#C8A24A]">{Object.entries(STATUS_LABELS).filter(([value]) => value !== "REMOVED").map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+              {!editingMember && identityMessage && <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 sm:col-span-2 lg:col-span-3">{identityMessage}</div>}
+              {!editingMember && identityCandidates.length > 0 && <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:col-span-2 lg:col-span-3">
+                <div><p className="font-semibold text-[#0C1A3D]">Possíveis identidades existentes</p><p className="mt-1 text-xs text-slate-600">Seleccione o registo correcto de outra igreja para reutilizar a identidade global. Se já existir nesta igreja, edite o registo em vez de criar outro.</p></div>
+                {identityCandidates.map((candidate) => {
+                  const sameChurch = candidate.organization_id === organizationId;
+                  const selected = selectedIdentityCandidateId === candidate.member_record_id;
+                  return <div key={candidate.member_record_id} className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div><p className="font-semibold text-[#101B35]">{candidate.first_name} {candidate.last_name}</p><p className="mt-1 text-xs text-slate-500">{candidate.organization_name} · {candidate.member_number || "Sem número"} · Nascimento: {dateLabel(candidate.birth_date)}</p></div>
+                    {sameChurch ? <span className="text-xs font-semibold text-amber-800">Já existe nesta igreja</span> : <button type="button" onClick={() => { setSelectedIdentityCandidateId(candidate.member_record_id); setIdentityMessage("Identidade seleccionada. Ao guardar, o novo registo ficará ligado à mesma pessoa global."); }} className={selected ? "rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white" : "rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"}>{selected ? "Identidade seleccionada" : "É esta pessoa"}</button>}
+                  </div>;
+                })}
+              </div>}
               <div className="flex items-end sm:col-span-2 lg:col-span-3">
                 <button type="submit" disabled={saving} className="w-full rounded-xl bg-[#0C1A3D] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#172c55] disabled:opacity-50 sm:w-auto">
                   {saving ? "A guardar…" : editingMember ? "Guardar alterações" : "Guardar registo"}
@@ -626,7 +690,7 @@ export default function SecretariatPage() {
                     <td className="px-5 py-4 text-slate-600">{dateLabel(member.baptism_date)}</td>
                     <td className="px-5 py-4 text-slate-600"><p>{member.phone || "—"}</p><p className="mt-1 text-xs text-slate-400">{member.email || ""}</p></td>
                     <td className="px-5 py-4"><span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${member.membership_status === "ACTIVE" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{STATUS_LABELS[member.membership_status] ?? member.membership_status}</span></td>
-                    <td className="px-5 py-4"><div className="flex items-center gap-3"><button type="button" onClick={() => { setEditingMember(member); setFormOpen(true); setError(""); setNotice(""); }} className="text-xs font-semibold text-[#0C1A3D] underline-offset-4 hover:underline">Editar</button><button type="button" onClick={() => void toggleHistory(member.id)} className="text-xs font-semibold text-[#7B6127] underline-offset-4 hover:underline">{historyMemberId === member.id ? "Fechar" : "Histórico"}</button></div></td>
+                    <td className="px-5 py-4"><div className="flex items-center gap-3"><button type="button" onClick={() => { setEditingMember(member); setIdentityCandidates([]); setSelectedIdentityCandidateId(""); setIdentityMessage(""); setFormOpen(true); setError(""); setNotice(""); }} className="text-xs font-semibold text-[#0C1A3D] underline-offset-4 hover:underline">Editar</button><button type="button" onClick={() => void toggleHistory(member.id)} className="text-xs font-semibold text-[#7B6127] underline-offset-4 hover:underline">{historyMemberId === member.id ? "Fechar" : "Histórico"}</button></div></td>
                   </tr>).flatMap((row, index) => {
                     const member = filteredMembers[index];
                     if (historyMemberId !== member.id) return [row];
