@@ -24,6 +24,15 @@ export class OrganizationsController {
     return this.organizations.create(this.token(authorization), body);
   }
 
+  @Post(':organizationId/archive')
+  archiveLocalChurch(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('organizationId') organizationId: string,
+    @Body() body: { reason: string },
+  ) {
+    return this.organizations.archiveLocalChurch(this.token(authorization), organizationId, body?.reason);
+  }
+
   @Get(':organizationId/hierarchy')
   hierarchy(
     @Headers('authorization') authorization: string | undefined,
