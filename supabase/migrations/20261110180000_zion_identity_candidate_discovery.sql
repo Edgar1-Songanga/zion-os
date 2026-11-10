@@ -100,8 +100,7 @@ begin
     m.membership_status,
     'EXACT_NAME_AND_BIRTH_DATE'::text
   from public.church_member_records m
-  where m.organization_id <> p_organization_id
-    and private.has_org_permission(m.organization_id, 'church.members.manage')
+  where private.has_org_permission(m.organization_id, 'church.members.manage')
     and lower(trim(m.first_name)) = normalized_first
     and lower(trim(m.last_name)) = normalized_last
     and m.birth_date = p_birth_date
