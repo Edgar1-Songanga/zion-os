@@ -54,6 +54,7 @@ export default function ResaGroupMeetingRoom({
   const [cameraOn, setCameraOn] = useState(false);
   const [microphoneOn, setMicrophoneOn] = useState(false);
   const [screenShareOn, setScreenShareOn] = useState(false);
+  const [shareSystemAudio, setShareSystemAudio] = useState(false);
   const [chat, setChat] = useState<MeetingMessage[]>([]);
   const [handRaises, setHandRaises] = useState<HandRaise[]>([]);
   const [handBusy, setHandBusy] = useState(false);
@@ -270,8 +271,7 @@ export default function ResaGroupMeetingRoom({
     const room = roomRef.current;
     if (!room || !canShareScreen) return;
     try {
-      await room.localParticipant.setScreenShareEnabled(!screenShareOn, { audio: true });
-      setScreenShareOn(!screenShareOn);
+      await room.localParticipant.setScreenShareEnabled(!screenShareOn, { audio: !screenShareOn && shareSystemAudio });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "A partilha de ecrã não está disponível neste dispositivo.");
     }
@@ -401,6 +401,17 @@ export default function ResaGroupMeetingRoom({
               {screenShareOn ? "Parar partilha" : "Partilhar ecrã"}
             </button>
           </div>
+          {canShareScreen && !screenShareOn && (
+            <label className="mt-3 flex items-center justify-center gap-2 text-xs text-slate-300">
+              <input
+                type="checkbox"
+                checked={shareSystemAudio}
+                onChange={(event) => setShareSystemAudio(event.target.checked)}
+                className="h-4 w-4 rounded border-white/30 bg-white/10 accent-emerald-400"
+              />
+              Incluir áudio do separador/ecrã (quando suportado)
+            </label>
+          )}
           {!canPublish && <p className="mt-3 text-center text-xs text-slate-400">Estás a participar como espectador; podes ver e ouvir, mas não publicar áudio ou vídeo.</p>}
           {canPublish && !canShareScreen && <p className="mt-3 text-center text-xs text-slate-400">A partilha de ecrã requer autorização do anfitrião ou de um moderador.</p>}
         </div>
