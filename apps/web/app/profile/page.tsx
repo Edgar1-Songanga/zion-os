@@ -39,14 +39,18 @@ export default function ProfilePage() {
   useEffect(() => {
     let active = true;
     const supabase = createClient();
-    Promise.all([resaRequest<Profile>("/v1/identity/profile"), supabase.auth.getUser()])
-      .then(([currentProfile, userResult]) => {
+    Promise.all([
+      resaRequest<Profile>("/v1/identity/profile"),
+      supabase.auth.getUser(),
+      resaRequest<{ verification_status: string }>("/v1/identity/verification"),
+    ])
+      .then(([currentProfile, userResult, identityStatus]) => {
         if (!active) return;
         if (userResult.error) throw userResult.error;
         setProfile({ ...emptyProfile, ...currentProfile });
         setEmail(userResult.data.user?.email ?? "");
-        // Verification is read only from Supabase server-managed app_metadata, never profile form data.
-        setVerified(userResult.data.user?.app_metadata?.zion_verified === true);
+        // The persistent verification record is authoritative; editable profile data and stale JWT claims are not.
+        setVerified(identityStatus.verification_status === "verified");
       })
       .catch((reason) => {
         if (active) setError(reason instanceof Error ? reason.message : "Não foi possível carregar o perfil.");
