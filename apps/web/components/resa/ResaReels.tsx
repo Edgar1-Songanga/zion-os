@@ -47,6 +47,10 @@ export default function ResaReels() {
 
   useEffect(() => {
     if (!items.length) return;
+    const pauseAll = () => videoRefs.current.forEach((video) => video.pause());
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== "visible") pauseAll();
+    };
     const observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         const video = entry.target as HTMLVideoElement;
@@ -58,7 +62,15 @@ export default function ResaReels() {
       });
     }, { threshold: [0, 0.7, 1] });
     videoRefs.current.forEach((video) => observer.observe(video));
-    return () => observer.disconnect();
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pagehide", pauseAll);
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pagehide", pauseAll);
+      // Explicitly release media playback when leaving Reels or replacing its feed.
+      pauseAll();
+    };
   }, [items]);
 
   async function toggleLike(id: string) {
