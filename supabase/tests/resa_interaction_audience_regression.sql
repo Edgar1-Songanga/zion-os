@@ -22,6 +22,8 @@ values
  ('96000000-0000-4000-8000-000000000012','96000000-0000-4000-8000-000000000001','text','Public post','Visible to all','public','active')
 on conflict (id) do nothing;
 
+-- Seed the relationship as a trusted fixture, not as the author impersonating another follower.
+select set_config('request.jwt.claim.sub','',false);
 insert into public.resa_follows(follower_id,followed_id)
 values ('96000000-0000-4000-8000-000000000002','96000000-0000-4000-8000-000000000001')
 on conflict do nothing;
