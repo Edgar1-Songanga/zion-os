@@ -36,7 +36,7 @@ create policy resa_live_hand_raises_select_visible
     or (
       exists (
         select 1 from public.resa_live_sessions live
-        where live.id = live_id
+        where live.id = resa_live_hand_raises.live_id
           and live.status = 'live'
           and (
             live.host_id = (select auth.uid())
@@ -47,7 +47,7 @@ create policy resa_live_hand_raises_select_visible
             )
           )
       )
-      and private.resa_has_live_access(live_id)
+      and private.resa_has_live_access(resa_live_hand_raises.live_id)
     )
   );
 
@@ -59,10 +59,10 @@ create policy resa_live_hand_raises_insert_own
     and status = 'WAITING'
     and resolved_at is null
     and resolved_by is null
-    and private.resa_has_live_access(live_id)
+    and private.resa_has_live_access(resa_live_hand_raises.live_id)
     and exists (
       select 1 from public.resa_live_sessions live
-      where live.id = live_id
+      where live.id = resa_live_hand_raises.live_id
         and live.status = 'live'
         and live.host_id <> (select auth.uid())
     )
@@ -86,7 +86,7 @@ create policy resa_live_hand_raises_resolve_moderator
     status = 'WAITING'
     and exists (
       select 1 from public.resa_live_sessions live
-      where live.id = live_id
+      where live.id = resa_live_hand_raises.live_id
         and live.status = 'live'
         and (
           live.host_id = (select auth.uid())
@@ -104,7 +104,7 @@ create policy resa_live_hand_raises_resolve_moderator
     and resolved_by = (select auth.uid())
     and exists (
       select 1 from public.resa_live_sessions live
-      where live.id = live_id
+      where live.id = resa_live_hand_raises.live_id
         and live.status = 'live'
         and (
           live.host_id = (select auth.uid())
