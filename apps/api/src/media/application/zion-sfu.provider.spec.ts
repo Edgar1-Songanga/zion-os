@@ -1,6 +1,8 @@
 const mockUpdateParticipant = jest.fn();
 const mockCreateRoom = jest.fn();
 const mockRemoveParticipant = jest.fn();
+const mockListParticipants = jest.fn();
+const mockMutePublishedTrack = jest.fn();
 
 jest.mock('livekit-server-sdk', () => ({
   AccessToken: jest.fn(),
@@ -8,6 +10,8 @@ jest.mock('livekit-server-sdk', () => ({
     updateParticipant: mockUpdateParticipant,
     createRoom: mockCreateRoom,
     removeParticipant: mockRemoveParticipant,
+    listParticipants: mockListParticipants,
+    mutePublishedTrack: mockMutePublishedTrack,
   })),
   TrackSource: {
     CAMERA: 'CAMERA',
@@ -31,6 +35,8 @@ describe('ZionSfuProvider source-scoped participant permissions', () => {
     mockUpdateParticipant.mockReset().mockResolvedValue(undefined);
     mockCreateRoom.mockReset().mockResolvedValue({ name: 'zion-meeting-1' });
     mockRemoveParticipant.mockReset().mockResolvedValue(undefined);
+    mockListParticipants.mockReset().mockResolvedValue([]);
+    mockMutePublishedTrack.mockReset().mockResolvedValue(undefined);
     (RoomServiceClient as unknown as jest.Mock).mockClear();
   });
 
@@ -100,6 +106,25 @@ describe('ZionSfuProvider source-scoped participant permissions', () => {
         canPublishData: true,
       },
     });
+  });
+
+  it('mutes only microphone tracks for a connected participant', async () => {
+    mockListParticipants.mockResolvedValueOnce([{
+      identity: 'participant-1',
+      tracks: [
+        { sid: 'audio-1', source: 'MICROPHONE', type: 'AUDIO' },
+        { sid: 'video-1', source: 'CAMERA', type: 'VIDEO' },
+      ],
+    }]);
+    await provider.setParticipantAudioMuted({ roomId: 'room-1', identity: 'participant-1', muted: true });
+    expect(mockMutePublishedTrack).toHaveBeenCalledTimes(1);
+    expect(mockMutePublishedTrack).toHaveBeenCalledWith('room-1', 'participant-1', 'audio-1', true);
+  });
+
+  it('rejects audio moderation when the participant has no active audio track', async () => {
+    mockListParticipants.mockResolvedValueOnce([{ identity: 'participant-1', tracks: [{ sid: 'video-1', source: 'CAMERA', type: 'VIDEO' }] }]);
+    await expect(provider.setParticipantAudioMuted({ roomId: 'room-1', identity: 'participant-1', muted: true }))
+      .rejects.toThrow('Participant has no active audio track');
   });
 
   it('treats an already-offline participant as removed after requesting token revocation', async () => {
