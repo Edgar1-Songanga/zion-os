@@ -90,14 +90,18 @@ Deno.serve(async (request: Request) => {
     }
 
     const payload = JSON.stringify({
+      // Financial notifications may contain balances, counterparties or transaction
+      // details. Never expose those values on a lock screen or external push provider.
       title: isCall
         ? (type.includes("video") ? "Videochamada recebida no RESA" : "Chamada recebida no RESA")
         : isBank
-          ? (event.title || "Alerta financeiro ZION")
+          ? "Alerta financeiro ZION"
           : isMessage ? "Nova mensagem no RESA" : (event.title || "Notificação RESA"),
       body: isCall
         ? "Toca para abrir o RESA e atender."
-        : isMessage ? "Recebeste uma nova mensagem." : (event.body || "Tens uma nova notificação."),
+        : isBank
+          ? "Inicia sessão no ZION para consultar este alerta."
+          : isMessage ? "Recebeste uma nova mensagem." : (event.body || "Tens uma nova notificação."),
       url: destination(event),
       category,
       priority: isCall || isBank ? "critical" : isMessage ? "high" : "normal",
