@@ -25,6 +25,8 @@ type Member = {
 type IdentityCandidate = {
   candidate_member_record_id: string;
   candidate_organization_id: string;
+  candidate_organization_name: string;
+  candidate_member_number: string | null;
   first_name: string;
   last_name: string;
   birth_date: string;
@@ -639,9 +641,9 @@ export default function SecretariatPage() {
                 <li key={candidate.candidate_member_record_id} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="font-semibold text-slate-900">{candidate.first_name} {candidate.last_name}</p>
-                    <p className="mt-1 text-xs text-slate-600">Nascimento: {dateLabel(candidate.birth_date)} · {STATUS_LABELS[candidate.membership_status] ?? candidate.membership_status}</p>
+                    <p className="mt-1 text-xs text-slate-600">Nascimento: {dateLabel(candidate.birth_date)} · {STATUS_LABELS[candidate.membership_status] ?? candidate.membership_status}{candidate.candidate_member_number ? ` · N.º ${candidate.candidate_member_number}` : ""}</p>
                   </div>
-                  <p className="font-mono text-xs text-slate-500">Organização {candidate.candidate_organization_id.slice(0, 8)}…</p>
+                  <p className="text-xs font-medium text-slate-600">{candidate.candidate_organization_name}</p>
                 </li>
               ))}
             </ul>
