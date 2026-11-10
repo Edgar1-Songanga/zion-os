@@ -20,6 +20,18 @@ insert into public.resa_follows(follower_id,followed_id) values
  ('95000000-0000-4000-8000-000000000002','95000000-0000-4000-8000-000000000001')
 on conflict do nothing;
 
+
+-- Existing direct and group conversations must not become a bypass after a block.
+-- Seed these relationships before the blocker is applied, as real users may block
+-- someone with whom they already have a conversation.
+insert into public.resa_conversations(id,created_by,kind,title) values
+ ('95000000-0000-4000-8000-000000000101','95000000-0000-4000-8000-000000000001','direct','Existing direct'),
+ ('95000000-0000-4000-8000-000000000102','95000000-0000-4000-8000-000000000001','group','Existing group');
+insert into public.resa_conversation_members(conversation_id,user_id,role) values
+ ('95000000-0000-4000-8000-000000000101','95000000-0000-4000-8000-000000000001','owner'),
+ ('95000000-0000-4000-8000-000000000101','95000000-0000-4000-8000-000000000002','member'),
+ ('95000000-0000-4000-8000-000000000102','95000000-0000-4000-8000-000000000001','owner');
+
 select set_config('request.jwt.claim.sub','95000000-0000-4000-8000-000000000001',false);
 set role authenticated;
 insert into public.resa_user_blocks(blocker_id,blocked_id)
@@ -33,6 +45,35 @@ begin
   if private.resa_contact_allowed(auth.uid(),'95000000-0000-4000-8000-000000000002','message_policy') then
     raise exception 'Blocked profile still accepts direct messages';
   end if;
+
+  begin
+    perform public.resa_create_conversation(
+      array['95000000-0000-4000-8000-000000000002'::uuid],
+      'Blocked after block',
+      'message'
+    );
+    raise exception 'Blocked user could create a new direct conversation';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    insert into public.resa_messages(conversation_id,sender_id,body)
+    values ('95000000-0000-4000-8000-000000000101',auth.uid(),'Blocked after block');
+    raise exception 'Existing direct conversation bypassed the block for messages';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    insert into public.resa_calls(conversation_id,initiator_id,kind)
+    values ('95000000-0000-4000-8000-000000000101',auth.uid(),'audio');
+    raise exception 'Existing direct conversation bypassed the block for calls';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    insert into public.resa_conversation_members(conversation_id,user_id,role)
+    values ('95000000-0000-4000-8000-000000000102','95000000-0000-4000-8000-000000000002','member');
+    raise exception 'Existing group conversation bypassed the block for invitations';
+  exception when insufficient_privilege then null;
+  end;
+
   if private.resa_contact_allowed(auth.uid(),'95000000-0000-4000-8000-000000000002','call_policy') then
     raise exception 'Blocked profile still accepts calls';
   end if;
