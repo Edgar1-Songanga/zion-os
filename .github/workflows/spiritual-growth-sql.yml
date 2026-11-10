@@ -49,3 +49,37 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261017180000_fix_spiritual_devotion_optional_created_at.sql
       - name: Verify prayer, answer, devotion and idempotency
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/spiritual-growth-trigger-regression.sql
+  spiritual-chat-rls-initplan:
+    name: PostgreSQL spiritual chat RLS initplan regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: zion_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d zion_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: zion_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare isolated auth and public schema
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/fixtures/spiritual-chat-rls-fixture.sql
+      - name: Apply spiritual chat base schema
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261106104948_spiritual_chat_persistence.sql
+      - name: Apply statement-level auth lookup optimization
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261110051000_spiritual_chat_rls_initplan_optimization.sql
+      - name: Verify owner isolation and optimized policies
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/spiritual-chat-rls-regression.sql
