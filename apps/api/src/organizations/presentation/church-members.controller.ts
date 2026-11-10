@@ -16,6 +16,13 @@ type MemberBody = {
   notes?: string | null;
 };
 
+type IdentityCandidateSearchBody = {
+  first_name: string;
+  last_name: string;
+  birth_date: string;
+  gender?: string | null;
+};
+
 @Controller('v1/organizations/:organizationId/church-members')
 export class ChurchMembersController {
   constructor(private readonly members: ChurchMembersService) {}
@@ -32,6 +39,15 @@ export class ChurchMembersController {
     @Param('organizationId') organizationId: string,
   ) {
     return this.members.list(this.token(authorization), organizationId);
+  }
+
+  @Post('identity-candidates')
+  findIdentityCandidates(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('organizationId') organizationId: string,
+    @Body() body: IdentityCandidateSearchBody,
+  ) {
+    return this.members.findIdentityCandidates(this.token(authorization), organizationId, body);
   }
 
   @Post()
