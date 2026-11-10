@@ -17,6 +17,7 @@ const typeLabels: Record<string, string> = {
   pastor: "Pastor / líder espiritual",
   ministry: "Ministério",
   organization: "Organização",
+  founder: "Fundador do ZION OS",
 };
 
 export default function VerificationReviewPanel() {
