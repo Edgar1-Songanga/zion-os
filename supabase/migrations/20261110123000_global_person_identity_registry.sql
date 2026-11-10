@@ -56,13 +56,31 @@ begin
 end;
 $constraint$;
 
+create or replace function private.normalize_member_identity_name(p_value text)
+returns text
+language sql
+immutable
+set search_path to 'pg_catalog', 'private'
+as $normalize$
+  select regexp_replace(
+    translate(
+      lower(trim(coalesce(p_value, ''))),
+      'áàâãäéèêëíìîïóòôõöúùûüçñýÿ',
+      'aaaaaeeeeiiiiooooouuuucnyy'
+    ),
+    '[^a-z0-9]+',
+    ' ',
+    'g'
+  );
+$normalize$;
+
 create unique index if not exists church_member_records_org_person_identity_uq
   on public.church_member_records (organization_id, person_identity_id);
 
 create index if not exists church_member_records_identity_match_idx
   on public.church_member_records (
-    lower(trim(first_name)),
-    lower(trim(last_name)),
+    private.normalize_member_identity_name(first_name),
+    private.normalize_member_identity_name(last_name),
     birth_date,
     gender,
     organization_id
@@ -211,8 +229,8 @@ begin
   join public.organizations o on o.id = m.organization_id
   where o.is_active
     and m.membership_status not in ('DECEASED', 'REMOVED')
-    and lower(trim(m.first_name)) = lower(trim(p_first_name))
-    and lower(trim(m.last_name)) = lower(trim(p_last_name))
+    and private.normalize_member_identity_name(m.first_name) = private.normalize_member_identity_name(p_first_name)
+    and private.normalize_member_identity_name(m.last_name) = private.normalize_member_identity_name(p_last_name)
     and m.birth_date = p_birth_date
     and m.gender is not distinct from p_gender
     and (
