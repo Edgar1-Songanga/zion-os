@@ -78,9 +78,56 @@ export class ResaSocialService {
   }
 
   async listContent(token: string, limit = 30, before?: string) {
-    await this.actor(token); const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
-    const filter = before ? `&created_at=lt.${encodeURIComponent(before)}` : '';
-    return this.db.get('resa_contents', token, `?select=*&moderation_status=eq.active&order=created_at.desc&limit=${size}${filter}`);
+    await this.actor(token);
+    const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
+    const cursor = before ? encodeURIComponent(before) : null;
+    const [memberContent, institutionalContent] = await Promise.all([
+      this.db.get<any[]>(
+        'resa_contents',
+        token,
+        `?select=*&moderation_status=eq.active&order=created_at.desc,id.desc&limit=${size}${cursor ? `&created_at=lt.${cursor}` : ''}`,
+      ),
+      this.db.get<any[]>(
+        'resa_institutional_publications',
+        token,
+        `?select=id,source_type,source_id,organization_id,organization_name,organization_type,ministry_id,ministry_name,title,body,starts_at,ends_at,location,meeting_day,meeting_time,room_label,activity_type,status,published_at&is_active=eq.true&order=published_at.desc,id.desc&limit=${size}${cursor ? `&published_at=lt.${cursor}` : ''}`,
+      ),
+    ]);
+
+    const institutional = institutionalContent.map((item) => ({
+      id: item.id,
+      author_id: item.organization_id,
+      author_display_name: item.organization_name,
+      author_avatar_url: null,
+      type: item.source_type === 'SABBATH_SCHOOL_CLASS' ? 'institutional_class' : 'institutional_activity',
+      title: item.title,
+      body: item.body,
+      visibility: 'public',
+      language: 'pt',
+      created_at: item.published_at,
+      is_institutional: true,
+      institution_name: item.organization_name,
+      institution_type: item.organization_type,
+      ministry_id: item.ministry_id,
+      ministry_name: item.ministry_name,
+      institutional_source_type: item.source_type,
+      institutional_source_id: item.source_id,
+      starts_at: item.starts_at,
+      ends_at: item.ends_at,
+      location: item.location,
+      meeting_day: item.meeting_day,
+      meeting_time: item.meeting_time,
+      room_label: item.room_label,
+      activity_type: item.activity_type,
+      institutional_status: item.status,
+    }));
+
+    return [...memberContent, ...institutional]
+      .sort((left, right) => {
+        const byTime = Date.parse(right.created_at) - Date.parse(left.created_at);
+        return byTime || String(right.id).localeCompare(String(left.id));
+      })
+      .slice(0, size);
   }
   async getContentById(token: string, contentId: string) {
     await this.actor(token);
