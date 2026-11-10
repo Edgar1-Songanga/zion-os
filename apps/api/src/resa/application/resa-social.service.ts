@@ -78,56 +78,9 @@ export class ResaSocialService {
   }
 
   async listContent(token: string, limit = 30, before?: string) {
-    await this.actor(token);
-    const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
-    const cursor = before ? encodeURIComponent(before) : null;
-    const [memberContent, institutionalContent] = await Promise.all([
-      this.db.get<any[]>(
-        'resa_contents',
-        token,
-        `?select=*&moderation_status=eq.active&order=created_at.desc,id.desc&limit=${size}${cursor ? `&created_at=lt.${cursor}` : ''}`,
-      ),
-      this.db.get<any[]>(
-        'resa_institutional_publications',
-        token,
-        `?select=id,source_type,source_id,organization_id,organization_name,organization_type,ministry_id,ministry_name,title,body,starts_at,ends_at,location,meeting_day,meeting_time,room_label,activity_type,status,published_at&is_active=eq.true&order=published_at.desc,id.desc&limit=${size}${cursor ? `&published_at=lt.${cursor}` : ''}`,
-      ),
-    ]);
-
-    const institutional = institutionalContent.map((item) => ({
-      id: item.id,
-      author_id: item.organization_id,
-      author_display_name: item.organization_name,
-      author_avatar_url: null,
-      type: item.source_type === 'SABBATH_SCHOOL_CLASS' ? 'institutional_class' : 'institutional_activity',
-      title: item.title,
-      body: item.body,
-      visibility: 'public',
-      language: 'pt',
-      created_at: item.published_at,
-      is_institutional: true,
-      institution_name: item.organization_name,
-      institution_type: item.organization_type,
-      ministry_id: item.ministry_id,
-      ministry_name: item.ministry_name,
-      institutional_source_type: item.source_type,
-      institutional_source_id: item.source_id,
-      starts_at: item.starts_at,
-      ends_at: item.ends_at,
-      location: item.location,
-      meeting_day: item.meeting_day,
-      meeting_time: item.meeting_time,
-      room_label: item.room_label,
-      activity_type: item.activity_type,
-      institutional_status: item.status,
-    }));
-
-    return [...memberContent, ...institutional]
-      .sort((left, right) => {
-        const byTime = Date.parse(right.created_at) - Date.parse(left.created_at);
-        return byTime || String(right.id).localeCompare(String(left.id));
-      })
-      .slice(0, size);
+    await this.actor(token); const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
+    const filter = before ? `&created_at=lt.${encodeURIComponent(before)}` : '';
+    return this.db.get('resa_contents', token, `?select=*&moderation_status=eq.active&order=created_at.desc&limit=${size}${filter}`);
   }
   async getContentById(token: string, contentId: string) {
     await this.actor(token);
@@ -179,9 +132,14 @@ export class ResaSocialService {
     // chronological and does not collapse two reposts of the same publication.
     const contentQuery = `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&moderation_status=eq.active&type=neq.story&visibility=in.(public,followers,community,organization)${authorFilter}&order=created_at.desc,id.desc&limit=${size + 1}${cursorFilter}`;
     const shareQuery = `?select=id,content_id,user_id,created_at&share_type=eq.repost${shareAuthorFilter}&order=created_at.desc,id.desc&limit=${size + 1}${cursorFilter}`;
-    const [contentRows, shareRows] = await Promise.all([
+    const institutionalCursorFilter = cursorFilter.replaceAll('created_at', 'published_at');
+    const institutionalQuery = `?select=id,source_type,source_id,organization_id,organization_name,organization_type,ministry_id,ministry_name,title,body,starts_at,ends_at,location,meeting_day,meeting_time,room_label,activity_type,status,published_at&is_active=eq.true&order=published_at.desc,id.desc&limit=${size + 1}${institutionalCursorFilter}`;
+    const [contentRows, shareRows, institutionalRows] = await Promise.all([
       this.db.get<any[]>('resa_contents', token, contentQuery),
       this.db.get<any[]>('resa_shares', token, shareQuery),
+      mode === 'following'
+        ? Promise.resolve([])
+        : this.db.get<any[]>('resa_institutional_publications', token, institutionalQuery),
     ]);
 
     const sharedContentIds = [...new Set(shareRows.map((row) => row.content_id).filter(Boolean))];
@@ -213,6 +171,36 @@ export class ResaSocialService {
           reposted_by_id: share.user_id,
         }];
       }),
+      ...institutionalRows.map((item) => ({
+        id: item.id,
+        author_id: item.organization_id,
+        type: item.source_type === 'SABBATH_SCHOOL_CLASS' ? 'bible_study' : 'article',
+        title: item.title,
+        body: item.body,
+        visibility: 'public',
+        language: 'pt',
+        created_at: item.published_at,
+        feed_item_id: item.id,
+        feed_item_type: 'institutional',
+        is_repost: false,
+        source_created_at: item.published_at,
+        reposted_by_id: null,
+        is_institutional: true,
+        institution_name: item.organization_name,
+        institution_type: item.organization_type,
+        ministry_id: item.ministry_id,
+        ministry_name: item.ministry_name,
+        institutional_source_type: item.source_type,
+        institutional_source_id: item.source_id,
+        starts_at: item.starts_at,
+        ends_at: item.ends_at,
+        location: item.location,
+        meeting_day: item.meeting_day,
+        meeting_time: item.meeting_time,
+        room_label: item.room_label,
+        activity_type: item.activity_type,
+        institutional_status: item.status,
+      })),
     ].sort((left, right) => {
       const byTime = Date.parse(right.created_at) - Date.parse(left.created_at);
       return byTime || String(right.feed_item_id).localeCompare(String(left.feed_item_id));
@@ -222,8 +210,8 @@ export class ResaSocialService {
     const pageEntries = feedEntries.slice(0, size);
     const lastItem = pageEntries[pageEntries.length - 1];
     const nextCursor = hasMore && lastItem ? `${lastItem.created_at}|${lastItem.feed_item_id}` : null;
-    const contentIds = [...new Set(pageEntries.map((item) => item.id).filter(Boolean))];
-    const authorIds = [...new Set(pageEntries.flatMap((item) => [item.author_id, item.reposted_by_id]).filter(Boolean))];
+    const contentIds = [...new Set(pageEntries.filter((item) => !item.is_institutional).map((item) => item.id).filter(Boolean))];
+    const authorIds = [...new Set(pageEntries.filter((item) => !item.is_institutional).flatMap((item) => [item.author_id, item.reposted_by_id]).filter(Boolean))];
     const contentFilter = contentIds.length ? `in.(${contentIds.join(',')})` : null;
     const authorFilterForLookups = authorIds.length ? `in.(${authorIds.join(',')})` : null;
 
@@ -306,10 +294,12 @@ export class ResaSocialService {
         const memory = memoryByContent.get(item.id) ?? { durationMs: 0, viewCount: 0, completedViews: 0 };
         return {
           ...item,
-          followedAuthor: followed.has(item.author_id),
-          author_display_name: authorProfile?.display_name?.trim()
-            || [authorProfile?.first_name, authorProfile?.last_name].filter(Boolean).join(' ').trim()
-            || 'Membro RESA',
+          followedAuthor: item.is_institutional ? false : followed.has(item.author_id),
+          author_display_name: item.is_institutional
+            ? item.institution_name
+            : authorProfile?.display_name?.trim()
+              || [authorProfile?.first_name, authorProfile?.last_name].filter(Boolean).join(' ').trim()
+              || 'Membro RESA',
           author_avatar_url: authorProfile?.avatar_url ?? null,
           reposted_by_display_name: reposterProfile?.display_name?.trim()
             || [reposterProfile?.first_name, reposterProfile?.last_name].filter(Boolean).join(' ').trim()
