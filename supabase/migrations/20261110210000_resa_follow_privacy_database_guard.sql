@@ -11,7 +11,13 @@ as $function$
 declare
   target_privacy jsonb;
 begin
-  if auth.uid() is null or new.follower_id <> auth.uid() then
+  -- Trusted database/service-role fixture and maintenance writes may have no JWT.
+  -- An authenticated request without a user identity must never create a follow.
+  if auth.uid() is null then
+    if current_setting('role', true) = 'authenticated' then
+      raise exception 'authenticated follow requires a user identity' using errcode = '42501';
+    end if;
+  elsif new.follower_id <> auth.uid() then
     raise exception 'follow actor must match authenticated user' using errcode = '42501';
   end if;
 
