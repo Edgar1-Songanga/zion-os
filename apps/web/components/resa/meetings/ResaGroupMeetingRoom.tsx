@@ -468,7 +468,7 @@ export default function ResaGroupMeetingRoom({
               <div key={person.user_id} className="rounded-xl bg-white/[0.05] p-3">
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate text-xs font-medium">{person.user_id === userId ? "Tu" : person.display_name || person.user_id.slice(0, 8) + "…"}</span>
-                  <span className="text-[10px] text-slate-400">{person.participant_role}</span>
+                  <span className="text-[10px] text-slate-400">{person.participant_role === "HOST" ? "Anfitrião" : person.participant_role === "MODERATOR" ? "Administrador da reunião" : person.participant_role === "PRESENTER" ? "Apresentador" : person.participant_role === "VIEWER" ? "Espectador" : "Participante"}</span>
                 </div>
                 {["HOST", "MODERATOR"].includes(role) && person.user_id !== userId && ["ACCEPTED", "PRESENT"].includes(person.status) && (
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -479,7 +479,7 @@ export default function ResaGroupMeetingRoom({
                     )}
                     {role === "HOST" && person.participant_role !== "HOST" && (
                       <button disabled={busy === person.user_id} onClick={() => void changeModerator(person.user_id, person.participant_role !== "MODERATOR")} className="rounded-lg border border-violet-400/30 px-2 py-1 text-[10px] font-semibold text-violet-200 disabled:opacity-50">
-                        {person.participant_role === "MODERATOR" ? "Retirar moderador" : "Tornar moderador"}
+                        {person.participant_role === "MODERATOR" ? "Retirar administrador" : "Tornar administrador"}
                       </button>
                     )}
                     <button disabled={busy === person.user_id} onClick={() => void removeParticipant(person.user_id)} className="rounded-lg border border-rose-400/30 px-2 py-1 text-[10px] font-semibold text-rose-200 disabled:opacity-50">Remover</button>
