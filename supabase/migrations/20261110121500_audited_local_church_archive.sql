@@ -180,8 +180,7 @@ begin
 end;
 $$;
 
-revoke all on function private.zion_archive_local_church(uuid, text) from public, anon;
-grant execute on function private.zion_archive_local_church(uuid, text) to authenticated;
+revoke all on function private.zion_archive_local_church(uuid, text) from public, anon, authenticated;
 
 create or replace function private.zion_list_archivable_local_churches()
 returns table (
@@ -224,7 +223,40 @@ begin
 end;
 $;
 
-revoke all on function private.zion_list_archivable_local_churches() from public, anon;
-grant execute on function private.zion_list_archivable_local_churches() to authenticated;
+revoke all on function private.zion_list_archivable_local_churches() from public, anon, authenticated;
+
+-- PostgREST exposes the public schema. Keep the privileged implementation private
+-- and publish only these authenticated SECURITY DEFINER entry points.
+create or replace function public.zion_archive_local_church(
+  p_organization_id uuid,
+  p_reason text
+)
+returns public.organizations
+language sql
+security definer
+set search_path to 'pg_catalog', 'public', 'private', 'auth'
+as $
+  select private.zion_archive_local_church(p_organization_id, p_reason);
+$;
+
+create or replace function public.zion_list_archivable_local_churches()
+returns table (
+  id uuid,
+  name text,
+  slug text,
+  parent_id uuid,
+  is_active boolean
+)
+language sql
+security definer
+set search_path to 'pg_catalog', 'public', 'private', 'auth'
+as $
+  select * from private.zion_list_archivable_local_churches();
+$;
+
+revoke all on function public.zion_archive_local_church(uuid, text) from public, anon;
+revoke all on function public.zion_list_archivable_local_churches() from public, anon;
+grant execute on function public.zion_archive_local_church(uuid, text) to authenticated;
+grant execute on function public.zion_list_archivable_local_churches() to authenticated;
 
 commit;
