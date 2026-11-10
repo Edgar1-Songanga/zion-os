@@ -96,8 +96,8 @@ This checklist is the acceptance gate for direct RESA calls, RESA group meetings
 
 ## Known scope and release requirements
 
-- Live chat and hand-raise packets use the LiveKit data channel in this implementation. Chat history is not persisted across sessions/reloads.
-- Speaker requests are in-memory in each Studio; they are not a durable moderation queue.
+- Live chat messages are persisted through the authenticated API and loaded from history on entry; LiveKit data-channel packets provide real-time delivery. The API HTTP E2E suite covers the live-message history endpoint. Reconnect and two-account production verification remain part of the release gate.
+- Hand-raise requests are still maintained in Studio memory and broadcast through the LiveKit data channel; they are not yet a durable moderation queue. This is an outstanding persistence item.
 - Direct-call screen sharing was implemented in PR #178 and is included in the production code path. Direct-call media credentials are issued only to active conversation members; the API explicitly scopes publishing to camera, microphone, screen video and screen audio. RESA Live spectators remain subscribe-only; approved speakers and authorized hosts/moderators receive role-scoped publishing grants. Authenticated two-account tests and real-device verification remain outstanding.
 - RESA group meetings, RESA Live Studio and ZION Governance meetings have screen-sharing paths in the codebase. Their full role, remote-rendering, revocation, reconnect and device acceptance checks remain unverified.
 - The ZION↔RESA canonical institutional publishing bridge is a separate workstream tracked in issue #175.
