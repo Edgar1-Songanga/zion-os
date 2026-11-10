@@ -284,15 +284,15 @@ export default function SecretariatPage() {
         );
         setIdentityCandidates(candidates);
         if (candidates.length > 0) {
+          if (candidates.some((candidate) => candidate.organization_id === organizationId)) {
+            setSelectedIdentityCandidateId("");
+            setIdentityMessage("Esta pessoa já está registada nesta igreja. Abra o registo existente e corrija-o em vez de criar outro.");
+            return;
+          }
           const selected = candidates.find((candidate) => candidate.member_record_id === selectedIdentityCandidateId);
           if (!selected) {
             setSelectedIdentityCandidateId("");
             setIdentityMessage("Encontrámos registos com os mesmos dados. Confirme se é a mesma pessoa antes de criar uma nova inscrição.");
-            return;
-          }
-          if (selected.organization_id === organizationId) {
-            setSelectedIdentityCandidateId("");
-            setIdentityMessage("Esta pessoa já está registada nesta igreja. Abra o registo existente e corrija-o em vez de criar outro.");
             return;
           }
           payload.matched_member_record_id = selected.member_record_id;
@@ -652,10 +652,11 @@ export default function SecretariatPage() {
                 <div><p className="font-semibold text-[#0C1A3D]">Possíveis identidades existentes</p><p className="mt-1 text-xs text-slate-600">Seleccione o registo correcto de outra igreja para reutilizar a identidade global. Se já existir nesta igreja, edite o registo em vez de criar outro.</p></div>
                 {identityCandidates.map((candidate) => {
                   const sameChurch = candidate.organization_id === organizationId;
+                  const duplicateInCurrentChurch = identityCandidates.some((item) => item.organization_id === organizationId);
                   const selected = selectedIdentityCandidateId === candidate.member_record_id;
                   return <div key={candidate.member_record_id} className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
                     <div><p className="font-semibold text-[#101B35]">{candidate.first_name} {candidate.last_name}</p><p className="mt-1 text-xs text-slate-500">{candidate.organization_name} · {candidate.member_number || "Sem número"} · Nascimento: {dateLabel(candidate.birth_date)}</p></div>
-                    {sameChurch ? <span className="text-xs font-semibold text-amber-800">Já existe nesta igreja</span> : <button type="button" onClick={() => { setSelectedIdentityCandidateId(candidate.member_record_id); setIdentityMessage("Identidade seleccionada. Ao guardar, o novo registo ficará ligado à mesma pessoa global."); }} className={selected ? "rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white" : "rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"}>{selected ? "Identidade seleccionada" : "É esta pessoa"}</button>}
+                    {sameChurch ? <span className="text-xs font-semibold text-amber-800">Já existe nesta igreja</span> : duplicateInCurrentChurch ? <span className="text-xs text-slate-500">Resolva primeiro o registo local duplicado</span> : <button type="button" onClick={() => { setSelectedIdentityCandidateId(candidate.member_record_id); setIdentityMessage("Identidade seleccionada. Ao guardar, o novo registo ficará ligado à mesma pessoa global."); }} className={selected ? "rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white" : "rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"}>{selected ? "Identidade seleccionada" : "É esta pessoa"}</button>}
                   </div>;
                 })}
               </div>}
