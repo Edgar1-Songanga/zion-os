@@ -25,10 +25,16 @@ const primaryNavigation = [
 
 const secondaryNavigation = [
   ["Stories", "story", "/resa/stories"],
+  ["Reuniões", "users", "/resa/meetings"],
   ["Eventos", "calendar", "/resa/events"],
   ["Guardados", "bookmark", "/resa/saved"],
   ["Oração", "prayer", "/resa/prayer"],
   ["Creator Studio", "creator", "/resa/creator"],
+] as const;
+
+const mobileMoreNavigation = [
+  ...secondaryNavigation,
+  ["Lives", "live", "/resa/live"],
 ] as const;
 
 function profileName(profile: ProfilePreview | null) {
@@ -78,7 +84,7 @@ export default function ResaNavigation() {
   }, []);
 
   const isActive = (href: string) => pathname === href || (href !== "/resa" && pathname.startsWith(href));
-  const activeMore = secondaryNavigation.some(([, , href]) => isActive(href));
+  const activeMore = mobileMoreNavigation.some(([, , href]) => isActive(href));
 
   return (
     <>
@@ -151,7 +157,7 @@ export default function ResaNavigation() {
               <span className={`flex h-8 w-10 items-center justify-center rounded-xl ${activeMore || moreOpen ? "bg-[#edf3fb]" : ""}`}><ResaIcon name="more" size={19} /></span><span>Mais</span>
             </button>
             {moreOpen && <div role="menu" className="absolute bottom-[calc(100%+12px)] right-0 w-60 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-[0_22px_60px_rgba(15,23,42,0.18)]">
-              {secondaryNavigation.concat([["Lives", "live", "/resa/live"] as const]).map(([name, icon, href]) => <Link key={href} role="menuitem" href={href} className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold ${isActive(href) ? "bg-slate-100 text-[#091735]" : "text-slate-600 hover:bg-slate-50"}`}><ResaIcon name={icon} size={16} />{name}</Link>)}
+              {mobileMoreNavigation.map(([name, icon, href]) => <Link key={href} role="menuitem" href={href} className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold ${isActive(href) ? "bg-slate-100 text-[#091735]" : "text-slate-600 hover:bg-slate-50"}`}><ResaIcon name={icon} size={16} />{name}</Link>)}
             </div>}
           </div>
         </div>
