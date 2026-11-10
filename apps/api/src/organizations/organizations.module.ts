@@ -7,6 +7,7 @@ import { OrganizationUnitsService } from './application/organization-units.servi
 import { MembershipsController } from './presentation/memberships.controller';
 import { MembershipsService } from './application/memberships.service';
 import { ChurchMembersController } from './presentation/church-members.controller';
+import { ChurchMemberRegisterController } from './presentation/church-member-register.controller';
 import { ChurchMembersService } from './application/church-members.service';
 import { ChurchMemberFamiliesController } from './presentation/church-member-families.controller';
 import { ChurchMemberFamiliesService } from './application/church-member-families.service';
@@ -17,7 +18,7 @@ import { ChurchMemberBaptismsService } from './application/church-member-baptism
 
 @Module({
   imports: [IdentityModule],
-  controllers: [OrganizationsController, OrganizationUnitsController, MembershipsController, ChurchMembersController, ChurchMemberFamiliesController, ChurchMemberTransfersController, ChurchMemberBaptismsController],
+  controllers: [OrganizationsController, OrganizationUnitsController, MembershipsController, ChurchMembersController, ChurchMemberRegisterController, ChurchMemberFamiliesController, ChurchMemberTransfersController, ChurchMemberBaptismsController],
   providers: [OrganizationsService, OrganizationUnitsService, MembershipsService, ChurchMembersService, ChurchMemberFamiliesService, ChurchMemberTransfersService, ChurchMemberBaptismsService],
 })
 export class OrganizationsModule {}
