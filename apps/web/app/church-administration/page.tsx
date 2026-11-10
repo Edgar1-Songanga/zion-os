@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 export default async function ChurchAdministrationPage() {
   await requireAnyOrganizationRole(
-    ["organization_owner", "organization_admin", "organization_leader"],
+    ["organization_owner", "organization_admin", "organization_leader", "secretary"],
     "/church-administration",
   );
   return <ChurchDashboard />;
