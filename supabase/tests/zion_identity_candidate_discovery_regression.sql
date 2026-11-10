@@ -84,6 +84,24 @@ begin
     raise exception 'Candidate search exposed records without permission in the candidate church';
   end if;
 
+  begin
+    perform * from public.find_zion_member_identity_candidates(
+      restricted_org, 'Ana', 'Silva', date '1990-05-12', 'FEMALE'
+    );
+    raise exception 'Search in an unauthorized source organization was not rejected';
+  exception when insufficient_privilege then
+    null;
+  end;
+
+  perform set_config('request.jwt.claim.sub', actor_authorized::text, true);
+  select count(*) into visible_count
+    from public.find_zion_member_identity_candidates(
+      source_org, 'Ana', 'Other', date '1990-05-12', 'FEMALE'
+    );
+  if visible_count <> 0 then
+    raise exception 'A non-exact name match was incorrectly returned as a candidate';
+  end if;
+
   perform set_config('request.jwt.claim.sub', '', true);
   begin
     perform * from public.find_zion_member_identity_candidates(
@@ -99,7 +117,7 @@ begin
    where event_type = 'CANDIDATES_VIEWED'
      and source_organization_id = source_org;
 
-  if audit_count <> 4 then
+  if audit_count <> 5 then
     raise exception 'Expected two privacy-safe candidate-view audit events; got %', audit_count;
   end if;
 
