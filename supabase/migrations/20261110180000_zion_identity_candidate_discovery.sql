@@ -51,6 +51,8 @@ create or replace function public.find_zion_member_identity_candidates(
 returns table (
   candidate_member_record_id uuid,
   candidate_organization_id uuid,
+  candidate_organization_name text,
+  candidate_member_number text,
   first_name text,
   last_name text,
   birth_date date,
@@ -93,6 +95,8 @@ begin
   select
     m.id,
     m.organization_id,
+    o.name,
+    m.member_number,
     m.first_name,
     m.last_name,
     m.birth_date,
@@ -100,6 +104,7 @@ begin
     m.membership_status,
     'EXACT_NAME_AND_BIRTH_DATE'::text
   from public.church_member_records m
+  join public.organizations o on o.id = m.organization_id
   where private.has_org_permission(m.organization_id, 'church.members.manage')
     and lower(trim(m.first_name)) = normalized_first
     and lower(trim(m.last_name)) = normalized_last
