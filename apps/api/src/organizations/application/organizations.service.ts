@@ -103,6 +103,15 @@ export class OrganizationsService {
     return organization;
   }
 
+  async listArchivableLocalChurches(accessToken: string) {
+    await this.identity.getCurrentUser(accessToken);
+    return this.db.rpc<Array<Pick<Organization, 'id' | 'name' | 'slug' | 'parent_id' | 'is_active'>>>(
+      'zion_list_archivable_local_churches',
+      accessToken,
+      {},
+    );
+  }
+
   async archiveLocalChurch(accessToken: string, organizationId: string, reason: string) {
     this.assertUuid(organizationId, 'organizationId');
     await this.identity.getCurrentUser(accessToken);
