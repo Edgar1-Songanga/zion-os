@@ -209,7 +209,7 @@ jobs:
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_group_meetings_regression.sql
       - name: Apply persistent RESA Live Studio hand-raise queue
         run: |
-          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261110090000_resa_live_hand_raise_queue.sql
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261110073355_resa_live_hand_raise_queue.sql
       - name: Verify RESA Live Studio hand-raise persistence and RLS
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_live_hand_raise_queue_regression.sql
