@@ -126,6 +126,7 @@ create table public.resa_live_moderators (
   created_at timestamptz not null default now(),
   primary key (live_id, moderator_user_id)
 );
+grant select on public.resa_live_moderators to authenticated;
 
 create or replace function private.resa_has_live_access(p_live_id uuid)
 returns boolean language sql stable security definer
