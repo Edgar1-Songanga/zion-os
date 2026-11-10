@@ -363,11 +363,26 @@ export class ResaOperationalService {
       token,
       `?select=id,live_id,user_id,status,raised_at&live_id=eq.${live.id}&user_id=eq.${actor.id}&status=eq.WAITING&limit=1`,
     );
-    const row = existing[0] ?? (await this.db.post<any[]>('resa_live_hand_raises', token, {
-      live_id: live.id,
-      user_id: actor.id,
-      status: 'WAITING',
-    }))[0];
+    let row = existing[0];
+    if (!row) {
+      try {
+        row = (await this.db.post<any[]>('resa_live_hand_raises', token, {
+          live_id: live.id,
+          user_id: actor.id,
+          status: 'WAITING',
+        }))[0];
+      } catch (error) {
+        // Concurrent taps may race the partial unique index. Re-read the winning
+        // request so the endpoint remains idempotent for the same participant.
+        const concurrent = await this.db.get<any[]>(
+          'resa_live_hand_raises',
+          token,
+          `?select=id,live_id,user_id,status,raised_at&live_id=eq.${live.id}&user_id=eq.${actor.id}&status=eq.WAITING&limit=1`,
+        );
+        if (!concurrent[0]) throw error;
+        row = concurrent[0];
+      }
+    }
     if (!row?.id) throw new BadGatewayException('O pedido de palavra não foi guardado.');
     const profiles = await this.profilesById(token, [actor.id], actor.id);
     return {
