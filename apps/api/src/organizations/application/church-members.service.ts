@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { IdentityService } from '../../identity/application/identity.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 
@@ -103,6 +103,17 @@ export class ChurchMembersService {
     this.assertUuid(organizationId, 'organizationId');
     const user = await this.identity.getCurrentUser(accessToken);
     const values = this.normalize(input, true);
+    if (typeof values.birth_date === 'string') {
+      const candidates = await this.findIdentityCandidates(accessToken, organizationId, {
+        first_name: String(values.first_name ?? ''),
+        last_name: String(values.last_name ?? ''),
+        birth_date: values.birth_date,
+        gender: typeof values.gender === 'string' ? values.gender : null,
+      });
+      if (candidates.length > 0) {
+        throw new ConflictException('Possible existing member records were found. Review identity candidates before creating another record.');
+      }
+    }
     if (!values.first_name || !values.last_name) {
       throw new BadRequestException('first_name and last_name are required.');
     }
