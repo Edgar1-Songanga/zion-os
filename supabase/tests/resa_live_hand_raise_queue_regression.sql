@@ -7,7 +7,6 @@ insert into auth.users(id, email) values
   ('97000000-0000-4000-8000-000000000003', 'live-moderator@example.test'),
   ('97000000-0000-4000-8000-000000000004', 'live-outsider@example.test');
 
-set local role authenticated;
 select set_config('request.jwt.claim.sub', '97000000-0000-4000-8000-000000000001', true);
 
 insert into public.resa_live_sessions(id, host_id, visibility, status)
@@ -16,6 +15,7 @@ values ('97100000-0000-4000-8000-000000000001', '97000000-0000-4000-8000-0000000
 insert into public.resa_live_moderators(live_id, moderator_user_id, granted_by)
 values ('97100000-0000-4000-8000-000000000001', '97000000-0000-4000-8000-000000000003', '97000000-0000-4000-8000-000000000001');
 
+set local role authenticated;
 select set_config('request.jwt.claim.sub', '97000000-0000-4000-8000-000000000002', true);
 
 insert into public.resa_live_hand_raises(live_id, user_id)
