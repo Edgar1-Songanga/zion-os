@@ -44,5 +44,6 @@ export interface MediaProvider {
     canPublishSources?: MediaTrackSource[];
   }): Promise<void>;
   removeParticipant?(input: { roomId: string; identity: string }): Promise<void>;
+  setParticipantAudioMuted?(input: { roomId: string; identity: string; muted: boolean }): Promise<void>;
   setRoomPublishingForAttendees?(input: { roomId: string; hostIdentity: string; canPublish: boolean }): Promise<void>;
 }
