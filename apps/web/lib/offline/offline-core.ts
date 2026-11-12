@@ -361,6 +361,19 @@ export async function syncOfflineOperations(
   return summary;
 }
 
+export async function discardOfflineOperation(
+  scopeInput: OfflineScope,
+  operationId: string,
+): Promise<boolean> {
+  const scope = makeScope(scopeInput);
+  return withStore<boolean>(OPERATIONS, "readwrite", async store => {
+    const record = await requestValue<OfflineOperation | undefined>(store.get(operationId));
+    if (!record || record.scope !== scope || record.status === "syncing") return false;
+    await requestValue(store.delete(operationId));
+    return true;
+  });
+}
+
 /** Delete local records and their encryption key when an account is removed from this device. */
 export async function clearOfflineScope(scopeInput: OfflineScope): Promise<void> {
   const scope = makeScope(scopeInput);
