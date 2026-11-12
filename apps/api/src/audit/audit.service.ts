@@ -80,7 +80,7 @@ export class AuditService {
         if (
           Array.isArray(value) &&
           value.length <= 500 &&
-          value.every((item) => typeof item === 'string' && /^\\d{8}(?:\\d{6})?$/.test(item))
+          value.every((item) => typeof item === 'string' && /^\d{8}(?:\d{6})?$/.test(item))
         ) {
           output[key] = [...value];
         }
