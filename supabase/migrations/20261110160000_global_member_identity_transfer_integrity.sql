@@ -179,6 +179,16 @@ begin
 end;
 $function$;
 
+-- Install the trigger in the migration itself. The regression workflow must not
+-- create this trigger manually, otherwise a missing production migration object
+-- can be hidden by test setup.
+drop trigger if exists church_member_transfer_apply on public.church_member_transfers;
+create trigger church_member_transfer_apply
+after update of status on public.church_member_transfers
+for each row
+when (new.status = 'ACCEPTED' and old.status is distinct from new.status)
+execute function public.apply_church_member_transfer_acceptance();
+
 revoke all on function public.apply_church_member_transfer_acceptance() from public, anon, authenticated;
 
 comment on table public.zion_person_identities is
