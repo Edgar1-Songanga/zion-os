@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/client";
 import {
+  discardOfflineOperation,
   enqueueOfflineOperation,
   getOfflineDeviceId,
   listOfflineOperationsWithPayload,
@@ -50,7 +51,7 @@ export async function enqueueSecretariatMemberDraft(input: {
     throw new Error("Não é possível guardar a alteração offline sem a versão mais recente do registo.");
   }
 
-  return enqueueOfflineOperation(input.scope, {
+  const operationId = await enqueueOfflineOperation(input.scope, {
     userId: input.scope.userId,
     organizationId: input.scope.organizationId,
     module: "church.members",
@@ -59,6 +60,14 @@ export async function enqueueSecretariatMemberDraft(input: {
     baseVersion: input.expectedVersion,
     payload: input.payload,
   });
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("zion:offline-queue-changed"));
+  return operationId;
+}
+
+export async function discardSecretariatMemberDraft(scope: OfflineScope, operationId: string) {
+  const discarded = await discardOfflineOperation(scope, operationId);
+  if (discarded && typeof window !== "undefined") window.dispatchEvent(new Event("zion:offline-queue-changed"));
+  return discarded;
 }
 
 export async function listSecretariatMemberDrafts(
