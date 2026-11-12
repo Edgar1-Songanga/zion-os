@@ -90,11 +90,7 @@ begin
     and last_name = 'Silva'
     and row_version = 2;
   if v_count <> 1 then raise exception 'Unexpected final member state after conflict and replay'; end if;
-end;
-$$;
-
-
-  -- Authenticated users must not be able to forge or mutate idempotency receipts
+-- Authenticated users must not be able to forge or mutate idempotency receipts
   -- through direct table DML. Only sync_church_member_offline may write them.
   begin
     insert into public.zion_offline_operation_receipts (
@@ -134,4 +130,6 @@ $$;
     raise exception 'RPC replay failed after receipt write privileges were revoked';
   end if;
 
+end;
+$;
 reset role;
