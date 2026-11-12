@@ -108,7 +108,11 @@ export default function SecretariatOfflineSyncPanel({ organizationId, onServerRe
         if (navigator.onLine) void synchronize();
       }
     };
-    const handleQueueChange = () => void refresh();
+    const handleQueueChange = () => {
+      void refresh().then(() => {
+        if (navigator.onLine) void synchronize();
+      });
+    };
 
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
