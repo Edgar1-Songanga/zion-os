@@ -132,6 +132,11 @@ async function withStore<T>(
 }
 
 async function getEncryptionKey(scope: string): Promise<CryptoKey> {
+  const existing = await withStore<{ key: CryptoKey } | undefined>(KEYS, "readonly", async store => {
+    return requestValue(store.get(scope));
+  });
+  if (existing?.key) return existing.key;
+
   // Generate outside the IDB transaction, then re-check under a write lock.
   // Concurrent first writes therefore converge on the first persisted key.
   const candidate = await crypto.subtle.generateKey(
@@ -140,8 +145,8 @@ async function getEncryptionKey(scope: string): Promise<CryptoKey> {
     ["encrypt", "decrypt"],
   );
   return withStore<CryptoKey>(KEYS, "readwrite", async store => {
-    const existing = await requestValue<{ key: CryptoKey } | undefined>(store.get(scope));
-    if (existing?.key) return existing.key;
+    const current = await requestValue<{ key: CryptoKey } | undefined>(store.get(scope));
+    if (current?.key) return current.key;
     await requestValue(store.put({ scope, key: candidate }));
     return candidate;
   });
@@ -182,11 +187,13 @@ export async function getOfflineDeviceId(): Promise<string> {
   );
   if (existing?.value) return existing.value;
 
-  const deviceId = crypto.randomUUID();
-  await withStore(META, "readwrite", async store => {
-    await requestValue(store.put({ key: "device-id", value: deviceId }));
+  const candidate = crypto.randomUUID();
+  return withStore<string>(META, "readwrite", async store => {
+    const current = await requestValue<{ key: string; value: string } | undefined>(store.get("device-id"));
+    if (current?.value) return current.value;
+    await requestValue(store.put({ key: "device-id", value: candidate }));
+    return candidate;
   });
-  return deviceId;
 }
 
 export async function enqueueOfflineOperation(
@@ -198,7 +205,8 @@ export async function enqueueOfflineOperation(
     throw new Error("A operação não corresponde à sessão e organização activas.");
   }
   const moduleName = input.module.trim().toLowerCase();
-  if (!moduleName || BLOCKED_MODULES.has(moduleName) || input.isSensitive) {
+  if (!moduleName || BLOCKED_MODULES.has(moduleName) || moduleName.startsWith("pastoral_") ||
+      moduleName.startsWith("prayer_") || moduleName.startsWith("ministry_followup") || input.isSensitive) {
     throw new Error("Este tipo de informação não pode ser guardado na fila offline genérica.");
   }
   if (!input.entityId || !input.payload || typeof input.payload !== "object") {
@@ -333,15 +341,16 @@ export async function clearOfflineScope(scopeInput: OfflineScope): Promise<void>
   const db = await openDatabase();
   try {
     const tx = db.transaction([OPERATIONS, KEYS], "readwrite");
-    const operations = tx.objectStore(OPERATIONS);
-    const records = await requestValue<OfflineOperation[]>(operations.index("scope").getAll(scope));
-    records.forEach(record => operations.delete(record.id));
-    tx.objectStore(KEYS).delete(scope);
-    await new Promise<void>((resolve, reject) => {
+    const completed = new Promise<void>((resolve, reject) => {
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error ?? new Error("Falha ao limpar dados offline."));
       tx.onabort = () => reject(tx.error ?? new Error("Limpeza offline cancelada."));
     });
+    const operations = tx.objectStore(OPERATIONS);
+    const records = await requestValue<OfflineOperation[]>(operations.index("scope").getAll(scope));
+    records.forEach(record => operations.delete(record.id));
+    tx.objectStore(KEYS).delete(scope);
+    await completed;
   } finally {
     db.close();
   }
