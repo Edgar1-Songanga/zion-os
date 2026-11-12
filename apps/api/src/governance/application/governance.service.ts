@@ -492,53 +492,16 @@ export class GovernanceService {
   }
 
   async decide(token: string, motionId: string, outcome: string) {
-    const a = await this.actor(token);
+    await this.actor(token);
     if (!['APPROVED', 'REJECTED', 'NO_DECISION'].includes(outcome)) {
       throw new BadRequestException('Invalid decision outcome');
     }
 
-    const motion = (await this.db.get<any[]>('governance_motions', token,
-      `?select=id,meeting_id&id=eq.${motionId}`))[0];
-    if (!motion) throw new BadRequestException('Motion was not found');
-
-    const meeting = (await this.db.get<any[]>('governance_meetings', token,
-      `?select=id,council_id& id=eq.${motion.meeting_id}`))[0];
-    if (!meeting) throw new BadRequestException('Meeting was not found');
-
-    const council = (await this.db.get<any[]>('governance_councils', token,
-      `?select=id,quorum_type,quorum_value&id=eq.${meeting.council_id}`))[0];
-    if (!council) throw new BadRequestException('Council was not found');
-
-    const members = await this.db.get<any[]>('governance_council_members', token,
-      `?select=id,is_voting_member&council_id=eq.${meeting.council_id}&is_voting_member=eq.true&status=eq.ACTIVE`);
-    const participants = await this.db.get<any[]>('governance_meeting_participants', token,
-      `?select=council_member_id,status&meeting_id=eq.${meeting.id}&status=in.(PRESENT,LEFT)`);
-
-    const eligible = members.length;
-    const presentIds = new Set(participants.map(p => p.council_member_id).filter(Boolean));
-    const present = members.filter(m => presentIds.has(m.id)).length;
-
-    let quorumMet = false;
-    if (council.quorum_type === 'FIXED_COUNT') {
-      quorumMet = present >= Number(council.quorum_value ?? 0);
-    } else {
-      quorumMet = eligible > 0 && (present / eligible) * 100 >= Number(council.quorum_value ?? 50);
-    }
-
-    const votes = await this.db.get<any[]>('governance_votes', token, `?select=choice&motion_id=eq.${motionId}`);
-    const yes = votes.filter(v => v.choice === 'YES').length;
-    const no = votes.filter(v => v.choice === 'NO').length;
-    const abstain = votes.filter(v => v.choice === 'ABSTAIN').length;
-
-    const rows = await this.db.post<any[]>('governance_decisions', token, {
-      motion_id: motionId,
-      outcome: quorumMet ? outcome : 'NO_DECISION',
-      yes_count: yes,
-      no_count: no,
-      abstain_count: abstain,
-      quorum_met: quorumMet,
-      decided_by: a.id,
+    const rows = await this.db.rpc<any[]>('record_governance_decision', token, {
+      p_motion_id: motionId,
+      p_outcome: outcome,
     });
+    if (!rows[0]) throw new BadRequestException('Governance decision was not recorded');
     return rows[0];
   }
 
@@ -570,20 +533,18 @@ export class GovernanceService {
   }
 
   async saveMinutes(token: string, meetingId: string, content: string, status = 'DRAFT') {
-    const a = await this.actor(token);
+    await this.actor(token);
     if (!content?.trim()) throw new BadRequestException('content is required');
-    const existing = (await this.db.get<any[]>('governance_minutes', token, `?select=id&meeting_id=eq.${meetingId}&limit=1`))[0];
-    if (existing) {
-      const rows = await this.db.patch<any[]>('governance_minutes', token, { content, status },
-        `?id=eq.${existing.id}`);
-      return rows[0];
+    if (!['DRAFT', 'APPROVED'].includes(status)) {
+      throw new BadRequestException('Invalid governance minutes status');
     }
-    const rows = await this.db.post<any[]>('governance_minutes', token, {
-      meeting_id: meetingId,
-      content,
-      status,
-      created_by: a.id,
+
+    const rows = await this.db.rpc<any[]>('save_governance_minutes', token, {
+      p_meeting_id: meetingId,
+      p_content: content,
+      p_status: status,
     });
+    if (!rows[0]) throw new BadRequestException('Governance minutes were not saved');
     return rows[0];
   }
 }
