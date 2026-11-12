@@ -22,6 +22,7 @@ export type OfflineOperationInput = {
   payload: unknown;
   baseVersion?: string | number | null;
   isSensitive?: boolean;
+  operationId?: string;
 };
 
 export type OfflineOperation = {
@@ -215,7 +216,10 @@ export async function enqueueOfflineOperation(
 
   const encrypted = await encryptPayload(scope, input.payload);
   const now = Date.now();
-  const id = crypto.randomUUID();
+  const id = input.operationId ?? crypto.randomUUID();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+    throw new Error("O identificador da operação offline deve ser um UUID válido.");
+  }
   const record: OfflineOperation = {
     id,
     scope,
