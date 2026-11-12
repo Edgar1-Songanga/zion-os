@@ -52,7 +52,7 @@ export class ChurchMembersService {
     return this.db.get<MemberRecord[]>(
       'church_member_records',
       accessToken,
-      `?select=id,organization_id,member_number,first_name,last_name,birth_date,gender,phone,email,address,baptism_date,membership_status,joined_on,notes,created_at,updated_at&organization_id=eq.${organizationId}&order=last_name.asc,first_name.asc&limit=100`,
+      `?select=id,organization_id,member_number,first_name,last_name,birth_date,gender,phone,email,address,baptism_date,membership_status,joined_on,notes,created_at,updated_at,row_version&organization_id=eq.${organizationId}&order=last_name.asc,first_name.asc&limit=100`,
     );
   }
 
