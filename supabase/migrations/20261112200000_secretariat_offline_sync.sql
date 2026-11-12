@@ -104,6 +104,24 @@ begin
   if not private.has_org_permission(p_organization_id, 'church.members.manage') then
     raise exception 'Missing church member management permission' using errcode = '42501';
   end if;
+  if exists (
+    select 1
+    from jsonb_object_keys(coalesce(p_payload, '{}'::jsonb)) as supplied(key)
+    where supplied.key not in (
+      'member_number', 'first_name', 'last_name', 'birth_date', 'gender',
+      'phone', 'email', 'address', 'baptism_date', 'membership_status',
+      'joined_on', 'notes'
+    )
+  ) then
+    raise exception 'Payload contains unsupported member fields' using errcode = '22023';
+  end if;
+  if p_payload ? 'gender' and nullif(p_payload->>'gender', '') not in ('FEMALE', 'MALE', 'UNSPECIFIED') then
+    raise exception 'Unsupported gender value' using errcode = '23514';
+  end if;
+  if p_payload ? 'membership_status'
+     and nullif(p_payload->>'membership_status', '') not in ('ACTIVE', 'TRANSFERRED', 'DECEASED', 'DISMISSED', 'INACTIVE') then
+    raise exception 'Unsupported membership status' using errcode = '23514';
+  end if;
 
   insert into public.zion_offline_operation_receipts (
     organization_id, actor_id, operation_id, entity_id, module_key, action
