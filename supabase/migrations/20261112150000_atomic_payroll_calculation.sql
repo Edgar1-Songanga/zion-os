@@ -111,7 +111,7 @@ begin
 
     for v_line in select value from jsonb_array_elements(v_item->'lines')
     loop
-      if coalesce(v_line->>'amount', '') = '' or (v_line->>'amount')::numeric < 0 then
+      if nullif(v_line->>'amount', '')::numeric is null or coalesce(nullif(v_line->>'amount', '')::numeric, 0) < 0 then
         raise exception 'payroll_line_amount_invalid' using errcode = '22023';
       end if;
       if nullif(v_line->>'component_id', '') is not null and not exists (
