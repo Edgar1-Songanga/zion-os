@@ -1,6 +1,14 @@
 import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, UnauthorizedException } from '@nestjs/common';
 import { ChurchMembersService } from '../application/church-members.service';
 
+type OfflineMemberSyncBody = {
+  operationId: string;
+  entityId: string;
+  action: 'create' | 'update';
+  expectedVersion: number | null;
+  payload: MemberBody;
+};
+
 type MemberBody = {
   member_number?: string | null;
   first_name?: string;
@@ -32,6 +40,23 @@ export class ChurchMembersController {
     @Param('organizationId') organizationId: string,
   ) {
     return this.members.list(this.token(authorization), organizationId);
+  }
+
+  @Post('offline-sync')
+  syncOffline(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('organizationId') organizationId: string,
+    @Body() body: OfflineMemberSyncBody,
+  ) {
+    return this.members.syncOffline(
+      this.token(authorization),
+      organizationId,
+      body.operationId,
+      body.entityId,
+      body.action,
+      body.expectedVersion,
+      body.payload,
+    );
   }
 
   @Post()
