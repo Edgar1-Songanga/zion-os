@@ -74,8 +74,7 @@ export async function listSecretariatMemberDrafts(
   scope: OfflineScope,
   statuses: OfflineOperationStatus[] = ["queued", "syncing", "needs_attention", "rejected"],
 ) {
-  const operations = await listOfflineOperationsWithPayload<SecretariatMemberDraft>(scope, statuses);
-  return operations.filter(operation => operation.module === "church.members");
+  return listOfflineOperationsWithPayload<SecretariatMemberDraft>(scope, statuses, "church.members");
 }
 
 export async function syncSecretariatMemberDrafts(scope: OfflineScope) {
