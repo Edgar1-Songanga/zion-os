@@ -253,8 +253,10 @@ export async function readOfflineOperationPayload<T>(
 export async function listOfflineOperationsWithPayload<T>(
   scopeInput: OfflineScope,
   statuses?: OfflineOperationStatus[],
+  moduleFilter?: string,
 ): Promise<Array<Omit<OfflineOperation, "ciphertext" | "iv"> & { payload: T }>> {
-  const metadata = await listOfflineOperations(scopeInput, statuses);
+  const metadata = (await listOfflineOperations(scopeInput, statuses))
+    .filter(operation => !moduleFilter || operation.module === moduleFilter);
   const hydrated = await Promise.all(metadata.map(async operation => {
     const payload = await readOfflineOperationPayload<T>(scopeInput, operation.id);
     return payload === null ? null : { ...operation, payload };
