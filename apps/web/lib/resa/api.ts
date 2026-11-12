@@ -29,6 +29,18 @@ async function getAccessContext(): Promise<AccessContext> {
   }
 }
 
+export class ResaApiError extends Error {
+  readonly status: number;
+  readonly payload: unknown;
+
+  constructor(message: string, status: number, payload: unknown) {
+    super(message);
+    this.name = "ResaApiError";
+    this.status = status;
+    this.payload = payload;
+  }
+}
+
 export async function resaRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   const request = async (token: string) => {
@@ -71,11 +83,10 @@ export async function resaRequest<T>(path: string, init: RequestInit = {}): Prom
   }
 
   if (!response.ok) {
-    throw new Error(
-      typeof payload === "object" && payload && "message" in payload
-        ? String(payload.message)
-        : "Falha ao comunicar com o RESA.",
-    );
+    const message = typeof payload === "object" && payload && "message" in payload
+      ? String(payload.message)
+      : "Falha ao comunicar com o RESA.";
+    throw new ResaApiError(message, response.status, payload);
   }
 
   return payload as T;
