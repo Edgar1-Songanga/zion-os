@@ -41,6 +41,7 @@ export async function getSecretariatOfflineScope(organizationId: string): Promis
 
 export async function enqueueSecretariatMemberDraft(input: {
   scope: OfflineScope;
+  operationId?: string;
   entityId: string;
   action: "create" | "update";
   expectedVersion: number | null;
@@ -55,6 +56,7 @@ export async function enqueueSecretariatMemberDraft(input: {
     userId: input.scope.userId,
     organizationId: input.scope.organizationId,
     module: "church.members",
+    operationId: input.operationId,
     entityId: input.entityId,
     operation: input.action,
     baseVersion: input.expectedVersion,
