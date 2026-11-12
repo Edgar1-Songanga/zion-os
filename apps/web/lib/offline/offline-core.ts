@@ -238,6 +238,30 @@ export async function enqueueOfflineOperation(
   return id;
 }
 
+export async function readOfflineOperationPayload<T>(
+  scopeInput: OfflineScope,
+  operationId: string,
+): Promise<T | null> {
+  const scope = makeScope(scopeInput);
+  const record = await withStore<OfflineOperation | undefined>(
+    OPERATIONS, "readonly", async store => requestValue(store.get(operationId)),
+  );
+  if (!record || record.scope !== scope) return null;
+  return decryptPayload<T>(record);
+}
+
+export async function listOfflineOperationsWithPayload<T>(
+  scopeInput: OfflineScope,
+  statuses?: OfflineOperationStatus[],
+): Promise<Array<Omit<OfflineOperation, "ciphertext" | "iv"> & { payload: T }>> {
+  const metadata = await listOfflineOperations(scopeInput, statuses);
+  const hydrated = await Promise.all(metadata.map(async operation => {
+    const payload = await readOfflineOperationPayload<T>(scopeInput, operation.id);
+    return payload === null ? null : { ...operation, payload };
+  }));
+  return hydrated.filter((operation): operation is Omit<OfflineOperation, "ciphertext" | "iv"> & { payload: T } => operation !== null);
+}
+
 export async function listOfflineOperations(
   scopeInput: OfflineScope,
   statuses?: OfflineOperationStatus[],
