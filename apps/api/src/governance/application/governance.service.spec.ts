@@ -138,3 +138,75 @@ describe('GovernanceService participant removal', () => {
     expect(upsertSpy).toHaveBeenCalledTimes(1);
   });
 });
+
+
+describe('GovernanceService atomic decisions and minutes', () => {
+  const identity = { getCurrentUser: jest.fn().mockResolvedValue({ id: USER_ID }) };
+  const media = { createJoinConfig: jest.fn(), removeParticipant: jest.fn() };
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it('records a motion decision through one database transaction', async () => {
+    const rpcSpy = jest.spyOn(SupabaseRestClient.prototype, 'rpc').mockResolvedValue([{
+      id: 'decision-row',
+      motion_id: '97000000-0000-4000-8000-000000000003',
+      outcome: 'APPROVED',
+      yes_count: 4,
+      no_count: 1,
+      abstain_count: 0,
+      quorum_met: true,
+    }] as never);
+    const postSpy = jest.spyOn(SupabaseRestClient.prototype, 'post');
+    const service = new GovernanceService(identity as never, media as never);
+
+    await expect(service.decide('session-token', '97000000-0000-4000-8000-000000000003', 'APPROVED'))
+      .resolves.toMatchObject({ outcome: 'APPROVED', quorum_met: true });
+
+    expect(rpcSpy).toHaveBeenCalledWith('record_governance_decision', 'session-token', {
+      p_motion_id: '97000000-0000-4000-8000-000000000003',
+      p_outcome: 'APPROVED',
+    });
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid decision outcomes before calling the database', async () => {
+    const rpcSpy = jest.spyOn(SupabaseRestClient.prototype, 'rpc');
+    const service = new GovernanceService(identity as never, media as never);
+
+    await expect(service.decide('session-token', '97000000-0000-4000-8000-000000000003', 'PENDING'))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(rpcSpy).not.toHaveBeenCalled();
+  });
+
+  it('saves minutes through the atomic RPC and preserves the requested status', async () => {
+    const rpcSpy = jest.spyOn(SupabaseRestClient.prototype, 'rpc').mockResolvedValue([{
+      id: 'minutes-row',
+      meeting_id: MEETING_ID,
+      status: 'DRAFT',
+      content: 'Minutes content',
+    }] as never);
+    const postSpy = jest.spyOn(SupabaseRestClient.prototype, 'post');
+    const patchSpy = jest.spyOn(SupabaseRestClient.prototype, 'patch');
+    const service = new GovernanceService(identity as never, media as never);
+
+    await expect(service.saveMinutes('session-token', MEETING_ID, 'Minutes content', 'DRAFT'))
+      .resolves.toMatchObject({ status: 'DRAFT', content: 'Minutes content' });
+
+    expect(rpcSpy).toHaveBeenCalledWith('save_governance_minutes', 'session-token', {
+      p_meeting_id: MEETING_ID,
+      p_content: 'Minutes content',
+      p_status: 'DRAFT',
+    });
+    expect(postSpy).not.toHaveBeenCalled();
+    expect(patchSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not send unsupported minutes states to the database', async () => {
+    const rpcSpy = jest.spyOn(SupabaseRestClient.prototype, 'rpc');
+    const service = new GovernanceService(identity as never, media as never);
+
+    await expect(service.saveMinutes('session-token', MEETING_ID, 'Minutes content', 'PUBLISHED'))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(rpcSpy).not.toHaveBeenCalled();
+  });
+});
