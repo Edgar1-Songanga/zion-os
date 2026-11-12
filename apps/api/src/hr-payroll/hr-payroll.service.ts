@@ -122,8 +122,11 @@ export class HrPayrollService {
   }
 
   async approvePayroll(accessToken: string, organizationId: string, runId: string) {
-    const actor = await this.identity.getCurrentUser(accessToken);
-    const rows = await this.db.patch<Array<{ id: string; status: string }>>('payroll_runs', accessToken, { status: 'APPROVED', approved_by: actor.id, approved_at: new Date().toISOString() }, `?id=eq.${runId}&organization_id=eq.${organizationId}&status=eq.REVIEW`);
+    const rows = await this.db.rpc<Array<{ id: string; status: string }>>(
+      'approve_payroll_run',
+      accessToken,
+      { p_organization_id: organizationId, p_run_id: runId },
+    );
     if (!rows[0]) throw new NotFoundException('Payroll run is not in REVIEW or was not found');
     return rows[0];
   }
