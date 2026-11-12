@@ -22,7 +22,14 @@ declare
   v_item jsonb;
   v_line jsonb;
   v_employee public.hr_employees%rowtype;
+  v_contract public.hr_contracts%rowtype;
+  v_contract_count integer;
   v_item_id uuid;
+  v_line_gross numeric(18,2);
+  v_line_deductions numeric(18,2);
+  v_line_employer numeric(18,2);
+  v_base_salary_line numeric(18,2);
+  v_base_salary_count integer;
   v_gross numeric(18,2) := 0;
   v_deductions numeric(18,2) := 0;
   v_employer numeric(18,2) := 0;
@@ -94,6 +101,37 @@ begin
       raise exception 'payroll_item_lines_must_be_array' using errcode = '22023';
     end if;
 
+    -- The database independently selects the unique active contract for this
+    -- employee and payroll period; client-provided salary snapshots are not trusted.
+    select count(*) into v_contract_count
+    from public.hr_contracts c
+    where c.employee_id = v_employee.id
+      and c.status = 'ACTIVE'
+      and c.start_date <= v_run.period_end
+      and (c.end_date is null or c.end_date >= v_run.period_start);
+    if v_contract_count <> 1 then
+      raise exception 'payroll_employee_must_have_exactly_one_active_period_contract' using errcode = '23514';
+    end if;
+
+    select * into v_contract
+    from public.hr_contracts c
+    where c.employee_id = v_employee.id
+      and c.status = 'ACTIVE'
+      and c.start_date <= v_run.period_end
+      and (c.end_date is null or c.end_date >= v_run.period_start)
+    for share;
+
+    if v_contract.currency_code <> v_employee.currency_code
+       or v_contract.currency_code <> v_run.currency_code then
+      raise exception 'payroll_contract_currency_mismatch' using errcode = '23514';
+    end if;
+
+    v_line_gross := 0;
+    v_line_deductions := 0;
+    v_line_employer := 0;
+    v_base_salary_line := 0;
+    v_base_salary_count := 0;
+
     insert into public.payroll_items (
       payroll_run_id, employee_id, gross_amount, deduction_amount,
       employer_contribution_amount, net_amount, currency_code, calculation_snapshot
@@ -114,14 +152,36 @@ begin
       if nullif(v_line->>'amount', '')::numeric is null or coalesce(nullif(v_line->>'amount', '')::numeric, 0) < 0 then
         raise exception 'payroll_line_amount_invalid' using errcode = '22023';
       end if;
-      if nullif(v_line->>'component_id', '') is not null and not exists (
-        select 1 from public.hr_payroll_components c
-        where c.id = (v_line->>'component_id')::uuid
-          and c.organization_id = p_organization_id
-          and c.is_active = true
-          and c.component_type = v_line->>'line_type'
-      ) then
-        raise exception 'payroll_line_component_invalid' using errcode = '23514';
+      if coalesce(v_line->>'line_type', '') not in ('EARNING','DEDUCTION','EMPLOYER_CONTRIBUTION') then
+        raise exception 'payroll_line_type_invalid' using errcode = '22023';
+      end if;
+
+      if nullif(v_line->>'component_id', '') is null then
+        if v_line->>'line_type' <> 'EARNING'
+           or v_line->>'description' <> 'Base salary' then
+          raise exception 'payroll_component_required_for_non_base_salary_line' using errcode = '23514';
+        end if;
+        v_base_salary_count := v_base_salary_count + 1;
+        v_base_salary_line := v_base_salary_line + round((v_line->>'amount')::numeric, 2);
+      else
+        if not exists (
+          select 1 from public.hr_payroll_components c
+          where c.id = (v_line->>'component_id')::uuid
+            and c.organization_id = p_organization_id
+            and c.is_active = true
+            and c.component_type = v_line->>'line_type'
+            and c.calculation_type in ('FIXED','PERCENTAGE')
+        ) then
+          raise exception 'payroll_line_component_invalid_or_unsupported' using errcode = '23514';
+        end if;
+      end if;
+
+      if v_line->>'line_type' = 'EARNING' then
+        v_line_gross := v_line_gross + round((v_line->>'amount')::numeric, 2);
+      elsif v_line->>'line_type' = 'DEDUCTION' then
+        v_line_deductions := v_line_deductions + round((v_line->>'amount')::numeric, 2);
+      else
+        v_line_employer := v_line_employer + round((v_line->>'amount')::numeric, 2);
       end if;
 
       insert into public.payroll_item_lines (
@@ -135,6 +195,21 @@ begin
         nullif(v_line->>'rate', '')::numeric
       );
     end loop;
+
+    if v_base_salary_count <> 1 or v_base_salary_line <> round(v_contract.base_salary, 2) then
+      raise exception 'payroll_base_salary_line_does_not_match_active_contract' using errcode = '23514';
+    end if;
+
+    if v_line_gross <> round((v_item->>'gross_amount')::numeric, 2)
+       or v_line_deductions <> round((v_item->>'deduction_amount')::numeric, 2)
+       or v_line_employer <> round((v_item->>'employer_contribution_amount')::numeric, 2) then
+      raise exception 'payroll_item_totals_do_not_match_lines' using errcode = '23514';
+    end if;
+
+    if round((v_item->>'net_amount')::numeric, 2)
+       <> v_line_gross - v_line_deductions then
+      raise exception 'payroll_net_amount_does_not_reconcile' using errcode = '23514';
+    end if;
 
     v_gross := v_gross + round((v_item->>'gross_amount')::numeric, 2);
     v_deductions := v_deductions + round((v_item->>'deduction_amount')::numeric, 2);
