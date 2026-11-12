@@ -27,6 +27,21 @@ begin
     '{"first_name":"Ana","last_name":"Silva"}'::jsonb
   );
   if v_first <> v_replay then raise exception 'Create replay did not return the original result'; end if;
+
+  begin
+    perform public.sync_church_member_offline(
+      '22222222-2222-4222-8222-222222222222',
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      '33333333-3333-4333-8333-333333333333',
+      'create',
+      null,
+      '{"first_name":"Different payload","last_name":"Silva"}'::jsonb
+    );
+    raise exception 'Changed payload unexpectedly reused an idempotency key';
+  exception when unique_violation then
+    null;
+  end;
+
   if (select count(*) from public.church_member_records) <> 1 then
     raise exception 'Idempotent create inserted more than one member';
   end if;
