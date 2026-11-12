@@ -245,12 +245,12 @@ export async function enqueueOfflineOperation(
 export async function readOfflineOperationPayload<T>(
   scopeInput: OfflineScope,
   operationId: string,
-): Promise<T | null> {
+): Promise<T | undefined> {
   const scope = makeScope(scopeInput);
   const record = await withStore<OfflineOperation | undefined>(
     OPERATIONS, "readonly", async store => requestValue(store.get(operationId)),
   );
-  if (!record || record.scope !== scope) return null;
+  if (!record || record.scope !== scope) return undefined;
   return decryptPayload<T>(record);
 }
 
@@ -261,11 +261,12 @@ export async function listOfflineOperationsWithPayload<T>(
 ): Promise<Array<Omit<OfflineOperation, "ciphertext" | "iv"> & { payload: T }>> {
   const metadata = (await listOfflineOperations(scopeInput, statuses))
     .filter(operation => !moduleFilter || operation.module === moduleFilter);
-  const hydrated = await Promise.all(metadata.map(async operation => {
+  const hydrated: Array<Omit<OfflineOperation, "ciphertext" | "iv"> & { payload: T }> = [];
+  for (const operation of metadata) {
     const payload = await readOfflineOperationPayload<T>(scopeInput, operation.id);
-    return payload === null ? null : { ...operation, payload };
-  }));
-  return hydrated.filter((operation): operation is Omit<OfflineOperation, "ciphertext" | "iv"> & { payload: T } => operation !== null);
+    if (payload !== undefined) hydrated.push({ ...operation, payload });
+  }
+  return hydrated;
 }
 
 export async function listOfflineOperations(
