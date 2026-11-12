@@ -226,7 +226,21 @@ begin
     returning m.* into v_member;
 
     if not found then
-      raise exception 'Member record changed while applying offline update' using errcode = '40001';
+      -- A concurrent update may win after the earlier version read. Convert that
+      -- race into the same explicit conflict response as an already-stale request.
+      select * into v_member
+      from public.church_member_records
+      where id = p_entity_id and organization_id = p_organization_id;
+      if not found then
+        raise exception 'Member record not found or not accessible' using errcode = 'P0002';
+      end if;
+      update public.zion_offline_operation_receipts
+      set result = jsonb_build_object(
+        'sync_conflict', true,
+        'current', to_jsonb(v_member)
+      )
+      where id = v_receipt.id;
+      return jsonb_build_object('sync_conflict', true, 'current', to_jsonb(v_member));
     end if;
   end if;
 
