@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { IdentityService } from '../../identity/application/identity.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 import { ChurchMembersService } from './church-members.service';
@@ -12,6 +12,7 @@ describe('ChurchMembersService', () => {
   let getSpy: jest.SpyInstance;
   let postSpy: jest.SpyInstance;
   let patchSpy: jest.SpyInstance;
+  let rpcSpy: jest.SpyInstance;
 
   beforeEach(() => {
     jest.restoreAllMocks();
@@ -20,6 +21,7 @@ describe('ChurchMembersService', () => {
     getSpy = jest.spyOn(SupabaseRestClient.prototype, 'get').mockResolvedValue([] as never);
     postSpy = jest.spyOn(SupabaseRestClient.prototype, 'post').mockResolvedValue([] as never);
     patchSpy = jest.spyOn(SupabaseRestClient.prototype, 'patch').mockResolvedValue([] as never);
+    rpcSpy = jest.spyOn(SupabaseRestClient.prototype, 'rpc').mockResolvedValue({ id: memberId } as never);
   });
 
   it('lists only records in the requested organization and requires an authenticated identity', async () => {
@@ -45,6 +47,41 @@ describe('ChurchMembersService', () => {
         updated_by: actor.id,
       }),
     );
+  });
+
+  it('sends Secretariat offline creates through the atomic idempotent RPC with a client entity ID', async () => {
+    const operationId = 'ed6bbd28-72a4-4a8b-95a4-4e9f01b879e2';
+    await service.syncOffline(accessToken, organizationId, operationId, memberId, 'create', null, {
+      first_name: ' Ana ', last_name: ' Silva ',
+    });
+    expect(rpcSpy).toHaveBeenCalledWith('sync_church_member_offline', accessToken, {
+      p_operation_id: operationId,
+      p_organization_id: organizationId,
+      p_entity_id: memberId,
+      p_action: 'create',
+      p_expected_version: null,
+      p_payload: expect.objectContaining({ first_name: 'Ana', last_name: 'Silva', membership_status: 'ACTIVE' }),
+    });
+  });
+
+  it('requires a base version for offline updates', async () => {
+    await expect(service.syncOffline(accessToken, organizationId, memberId, memberId, 'update', null, {
+      first_name: 'Ana Maria',
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(rpcSpy).not.toHaveBeenCalled();
+  });
+
+  it('surfaces optimistic concurrency conflicts for explicit user resolution', async () => {
+    rpcSpy.mockResolvedValueOnce({ sync_conflict: true, current: { id: memberId, row_version: 3 } } as never);
+    await expect(service.syncOffline(
+      accessToken,
+      organizationId,
+      'ed6bbd28-72a4-4a8b-95a4-4e9f01b879e2',
+      memberId,
+      'update',
+      2,
+      { first_name: 'Ana Maria' },
+    )).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('archives a member as REMOVED instead of hard-deleting the record', async () => {
