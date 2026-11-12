@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { OrganizationSelector, type ZionOrganization } from "@/components/organization/OrganizationSelector";
 import { resaRequest } from "@/lib/resa/api";
+import SecretariatOfflineSyncPanel from "@/components/secretariat/SecretariatOfflineSyncPanel";
+import { enqueueSecretariatMemberDraft, getSecretariatOfflineScope } from "@/lib/offline/secretariat-adapter";
 
 type Member = {
   id: string;
@@ -21,6 +23,7 @@ type Member = {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  row_version?: number;
 };
 type BaptismRecord = {
   id: string;
@@ -201,6 +204,10 @@ export default function SecretariatPage() {
     if (organizationId) void loadMembers(organizationId);
   }, [organizationId, loadMembers]);
 
+  const refreshMembersAfterOfflineSync = useCallback(() => {
+    if (organizationId) void loadMembers(organizationId);
+  }, [organizationId, loadMembers]);
+
   const loadArchive = useCallback(async (status: "DECEASED" | "REMOVED") => {
     setArchiveLoading(true);
     setArchiveError("");
@@ -267,7 +274,29 @@ export default function SecretariatPage() {
       formElement.reset();
       await loadMembers(organizationId);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Não foi possível guardar o membro.");
+      const transportFailure =
+        (typeof navigator !== "undefined" && !navigator.onLine) ||
+        (reason instanceof Error && reason.message.includes("comunicar com o serviço RESA"));
+      if (transportFailure) {
+        try {
+          const scope = await getSecretariatOfflineScope(organizationId);
+          await enqueueSecretariatMemberDraft({
+            scope,
+            entityId: editingMember?.id ?? crypto.randomUUID(),
+            action: editingMember ? "update" : "create",
+            expectedVersion: editingMember ? editingMember.row_version ?? null : null,
+            payload,
+          });
+          setNotice("Rascunho guardado localmente e encriptado. Será sincronizado quando a ligação regressar.");
+          setFormOpen(false);
+          setEditingMember(null);
+          formElement.reset();
+        } catch (queueError) {
+          setError(queueError instanceof Error ? queueError.message : "Não foi possível guardar o rascunho offline.");
+        }
+      } else {
+        setError(reason instanceof Error ? reason.message : "Não foi possível guardar o membro.");
+      }
     } finally {
       setSaving(false);
     }
@@ -576,6 +605,7 @@ export default function SecretariatPage() {
 
         {error && <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>}
         {notice && <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</div>}
+        <SecretariatOfflineSyncPanel organizationId={organizationId} onServerRefresh={refreshMembersAfterOfflineSync} />
 
         {formOpen && (
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
