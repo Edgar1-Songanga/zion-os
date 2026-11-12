@@ -111,6 +111,19 @@ begin
 
     for v_line in select value from jsonb_array_elements(v_item->'lines')
     loop
+      if coalesce(v_line->>'amount', '') = '' or (v_line->>'amount')::numeric < 0 then
+        raise exception 'payroll_line_amount_invalid' using errcode = '22023';
+      end if;
+      if nullif(v_line->>'component_id', '') is not null and not exists (
+        select 1 from public.hr_payroll_components c
+        where c.id = (v_line->>'component_id')::uuid
+          and c.organization_id = p_organization_id
+          and c.is_active = true
+          and c.component_type = v_line->>'line_type'
+      ) then
+        raise exception 'payroll_line_component_invalid' using errcode = '23514';
+      end if;
+
       insert into public.payroll_item_lines (
         payroll_item_id, component_id, line_type, description, amount, rate
       ) values (
