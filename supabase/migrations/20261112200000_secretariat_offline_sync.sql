@@ -29,6 +29,7 @@ create table if not exists public.zion_offline_operation_receipts (
   entity_id uuid not null,
   module_key text not null,
   action text not null check (action in ('create', 'update')),
+  request_fingerprint text not null,
   result jsonb,
   created_at timestamptz not null default now(),
   constraint zion_offline_operation_receipts_actor_org_operation_uq
@@ -88,6 +89,7 @@ declare
   v_receipt public.zion_offline_operation_receipts%rowtype;
   v_member public.church_member_records%rowtype;
   v_existing_version bigint;
+  v_request_fingerprint text;
 begin
   if v_actor is null then
     raise exception 'Authentication required' using errcode = '42501';
@@ -123,10 +125,17 @@ begin
     raise exception 'Unsupported membership status' using errcode = '23514';
   end if;
 
+  v_request_fingerprint := md5(jsonb_build_object(
+    'entity_id', p_entity_id,
+    'action', p_action,
+    'expected_version', p_expected_version,
+    'payload', coalesce(p_payload, '{}'::jsonb)
+  )::text);
+
   insert into public.zion_offline_operation_receipts (
-    organization_id, actor_id, operation_id, entity_id, module_key, action
+    organization_id, actor_id, operation_id, entity_id, module_key, action, request_fingerprint
   ) values (
-    p_organization_id, v_actor, p_operation_id, p_entity_id, 'church.members', p_action
+    p_organization_id, v_actor, p_operation_id, p_entity_id, 'church.members', p_action, v_request_fingerprint
   )
   on conflict (actor_id, organization_id, operation_id) do nothing;
 
@@ -139,8 +148,9 @@ begin
 
   if v_receipt.entity_id <> p_entity_id
      or v_receipt.module_key <> 'church.members'
-     or v_receipt.action <> p_action then
-    raise exception 'Idempotency key was already used for a different operation' using errcode = '23505';
+     or v_receipt.action <> p_action
+     or v_receipt.request_fingerprint <> v_request_fingerprint then
+    raise exception 'Idempotency key was reused with a different operation or payload' using errcode = '23505';
   end if;
 
   if v_receipt.result is not null then
