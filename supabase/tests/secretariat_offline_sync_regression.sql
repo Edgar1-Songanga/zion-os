@@ -3,7 +3,7 @@ set role authenticated;
 select set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', false);
 select current_user, session_user, has_table_privilege(current_user, 'public.zion_offline_operation_receipts', 'INSERT') as can_insert_receipts;
 
-do $$
+do $regression$
 declare
   v_first jsonb;
   v_replay jsonb;
@@ -132,5 +132,5 @@ begin
   end if;
 
 end;
-$$;
+$regression$;
 reset role;
