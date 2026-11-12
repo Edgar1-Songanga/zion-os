@@ -87,8 +87,10 @@ export default function SecretariatOfflineSyncPanel({ organizationId, onServerRe
 
   useEffect(() => {
     setOnline(typeof navigator === "undefined" ? false : navigator.onLine);
-    void refresh();
-  }, [refresh]);
+    void refresh().then(() => {
+      if (navigator.onLine) void synchronize();
+    });
+  }, [refresh, synchronize]);
 
   useEffect(() => {
     const handleOnline = () => {
