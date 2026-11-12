@@ -25,7 +25,7 @@ const STATUS_LABELS: Record<Draft["status"], string> = {
 };
 
 export default function SecretariatOfflineSyncPanel({ organizationId, onServerRefresh }: Props) {
-  const [scope, setScope] = useState<OfflineScope | null>(null);
+  const scopeRef = useRef<OfflineScope | null>(null);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [online, setOnline] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -44,16 +44,16 @@ export default function SecretariatOfflineSyncPanel({ organizationId, onServerRe
 
   const refresh = useCallback(async () => {
     if (!organizationId) {
-      setScope(null);
+      scopeRef.current = null;
       setDrafts([]);
       return;
     }
     try {
       const nextScope = await getSecretariatOfflineScope(organizationId);
-      setScope(nextScope);
+      scopeRef.current = nextScope;
       await refreshQueue(nextScope);
     } catch (error) {
-      setScope(null);
+      scopeRef.current = null;
       setDrafts([]);
       setMessage(error instanceof Error ? error.message : "Não foi possível abrir a fila offline.");
     }
@@ -65,8 +65,8 @@ export default function SecretariatOfflineSyncPanel({ organizationId, onServerRe
     setBusy(true);
     setMessage("");
     try {
-      const activeScope = scope ?? await getSecretariatOfflineScope(organizationId);
-      setScope(activeScope);
+      const activeScope = scopeRef.current ?? await getSecretariatOfflineScope(organizationId);
+      scopeRef.current = activeScope;
       const result = await syncSecretariatMemberDrafts(activeScope);
       await refreshQueue(activeScope);
       if (result.synced > 0 || result.needsAttention > 0) refreshCallback.current();
@@ -83,7 +83,7 @@ export default function SecretariatOfflineSyncPanel({ organizationId, onServerRe
       running.current = false;
       setBusy(false);
     }
-  }, [organizationId, scope, refreshQueue]);
+  }, [organizationId, refreshQueue]);
 
   useEffect(() => {
     setOnline(typeof navigator === "undefined" ? false : navigator.onLine);
@@ -126,10 +126,11 @@ export default function SecretariatOfflineSyncPanel({ organizationId, onServerRe
   }, [refresh, synchronize]);
 
   async function discard(operationId: string) {
-    if (!scope || !window.confirm("Descartar este rascunho local? Esta acção não pode ser anulada.")) return;
-    const removed = await discardSecretariatMemberDraft(scope, operationId);
+    const activeScope = scopeRef.current;
+    if (!activeScope || !window.confirm("Descartar este rascunho local? Esta acção não pode ser anulada.")) return;
+    const removed = await discardSecretariatMemberDraft(activeScope, operationId);
     if (removed) setMessage("Rascunho local descartado.");
-    await refreshQueue(scope);
+    await refreshQueue(activeScope);
   }
 
   if (!organizationId || (drafts.length === 0 && online && !message)) return null;
