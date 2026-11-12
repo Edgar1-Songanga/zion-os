@@ -118,12 +118,13 @@ async function withStore<T>(
   const db = await openDatabase();
   try {
     const transaction = db.transaction(storeName, mode);
-    const result = await work(transaction.objectStore(storeName));
-    await new Promise<void>((resolve, reject) => {
+    const completed = new Promise<void>((resolve, reject) => {
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error ?? new Error("Transação offline falhou."));
       transaction.onabort = () => reject(transaction.error ?? new Error("Transação offline cancelada."));
     });
+    const result = await work(transaction.objectStore(storeName));
+    await completed;
     return result;
   } finally {
     db.close();
@@ -131,20 +132,19 @@ async function withStore<T>(
 }
 
 async function getEncryptionKey(scope: string): Promise<CryptoKey> {
-  const existing = await withStore<{ key: CryptoKey } | undefined>(KEYS, "readonly", async store => {
-    return requestValue(store.get(scope));
-  });
-  if (existing?.key) return existing.key;
-
-  const key = await crypto.subtle.generateKey(
+  // Generate outside the IDB transaction, then re-check under a write lock.
+  // Concurrent first writes therefore converge on the first persisted key.
+  const candidate = await crypto.subtle.generateKey(
     { name: "AES-GCM", length: 256 },
     false,
     ["encrypt", "decrypt"],
   );
-  await withStore(KEYS, "readwrite", async store => {
-    await requestValue(store.put({ scope, key }));
+  return withStore<CryptoKey>(KEYS, "readwrite", async store => {
+    const existing = await requestValue<{ key: CryptoKey } | undefined>(store.get(scope));
+    if (existing?.key) return existing.key;
+    await requestValue(store.put({ scope, key: candidate }));
+    return candidate;
   });
-  return key;
 }
 
 function encodeBase64(bytes: Uint8Array) {
@@ -276,8 +276,13 @@ export async function syncOfflineOperations(
   const records = await withStore<OfflineOperation[]>(OPERATIONS, "readonly", async store => {
     return requestValue(store.index("scope").getAll(scope));
   });
+  const now = Date.now();
+  // Recover work left in "syncing" by a closed tab or interrupted device.
   const due = records
-    .filter(record => record.status === "queued" && record.nextAttemptAt <= Date.now())
+    .filter(record =>
+      (record.status === "queued" && record.nextAttemptAt <= now) ||
+      (record.status === "syncing" && record.updatedAt <= now - 2 * 60_000),
+    )
     .sort((a, b) => a.createdAt - b.createdAt);
 
   const summary = { synced: 0, needsAttention: 0, rejected: 0, deferred: 0 };
