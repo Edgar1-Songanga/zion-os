@@ -28,7 +28,7 @@ begin
   if v_actor is null then
     raise exception 'authentication_required' using errcode = '42501';
   end if;
-  if p_outcome not in ('APPROVED', 'REJECTED', 'NO_DECISION') then
+  if p_outcome is null or p_outcome not in ('APPROVED', 'REJECTED', 'NO_DECISION') then
     raise exception 'invalid_governance_outcome' using errcode = '22023';
   end if;
 
@@ -142,7 +142,7 @@ begin
   if v_actor is null then
     raise exception 'authentication_required' using errcode = '42501';
   end if;
-  if p_status not in ('DRAFT', 'APPROVED') then
+  if p_status is null or p_status not in ('DRAFT', 'APPROVED') then
     raise exception 'invalid_governance_minutes_status' using errcode = '22023';
   end if;
   if nullif(btrim(p_content), '') is null then
@@ -178,7 +178,7 @@ begin
       where mp.meeting_id = p_meeting_id
         and mp.user_id = v_actor
         and mp.participant_role in ('HOST', 'SECRETARY')
-        and mp.status in ('INVITED', 'ACCEPTED', 'PRESENT', 'LEFT')
+        and mp.status in ('ACCEPTED', 'PRESENT', 'LEFT')
     ) into v_is_approver;
 
     if not v_is_approver then
