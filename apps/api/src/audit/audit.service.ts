@@ -37,7 +37,7 @@ export class AuditService {
   async recordFrameEvent(
     accessToken: string,
     action: FrameAuditAction,
-    metadata: Record<string, unknown> = {},
+    metadata: unknown = {},
   ): Promise<void> {
     if (!(FRAME_AUDIT_ACTIONS as readonly string[]).includes(action)) {
       throw new BadRequestException('Unsupported Frame audit action');
@@ -60,7 +60,13 @@ export class AuditService {
     );
   }
 
-  private sanitizeMetadata(input: Record<string, unknown>): Record<string, unknown> {
+  private sanitizeMetadata(input: unknown): Record<string, unknown> {
+    // Runtime HTTP payloads are untrusted even when the TypeScript signature
+    // is narrow. Reject arrays, null and primitives without throwing.
+    if (input === null || typeof input !== 'object' || Array.isArray(input)) {
+      return {};
+    }
+
     const output: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(input)) {
       if (!ALLOWED_METADATA_KEYS.has(key)) continue;
@@ -76,7 +82,7 @@ export class AuditService {
           value.length <= 500 &&
           value.every((item) => typeof item === 'string' && /^\d{8}(?:\d{6})?$/.test(item))
         ) {
-          output[key] = value;
+          output[key] = [...value];
         }
         continue;
       }

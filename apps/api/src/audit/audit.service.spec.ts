@@ -77,4 +77,22 @@ describe('AuditService Frame events', () => {
       metadata: {},
     }));
   });
+
+  it.each([null, undefined, 'invalid', 42, ['not', 'a', 'metadata', 'object']])(
+    'safely discards malformed runtime metadata: %p',
+    async (metadata) => {
+      post.mockResolvedValue([]);
+      await expect(
+        service.recordFrameEvent(
+          'admin-token',
+          'frame.migration.execution_blocked',
+          metadata,
+        ),
+      ).resolves.toBeUndefined();
+
+      expect(post).toHaveBeenCalledWith('audit_logs', 'admin-token', expect.objectContaining({
+        metadata: {},
+      }));
+    },
+  );
 });
