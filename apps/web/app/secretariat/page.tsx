@@ -612,7 +612,7 @@ export default function SecretariatPage() {
             <div className="mb-5">
               <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9B7A34]">{editingMember ? "Editar registo" : "Novo registo"}</p>
               <h2 className="mt-2 text-xl font-semibold">Dados do membro</h2>
-              <p className="mt-1 text-sm text-slate-500">Os dados são enviados para a API autenticada; a base de dados aplica as permissões RLS.</p>
+              <p className="mt-1 text-sm text-slate-500">Com ligação, os dados são enviados para a API autenticada. Sem ligação, apenas este rascunho elegível fica encriptado no dispositivo para sincronização posterior.</p>
             </div>
             <form key={editingMember?.id ?? "new-member"} onSubmit={createMember} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <label className="grid gap-1.5 text-xs font-medium text-slate-600">Nome próprio *<input required name="first_name" defaultValue={editingMember?.first_name ?? ""} maxLength={120} className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#C8A24A]" /></label>
