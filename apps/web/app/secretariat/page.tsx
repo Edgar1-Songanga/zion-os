@@ -348,6 +348,11 @@ export default function SecretariatPage() {
         } catch (queueError) {
           setError(queueError instanceof Error ? queueError.message : "Não foi possível guardar o rascunho offline.");
         }
+      } else if (reason instanceof ResaApiError && reason.status === 409) {
+        await loadMembers(organizationId);
+        setFormOpen(false);
+        setEditingMember(null);
+        setError("O registo foi alterado no servidor. Actualizei a listagem; abre novamente o membro antes de repetir a alteração.");
       } else {
         setError(reason instanceof Error ? reason.message : "Não foi possível guardar o membro.");
       }
