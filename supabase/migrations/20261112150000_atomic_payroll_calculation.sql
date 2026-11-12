@@ -90,7 +90,7 @@ begin
     if coalesce(v_item->>'currency_code', '') <> v_employee.currency_code then
       raise exception 'payroll_item_currency_mismatch' using errcode = '23514';
     end if;
-    if jsonb_typeof(v_item->'lines') <> 'array' then
+    if jsonb_typeof(v_item->'lines') is distinct from 'array' then
       raise exception 'payroll_item_lines_must_be_array' using errcode = '22023';
     end if;
 
