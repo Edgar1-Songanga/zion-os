@@ -23,6 +23,7 @@ type MemberRecord = {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  row_version: number;
 };
 
 type MemberInput = {
