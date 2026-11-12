@@ -121,7 +121,8 @@ describe('HrPayrollService payroll operations', () => {
     });
 
     expect(rpcSpy).toHaveBeenCalledTimes(1);
-    const [functionName, token, payload] = rpcSpy.mock.calls[0];
+    const [functionName, token, rawPayload] = rpcSpy.mock.calls[0];
+    const payload = rawPayload as { p_organization_id: string; p_run_id: string; p_items: Array<Record<string, any>> };
     expect(functionName).toBe('calculate_payroll_run');
     expect(token).toBe('access-token');
     expect(payload.p_organization_id).toBe(organizationId);
