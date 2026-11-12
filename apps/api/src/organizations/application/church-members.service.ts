@@ -90,7 +90,7 @@ export class ChurchMembersService {
     this.assertUuid(organizationId, 'organizationId');
     this.assertUuid(operationId, 'operationId');
     this.assertUuid(entityId, 'entityId');
-    const user = await this.identity.getCurrentUser(accessToken);
+    await this.identity.getCurrentUser(accessToken);
     const values = this.normalize(input, action === 'create');
     if (action === 'create' && (!values.first_name || !values.last_name)) {
       throw new BadRequestException('first_name and last_name are required.');
@@ -120,7 +120,7 @@ export class ChurchMembersService {
         current: result.current ?? null,
       });
     }
-    return { ...result, synced_by: user.id };
+    return result;
   }
 
   async update(accessToken: string, organizationId: string, memberId: string, input: MemberInput) {
