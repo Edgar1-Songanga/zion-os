@@ -23,6 +23,8 @@ declare
   v_line jsonb;
   v_employee public.hr_employees%rowtype;
   v_contract public.hr_contracts%rowtype;
+  v_component public.hr_payroll_components%rowtype;
+  v_expected_line_amount numeric(18,2);
   v_contract_count integer;
   v_item_id uuid;
   v_line_gross numeric(18,2);
@@ -164,15 +166,30 @@ begin
         v_base_salary_count := v_base_salary_count + 1;
         v_base_salary_line := v_base_salary_line + round((v_line->>'amount')::numeric, 2);
       else
-        if not exists (
-          select 1 from public.hr_payroll_components c
-          where c.id = (v_line->>'component_id')::uuid
-            and c.organization_id = p_organization_id
-            and c.is_active = true
-            and c.component_type = v_line->>'line_type'
-            and c.calculation_type in ('FIXED','PERCENTAGE')
-        ) then
+        select * into v_component
+        from public.hr_payroll_components c
+        where c.id = (v_line->>'component_id')::uuid
+          and c.organization_id = p_organization_id
+          and c.is_active = true
+          and c.component_type = v_line->>'line_type'
+          and c.calculation_type in ('FIXED','PERCENTAGE')
+        for share;
+
+        if not found then
           raise exception 'payroll_line_component_invalid_or_unsupported' using errcode = '23514';
+        end if;
+
+        v_expected_line_amount := case v_component.calculation_type
+          when 'FIXED' then round(coalesce(v_component.rate, 0), 2)
+          when 'PERCENTAGE' then round(v_contract.base_salary * coalesce(v_component.rate, 0) / 100, 2)
+          else null
+        end;
+
+        if v_expected_line_amount is null
+           or v_expected_line_amount <= 0
+           or round((v_line->>'amount')::numeric, 2) <> v_expected_line_amount
+           or nullif(v_line->>'rate', '')::numeric is distinct from v_component.rate then
+          raise exception 'payroll_line_amount_does_not_match_authoritative_component_rule' using errcode = '23514';
         end if;
       end if;
 
