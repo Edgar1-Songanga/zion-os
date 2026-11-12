@@ -138,20 +138,19 @@ export class HrPayrollService {
 
   async calculatePayroll(accessToken: string, organizationId: string, runId: string) {
     const runs = await this.db.get<Array<{ id: string; period_start: string; period_end: string; status: string }>>(
-      'payroll_runs', accessToken, `?select=id,period_start,period_end,status&organization_id=eq.${organizationId}&id=eq.${runId}&limit=1`);
+      'payroll_runs', accessToken, `?select=id,period_start,period_end,status&organization_id=eq.${encodeURIComponent(organizationId)}&id=eq.${encodeURIComponent(runId)}&limit=1`);
     const run = runs[0];
     if (!run) throw new NotFoundException('Payroll run not found');
     if (run.status !== 'DRAFT') throw new BadRequestException('Payroll run can only be calculated while in DRAFT status');
 
     const employees = await this.db.get<Employee[]>('hr_employees', accessToken,
-      `?select=id,organization_id,employee_number,legal_first_name,legal_last_name,preferred_name,employment_status,job_title,currency_code&organization_id=eq.${organizationId}&employment_status=eq.ACTIVE`);
+      `?select=id,organization_id,employee_number,legal_first_name,legal_last_name,preferred_name,employment_status,job_title,currency_code&organization_id=eq.${encodeURIComponent(organizationId)}&employment_status=eq.ACTIVE`);
     const contracts = await this.db.get<Contract[]>('hr_contracts', accessToken,
       '?select=employee_id,base_salary,currency_code&status=eq.ACTIVE');
     const components = await this.db.get<Component[]>('hr_payroll_components', accessToken,
-      `?select=id,code,name,component_type,calculation_type,rate&organization_id=eq.${organizationId}&is_active=eq.true`);
+      `?select=id,code,name,component_type,calculation_type,rate&organization_id=eq.${encodeURIComponent(organizationId)}&is_active=eq.true`);
 
-    // Never silently turn an unsupported formula into a zero-value payroll line.
-    // Validate before changing the run state so the run remains safely in DRAFT.
+    // Fail closed before invoking the transaction; the database repeats this guard.
     const unsupportedFormula = components.find((component) => component.calculation_type === 'FORMULA');
     if (unsupportedFormula) {
       throw new BadRequestException(
@@ -159,13 +158,15 @@ export class HrPayrollService {
       );
     }
 
-    await this.db.patch('payroll_runs', accessToken, { status: 'CALCULATING' }, `?id=eq.${runId}&organization_id=eq.${organizationId}`);
-
-    let grossTotal = 0, deductionTotal = 0, employerTotal = 0;
+    const items: Array<Record<string, unknown>> = [];
     for (const employee of employees) {
       const contract = contracts.find((item) => item.employee_id === employee.id);
       if (!contract) continue;
       const base = Number(contract.base_salary || 0);
+      if (!Number.isFinite(base) || base < 0) {
+        throw new BadRequestException(`Invalid base salary for employee ${employee.employee_number}`);
+      }
+
       let gross = base;
       let deductions = 0;
       let employer = 0;
@@ -174,33 +175,67 @@ export class HrPayrollService {
       }];
 
       for (const component of components) {
+        const rate = Number(component.rate ?? 0);
+        if (!Number.isFinite(rate) || rate < 0) {
+          throw new BadRequestException(`Invalid rate for payroll component ${component.code}`);
+        }
         const amount = component.calculation_type === 'FIXED'
-          ? Number(component.rate || 0)
-          : component.calculation_type === 'PERCENTAGE'
-            ? base * Number(component.rate || 0) / 100
-            : 0;
+          ? rate
+          : base * rate / 100;
+        if (!Number.isFinite(amount)) {
+          throw new BadRequestException(`Invalid calculated amount for payroll component ${component.code}`);
+        }
         if (amount <= 0) continue;
-        if (component.component_type === 'EARNING') { gross += amount; lines.push({ component_id: component.id, line_type: 'EARNING', description: component.name, amount, rate: component.rate }); }
-        if (component.component_type === 'DEDUCTION') { deductions += amount; lines.push({ component_id: component.id, line_type: 'DEDUCTION', description: component.name, amount, rate: component.rate }); }
-        if (component.component_type === 'EMPLOYER_CONTRIBUTION') { employer += amount; lines.push({ component_id: component.id, line_type: 'EMPLOYER_CONTRIBUTION', description: component.name, amount, rate: component.rate }); }
+        if (component.component_type === 'EARNING') {
+          gross += amount;
+          lines.push({ component_id: component.id, line_type: 'EARNING', description: component.name, amount, rate });
+        }
+        if (component.component_type === 'DEDUCTION') {
+          deductions += amount;
+          lines.push({ component_id: component.id, line_type: 'DEDUCTION', description: component.name, amount, rate });
+        }
+        if (component.component_type === 'EMPLOYER_CONTRIBUTION') {
+          employer += amount;
+          lines.push({ component_id: component.id, line_type: 'EMPLOYER_CONTRIBUTION', description: component.name, amount, rate });
+        }
       }
 
-      const net = gross - deductions;
-      const itemRows = await this.db.post<Array<{ id: string }>>('payroll_items', accessToken, {
-        payroll_run_id: runId, employee_id: employee.id, gross_amount: gross,
-        deduction_amount: deductions, employer_contribution_amount: employer, net_amount: net,
+      const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+      gross = roundMoney(gross);
+      deductions = roundMoney(deductions);
+      employer = roundMoney(employer);
+      const net = roundMoney(gross - deductions);
+      items.push({
+        employee_id: employee.id,
+        gross_amount: gross,
+        deduction_amount: deductions,
+        employer_contribution_amount: employer,
+        net_amount: net,
         currency_code: employee.currency_code || 'AOA',
-        calculation_snapshot: { base_salary: base, period_start: run.period_start, period_end: run.period_end },
+        calculation_snapshot: {
+          base_salary: roundMoney(base),
+          period_start: run.period_start,
+          period_end: run.period_end,
+        },
+        lines: lines.map((line) => ({ ...line, amount: roundMoney(Number(line.amount)) })),
       });
-      const item = itemRows[0];
-      if (!item) continue;
-      for (const line of lines) await this.db.post('payroll_item_lines', accessToken, { payroll_item_id: item.id, ...line });
-      grossTotal += gross; deductionTotal += deductions; employerTotal += employer;
     }
-    const netTotal = grossTotal - deductionTotal;
-    return this.db.patch('payroll_runs', accessToken, {
-      status: 'REVIEW', gross_total: grossTotal, deduction_total: deductionTotal,
-      employer_contribution_total: employerTotal, net_total: netTotal,
-    }, `?id=eq.${runId}&organization_id=eq.${organizationId}`);
+
+    // A single database transaction locks the run, inserts all items and lines,
+    // calculates totals and moves the run to REVIEW. Any error rolls everything back.
+    const rows = await this.db.rpc<Array<{
+      id: string;
+      status: string;
+      gross_total: number;
+      deduction_total: number;
+      employer_contribution_total: number;
+      net_total: number;
+    }>>('calculate_payroll_run', accessToken, {
+      p_organization_id: organizationId,
+      p_run_id: runId,
+      p_items: items,
+    });
+    if (!rows[0]) throw new BadRequestException('Payroll calculation did not return a completed run');
+    return rows[0];
   }
 }
