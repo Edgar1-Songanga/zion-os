@@ -99,6 +99,8 @@ describe('GovernanceService mediaJoinConfig', () => {
 
 
 describe('GovernanceService participant removal', () => {
+  afterEach(() => jest.restoreAllMocks());
+
   it('evicts a removed participant from the active SFU room', async () => {
     const getSpy = jest.spyOn(SupabaseRestClient.prototype, 'get')
       .mockResolvedValueOnce([{ id: 'moderator-row', participant_role: 'HOST', status: 'PRESENT' }] as never)
