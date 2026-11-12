@@ -22,6 +22,7 @@ export type OfflineOperationInput = {
   payload: unknown;
   baseVersion?: string | number | null;
   isSensitive?: boolean;
+  operationId?: string;
 };
 
 export type OfflineOperation = {
@@ -215,7 +216,10 @@ export async function enqueueOfflineOperation(
 
   const encrypted = await encryptPayload(scope, input.payload);
   const now = Date.now();
-  const id = crypto.randomUUID();
+  const id = input.operationId ?? crypto.randomUUID();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+    throw new Error("O identificador da operação offline deve ser um UUID válido.");
+  }
   const record: OfflineOperation = {
     id,
     scope,
@@ -236,6 +240,33 @@ export async function enqueueOfflineOperation(
     await requestValue(store.add(record));
   });
   return id;
+}
+
+export async function readOfflineOperationPayload<T>(
+  scopeInput: OfflineScope,
+  operationId: string,
+): Promise<T | undefined> {
+  const scope = makeScope(scopeInput);
+  const record = await withStore<OfflineOperation | undefined>(
+    OPERATIONS, "readonly", async store => requestValue(store.get(operationId)),
+  );
+  if (!record || record.scope !== scope) return undefined;
+  return decryptPayload<T>(record);
+}
+
+export async function listOfflineOperationsWithPayload<T>(
+  scopeInput: OfflineScope,
+  statuses?: OfflineOperationStatus[],
+  moduleFilter?: string,
+): Promise<Array<Omit<OfflineOperation, "ciphertext" | "iv"> & { payload: T }>> {
+  const metadata = (await listOfflineOperations(scopeInput, statuses))
+    .filter(operation => !moduleFilter || operation.module === moduleFilter);
+  const hydrated: Array<Omit<OfflineOperation, "ciphertext" | "iv"> & { payload: T }> = [];
+  for (const operation of metadata) {
+    const payload = await readOfflineOperationPayload<T>(scopeInput, operation.id);
+    if (payload !== undefined) hydrated.push({ ...operation, payload });
+  }
+  return hydrated;
 }
 
 export async function listOfflineOperations(
@@ -279,6 +310,7 @@ export async function syncOfflineOperations(
     baseVersion: string | number | null;
     payload: unknown;
   }) => Promise<OfflineSyncResult>,
+  moduleFilter?: string,
 ): Promise<{ synced: number; needsAttention: number; rejected: number; deferred: number }> {
   const scope = makeScope(scopeInput);
   const records = await withStore<OfflineOperation[]>(OPERATIONS, "readonly", async store => {
@@ -288,8 +320,9 @@ export async function syncOfflineOperations(
   // Recover work left in "syncing" by a closed tab or interrupted device.
   const due = records
     .filter(record =>
-      (record.status === "queued" && record.nextAttemptAt <= now) ||
-      (record.status === "syncing" && record.updatedAt <= now - 2 * 60_000),
+      (!moduleFilter || record.module === moduleFilter) &&
+      ((record.status === "queued" && record.nextAttemptAt <= now) ||
+       (record.status === "syncing" && record.updatedAt <= now - 2 * 60_000)),
     )
     .sort((a, b) => a.createdAt - b.createdAt);
 
@@ -333,6 +366,19 @@ export async function syncOfflineOperations(
     }
   }
   return summary;
+}
+
+export async function discardOfflineOperation(
+  scopeInput: OfflineScope,
+  operationId: string,
+): Promise<boolean> {
+  const scope = makeScope(scopeInput);
+  return withStore<boolean>(OPERATIONS, "readwrite", async store => {
+    const record = await requestValue<OfflineOperation | undefined>(store.get(operationId));
+    if (!record || record.scope !== scope || record.status === "syncing") return false;
+    await requestValue(store.delete(operationId));
+    return true;
+  });
 }
 
 /** Delete local records and their encryption key when an account is removed from this device. */

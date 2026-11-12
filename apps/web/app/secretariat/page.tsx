@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { OrganizationSelector, type ZionOrganization } from "@/components/organization/OrganizationSelector";
-import { resaRequest } from "@/lib/resa/api";
+import { ResaApiError, resaRequest } from "@/lib/resa/api";
+import SecretariatOfflineSyncPanel from "@/components/secretariat/SecretariatOfflineSyncPanel";
+import { enqueueSecretariatMemberDraft, getSecretariatOfflineScope } from "@/lib/offline/secretariat-adapter";
 
 type Member = {
   id: string;
@@ -21,6 +23,7 @@ type Member = {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  row_version?: number;
 };
 type BaptismRecord = {
   id: string;
@@ -201,6 +204,10 @@ export default function SecretariatPage() {
     if (organizationId) void loadMembers(organizationId);
   }, [organizationId, loadMembers]);
 
+  const refreshMembersAfterOfflineSync = useCallback(() => {
+    if (organizationId) void loadMembers(organizationId);
+  }, [organizationId, loadMembers]);
+
   const loadArchive = useCallback(async (status: "DECEASED" | "REMOVED") => {
     setArchiveLoading(true);
     setArchiveError("");
@@ -252,22 +259,103 @@ export default function SecretariatPage() {
       joined_on: String(form.get("joined_on") ?? "") || null,
       membership_status: String(form.get("membership_status") ?? "ACTIVE"),
     };
+    const operationId = crypto.randomUUID();
+    const entityId = editingMember?.id ?? crypto.randomUUID();
+    const expectedVersion = editingMember?.row_version ?? null;
+    const canUseIdempotentEndpoint = !editingMember ||
+      (Number.isSafeInteger(expectedVersion) && (expectedVersion ?? 0) > 0);
+    const legacyPath = `/v1/organizations/${encodeURIComponent(organizationId)}/church-members${editingMember ? `/${encodeURIComponent(editingMember.id)}` : ""}`;
+
+    async function saveDraftOffline() {
+      const scope = await getSecretariatOfflineScope(organizationId);
+      await enqueueSecretariatMemberDraft({
+        scope,
+        operationId,
+        entityId,
+        action: editingMember ? "update" : "create",
+        expectedVersion,
+        payload,
+      });
+      setNotice("Rascunho guardado localmente e encriptado. Será sincronizado quando a ligação regressar.");
+      setFormOpen(false);
+      setEditingMember(null);
+      formElement.reset();
+    }
+
     setSaving(true);
     setError("");
     setNotice("");
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      try {
+        await saveDraftOffline();
+      } catch (queueError) {
+        setError(queueError instanceof Error ? queueError.message : "Não foi possível guardar o rascunho offline.");
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
+    let usedLegacyEndpoint = false;
     try {
-      const path = `/v1/organizations/${encodeURIComponent(organizationId)}/church-members${editingMember ? `/${encodeURIComponent(editingMember.id)}` : ""}`;
-      await resaRequest<Member>(path, {
-        method: editingMember ? "PATCH" : "POST",
-        body: JSON.stringify(payload),
-      });
+      if (canUseIdempotentEndpoint) {
+        try {
+          await resaRequest<Member>(
+            `/v1/organizations/${encodeURIComponent(organizationId)}/church-members/offline-sync`,
+            {
+              method: "POST",
+              body: JSON.stringify({
+                operationId,
+                entityId,
+                action: editingMember ? "update" : "create",
+                expectedVersion,
+                payload,
+              }),
+            },
+          );
+        } catch (reason) {
+          // Older deployments do not expose the idempotent route yet. A 404
+          // means no operation was executed, so retain online CRUD compatibility.
+          if (!(reason instanceof ResaApiError) || reason.status !== 404) throw reason;
+          usedLegacyEndpoint = true;
+          await resaRequest<Member>(legacyPath, {
+            method: editingMember ? "PATCH" : "POST",
+            body: JSON.stringify(payload),
+          });
+        }
+      } else {
+        usedLegacyEndpoint = true;
+        await resaRequest<Member>(legacyPath, {
+          method: editingMember ? "PATCH" : "POST",
+          body: JSON.stringify(payload),
+        });
+      }
       setNotice(editingMember ? "Registo de membro actualizado." : "Registo de membro criado e guardado na base de dados.");
       setFormOpen(false);
       setEditingMember(null);
       formElement.reset();
       await loadMembers(organizationId);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Não foi possível guardar o membro.");
+      const transportFailure =
+        (typeof navigator !== "undefined" && !navigator.onLine) ||
+        (reason instanceof Error && reason.message.includes("comunicar com o serviço RESA"));
+      if (transportFailure && canUseIdempotentEndpoint && !usedLegacyEndpoint) {
+        try {
+          // Reuse the exact operation/entity IDs from the online attempt. If the
+          // server committed but its response was lost, replay remains idempotent.
+          await saveDraftOffline();
+        } catch (queueError) {
+          setError(queueError instanceof Error ? queueError.message : "Não foi possível guardar o rascunho offline.");
+        }
+      } else if (reason instanceof ResaApiError && reason.status === 409) {
+        await loadMembers(organizationId);
+        setFormOpen(false);
+        setEditingMember(null);
+        setError("O registo foi alterado no servidor. Actualizei a listagem; abre novamente o membro antes de repetir a alteração.");
+      } else {
+        setError(reason instanceof Error ? reason.message : "Não foi possível guardar o membro.");
+      }
     } finally {
       setSaving(false);
     }
@@ -576,13 +664,14 @@ export default function SecretariatPage() {
 
         {error && <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>}
         {notice && <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</div>}
+        <SecretariatOfflineSyncPanel organizationId={organizationId} onServerRefresh={refreshMembersAfterOfflineSync} />
 
         {formOpen && (
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
             <div className="mb-5">
               <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9B7A34]">{editingMember ? "Editar registo" : "Novo registo"}</p>
               <h2 className="mt-2 text-xl font-semibold">Dados do membro</h2>
-              <p className="mt-1 text-sm text-slate-500">Os dados são enviados para a API autenticada; a base de dados aplica as permissões RLS.</p>
+              <p className="mt-1 text-sm text-slate-500">Com ligação, os dados são enviados para a API autenticada. Sem ligação, apenas este rascunho elegível fica encriptado no dispositivo para sincronização posterior.</p>
             </div>
             <form key={editingMember?.id ?? "new-member"} onSubmit={createMember} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <label className="grid gap-1.5 text-xs font-medium text-slate-600">Nome próprio *<input required name="first_name" defaultValue={editingMember?.first_name ?? ""} maxLength={120} className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#C8A24A]" /></label>
