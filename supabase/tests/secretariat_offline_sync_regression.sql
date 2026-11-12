@@ -93,4 +93,45 @@ begin
 end;
 $$;
 
+
+  -- Authenticated users must not be able to forge or mutate idempotency receipts
+  -- through direct table DML. Only sync_church_member_offline may write them.
+  begin
+    insert into public.zion_offline_operation_receipts (
+      organization_id, actor_id, operation_id, entity_id, module_key, action, request_fingerprint, result
+    ) values (
+      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      '11111111-1111-4111-8111-111111111111',
+      '66666666-6666-4666-8666-666666666666',
+      '77777777-7777-4777-8777-777777777777',
+      'church.members', 'create', 'forged-fingerprint', '{"forged":true}'::jsonb
+    );
+    raise exception 'Direct receipt INSERT unexpectedly succeeded';
+  exception when insufficient_privilege then
+    null;
+  end;
+
+  begin
+    update public.zion_offline_operation_receipts
+    set result = '{"forged":true}'::jsonb
+    where actor_id = '11111111-1111-4111-8111-111111111111'
+      and operation_id = '22222222-2222-4222-8222-222222222222';
+    raise exception 'Direct receipt UPDATE unexpectedly succeeded';
+  exception when insufficient_privilege then
+    null;
+  end;
+
+  -- RPC replay remains functional after direct table writes are revoked.
+  v_replay := public.sync_church_member_offline(
+    '22222222-2222-4222-8222-222222222222',
+    'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    '33333333-3333-4333-8333-333333333333',
+    'create',
+    null,
+    '{"first_name":"Ana","last_name":"Silva"}'::jsonb
+  );
+  if v_replay <> v_first then
+    raise exception 'RPC replay failed after receipt write privileges were revoked';
+  end if;
+
 reset role;
