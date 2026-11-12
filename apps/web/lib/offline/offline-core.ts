@@ -303,6 +303,7 @@ export async function syncOfflineOperations(
     baseVersion: string | number | null;
     payload: unknown;
   }) => Promise<OfflineSyncResult>,
+  moduleFilter?: string,
 ): Promise<{ synced: number; needsAttention: number; rejected: number; deferred: number }> {
   const scope = makeScope(scopeInput);
   const records = await withStore<OfflineOperation[]>(OPERATIONS, "readonly", async store => {
@@ -312,8 +313,9 @@ export async function syncOfflineOperations(
   // Recover work left in "syncing" by a closed tab or interrupted device.
   const due = records
     .filter(record =>
-      (record.status === "queued" && record.nextAttemptAt <= now) ||
-      (record.status === "syncing" && record.updatedAt <= now - 2 * 60_000),
+      (!moduleFilter || record.module === moduleFilter) &&
+      ((record.status === "queued" && record.nextAttemptAt <= now) ||
+       (record.status === "syncing" && record.updatedAt <= now - 2 * 60_000)),
     )
     .sort((a, b) => a.createdAt - b.createdAt);
 
