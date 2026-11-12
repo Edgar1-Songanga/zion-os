@@ -147,6 +147,15 @@ export class HrPayrollService {
     const components = await this.db.get<Component[]>('hr_payroll_components', accessToken,
       `?select=id,code,name,component_type,calculation_type,rate&organization_id=eq.${organizationId}&is_active=eq.true`);
 
+    // Never silently turn an unsupported formula into a zero-value payroll line.
+    // Validate before changing the run state so the run remains safely in DRAFT.
+    const unsupportedFormula = components.find((component) => component.calculation_type === 'FORMULA');
+    if (unsupportedFormula) {
+      throw new BadRequestException(
+        `Payroll component "${unsupportedFormula.code}" uses FORMULA, which is not yet supported by the validated calculation engine`,
+      );
+    }
+
     await this.db.patch('payroll_runs', accessToken, { status: 'CALCULATING' }, `?id=eq.${runId}&organization_id=eq.${organizationId}`);
 
     let grossTotal = 0, deductionTotal = 0, employerTotal = 0;
