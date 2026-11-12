@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { IdentityService } from '../../identity/application/identity.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 
@@ -75,6 +75,51 @@ export class ChurchMembersService {
     );
     if (!created[0]) throw new BadRequestException('The member record was not created.');
     return created[0];
+  }
+
+  async syncOffline(
+    accessToken: string,
+    organizationId: string,
+    operationId: string,
+    entityId: string,
+    action: 'create' | 'update',
+    expectedVersion: number | null,
+    input: MemberInput,
+  ) {
+    this.assertUuid(organizationId, 'organizationId');
+    this.assertUuid(operationId, 'operationId');
+    this.assertUuid(entityId, 'entityId');
+    const user = await this.identity.getCurrentUser(accessToken);
+    const values = this.normalize(input, action === 'create');
+    if (action === 'create' && (!values.first_name || !values.last_name)) {
+      throw new BadRequestException('first_name and last_name are required.');
+    }
+    if (action === 'update' && (!Number.isSafeInteger(expectedVersion) || (expectedVersion ?? 0) < 1)) {
+      throw new BadRequestException('A valid expectedVersion is required for offline updates.');
+    }
+    if (action === 'create' && expectedVersion !== null) {
+      throw new BadRequestException('Create operations cannot include expectedVersion.');
+    }
+
+    const result = await this.db.rpc<Record<string, unknown>>(
+      'sync_church_member_offline',
+      accessToken,
+      {
+        p_operation_id: operationId,
+        p_organization_id: organizationId,
+        p_entity_id: entityId,
+        p_action: action,
+        p_expected_version: expectedVersion,
+        p_payload: values,
+      },
+    );
+    if (result && result.sync_conflict === true) {
+      throw new ConflictException({
+        message: 'Este registo foi alterado noutro dispositivo. Revê a versão actual antes de sincronizar.',
+        current: result.current ?? null,
+      });
+    }
+    return { ...result, synced_by: user.id };
   }
 
   async update(accessToken: string, organizationId: string, memberId: string, input: MemberInput) {
