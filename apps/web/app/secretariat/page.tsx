@@ -25,6 +25,18 @@ type Member = {
   updated_at: string;
   row_version?: number;
 };
+type IdentityCandidate = {
+  candidate_member_record_id: string;
+  candidate_organization_id: string;
+  candidate_organization_name: string;
+  candidate_member_number: string | null;
+  first_name: string;
+  last_name: string;
+  birth_date: string;
+  gender: string | null;
+  membership_status: Member["membership_status"];
+  match_basis: "EXACT_NAME_AND_BIRTH_DATE";
+};
 type BaptismRecord = {
   id: string;
   organization_id: string;
@@ -131,6 +143,7 @@ export default function SecretariatPage() {
   const [archiveError, setArchiveError] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [identityCandidates, setIdentityCandidates] = useState<IdentityCandidate[]>([]);
   const [familyRelationships, setFamilyRelationships] = useState<FamilyRelationship[]>([]);
   const [familyLoading, setFamilyLoading] = useState(false);
   const [familySaving, setFamilySaving] = useState(false);
@@ -285,6 +298,7 @@ export default function SecretariatPage() {
     setSaving(true);
     setError("");
     setNotice("");
+    setIdentityCandidates([]);
 
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       try {
@@ -347,6 +361,26 @@ export default function SecretariatPage() {
           await saveDraftOffline();
         } catch (queueError) {
           setError(queueError instanceof Error ? queueError.message : "Não foi possível guardar o rascunho offline.");
+        }
+      } else if (reason instanceof Error && reason.message.toLowerCase().includes("possible existing member")) {
+        try {
+          const candidates = await resaRequest<IdentityCandidate[]>(
+            `/v1/organizations/${encodeURIComponent(organizationId)}/church-members/identity-candidates`,
+            {
+              method: "POST",
+              body: JSON.stringify({
+                first_name: payload.first_name,
+                last_name: payload.last_name,
+                birth_date: payload.birth_date,
+                gender: payload.gender,
+              }),
+            },
+          );
+          setIdentityCandidates(candidates);
+          setError("");
+          setNotice("");
+        } catch (lookupReason) {
+          setError(lookupReason instanceof Error ? lookupReason.message : reason.message);
         }
       } else if (reason instanceof ResaApiError && reason.status === 409) {
         await loadMembers(organizationId);
@@ -647,7 +681,7 @@ export default function SecretariatPage() {
 
         <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-end sm:justify-between">
           <div className="w-full max-w-xl">
-            <OrganizationSelector value={organizationId} onChange={(id, selected) => { setOrganization(selected); setOrganizationId(id); }} />
+            <OrganizationSelector value={organizationId} onChange={(id, selected) => { setIdentityCandidates([]); setNotice(""); setOrganization(selected); setOrganizationId(id); }} />
             {organization && <p className="mt-2 text-xs text-slate-500">Âmbito activo: <strong className="text-slate-700">{organization.name}</strong> · {organization.organization_type}</p>}
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
@@ -655,7 +689,7 @@ export default function SecretariatPage() {
               className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-40">
               {loading ? "A actualizar…" : "Actualizar"}
             </button>
-            <button type="button" onClick={() => { if (formOpen) { setFormOpen(false); setEditingMember(null); } else { setEditingMember(null); setFormOpen(true); } }} disabled={!organizationId}
+            <button type="button" onClick={() => { setIdentityCandidates([]); setNotice(""); if (formOpen) { setFormOpen(false); setEditingMember(null); } else { setEditingMember(null); setFormOpen(true); } }} disabled={!organizationId}
               className="rounded-xl bg-[#0C1A3D] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#172c55] disabled:opacity-40">
               {formOpen ? "Fechar formulário" : "Adicionar membro"}
             </button>
@@ -664,6 +698,26 @@ export default function SecretariatPage() {
 
         {error && <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>}
         {notice && <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</div>}
+        {identityCandidates.length > 0 && (
+          <section aria-labelledby="identity-candidate-title" className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm sm:p-7">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-800">Revisão de identidade · sem associação automática</p>
+            <h2 id="identity-candidate-title" className="mt-2 text-lg font-semibold text-amber-950">Possíveis registos correspondentes</h2>
+            <p className="mt-1 text-sm leading-6 text-amber-900">A pesquisa encontrou correspondências exactas de nome e data de nascimento. Confirme a identidade através do procedimento institucional e dos documentos autorizados. Não crie um segundo registo nem una pessoas apenas com base nesta correspondência.</p>
+            <ul className="mt-4 divide-y divide-amber-200 rounded-xl border border-amber-200 bg-white">
+              {identityCandidates.map((candidate) => (
+                <li key={candidate.candidate_member_record_id} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="font-semibold text-slate-900">{candidate.first_name} {candidate.last_name}</p>
+                    <p className="mt-1 text-xs text-slate-600">Nascimento: {dateLabel(candidate.birth_date)} · {STATUS_LABELS[candidate.membership_status] ?? candidate.membership_status}{candidate.candidate_member_number ? ` · N.º ${candidate.candidate_member_number}` : ""}</p>
+                  </div>
+                  <p className="text-xs font-medium text-slate-600">{candidate.candidate_organization_name}</p>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 text-xs text-amber-900">A associação, correcção ou transferência deve ser decidida por um responsável com autorização nas organizações envolvidas e ficar registada em auditoria.</p>
+            <button type="button" onClick={() => { setIdentityCandidates([]); setNotice(""); }} className="mt-4 rounded-xl border border-amber-300 px-4 py-2.5 text-sm font-semibold text-amber-950 hover:bg-amber-100">Fechar resultados</button>
+          </section>
+        )}
         <SecretariatOfflineSyncPanel organizationId={organizationId} onServerRefresh={refreshMembersAfterOfflineSync} />
 
         {formOpen && (
