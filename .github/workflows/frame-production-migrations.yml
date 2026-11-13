@@ -33,7 +33,7 @@ concurrency:
 
 jobs:
   plan:
-    name: Build and validate immutable production plan
+    name: Build Frame plan and validate remote queue when configured
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -63,9 +63,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$SUPABASE_ACCESS_TOKEN"
-          test -n "$SUPABASE_DB_PASSWORD"
           test -n "$ZION_SUPABASE_PROJECT_REF"
+          if [[ -z "$SUPABASE_ACCESS_TOKEN" || -z "$SUPABASE_DB_PASSWORD" ]]; then
+            if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+              echo "::notice::Frame generated a local immutable plan. Remote Supabase dry-run was skipped because production credentials are not configured in repository secrets."
+              echo "Remote Supabase validation: SKIPPED (production credentials not configured)." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "::error::Configure ZION_SUPABASE_ACCESS_TOKEN and ZION_SUPABASE_DB_PASSWORD in repository Actions secrets before a manual Frame plan or execution."
+            exit 1
+          fi
 
       - name: Generate immutable plan
         id: plan
@@ -79,15 +86,18 @@ jobs:
           cat "$RUNNER_TEMP/frame-plan.json" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Link production project
+        if: env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_DB_PASSWORD != ''
         run: supabase link --project-ref "$ZION_SUPABASE_PROJECT_REF"
 
       - name: Capture remote migration ledger
+        if: env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_DB_PASSWORD != ''
         shell: bash
         run: |
           set -euo pipefail
           supabase migration list --linked | tee "$RUNNER_TEMP/remote-migrations-before.txt"
 
       - name: Dry-run complete migration queue
+        if: env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_DB_PASSWORD != ''
         shell: bash
         run: |
           set -euo pipefail
@@ -112,7 +122,7 @@ jobs:
             ${{ runner.temp }}/frame-plan.json
             ${{ runner.temp }}/remote-migrations-before.txt
             ${{ runner.temp }}/frame-dry-run.txt
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 30
 
   execute:
