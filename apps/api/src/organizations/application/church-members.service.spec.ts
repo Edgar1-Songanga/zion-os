@@ -13,7 +13,6 @@ describe('ChurchMembersService', () => {
   let postSpy: jest.SpyInstance;
   let patchSpy: jest.SpyInstance;
   let rpcSpy: jest.SpyInstance;
-  let rpcSpy: jest.SpyInstance;
 
   beforeEach(() => {
     jest.restoreAllMocks();
@@ -22,7 +21,6 @@ describe('ChurchMembersService', () => {
     getSpy = jest.spyOn(SupabaseRestClient.prototype, 'get').mockResolvedValue([] as never);
     postSpy = jest.spyOn(SupabaseRestClient.prototype, 'post').mockResolvedValue([] as never);
     patchSpy = jest.spyOn(SupabaseRestClient.prototype, 'patch').mockResolvedValue([] as never);
-    rpcSpy = jest.spyOn(SupabaseRestClient.prototype, 'rpc').mockResolvedValue([] as never);
     rpcSpy = jest.spyOn(SupabaseRestClient.prototype, 'rpc').mockResolvedValue({ id: memberId } as never);
   });
 
