@@ -17,12 +17,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <>
     <SessionPermissionRefresh />
-    <div className="flex min-h-screen">
+    <div className="flex h-dvh min-h-0 overflow-hidden">
       <Sidebar />
-      <div className="flex flex-1 flex-col">
+      <div className="flex h-dvh min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <Topbar />
-        <main className="flex-1">{children}</main>
-        <Footer />
+        <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          {children}
+          <Footer />
+        </main>
       </div>
     </div>
     </>
