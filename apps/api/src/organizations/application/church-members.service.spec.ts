@@ -13,6 +13,7 @@ describe('ChurchMembersService', () => {
   let postSpy: jest.SpyInstance;
   let patchSpy: jest.SpyInstance;
   let rpcSpy: jest.SpyInstance;
+  let rpcSpy: jest.SpyInstance;
 
   beforeEach(() => {
     jest.restoreAllMocks();
@@ -21,6 +22,7 @@ describe('ChurchMembersService', () => {
     getSpy = jest.spyOn(SupabaseRestClient.prototype, 'get').mockResolvedValue([] as never);
     postSpy = jest.spyOn(SupabaseRestClient.prototype, 'post').mockResolvedValue([] as never);
     patchSpy = jest.spyOn(SupabaseRestClient.prototype, 'patch').mockResolvedValue([] as never);
+    rpcSpy = jest.spyOn(SupabaseRestClient.prototype, 'rpc').mockResolvedValue([] as never);
     rpcSpy = jest.spyOn(SupabaseRestClient.prototype, 'rpc').mockResolvedValue({ id: memberId } as never);
   });
 
@@ -31,6 +33,69 @@ describe('ChurchMembersService', () => {
       accessToken,
       expect.stringContaining(`organization_id=eq.${organizationId}`),
     );
+  });
+
+  it('searches cross-church identity candidates through the permission-scoped RPC', async () => {
+    await service.findIdentityCandidates(accessToken, organizationId, {
+      first_name: ' Ana ',
+      last_name: ' Silva ',
+      birth_date: '1990-05-12',
+      gender: 'FEMALE',
+    });
+    expect(rpcSpy).toHaveBeenCalledWith('find_zion_member_identity_candidates', accessToken, {
+      p_organization_id: organizationId,
+      p_first_name: 'Ana',
+      p_last_name: 'Silva',
+      p_birth_date: '1990-05-12',
+      p_gender: 'FEMALE',
+    });
+  });
+
+  it('rejects invalid candidate search dates before calling the database', async () => {
+    await expect(service.findIdentityCandidates(accessToken, organizationId, {
+      first_name: 'Ana',
+      last_name: 'Silva',
+      birth_date: '2026-02-31',
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(rpcSpy).not.toHaveBeenCalled();
+  });
+
+  it('rejects incomplete candidate search data before calling the database', async () => {
+    await expect(service.findIdentityCandidates(accessToken, organizationId, {
+      first_name: 'Ana',
+      last_name: ' ',
+      birth_date: '1990-05-12',
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(rpcSpy).not.toHaveBeenCalled();
+  });
+
+  it('blocks member creation when authorized identity candidates already exist', async () => {
+    rpcSpy.mockResolvedValueOnce([{
+      candidate_member_record_id: memberId,
+      candidate_organization_id: organizationId,
+      first_name: 'Ana',
+      last_name: 'Silva',
+      birth_date: '1990-05-12',
+      gender: 'FEMALE',
+      membership_status: 'ACTIVE',
+      match_basis: 'EXACT_NAME_AND_BIRTH_DATE',
+    }] as never);
+
+    await expect(service.create(accessToken, organizationId, {
+      first_name: 'Ana',
+      last_name: 'Silva',
+      birth_date: '1990-05-12',
+      gender: 'FEMALE',
+    })).rejects.toBeInstanceOf(ConflictException);
+
+    expect(rpcSpy).toHaveBeenCalledWith('find_zion_member_identity_candidates', accessToken, {
+      p_organization_id: organizationId,
+      p_first_name: 'Ana',
+      p_last_name: 'Silva',
+      p_birth_date: '1990-05-12',
+      p_gender: 'FEMALE',
+    });
+    expect(postSpy).not.toHaveBeenCalled();
   });
 
   it('creates a member with normalized fields and server-derived audit identities', async () => {
