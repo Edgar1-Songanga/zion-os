@@ -74,4 +74,84 @@ describe('HrPayrollService payroll operations', () => {
     expect(getSpy).toHaveBeenCalledTimes(4);
     expect(patchSpy).not.toHaveBeenCalled();
   });
+  it('submits the complete payroll payload to one atomic database operation', async () => {
+    getSpy
+      .mockResolvedValueOnce([
+        { id: runId, period_start: '2026-10-01', period_end: '2026-10-31', status: 'DRAFT' },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: '00000000-0000-4000-8000-000000000003',
+          organization_id: organizationId,
+          employee_number: 'EMP-001',
+          legal_first_name: 'Ana',
+          legal_last_name: 'Silva',
+          employment_status: 'ACTIVE',
+          job_title: 'Accountant',
+          currency_code: 'AOA',
+        },
+      ])
+      .mockResolvedValueOnce([
+        { employee_id: '00000000-0000-4000-8000-000000000003', base_salary: 100000, currency_code: 'AOA' },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: '00000000-0000-4000-8000-000000000004',
+          code: 'BONUS',
+          name: 'Bonus',
+          component_type: 'EARNING',
+          calculation_type: 'FIXED',
+          rate: 5000,
+        },
+      ]);
+    rpcSpy.mockResolvedValueOnce([{
+      id: runId,
+      status: 'REVIEW',
+      gross_total: 105000,
+      deduction_total: 0,
+      employer_contribution_total: 0,
+      net_total: 105000,
+    }]);
+
+    await expect(service.calculatePayroll('access-token', organizationId, runId)).resolves.toMatchObject({
+      id: runId,
+      status: 'REVIEW',
+      gross_total: 105000,
+      net_total: 105000,
+    });
+
+    expect(rpcSpy).toHaveBeenCalledTimes(1);
+    const [functionName, token, rawPayload] = rpcSpy.mock.calls[0];
+    const payload = rawPayload as { p_organization_id: string; p_run_id: string; p_items: Array<Record<string, any>> };
+    expect(functionName).toBe('calculate_payroll_run');
+    expect(token).toBe('access-token');
+    expect(payload.p_organization_id).toBe(organizationId);
+    expect(payload.p_run_id).toBe(runId);
+    expect(payload.p_items).toHaveLength(1);
+    expect(payload.p_items[0]).toMatchObject({
+      employee_id: '00000000-0000-4000-8000-000000000003',
+      gross_amount: 105000,
+      currency_code: 'AOA',
+    });
+    expect(payload.p_items[0].lines).toHaveLength(2);
+    expect(patchSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not attempt client-side recovery or partial writes when the atomic RPC fails', async () => {
+    getSpy
+      .mockResolvedValueOnce([
+        { id: runId, period_start: '2026-10-01', period_end: '2026-10-31', status: 'DRAFT' },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    rpcSpy.mockRejectedValueOnce(new Error('transaction aborted'));
+
+    await expect(service.calculatePayroll('access-token', organizationId, runId))
+      .rejects.toThrow('transaction aborted');
+
+    expect(rpcSpy).toHaveBeenCalledTimes(1);
+    expect(patchSpy).not.toHaveBeenCalled();
+  });
+
 });
