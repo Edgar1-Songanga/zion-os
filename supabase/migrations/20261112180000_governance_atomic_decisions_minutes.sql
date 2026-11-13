@@ -7,8 +7,8 @@ create or replace function public.record_governance_decision(
 )
 returns setof public.governance_decisions
 language plpgsql
-security invoker
-set search_path = pg_catalog, public, private
+security definer
+set search_path = ''
 as $$
 declare
   v_actor uuid := auth.uid();
@@ -104,7 +104,7 @@ begin
   ) values (
     v_org_id, v_actor, 'governance.decision.recorded', 'governance_decision',
     v_decision.id,
-    jsonb_build_object(
+    pg_catalog.jsonb_build_object(
       'motion_id', p_motion_id,
       'outcome', v_decision.outcome,
       'quorum_met', v_quorum_met,
@@ -129,8 +129,8 @@ create or replace function public.save_governance_minutes(
 )
 returns setof public.governance_minutes
 language plpgsql
-security invoker
-set search_path = pg_catalog, public, private
+security definer
+set search_path = ''
 as $$
 declare
   v_actor uuid := auth.uid();
@@ -191,7 +191,7 @@ begin
       meeting_id, content, status, created_by, approved_at, approved_by
     ) values (
       p_meeting_id, p_content, p_status, v_actor,
-      case when p_status = 'APPROVED' then now() else null end,
+      case when p_status = 'APPROVED' then pg_catalog.now() else null end,
       case when p_status = 'APPROVED' then v_actor else null end
     )
     returning * into v_saved;
@@ -199,9 +199,9 @@ begin
     update public.governance_minutes
     set content = p_content,
         status = p_status,
-        approved_at = case when p_status = 'APPROVED' then now() else null end,
+        approved_at = case when p_status = 'APPROVED' then pg_catalog.now() else null end,
         approved_by = case when p_status = 'APPROVED' then v_actor else null end,
-        updated_at = now()
+        updated_at = pg_catalog.now()
     where id = v_existing.id
     returning * into v_saved;
   end if;
@@ -212,7 +212,7 @@ begin
     v_org_id, v_actor,
     case when p_status = 'APPROVED' then 'governance.minutes.approved' else 'governance.minutes.saved' end,
     'governance_minutes', v_saved.id,
-    jsonb_build_object('meeting_id', p_meeting_id, 'status', p_status)
+    pg_catalog.jsonb_build_object('meeting_id', p_meeting_id, 'status', p_status)
   );
 
   return next v_saved;
@@ -221,3 +221,11 @@ $$;
 
 revoke all on function public.save_governance_minutes(uuid, text, text) from public, anon;
 grant execute on function public.save_governance_minutes(uuid, text, text) to authenticated;
+
+
+-- These records are writable only through the checked, atomic RPCs above.
+-- SECURITY DEFINER is narrowly scoped and both functions enforce auth.uid()
+-- plus meeting.manage; minutes approval additionally checks HOST/SECRETARY.
+revoke insert, update, delete on public.governance_decisions, public.governance_minutes
+  from public, anon, authenticated;
+grant select on public.governance_decisions, public.governance_minutes to authenticated;
