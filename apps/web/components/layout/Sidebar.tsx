@@ -44,6 +44,8 @@ export default function Sidebar() {
   const { t } = useTranslation();
   const [globalAdmin, setGlobalAdmin] = useState(false);
   const [roleKeys, setRoleKeys] = useState<string[]>([]);
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -105,6 +107,21 @@ export default function Sidebar() {
     };
   }, []);
 
+  async function signOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    setSignOutError(false);
+    const supabase = createClient();
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error("[ZION auth] Sign out failed.", error);
+      setSigningOut(false);
+      setSignOutError(true);
+      return;
+    }
+    window.location.replace("/auth/sign-in");
+  }
+
   const hasRole = (...keys: string[]) => globalAdmin || roleKeys.some((key) => keys.includes(key));
   const isOrganizationManager = hasRole("organization_owner", "organization_admin", "organization_leader");
   const isMinistryManager = hasRole(
@@ -163,13 +180,13 @@ export default function Sidebar() {
   ]);
 
   return (
-    <aside className="sticky top-0 flex h-dvh w-[252px] shrink-0 flex-col overflow-y-auto overscroll-contain border-r border-white/10 bg-[linear-gradient(180deg,#0B2D4D_0%,#071E35_100%)] px-3.5 py-5 text-white shadow-[8px_0_30px_rgba(7,30,53,0.10)]">
+    <aside className="sticky top-0 flex h-dvh w-[252px] shrink-0 flex-col overflow-hidden border-r border-white/10 bg-[linear-gradient(180deg,#0B2D4D_0%,#071E35_100%)] px-3.5 py-5 text-white shadow-[8px_0_30px_rgba(7,30,53,0.10)]">
       <Link href="/dashboard" className="px-3" aria-label="ZION OS — Painel principal">
         <h1 className="text-[25px] font-semibold tracking-[0.24em] text-white">ZION<span className="text-[#C8A24A]">OS</span></h1>
         <p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-slate-300">{t("globalDigitalEcosystem")}</p>
       </Link>
 
-      <nav className="mt-8 flex-1" aria-label="Navegação principal">
+      <nav className="mt-8 min-h-0 flex-1 overflow-y-auto overscroll-contain" aria-label="Navegação principal">
         {sections.map((section, sectionIndex) => (
           <section key={section.title} className="mb-6">
             <h2 className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-400">{section.title}</h2>
