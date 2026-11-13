@@ -125,7 +125,7 @@ export default function Topbar() {
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-[68px] items-center justify-between border-b border-slate-200/80 bg-white/90 px-4 backdrop-blur-xl sm:px-6">
+    <header className="sticky top-0 z-30 flex h-[68px] shrink-0 items-center justify-between border-b border-slate-200/80 bg-white/90 px-4 backdrop-blur-xl sm:px-6">
       <div className="flex min-w-0 items-center gap-5">
         <div className="min-w-0">
           <h2 className="text-[18px] font-semibold tracking-[0.12em] text-[#0B2D4D]">ZION OS</h2>
