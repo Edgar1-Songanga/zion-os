@@ -26,6 +26,8 @@ declare
   v_component public.hr_payroll_components%rowtype;
   v_expected_line_amount numeric(18,2);
   v_contract_count integer;
+  v_missing_employee_count integer := 0;
+  v_ambiguous_contract_count integer := 0;
   v_item_id uuid;
   v_line_gross numeric(18,2);
   v_line_deductions numeric(18,2);
@@ -233,6 +235,44 @@ begin
     v_employer := v_employer + round((v_item->>'employer_contribution_amount')::numeric, 2);
     v_net := v_net + round((v_item->>'net_amount')::numeric, 2);
   end loop;
+
+  -- Do not allow a caller to submit a partial payroll. Every active employee
+  -- with an overlapping active contract must appear exactly once. Active staff
+  -- without a contract (for example, volunteers) remain outside this payroll.
+  select count(*)::integer into v_ambiguous_contract_count
+  from (
+    select e.id
+    from public.hr_employees e
+    join public.hr_contracts c on c.employee_id = e.id
+      and c.status = 'ACTIVE'
+      and c.start_date <= v_run.period_end
+      and (c.end_date is null or c.end_date >= v_run.period_start)
+    where e.organization_id = p_organization_id
+      and e.employment_status = 'ACTIVE'
+    group by e.id
+    having count(c.id) <> 1
+  ) overlapping_contracts;
+
+  if v_ambiguous_contract_count > 0 then
+    raise exception 'payroll_eligible_employee_has_ambiguous_active_contracts' using errcode = '23514';
+  end if;
+
+  select count(*)::integer into v_missing_employee_count
+  from public.hr_employees e
+  where e.organization_id = p_organization_id
+    and e.employment_status = 'ACTIVE'
+    and exists (
+      select 1 from public.hr_contracts c
+      where c.employee_id = e.id
+        and c.status = 'ACTIVE'
+        and c.start_date <= v_run.period_end
+        and (c.end_date is null or c.end_date >= v_run.period_start)
+    )
+    and not (e.id = any(v_seen));
+
+  if v_missing_employee_count > 0 then
+    raise exception 'payroll_payload_missing_eligible_employees' using errcode = '23514';
+  end if;
 
   update public.payroll_runs
   set status = 'REVIEW',
