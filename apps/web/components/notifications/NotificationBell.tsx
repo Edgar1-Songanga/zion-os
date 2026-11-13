@@ -174,6 +174,9 @@ export default function NotificationBell() {
         }, (payload) => {
           if (payload.eventType === "INSERT") {
             const next = payload.new as NotificationItem;
+            // Incoming calls use the dedicated RESA call surface and ringtone.
+            // Do not duplicate them as generic notification-bell alerts.
+            if (next.type.startsWith("resa.call.")) return;
             setItems((current) => [next, ...current.filter((item) => item.id !== next.id)].slice(0, 20));
             playNotificationAlert("notification", alertPreferencesRef.current);
           } else {
