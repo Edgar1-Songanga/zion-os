@@ -160,7 +160,7 @@ export default function Sidebar() {
         </div>
       </aside>
 
-      <nav aria-label="Navegação móvel" className="fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-slate-200 bg-white/95 px-1 pb-[max(env(safe-area-inset-bottom),8px)] pt-2 shadow-[0_-8px_30px_rgba(7,30,53,0.10)] backdrop-blur-xl md:hidden">
+      <nav aria-label="Navegação móvel" className="fixed inset-x-0 bottom-0 z-40 flex h-[calc(68px+env(safe-area-inset-bottom))] items-stretch justify-around border-t border-slate-200 bg-white px-1 pb-[env(safe-area-inset-bottom)] pt-2 shadow-[0_-8px_30px_rgba(7,30,53,0.10)] md:hidden">
         {mobileItems.map((item) => {
           const active = pathname === item.path || (nested.has(item.path) && pathname.startsWith(item.path + "/"));
           return <Link key={item.path} href={item.path} aria-current={active ? "page" : undefined} className={"flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 py-1 text-[10px] font-medium " + (active ? "text-[#0B2D4D]" : "text-slate-500")}>
