@@ -25,12 +25,14 @@ export default function ResaCallControls({ conversationId, peerName = "Membro RE
   const [remoteScreenShare, setRemoteScreenShare] = useState(false);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [callActionBusy, setCallActionBusy] = useState(false);
   const roomRef = useRef<Room | null>(null);
   const localVideo = useRef<HTMLVideoElement | null>(null);
   const remoteMedia = useRef<HTMLDivElement | null>(null);
   const remoteScreenMedia = useRef<HTMLDivElement | null>(null);
   const userId = useRef<string | null>(null);
   const callRef = useRef<CallRow | null>(null);
+  const callActionRef = useRef<"starting" | "accepting" | "declining" | null>(null);
   const intentionalDisconnectRef = useRef(false);
   const callTimeoutRef = useRef<number | null>(null);
   const autoStartConversationRef = useRef<string | null>(null);
@@ -231,6 +233,9 @@ export default function ResaCallControls({ conversationId, peerName = "Membro RE
   }
 
   async function start(kind: CallKind) {
+    if (callActionRef.current || callRef.current) return;
+    callActionRef.current = "starting";
+    setCallActionBusy(true);
     let created: CallRow | null = null;
     try {
       setError(null); setConnectionFailed(false);
@@ -293,6 +298,9 @@ export default function ResaCallControls({ conversationId, peerName = "Membro RE
         callRef.current = null; setCall(null);
       }
       setError(reason instanceof Error ? reason.message : "Não foi possível iniciar a chamada.");
+    } finally {
+      callActionRef.current = null;
+      setCallActionBusy(false);
     }
   }
 
@@ -300,7 +308,9 @@ export default function ResaCallControls({ conversationId, peerName = "Membro RE
 
   async function accept() {
     const target = incoming;
-    if (!target) return;
+    if (!target || callActionRef.current || callRef.current) return;
+    callActionRef.current = "accepting";
+    setCallActionBusy(true);
     try {
       setError(null); setConnectionFailed(false);
       callRef.current = target; setCall(target);
@@ -319,16 +329,26 @@ export default function ResaCallControls({ conversationId, peerName = "Membro RE
       intentionalDisconnectRef.current = false;
       callRef.current = null; setCall(null);
       setError(reason instanceof Error ? reason.message : "Não foi possível atender a chamada.");
+    } finally {
+      callActionRef.current = null;
+      setCallActionBusy(false);
     }
   }
 
   async function decline() {
-    if (!incoming) return;
+    if (!incoming || callActionRef.current) return;
     const target = incoming;
+    callActionRef.current = "declining";
+    setCallActionBusy(true);
     setIncoming(null);
-    const { error: updateError } = await supabase.from("resa_calls")
-      .update({ status: "ended", ended_at: new Date().toISOString() }).eq("id", target.id);
-    if (updateError) setError(updateError.message);
+    try {
+      const { error: updateError } = await supabase.from("resa_calls")
+        .update({ status: "declined", ended_at: new Date().toISOString() }).eq("id", target.id).eq("status", "ringing");
+      if (updateError) setError(updateError.message);
+    } finally {
+      callActionRef.current = null;
+      setCallActionBusy(false);
+    }
   }
 
   async function end() {
@@ -393,8 +413,8 @@ export default function ResaCallControls({ conversationId, peerName = "Membro RE
   const connectionLabel = reconnecting ? "A recuperar ligação…" : connectionFailed ? "Ligação interrompida" : callStatus === "ringing" ? "A chamar…" : connected ? "Ligado" : "A ligar…";
 
   return <div className="flex flex-wrap items-center gap-2">
-    <button type="button" disabled={!ready || active} onClick={() => void start("audio")} aria-label="Iniciar chamada de áudio" title="Chamada de áudio" className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-[#0C1A3D] shadow-sm transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6d83b5] disabled:cursor-not-allowed disabled:opacity-40"><span aria-hidden="true">☎</span><span>Áudio</span></button>
-    <button type="button" disabled={!ready || active} onClick={() => void start("video")} aria-label="Iniciar videochamada" title="Videochamada" className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#0C1A3D] px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-[#122858] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6d83b5] disabled:cursor-not-allowed disabled:opacity-40"><span aria-hidden="true">▣</span><span>Vídeo</span></button>
+    <button type="button" disabled={!ready || active || callActionBusy || Boolean(callRef.current)} onClick={() => void start("audio")} aria-label="Iniciar chamada de áudio" title="Chamada de áudio" className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-[#0C1A3D] shadow-sm transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6d83b5] disabled:cursor-not-allowed disabled:opacity-40"><span aria-hidden="true">☎</span><span>Áudio</span></button>
+    <button type="button" disabled={!ready || active || callActionBusy || Boolean(callRef.current)} onClick={() => void start("video")} aria-label="Iniciar videochamada" title="Videochamada" className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#0C1A3D] px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-[#122858] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6d83b5] disabled:cursor-not-allowed disabled:opacity-40"><span aria-hidden="true">▣</span><span>Vídeo</span></button>
     {error&&<span role="alert" className="max-w-[240px] text-xs text-red-600">{error}</span>}
     {incoming&&<div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#061127]/75 p-4 backdrop-blur-md" role="dialog" aria-modal="true" aria-labelledby="resa-incoming-call-title"><div className="w-full max-w-sm rounded-[2rem] border border-white/70 bg-white p-6 text-center shadow-2xl">
       <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400">RESA · chamada recebida</p>
@@ -402,8 +422,8 @@ export default function ResaCallControls({ conversationId, peerName = "Membro RE
       <h3 id="resa-incoming-call-title" className="mt-4 text-xl font-bold text-[#0C1A3D]">{peerName}</h3>
       <p className="mt-1 text-sm text-slate-500">{incoming.kind === "video" ? "Videochamada" : "Chamada de áudio"}</p>
       <div className="mt-7 grid grid-cols-2 gap-3">
-        <button type="button" onClick={() => void decline()} className="min-h-12 rounded-2xl bg-rose-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300">Recusar</button>
-        <button type="button" onClick={() => void accept()} className="min-h-12 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300">Atender</button>
+        <button type="button" onClick={() => void decline()} disabled={callActionBusy} className="min-h-12 rounded-2xl bg-rose-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300">Recusar</button>
+        <button type="button" onClick={() => void accept()} disabled={callActionBusy} className="min-h-12 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300">Atender</button>
       </div>
     </div></div>}
     {active&&<div className="fixed inset-0 z-[60] bg-[#020817] p-2 text-white sm:p-5">
