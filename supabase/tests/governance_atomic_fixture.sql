@@ -10,7 +10,9 @@ create or replace function auth.uid() returns uuid language sql stable as $$
   select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
 $$;
 create or replace function private.has_org_permission(uuid, text)
-returns boolean language sql stable as $$ select true $$;
+returns boolean language sql stable as $ select true $;
+create or replace function private.is_org_member(uuid)
+returns boolean language sql stable as $ select true $;
 
 create table public.governance_councils (
   id uuid primary key, organization_id uuid not null, quorum_type text not null, quorum_value integer not null
@@ -21,8 +23,9 @@ create table public.governance_meetings (
 create table public.governance_motions (
   id uuid primary key, meeting_id uuid not null references public.governance_meetings(id)
 );
+create table public.organization_memberships (id uuid primary key, user_id uuid not null);
 create table public.governance_council_members (
-  id uuid primary key, council_id uuid not null references public.governance_councils(id),
+  id uuid primary key, council_id uuid not null references public.governance_councils(id), membership_id uuid not null references public.organization_memberships(id),
   is_voting_member boolean not null, status text not null
 );
 create table public.governance_meeting_participants (
@@ -53,3 +56,4 @@ grant usage on schema public, auth, private to authenticated;
 grant select, insert, update, delete on all tables in schema public to authenticated;
 grant execute on function auth.uid() to authenticated;
 grant execute on function private.has_org_permission(uuid, text) to authenticated;
+grant execute on function private.is_org_member(uuid) to authenticated;
