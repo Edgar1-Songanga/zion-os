@@ -128,7 +128,7 @@ export default function Sidebar() {
 
   return (
     <>
-      <aside className="sticky top-0 hidden h-fit max-h-dvh w-[252px] shrink-0 self-start flex-col overflow-hidden border-r border-white/10 bg-[linear-gradient(180deg,#0B2D4D_0%,#071E35_100%)] px-3.5 py-5 text-white shadow-[8px_0_30px_rgba(7,30,53,0.10)] md:flex">
+      <aside className="sticky top-0 hidden h-dvh min-h-0 max-h-dvh w-[252px] shrink-0 self-stretch flex-col overflow-hidden border-r border-white/10 bg-[linear-gradient(180deg,#0B2D4D_0%,#071E35_100%)] px-3.5 py-5 text-white shadow-[8px_0_30px_rgba(7,30,53,0.10)] md:flex">
         <Link href="/dashboard" className="shrink-0 px-3" aria-label="ZION OS — Painel principal">
           <h1 className="text-[25px] font-semibold tracking-[0.24em] text-white">ZION<span className="text-[#C8A24A]">OS</span></h1>
           <p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-slate-300">{t("globalDigitalEcosystem")}</p>
