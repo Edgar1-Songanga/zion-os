@@ -20,7 +20,9 @@ function SignInForm() {
       return "/dashboard";
     }
   })();
+  const [method, setMethod] = useState<"phone" | "email">("phone");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [mfaCode, setMfaCode] = useState("");
   const [error, setError] = useState("");
@@ -28,6 +30,14 @@ function SignInForm() {
   const [needsMfa, setNeedsMfa] = useState(false);
   const [factorId, setFactorId] = useState("");
   const [challengeId, setChallengeId] = useState("");
+
+  function normalizePhone(value: string) {
+    const compact = value.trim().replace(/[\s().-]/g, "");
+    if (compact.startsWith("+")) return compact;
+    if (compact.startsWith("00")) return "+" + compact.slice(2);
+    if (compact.startsWith("244")) return "+" + compact;
+    return "+244" + compact;
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -54,7 +64,13 @@ function SignInForm() {
       return;
     }
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    const credentials = method === "email" ? { email, password } : { phone: normalizePhone(phone), password };
+    if (method === "phone" && !/^\+[1-9]\d{7,14}$/.test(credentials.phone ?? "")) {
+      setError("Introduza um número de telefone válido com indicativo internacional.");
+      setLoading(false);
+      return;
+    }
+    const { error: signInError } = await supabase.auth.signInWithPassword(credentials);
     if (signInError) {
       setError(signInError.message);
       setLoading(false);
@@ -106,15 +122,22 @@ function SignInForm() {
   return (
     <form onSubmit={handleSubmit} className="mt-8 space-y-5">
       {!needsMfa ? <>
-        <label className="block">
+        <div className="grid grid-cols-2 rounded-xl bg-[var(--zion-light)] p-1" role="group" aria-label="Método de entrada">
+          <button type="button" onClick={() => { setMethod("phone"); setError(""); }} aria-pressed={method === "phone"} className={method === "phone" ? "rounded-lg bg-white px-3 py-2 text-sm font-semibold text-[var(--zion-primary)] shadow-sm" : "rounded-lg px-3 py-2 text-sm text-[var(--zion-muted)]"}>Telefone</button>
+          <button type="button" onClick={() => { setMethod("email"); setError(""); }} aria-pressed={method === "email"} className={method === "email" ? "rounded-lg bg-white px-3 py-2 text-sm font-semibold text-[var(--zion-primary)] shadow-sm" : "rounded-lg px-3 py-2 text-sm text-[var(--zion-muted)]"}>Email</button>
+        </div>
+        {method === "phone" ? <label className="block">
+          <span className="text-sm font-medium text-[var(--zion-dark)]">Número de telefone</span>
+          <input type="tel" required autoComplete="tel" inputMode="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="923 000 000 ou +244 923 000 000" className="mt-2 w-full rounded-xl border border-[var(--zion-border)] px-4 py-3 outline-none focus:border-[var(--zion-sky)] focus:ring-4 focus:ring-[var(--zion-sky)]/10" />
+        </label> : <label className="block">
           <span className="text-sm font-medium text-[var(--zion-dark)]">Email</span>
-          <input type="email" required autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-2 w-full rounded-xl border border-[var(--zion-border)] px-4 py-3 outline-none transition focus:border-[var(--zion-sky)] focus:ring-4 focus:ring-[var(--zion-sky)]/10" />
-        </label>
+          <input type="email" required autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-2 w-full rounded-xl border border-[var(--zion-border)] px-4 py-3 outline-none focus:border-[var(--zion-sky)] focus:ring-4 focus:ring-[var(--zion-sky)]/10" />
+        </label>}
         <label className="block">
           <span className="text-sm font-medium text-[var(--zion-dark)]">Palavra-passe</span>
           <input type="password" required autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} className="mt-2 w-full rounded-xl border border-[var(--zion-border)] px-4 py-3 outline-none transition focus:border-[var(--zion-sky)] focus:ring-4 focus:ring-[var(--zion-sky)]/10" />
         </label>
-        <div className="flex justify-end"><Link href="/auth/forgot-password" className="text-sm font-medium text-[var(--zion-primary)] underline underline-offset-4">Esqueci-me da palavra-passe</Link></div>
+        <div className="flex justify-end">{method === "email" && <Link href="/auth/forgot-password" className="text-sm font-medium text-[var(--zion-primary)] underline underline-offset-4">Esqueci-me da palavra-passe</Link>}</div>
       </> : <>
         <div className="rounded-xl border border-[var(--zion-border)] bg-[var(--zion-light)] p-4">
           <p className="font-semibold text-[var(--zion-dark)]">Verificação de segurança</p>
