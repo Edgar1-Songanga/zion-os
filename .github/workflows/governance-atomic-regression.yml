@@ -1,0 +1,48 @@
+name: Governance atomic decisions and minutes regression
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/20261112180000_governance_atomic_decisions_minutes.sql"
+      - "supabase/migrations/20261113110000_governance_vote_scope_rls.sql"
+      - "supabase/tests/governance_atomic_*.sql"
+      - ".github/workflows/governance-atomic-regression.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  governance-atomic-regression:
+    name: PostgreSQL governance authorization and atomicity regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: zion_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d zion_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: zion_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare isolated governance schema
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/governance_atomic_fixture.sql
+      - name: Apply atomic governance RPCs and write boundary
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261112180000_governance_atomic_decisions_minutes.sql
+      - name: Enforce voter identity and council scope with RLS
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261113110000_governance_vote_scope_rls.sql
+      - name: Verify quorum, minutes immutability and direct DML denial
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/governance_atomic_regression.sql
