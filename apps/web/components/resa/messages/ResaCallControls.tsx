@@ -340,11 +340,16 @@ export default function ResaCallControls({ conversationId, peerName = "Membro RE
     const target = incoming;
     callActionRef.current = "declining";
     setCallActionBusy(true);
-    setIncoming(null);
     try {
       const { error: updateError } = await supabase.from("resa_calls")
         .update({ status: "declined", ended_at: new Date().toISOString() }).eq("id", target.id).eq("status", "ringing");
-      if (updateError) setError(updateError.message);
+      if (updateError) {
+        setError(updateError.message);
+        return;
+      }
+      setIncoming((current) => current?.id === target.id ? null : current);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível recusar a chamada.");
     } finally {
       callActionRef.current = null;
       setCallActionBusy(false);
