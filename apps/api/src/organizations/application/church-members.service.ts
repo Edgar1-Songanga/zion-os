@@ -26,6 +26,13 @@ type MemberRecord = {
   row_version: number;
 };
 
+type IdentityCandidateSearchInput = {
+  first_name: string;
+  last_name: string;
+  birth_date: string;
+  gender?: string | null;
+};
+
 type MemberInput = {
   member_number?: string | null;
   first_name?: string;
@@ -57,10 +64,59 @@ export class ChurchMembersService {
     );
   }
 
+  async findIdentityCandidates(accessToken: string, organizationId: string, input: IdentityCandidateSearchInput) {
+    this.assertUuid(organizationId, 'organizationId');
+    await this.identity.getCurrentUser(accessToken);
+    if (!input || typeof input !== 'object' || Array.isArray(input)) {
+      throw new BadRequestException('A valid identity candidate search object is required.');
+    }
+    const firstName = typeof input.first_name === 'string' ? input.first_name.trim() : '';
+    const lastName = typeof input.last_name === 'string' ? input.last_name.trim() : '';
+    if (!firstName || firstName.length > 120 || !lastName || lastName.length > 160) {
+      throw new BadRequestException('Valid first_name and last_name are required.');
+    }
+    if (typeof input.birth_date !== 'string' || !this.isValidDate(input.birth_date)) {
+      throw new BadRequestException('birth_date must be a valid date in YYYY-MM-DD format.');
+    }
+    if (input.gender !== undefined && input.gender !== null
+      && !(GENDERS as readonly string[]).includes(input.gender)) {
+      throw new BadRequestException('gender is not supported.');
+    }
+    return this.db.rpc<Array<{
+      candidate_member_record_id: string;
+      candidate_organization_id: string;
+      candidate_organization_name: string;
+      candidate_member_number: string | null;
+      first_name: string;
+      last_name: string;
+      birth_date: string;
+      gender: string | null;
+      membership_status: string;
+      match_basis: 'EXACT_NAME_AND_BIRTH_DATE';
+    }>>('find_zion_member_identity_candidates', accessToken, {
+      p_organization_id: organizationId,
+      p_first_name: firstName,
+      p_last_name: lastName,
+      p_birth_date: input.birth_date,
+      p_gender: input.gender ?? null,
+    });
+  }
+
   async create(accessToken: string, organizationId: string, input: MemberInput) {
     this.assertUuid(organizationId, 'organizationId');
     const user = await this.identity.getCurrentUser(accessToken);
     const values = this.normalize(input, true);
+    if (typeof values.birth_date === 'string') {
+      const candidates = await this.findIdentityCandidates(accessToken, organizationId, {
+        first_name: String(values.first_name ?? ''),
+        last_name: String(values.last_name ?? ''),
+        birth_date: values.birth_date,
+        gender: typeof values.gender === 'string' ? values.gender : null,
+      });
+      if (candidates.length > 0) {
+        throw new ConflictException('Possible existing member records were found. Review identity candidates before creating another record.');
+      }
+    }
     if (!values.first_name || !values.last_name) {
       throw new BadRequestException('first_name and last_name are required.');
     }
