@@ -32,7 +32,7 @@ function SignInForm() {
   const [challengeId, setChallengeId] = useState("");
 
   function normalizePhone(value: string) {
-    const compact = value.trim().replace(/[\\s().-]/g, "");
+    const compact = value.trim().replace(/[\s().-]/g, "");
     if (compact.startsWith("+")) return compact;
     if (compact.startsWith("00")) return "+" + compact.slice(2);
     if (compact.startsWith("244")) return "+" + compact;
@@ -65,7 +65,7 @@ function SignInForm() {
     }
 
     const credentials = method === "email" ? { email, password } : { phone: normalizePhone(phone), password };
-    if (method === "phone" && !/^\\+[1-9]\\d{7,14}$/.test(credentials.phone ?? "")) {
+    if (method === "phone" && !/^\+[1-9]\d{7,14}$/.test(credentials.phone ?? "")) {
       setError("Introduza um número de telefone válido com indicativo internacional.");
       setLoading(false);
       return;
