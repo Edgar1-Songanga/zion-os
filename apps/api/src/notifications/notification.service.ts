@@ -17,6 +17,9 @@ export class NotificationService {
     ]);
     const mutedIds = new Set(mutes.map((row) => row.muted_id));
     return notifications
+      // Call alerts are ephemeral and delivered by the dedicated call surface / Web Push.
+      // Keeping them in the general history creates stale unread items after a call ends.
+      .filter((notification) => !String(notification.type ?? "").startsWith("resa.call."))
       .filter((notification) => !notification.data?.actor_id || !mutedIds.has(notification.data.actor_id))
       .slice(0, size);
   }
