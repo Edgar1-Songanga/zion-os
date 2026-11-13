@@ -12,7 +12,7 @@ export default function LanguageSelector() {
         value={locale}
         onChange={(event) => setLocale(event.target.value as typeof locale)}
         aria-label={t("language")}
-        className="rounded-xl border border-[var(--zion-border)] bg-white px-3.5 py-2 text-sm text-[var(--zion-dark)] shadow-[var(--zion-shadow-sm)] outline-none transition hover:border-[var(--zion-sky)] focus:border-[var(--zion-sky)] focus:ring-4 focus:ring-[var(--zion-sky)]/10"
+        className="w-[82px] rounded-lg border border-[var(--zion-border)] bg-white px-1.5 py-2 text-[11px] text-[var(--zion-dark)] shadow-[var(--zion-shadow-sm)] outline-none transition sm:w-auto sm:rounded-xl sm:px-3.5 sm:text-sm hover:border-[var(--zion-sky)] focus:border-[var(--zion-sky)] focus:ring-4 focus:ring-[var(--zion-sky)]/10"
       >
         {locales.map((item) => (
           <option key={item} value={item}>
