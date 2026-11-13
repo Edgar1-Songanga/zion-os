@@ -9,8 +9,10 @@ import SessionPermissionRefresh from "@/components/auth/SessionPermissionRefresh
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isResa = pathname === "/resa" || pathname.startsWith("/resa/");
+  const isPublicEntry = pathname === "/" || pathname === "/auth" || pathname.startsWith("/auth/") || pathname === "/church-registration";
 
-  if (isResa) {
+  // Public entry and authentication pages stay outside the private dashboard shell.
+  if (isResa || isPublicEntry) {
     return <><SessionPermissionRefresh />{children}</>;
   }
 
