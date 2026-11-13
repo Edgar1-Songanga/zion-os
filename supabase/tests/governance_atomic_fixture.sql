@@ -10,7 +10,7 @@ create or replace function auth.uid() returns uuid language sql stable as $$
   select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
 $$;
 create or replace function private.has_org_permission(uuid, text)
-returns boolean language sql stable as $ select true $;
+returns boolean language sql stable as $fn$ select true $fn$;
 create or replace function private.is_org_member(uuid)
 returns boolean language sql stable as $ select true $;
 
