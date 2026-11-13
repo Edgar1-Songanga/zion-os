@@ -19,24 +19,21 @@ function NavIcon({ index }: { index: number }) {
     "M4 5h16v15H4z M8 2v6M16 2v6M4 10h16",
     "M12 21s-7-4.35-7-10V5l7-3 7 3v6c0 5.65-7 10-7 10Z",
     "M4 18h16M6 18V9M10 18V5M14 18v-7M18 18V7",
-    "M12 3v18M3 12h18",
     "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z",
   ];
-  return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={paths[index % paths.length]} /></svg>;
+  return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={paths[index % paths.length]} /></svg>;
 }
 
 function uniqueSections(sections: NavSection[]): NavSection[] {
   const seen = new Set<string>();
-  return sections
-    .map((section) => ({
-      ...section,
-      items: section.items.filter((item) => {
-        if (seen.has(item.path)) return false;
-        seen.add(item.path);
-        return true;
-      }),
-    }))
-    .filter((section) => section.items.length > 0);
+  return sections.map((section) => ({
+    ...section,
+    items: section.items.filter((item) => {
+      if (seen.has(item.path)) return false;
+      seen.add(item.path);
+      return true;
+    }),
+  })).filter((section) => section.items.length > 0);
 }
 
 export default function Sidebar() {
@@ -52,67 +49,34 @@ export default function Sidebar() {
     let active = true;
     const loadAccess = async (user: { id: string; app_metadata?: Record<string, unknown> } | null) => {
       setGlobalAdmin(user?.app_metadata?.zion_global_role === "global_admin" && user?.app_metadata?.zion_verified === true);
-      if (!user) {
-        setRoleKeys([]);
-        return;
-      }
-
+      if (!user) { setRoleKeys([]); return; }
       try {
         const context = await resaRequest<{ memberships?: Array<{ role?: { key?: string } | null }> }>("/v1/identity/profile/access");
-        const apiRoleKeys = (context.memberships ?? [])
-          .map((membership) => membership.role?.key ?? "")
-          .filter(Boolean);
-        if (apiRoleKeys.length > 0) {
-          if (active) setRoleKeys(apiRoleKeys);
-          return;
-        }
-      } catch {
-        // Fall back to the authenticated user's own RLS-scoped membership records.
-      }
-
+        const keys = (context.memberships ?? []).map((membership) => membership.role?.key ?? "").filter(Boolean);
+        if (keys.length > 0) { if (active) setRoleKeys(keys); return; }
+      } catch { /* Use the user's own RLS-scoped membership records as fallback. */ }
       try {
-        const { data: memberships, error: membershipError } = await supabase
-          .from("organization_memberships")
-          .select("role_id")
-          .eq("user_id", user.id)
-          .eq("status", "ACTIVE");
-        if (membershipError) throw membershipError;
-
-        const roleIds = [...new Set((memberships ?? []).map((membership) => membership.role_id).filter(Boolean))];
-        if (roleIds.length === 0) {
-          if (active) setRoleKeys([]);
-          return;
-        }
-
-        const { data: roles, error: rolesError } = await supabase
-          .from("roles")
-          .select("key")
-          .in("id", roleIds);
+        const { data: memberships, error } = await supabase.from("organization_memberships").select("role_id").eq("user_id", user.id).eq("status", "ACTIVE");
+        if (error) throw error;
+        const ids = [...new Set((memberships ?? []).map((membership) => membership.role_id).filter(Boolean))];
+        if (!ids.length) { if (active) setRoleKeys([]); return; }
+        const { data: roles, error: rolesError } = await supabase.from("roles").select("key").in("id", ids);
         if (rolesError) throw rolesError;
         if (active) setRoleKeys((roles ?? []).map((role) => role.key).filter(Boolean));
-      } catch {
-        if (active) setRoleKeys([]);
-      }
+      } catch { if (active) setRoleKeys([]); }
     };
-
-    void supabase.auth.getUser().then(({ data }) => {
-      if (active) void loadAccess(data.user ?? null);
-    });
+    void supabase.auth.getUser().then(({ data }) => { if (active) void loadAccess(data.user ?? null); });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       window.setTimeout(() => void loadAccess(session?.user ?? null), 0);
     });
-    return () => {
-      active = false;
-      listener.subscription.unsubscribe();
-    };
+    return () => { active = false; listener.subscription.unsubscribe(); };
   }, []);
 
   async function signOut() {
     if (signingOut) return;
     setSigningOut(true);
     setSignOutError(false);
-    const supabase = createClient();
-    const { error } = await supabase.auth.signOut();
+    const { error } = await createClient().auth.signOut();
     if (error) {
       console.error("[ZION auth] Sign out failed.", error);
       setSigningOut(false);
@@ -124,100 +88,92 @@ export default function Sidebar() {
 
   const hasRole = (...keys: string[]) => globalAdmin || roleKeys.some((key) => keys.includes(key));
   const isOrganizationManager = hasRole("organization_owner", "organization_admin", "organization_leader");
-  const isMinistryManager = hasRole(
-    "organization_owner", "organization_admin", "organization_leader", "pastor",
-    "ministry_leader", "department_leader", "sabbath_school_director",
-  );
+  const isMinistryManager = hasRole("organization_owner", "organization_admin", "organization_leader", "pastor", "ministry_leader", "department_leader", "sabbath_school_director");
   const isStewardshipManager = !globalAdmin && hasRole("stewardship_manager");
   const isYouthDirector = hasRole("youth_director");
 
   const sections = uniqueSections([
-    {
-      title: "Principal",
-      items: [
-        { name: t("dashboard"), path: "/dashboard" },
-        { name: "RESA — Comunidade", path: "/resa" },
-      ],
-    },
-    {
-      title: "Estudo e vida espiritual",
-      items: [
-        { name: t("bibleEngine"), path: "/bible-engine" },
-        { name: t("sabbathSchool"), path: "/sabbath-school" },
-        { name: t("devotion"), path: "/devotion" },
-        { name: t("spiritualGrowth"), path: "/spiritual-growth" },
-        { name: t("spiritualVision"), path: "/spiritual-experience" },
-        { name: t("adventistSources"), path: "/adventist-canon" },
-        { name: t("spiritualChat"), path: "/spiritual-chat" },
-      ],
-    },
-    {
-      title: "Ministérios e participação",
-      items: [
-        ...(isMinistryManager || isYouthDirector ? [{ name: "Ministério Jovem", path: "/youth" }] : []),
-        ...(isStewardshipManager ? [{ name: "Mordomia Cristã", path: "/stewardship" }] : []),
-      ],
-    },
-    {
-      title: "Administração",
-      items: [
-        ...(globalAdmin ? [{ name: "Administração Global", path: "/admin" }, { name: "Verificação de contas", path: "/admin/verification" }] : []),
-        ...(isOrganizationManager ? [{ name: "Administração da Igreja", path: "/church-administration" }] : []),
-        ...(isMinistryManager ? [{ name: "Ministérios e departamentos", path: "/ministry" }] : []),
-        ...(isStewardshipManager ? [{ name: "Mordomia Cristã", path: "/stewardship" }] : []),
-        ...(hasRole("secretary", "organization_owner", "organization_admin") ? [{ name: "Secretaria", path: "/secretariat" }] : []),
-        ...(hasRole("finance_manager", "organization_owner", "organization_admin") ? [{ name: "Finanças", path: "/finance" }] : []),
-        ...(hasRole("hr_manager", "organization_owner", "organization_admin") ? [{ name: "Recursos Humanos", path: "/hr" }] : []),
-        ...(hasRole("payroll_manager", "organization_owner", "organization_admin") ? [{ name: "Processamento salarial", path: "/payroll" }] : []),
-        ...(hasRole("organization_owner", "organization_admin") ? [{ name: "Relatórios", path: "/reports" }] : []),
-      ],
-    },
+    { title: "Principal", items: [{ name: t("dashboard"), path: "/dashboard" }, { name: "RESA — Comunidade", path: "/resa" }] },
+    { title: "Estudo e vida espiritual", items: [
+      { name: t("bibleEngine"), path: "/bible-engine" }, { name: t("sabbathSchool"), path: "/sabbath-school" },
+      { name: t("devotion"), path: "/devotion" }, { name: t("spiritualGrowth"), path: "/spiritual-growth" },
+      { name: t("spiritualVision"), path: "/spiritual-experience" }, { name: t("adventistSources"), path: "/adventist-canon" },
+      { name: t("spiritualChat"), path: "/spiritual-chat" },
+    ] },
+    { title: "Ministérios e participação", items: [
+      ...(isMinistryManager || isYouthDirector ? [{ name: "Ministério Jovem", path: "/youth" }] : []),
+      ...(isStewardshipManager ? [{ name: "Mordomia Cristã", path: "/stewardship" }] : []),
+    ] },
+    { title: "Administração", items: [
+      ...(globalAdmin ? [{ name: "Administração Global", path: "/admin" }, { name: "Verificação de contas", path: "/admin/verification" }] : []),
+      ...(isOrganizationManager ? [{ name: "Administração da Igreja", path: "/church-administration" }] : []),
+      ...(isMinistryManager ? [{ name: "Ministérios e departamentos", path: "/ministry" }] : []),
+      ...(isStewardshipManager ? [{ name: "Mordomia Cristã", path: "/stewardship" }] : []),
+      ...(hasRole("secretary", "organization_owner", "organization_admin") ? [{ name: "Secretaria", path: "/secretariat" }] : []),
+      ...(hasRole("finance_manager", "organization_owner", "organization_admin") ? [{ name: "Finanças", path: "/finance" }] : []),
+      ...(hasRole("hr_manager", "organization_owner", "organization_admin") ? [{ name: "Recursos Humanos", path: "/hr" }] : []),
+      ...(hasRole("payroll_manager", "organization_owner", "organization_admin") ? [{ name: "Processamento salarial", path: "/payroll" }] : []),
+      ...(hasRole("organization_owner", "organization_admin") ? [{ name: "Relatórios", path: "/reports" }] : []),
+    ] },
   ]);
 
-  const nestedActiveRoutes = new Set([
-    "/admin", "/church-administration", "/secretariat", "/finance", "/hr",
-    "/payroll", "/reports", "/ministry", "/youth", "/stewardship", "/resa", "/sabbath-school",
-  ]);
+  const nested = new Set(["/admin", "/church-administration", "/secretariat", "/finance", "/hr", "/payroll", "/reports", "/ministry", "/youth", "/stewardship", "/resa", "/sabbath-school"]);
+  const mobileItems = [
+    { name: t("dashboard"), path: "/dashboard", icon: 0 },
+    { name: "RESA", path: "/resa", icon: 1 },
+    { name: t("bibleEngine"), path: "/bible-engine", icon: 2 },
+    { name: t("devotion"), path: "/devotion", icon: 3 },
+  ];
 
   return (
-    <aside className="sticky top-0 flex h-dvh w-[252px] shrink-0 flex-col overflow-hidden border-r border-white/10 bg-[linear-gradient(180deg,#0B2D4D_0%,#071E35_100%)] px-3.5 py-5 text-white shadow-[8px_0_30px_rgba(7,30,53,0.10)]">
-      <Link href="/dashboard" className="px-3" aria-label="ZION OS — Painel principal">
-        <h1 className="text-[25px] font-semibold tracking-[0.24em] text-white">ZION<span className="text-[#C8A24A]">OS</span></h1>
-        <p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-slate-300">{t("globalDigitalEcosystem")}</p>
-      </Link>
+    <>
+      <aside className="hidden h-dvh w-[252px] shrink-0 flex-col overflow-hidden border-r border-white/10 bg-[linear-gradient(180deg,#0B2D4D_0%,#071E35_100%)] px-3.5 py-5 text-white shadow-[8px_0_30px_rgba(7,30,53,0.10)] md:flex">
+        <Link href="/dashboard" className="shrink-0 px-3" aria-label="ZION OS — Painel principal">
+          <h1 className="text-[25px] font-semibold tracking-[0.24em] text-white">ZION<span className="text-[#C8A24A]">OS</span></h1>
+          <p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-slate-300">{t("globalDigitalEcosystem")}</p>
+        </Link>
 
-      <nav className="mt-8 min-h-0 flex-1 overflow-y-auto overscroll-contain" aria-label="Navegação principal">
-        {sections.map((section, sectionIndex) => (
-          <section key={section.title} className="mb-6">
-            <h2 className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-400">{section.title}</h2>
-            <div className="space-y-1">
-              {section.items.map((item, itemIndex) => {
-                const active = pathname === item.path || (nestedActiveRoutes.has(item.path) && pathname.startsWith(item.path + "/"));
-                return (
-                  <Link
-                    key={item.path}
-                    href={item.path}
-                    aria-current={active ? "page" : undefined}
-                    className={[
-                      "group flex min-h-10 items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] transition-colors",
-                      active ? "bg-white font-semibold text-[#0B2D4D] shadow-[0_6px_18px_rgba(0,0,0,0.12)]" : "text-slate-200 hover:bg-white/[0.08] hover:text-white",
-                    ].join(" ")}
-                  >
-                    <span className={active ? "text-[#C8A24A]" : "text-slate-400 group-hover:text-[#E0B85A]"}>
-                      <NavIcon index={sectionIndex * 4 + itemIndex} />
-                    </span>
+        <nav className="mt-7 max-h-[calc(100dvh-190px)] shrink-0 overflow-y-auto overscroll-contain pr-1" aria-label="Navegação principal">
+          {sections.map((section, sectionIndex) => (
+            <section key={section.title} className="mb-5 last:mb-0">
+              <h2 className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-400">{section.title}</h2>
+              <div className="space-y-1">
+                {section.items.map((item, itemIndex) => {
+                  const active = pathname === item.path || (nested.has(item.path) && pathname.startsWith(item.path + "/"));
+                  return <Link key={item.path} href={item.path} aria-current={active ? "page" : undefined} className={["group flex min-h-10 items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] transition-colors", active ? "bg-white font-semibold text-[#0B2D4D] shadow-[0_6px_18px_rgba(0,0,0,0.12)]" : "text-slate-200 hover:bg-white/[0.08] hover:text-white"].join(" ")}>
+                    <span className={active ? "text-[#C8A24A]" : "text-slate-400 group-hover:text-[#E0B85A]"}><NavIcon index={sectionIndex * 4 + itemIndex} /></span>
                     <span className="truncate">{item.name}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
-        ))}
-      </nav>
+                  </Link>;
+                })}
+              </div>
+            </section>
+          ))}
+        </nav>
 
-      <div className="border-t border-white/10 px-3 pt-4 text-[10px] leading-5 text-slate-400">
-        A navegação apresenta apenas as áreas disponíveis para a tua função.
-      </div>
-    </aside>
+        <div className="mt-4 shrink-0 border-t border-white/10 px-2 pt-3">
+          <p className="px-2 pb-2 text-[10px] leading-4 text-slate-400">A navegação apresenta apenas as áreas disponíveis para a tua função.</p>
+          <button type="button" onClick={() => void signOut()} disabled={signingOut} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] font-semibold text-red-200 transition hover:bg-red-500/15 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E0B85A] disabled:cursor-wait disabled:opacity-60">
+            <svg aria-hidden="true" viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M10 17l5-5-5-5M15 12H3M21 4v16" /></svg>
+            <span>{signingOut ? "A terminar sessão…" : "Terminar sessão"}</span>
+          </button>
+          {signOutError && <p role="alert" className="px-3 pt-2 text-[11px] text-red-200">Não foi possível terminar a sessão. Tente novamente.</p>}
+        </div>
+      </aside>
+
+      <nav aria-label="Navegação móvel" className="fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-slate-200 bg-white/95 px-1 pb-[max(env(safe-area-inset-bottom),8px)] pt-2 shadow-[0_-8px_30px_rgba(7,30,53,0.10)] backdrop-blur-xl md:hidden">
+        {mobileItems.map((item) => {
+          const active = pathname === item.path || (nested.has(item.path) && pathname.startsWith(item.path + "/"));
+          return <Link key={item.path} href={item.path} aria-current={active ? "page" : undefined} className={"flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 py-1 text-[10px] font-medium " + (active ? "text-[#0B2D4D]" : "text-slate-500")}>
+            <NavIcon index={item.icon} />
+            <span className="max-w-full truncate">{item.name}</span>
+          </Link>;
+        })}
+        <button type="button" onClick={() => void signOut()} disabled={signingOut} aria-label="Terminar sessão" className="flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 py-1 text-[10px] font-semibold text-red-600 disabled:opacity-50">
+          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M10 17l5-5-5-5M15 12H3M21 4v16" /></svg>
+          <span>{signingOut ? "A sair…" : "Sair"}</span>
+        </button>
+        {signOutError && <span role="alert" className="sr-only">Não foi possível terminar a sessão.</span>}
+      </nav>
+    </>
   );
 }
