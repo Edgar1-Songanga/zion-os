@@ -13,7 +13,6 @@ self.addEventListener("push", (event) => {
   const body = typeof payload.body === "string" ? payload.body : "Tens uma nova notificação.";
   const rawUrl = typeof payload.url === "string" ? payload.url : "/resa";
   const category = typeof payload.category === "string" ? payload.category : "general";
-  const urgent = category === "call" || category === "bank";
   const vibration = category === "call"
     ? [400, 120, 400, 120, 700, 180, 700]
     : category === "bank"
