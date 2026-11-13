@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - "supabase/migrations/20261112180000_governance_atomic_decisions_minutes.sql"
+      - "supabase/migrations/20261113110000_governance_vote_scope_rls.sql"
       - "supabase/tests/governance_atomic_*.sql"
       - ".github/workflows/governance-atomic-regression.yml"
   workflow_dispatch:
@@ -41,5 +42,7 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/governance_atomic_fixture.sql
       - name: Apply atomic governance RPCs and write boundary
         run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261112180000_governance_atomic_decisions_minutes.sql
+      - name: Enforce voter identity and council scope with RLS
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261113110000_governance_vote_scope_rls.sql
       - name: Verify quorum, minutes immutability and direct DML denial
         run: psql -v ON_ERROR_STOP=1 -f supabase/tests/governance_atomic_regression.sql
