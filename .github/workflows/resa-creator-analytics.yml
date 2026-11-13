@@ -1,0 +1,46 @@
+name: RESA creator analytics SQL regression
+
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/*resa_creator_analytics*"
+      - "supabase/tests/resa_creator_analytics_regression.sql"
+      - ".github/workflows/resa-creator-analytics.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  creator-analytics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: zion_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d zion_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: zion_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare isolated RESA schema
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/resa_security_fixture.sql
+      - name: Apply daily feed impression persistence
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261109170000_resa_feed_impression_memory.sql
+      - name: Apply privacy-safe creator analytics
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261110200000_resa_creator_analytics.sql
+      - name: Verify owner isolation, public-only metrics, threshold suppression and date bounds
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/resa_creator_analytics_regression.sql
