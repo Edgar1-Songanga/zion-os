@@ -1,0 +1,45 @@
+name: Payroll atomic calculation regression
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/20261112150000_atomic_payroll_calculation.sql"
+      - "supabase/tests/payroll_atomic_calculation_*.sql"
+      - ".github/workflows/payroll-atomic-regression.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  payroll-atomic-regression:
+    name: PostgreSQL payroll atomicity and coverage regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: zion_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d zion_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: zion_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare isolated payroll schema
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/payroll_atomic_calculation_fixture.sql
+      - name: Apply atomic payroll RPC
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261112150000_atomic_payroll_calculation.sql
+      - name: Verify complete coverage and transactional rollback
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/payroll_atomic_calculation_regression.sql
