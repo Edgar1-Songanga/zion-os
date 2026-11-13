@@ -27,7 +27,7 @@ export default async function RootLayout({
 
   return (
     <html lang="pt">
-      <body className="min-h-screen bg-slate-100">
+      <body className="min-h-[100dvh] bg-slate-100">
         <TranslationProvider countryCode={countryCode}>
           <GlobalResaCallAlerts />
           <AppShell>{children}</AppShell>
