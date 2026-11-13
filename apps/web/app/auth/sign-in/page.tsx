@@ -131,9 +131,11 @@ function SignInForm() {
 
 export default function SignInPage() {
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[var(--zion-light)] px-6 py-16">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(200,162,74,0.14),transparent_35%),linear-gradient(135deg,rgba(11,45,77,0.06),transparent_55%)]" />
-      <section className="relative w-full max-w-md rounded-3xl border border-[var(--zion-border)] bg-white p-8 shadow-[var(--zion-shadow-lg)] sm:p-9">
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[var(--zion-dark)] px-6 py-12">
+      <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1516321318423-f06f85e504b3')" }} aria-hidden="true" />
+      <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(7,30,53,0.94),rgba(11,45,77,0.84))]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(200,162,74,0.25),transparent_36%)]" />
+      <section className="relative w-full max-w-md rounded-3xl border border-white/20 bg-white/95 p-8 shadow-[var(--zion-shadow-lg)] backdrop-blur-xl sm:p-9">
         <div className="mb-8 h-1 w-12 rounded-full bg-[var(--zion-gold)]" />
         <p className="text-sm font-semibold tracking-[0.22em] text-[var(--zion-muted)]">ZION OS</p>
         <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[var(--zion-dark)]">Entrar</h1>
