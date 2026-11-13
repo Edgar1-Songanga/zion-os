@@ -29,18 +29,26 @@ self.addEventListener("push", (event) => {
     safeUrl = "/resa";
   }
 
-  event.waitUntil(self.registration.showNotification(title, {
-    body,
-    tag: typeof payload.tag === "string" ? payload.tag : "resa-notification",
-    icon: "/favicon.ico",
-    badge: "/favicon.ico",
-    data: { url: safeUrl },
-    renotify: true,
-    // Keep urgent calls and bank alerts visible until the user dismisses them where supported.
-    requireInteraction: urgent,
-    silent: false,
-    vibrate,
-  }));
+  const tag = typeof payload.tag === "string" ? payload.tag : "resa-notification";
+  event.waitUntil((async () => {
+    await self.registration.showNotification(title, {
+      body,
+      tag,
+      icon: "/favicon.ico",
+      badge: "/favicon.ico",
+      data: { url: safeUrl },
+      renotify: category !== "call",
+      // Calls are time-sensitive alerts, not permanent inbox items.
+      requireInteraction: category === "bank",
+      silent: false,
+      vibrate,
+    });
+    if (category === "call") {
+      await new Promise((resolve) => setTimeout(resolve, 45_000));
+      const activeNotifications = await self.registration.getNotifications({ tag });
+      for (const notification of activeNotifications) notification.close();
+    }
+  })());
 });
 
 self.addEventListener("notificationclick", (event) => {
