@@ -52,9 +52,13 @@ begin
   update public.governance_meeting_participants
   set status = 'PRESENT'
   where id = '91000000-0000-4000-8000-000000000202';
-  insert into public.governance_votes (motion_id,council_member_id,choice) values
-  ('91000000-0000-4000-8000-000000000004','91000000-0000-4000-8000-000000000101','YES'),
-  ('91000000-0000-4000-8000-000000000004','91000000-0000-4000-8000-000000000102','YES');
+  insert into public.governance_votes (motion_id,council_member_id,choice)
+  values ('91000000-0000-4000-8000-000000000004','91000000-0000-4000-8000-000000000101','YES');
+  -- Each voter must submit only their own council-member identity.
+  perform set_config('request.jwt.claim.sub','91000000-0000-4000-8000-000000000998',true);
+  insert into public.governance_votes (motion_id,council_member_id,choice)
+  values ('91000000-0000-4000-8000-000000000004','91000000-0000-4000-8000-000000000102','YES');
+  perform set_config('request.jwt.claim.sub','91000000-0000-4000-8000-000000000999',true);
 
   select outcome, quorum_met into v_outcome, v_quorum
   from public.record_governance_decision(
