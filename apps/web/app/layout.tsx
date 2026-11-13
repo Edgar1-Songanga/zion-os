@@ -11,6 +11,12 @@ export const metadata: Metadata = {
   description: "Global Adventist Digital Ecosystem",
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 export default async function RootLayout({
   children,
 }: Readonly<{
