@@ -127,13 +127,13 @@ export default function Sidebar() {
 
   return (
     <>
-      <aside className="hidden h-dvh w-[252px] shrink-0 flex-col overflow-hidden border-r border-white/10 bg-[linear-gradient(180deg,#0B2D4D_0%,#071E35_100%)] px-3.5 py-5 text-white shadow-[8px_0_30px_rgba(7,30,53,0.10)] md:flex">
+      <aside className="sticky top-0 hidden h-fit max-h-dvh w-[252px] shrink-0 self-start flex-col overflow-hidden border-r border-white/10 bg-[linear-gradient(180deg,#0B2D4D_0%,#071E35_100%)] px-3.5 py-5 text-white shadow-[8px_0_30px_rgba(7,30,53,0.10)] md:flex">
         <Link href="/dashboard" className="shrink-0 px-3" aria-label="ZION OS — Painel principal">
           <h1 className="text-[25px] font-semibold tracking-[0.24em] text-white">ZION<span className="text-[#C8A24A]">OS</span></h1>
           <p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-slate-300">{t("globalDigitalEcosystem")}</p>
         </Link>
 
-        <nav className="mt-7 max-h-[calc(100dvh-190px)] shrink-0 overflow-y-auto overscroll-contain pr-1" aria-label="Navegação principal">
+        <nav className="mt-7 max-h-[calc(100dvh-190px)] min-h-0 shrink overflow-y-auto overscroll-contain pr-1 [scrollbar-color:rgba(203,213,225,0.35)_transparent] [scrollbar-width:thin]" aria-label="Navegação principal">
           {sections.map((section, sectionIndex) => (
             <section key={section.title} className="mb-5 last:mb-0">
               <h2 className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-400">{section.title}</h2>
@@ -151,7 +151,7 @@ export default function Sidebar() {
         </nav>
 
         <div className="mt-4 shrink-0 border-t border-white/10 px-2 pt-3">
-          <p className="px-2 pb-2 text-[10px] leading-4 text-slate-400">A navegação apresenta apenas as áreas disponíveis para a tua função.</p>
+          <p className="px-2 pb-2 text-[10px] leading-4 text-slate-300">A navegação apresenta apenas as áreas disponíveis para a tua função.</p>
           <button type="button" onClick={() => void signOut()} disabled={signingOut} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] font-semibold text-red-200 transition hover:bg-red-500/15 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E0B85A] disabled:cursor-wait disabled:opacity-60">
             <svg aria-hidden="true" viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M10 17l5-5-5-5M15 12H3M21 4v16" /></svg>
             <span>{signingOut ? "A terminar sessão…" : "Terminar sessão"}</span>
