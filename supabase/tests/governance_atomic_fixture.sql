@@ -12,7 +12,7 @@ $$;
 create or replace function private.has_org_permission(uuid, text)
 returns boolean language sql stable as $fn$ select true $fn$;
 create or replace function private.is_org_member(uuid)
-returns boolean language sql stable as $ select true $;
+returns boolean language sql stable as $fn$ select true $fn$;
 
 create table public.governance_councils (
   id uuid primary key, organization_id uuid not null, quorum_type text not null, quorum_value integer not null
