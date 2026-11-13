@@ -23,7 +23,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <Sidebar />
       <div className="flex h-dvh min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <Topbar />
-        <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-20 md:pb-0">
+        <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[calc(68px+env(safe-area-inset-bottom))] md:pb-0">
           {children}
           <Footer />
         </main>
