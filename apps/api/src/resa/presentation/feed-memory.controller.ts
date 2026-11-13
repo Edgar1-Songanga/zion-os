@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Headers, Param, Post, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Headers, Param, Post, Query, UnauthorizedException } from '@nestjs/common';
 import { ResaFeedMemoryService } from '../application/feed-memory.service';
 
 @Controller('v1/resa')
@@ -22,6 +22,15 @@ export class ResaFeedMemoryController {
       throw new BadRequestException('duration_ms must be between 1000 and 300000');
     }
     return this.memory.recordImpression(this.token(authorization), contentId, duration, body.completed === true);
+  }
+
+  @Get('creator/analytics')
+  creatorAnalytics(
+    @Headers('authorization') authorization: string | undefined,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.memory.creatorAnalytics(this.token(authorization), from, to);
   }
 
   @Delete('feed-memory')
