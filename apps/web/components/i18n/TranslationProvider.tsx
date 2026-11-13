@@ -399,7 +399,10 @@ export function TranslationProvider({ children, countryCode }: { children: React
     // Keep the interface readable when a locale catalog is still being translated.
     // A completed target-language catalog wins, then saved AI translation, then English.
     const englishFallback = ZION_TRANSLATION_CATALOGS.en?.[key];
-    return catalog[key] ?? cached ?? englishFallback ?? sourceText;
+    // Portuguese (Portugal) must not silently switch to English while its
+    // regional catalog is incomplete; use the Portuguese source copy instead.
+    const portugueseFallback = locale === "pt-PT" ? sourceText : undefined;
+    return catalog[key] ?? cached ?? portugueseFallback ?? englishFallback ?? sourceText;
   }, [locale, translations]);
 
   const value = useMemo(() => ({
