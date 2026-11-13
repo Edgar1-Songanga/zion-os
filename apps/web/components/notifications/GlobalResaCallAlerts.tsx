@@ -5,8 +5,14 @@ import { createClient } from "@/lib/supabase/client";
 import { resaRequest } from "@/lib/resa/api";
 import { playNotificationAlert, unlockNotificationAudio, type NotificationAlertPreferences } from "@/lib/notifications/notification-alerts";
 
-type CallAlertRow = { id: string; initiator_id: string; status: string; kind: "audio" | "video"; conversation_id: string };
+type CallAlertRow = { id: string; initiator_id: string; status: string; kind: "audio" | "video"; conversation_id: string; created_at: string };
 const STOP_STATUSES = new Set(["active", "ended", "declined", "missed"]);
+const CALL_RING_WINDOW_MS = 60_000;
+
+function isFreshRingingCall(call: CallAlertRow): boolean {
+  const createdAt = Date.parse(call.created_at);
+  return Number.isFinite(createdAt) && createdAt <= Date.now() + 5_000 && Date.now() - createdAt <= CALL_RING_WINDOW_MS;
+}
 
 export default function GlobalResaCallAlerts() {
   const [incomingCall, setIncomingCall] = useState<CallAlertRow | null>(null);
@@ -33,7 +39,7 @@ export default function GlobalResaCallAlerts() {
     };
 
     const ring = async (call: CallAlertRow) => {
-      if (disposed || !userId || call.initiator_id === userId || call.status !== "ringing" || cleanups.has(call.id) || pending.has(call.id)) return;
+      if (disposed || !userId || call.initiator_id === userId || call.status !== "ringing" || !isFreshRingingCall(call) || cleanups.has(call.id) || pending.has(call.id)) return;
       pending.add(call.id);
       try {
         let preferences: NotificationAlertPreferences = {};
@@ -50,6 +56,15 @@ export default function GlobalResaCallAlerts() {
     void supabase.auth.getUser().then(async ({ data, error }) => {
       if (disposed || error || !data.user?.id) return;
       userId = data.user.id;
+      const syncRingingCalls = async () => {
+        const cutoff = new Date(Date.now() - CALL_RING_WINDOW_MS).toISOString();
+        const { data: ringingCalls } = await supabase.from("resa_calls")
+          .select("id,initiator_id,status,kind,conversation_id,created_at")
+          .eq("status", "ringing")
+          .gte("created_at", cutoff)
+          .order("created_at", { ascending: true });
+        if (!disposed && ringingCalls) for (const call of ringingCalls as CallAlertRow[]) void ring(call);
+      };
       channel = supabase.channel("zion-global-incoming-calls-" + userId)
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "resa_calls" }, (payload) => { void ring(payload.new as CallAlertRow); })
         .on("postgres_changes", { event: "UPDATE", schema: "public", table: "resa_calls" }, (payload) => {
@@ -57,9 +72,10 @@ export default function GlobalResaCallAlerts() {
           if (STOP_STATUSES.has(call.status)) stop(call.id);
           else if (call.status === "ringing") void ring(call);
         })
-        .subscribe();
-      const { data: ringingCalls } = await supabase.from("resa_calls").select("id,initiator_id,status,kind,conversation_id").eq("status", "ringing");
-      if (!disposed && ringingCalls) for (const call of ringingCalls as CallAlertRow[]) void ring(call);
+        .subscribe((status) => {
+          // Subscribe first, then reconcile to close the query/subscription race.
+          if (status === "SUBSCRIBED") void syncRingingCalls();
+        });
       // Reconcile ringing alerts with persisted call state. Realtime is fast, but
       // mobile browsers can suspend or drop a websocket while changing screens.
       reconcileTimer = window.setInterval(async () => {
