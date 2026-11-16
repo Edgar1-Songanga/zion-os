@@ -322,9 +322,14 @@ export default function ResaCallControls({ conversationId, peerName = "Membro RE
       const { error: participantError } = await supabase.from("resa_call_participants")
         .upsert({ call_id: target.id, user_id: userId.current, status: "joined", joined_at: new Date().toISOString() }, { onConflict: "call_id,user_id" });
       if (participantError) throw participantError;
-      const { error: updateError } = await supabase.from("resa_calls")
-        .update({ status: "active", answered_at: new Date().toISOString() }).eq("id", target.id);
+      // Compare-and-set the ringing state: a second tab or a concurrent
+      // decline/timeout must not be able to accept an already-finalized call.
+      const { data: accepted, error: updateError } = await supabase.from("resa_calls")
+        .update({ status: "active", answered_at: new Date().toISOString() })
+        .eq("id", target.id).eq("status", "ringing")
+        .select("id").maybeSingle();
       if (updateError) throw updateError;
+      if (!accepted) throw new Error("Esta chamada já foi atendida ou terminou noutro dispositivo.");
       setIncoming(null); setCallStatus("active"); setActive(true);
     } catch (reason) {
       intentionalDisconnectRef.current = true;
@@ -344,13 +349,17 @@ export default function ResaCallControls({ conversationId, peerName = "Membro RE
     callActionRef.current = "declining";
     setCallActionBusy(true);
     try {
-      const { error: updateError } = await supabase.from("resa_calls")
-        .update({ status: "declined", ended_at: new Date().toISOString() }).eq("id", target.id).eq("status", "ringing");
+      // Only one client may transition a ringing call to declined.
+      const { data: declined, error: updateError } = await supabase.from("resa_calls")
+        .update({ status: "declined", ended_at: new Date().toISOString() })
+        .eq("id", target.id).eq("status", "ringing")
+        .select("id").maybeSingle();
       if (updateError) {
         setError(updateError.message);
         return;
       }
       setIncoming((current) => current?.id === target.id ? null : current);
+      if (!declined) setError("Esta chamada já foi atendida ou terminou noutro dispositivo.");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível recusar a chamada.");
     } finally {
