@@ -48,7 +48,7 @@ begin
   end;
 
   -- Only the profile owner can approve; approval and follow edge are atomic.
-  select set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000003',true);
+  perform set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000003',true);
   begin
     perform public.resa_decide_follow_request(v_request_id,'accept');
     raise exception 'Unrelated account approved a follow request';
@@ -56,7 +56,7 @@ begin
     null;
   end;
 
-  select set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000002',true);
+  perform set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000002',true);
   perform public.resa_decide_follow_request(v_request_id,'accept');
   if not exists (
     select 1 from public.resa_follows
@@ -68,7 +68,7 @@ begin
   ) then raise exception 'Accepted request status was not persisted'; end if;
 
   -- A second requester can cancel their own pending request.
-  select set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000003',true);
+  perform set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000003',true);
   v_request := public.resa_create_follow_request('97000000-0000-4000-8000-000000000002');
   if not public.resa_cancel_follow_request('97000000-0000-4000-8000-000000000002') then
     raise exception 'Requester could not cancel their pending request';
