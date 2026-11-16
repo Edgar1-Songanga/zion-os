@@ -83,14 +83,39 @@ export class ResaSocialService {
     return this.db.get('resa_contents', token, `?select=*&moderation_status=eq.active&order=created_at.desc&limit=${size}${filter}`);
   }
   async getContentById(token: string, contentId: string) {
-    await this.actor(token);
+    const actor = await this.actor(token);
     const rows = await this.db.get<any[]>(
       'resa_contents',
       token,
-      `?select=*&id=eq.${encodeURIComponent(contentId)}&limit=1`,
+      `?select=*&id=eq.${encodeURIComponent(contentId)}&moderation_status=eq.active&limit=1`,
     );
-    if (!rows[0]) throw new NotFoundException('RESA publication not found');
-    return rows[0];
+    const content = rows[0];
+    if (!content) throw new NotFoundException('RESA publication not found');
+
+    // A direct-link request must return the same essential author and
+    // engagement metadata as a normal feed card, without bypassing RLS.
+    const [profiles, engagements, saves, reactions, shares] = await Promise.all([
+      this.db.rpc<any[]>('resa_profiles_for_ids', token, { p_user_ids: [content.author_id] }),
+      this.db.rpc<any[]>('resa_content_engagement_counts', token, { p_content_ids: [content.id] }),
+      this.db.get<any[]>('resa_saves', token, `?select=content_id&user_id=eq.${actor.id}&content_id=eq.${content.id}&limit=1`),
+      this.db.get<any[]>('resa_reactions', token, `?select=content_id&user_id=eq.${actor.id}&content_id=eq.${content.id}&limit=1`),
+      this.db.get<any[]>('resa_shares', token, `?select=content_id&user_id=eq.${actor.id}&share_type=eq.repost&content_id=eq.${content.id}&limit=1`),
+    ]);
+    const profile = profiles[0];
+    const counts = engagements[0];
+    return {
+      ...content,
+      author_display_name: profile?.display_name?.trim()
+        || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim()
+        || 'Membro RESA',
+      author_avatar_url: profile?.avatar_url ?? null,
+      reaction_count: Number(counts?.reaction_count ?? 0),
+      comment_count: Number(counts?.comment_count ?? 0),
+      share_count: Number(counts?.share_count ?? 0),
+      viewer_saved: saves.length > 0,
+      viewer_reacted: reactions.length > 0,
+      viewer_reposted: shares.length > 0,
+    };
   }
 
   async feed(token: string, limit = 30, mode: 'for_you' | 'following' | 'latest' = 'for_you', before?: string) {
