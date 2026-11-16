@@ -67,6 +67,18 @@ begin
     select 1 from public.resa_follow_requests where id = v_request_id and status = 'accepted'
   ) then raise exception 'Accepted request status was not persisted'; end if;
 
+  -- If the accepted follower later unfollows, a new request must be possible.
+  perform set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000001',true);
+  delete from public.resa_follows
+  where follower_id = auth.uid() and followed_id = '97000000-0000-4000-8000-000000000002';
+  v_request := public.resa_create_follow_request('97000000-0000-4000-8000-000000000002');
+  if v_request->>'status' <> 'pending' then
+    raise exception 'A previous accepted request prevented a new request after unfollow';
+  end if;
+  if not public.resa_cancel_follow_request('97000000-0000-4000-8000-000000000002') then
+    raise exception 'Requester could not cancel a renewed pending request';
+  end if;
+
   -- A second requester can cancel their own pending request.
   perform set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000003',true);
   v_request := public.resa_create_follow_request('97000000-0000-4000-8000-000000000002');
