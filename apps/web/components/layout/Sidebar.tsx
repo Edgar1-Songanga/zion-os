@@ -10,18 +10,31 @@ import { resaRequest } from "@/lib/resa/api";
 type NavItem = { name: string; path: string };
 type NavSection = { title: string; items: NavItem[] };
 
-function NavIcon({ index }: { index: number }) {
-  const paths = [
-    "M3 10.5 12 3l9 7.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5v-8Z",
-    "M4 5h16v14H4z M8 9h8 M8 13h5",
-    "M12 3v18M3 12h18",
-    "M5 20a7 7 0 0 1 14 0M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z",
-    "M4 5h16v15H4z M8 2v6M16 2v6M4 10h16",
-    "M12 21s-7-4.35-7-10V5l7-3 7 3v6c0 5.65-7 10-7 10Z",
-    "M4 18h16M6 18V9M10 18V5M14 18v-7M18 18V7",
-    "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z",
-  ];
-  return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={paths[index % paths.length]} /></svg>;
+function NavIcon({ path }: { path: string }) {
+  const icons: Record<string, string> = {
+    "/dashboard": "M3 10.5 12 3l9 7.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5v-8Z",
+    "/resa": "M4 5h16v14H4z M8 9h8 M8 13h5",
+    "/bible-engine": "M5 3h14v18H5z M8 7h8 M8 11h8 M8 15h5",
+    "/sabbath-school": "M4 5h16v15H4z M8 2v6M16 2v6M4 10h16",
+    "/devotion": "M12 21s-7-4.35-7-10V5l7-3 7 3v6c0 5.65-7 10-7 10Z",
+    "/spiritual-growth": "M4 18h16M6 18V9M10 18V5M14 18v-7M18 18V7",
+    "/spiritual-experience": "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z M12 7v5l3 2",
+    "/adventist-canon": "M6 3h12v18H6z M9 7h6M9 11h6M9 15h4",
+    "/spiritual-chat": "M4 5h16v12H9l-5 4z M8 9h8M8 13h5",
+    "/youth": "M12 3v18M3 12h18",
+    "/stewardship": "M4 18h16M6 18V9M10 18V5M14 18v-7M18 18V7",
+    "/admin": "M12 3 3 7v5c0 5 4 8 9 9 5-1 9-4 9-9V7z M9 12l2 2 4-4",
+    "/admin/verification": "M12 3 3 7v5c0 5 4 8 9 9 5-1 9-4 9-9V7z M8 12l2.5 2.5L16 9",
+    "/church-administration": "M3 21h18M5 21V7l7-4 7 4v14M9 10h1M14 10h1M9 14h1M14 14h1",
+    "/ministry": "M12 3v18M3 12h18",
+    "/secretariat": "M6 3h12v18H6z M9 8h6M9 12h6M9 16h4",
+    "/finance": "M3 7h18v13H3z M7 7V4h10v3M7 12h10",
+    "/hr": "M5 20a7 7 0 0 1 14 0M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z",
+    "/payroll": "M4 5h16v14H4z M8 9h8M8 13h3M14 13h2",
+    "/reports": "M4 18h16M6 18V9M10 18V5M14 18v-7M18 18V7",
+  };
+  const iconPath = icons[path] ?? "M4 4h16v16H4z M8 8h8M8 12h8M8 16h5";
+  return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={iconPath} /></svg>;
 }
 
 function uniqueSections(sections: NavSection[]): NavSection[] {
@@ -127,14 +140,14 @@ export default function Sidebar({ collapsed = false }: { collapsed?: boolean }) 
         </Link>
 
         <nav className="mt-5 min-h-0 overflow-y-auto overscroll-contain pr-1 md:mt-7 [scrollbar-color:rgba(203,213,225,0.35)_transparent] [scrollbar-width:thin]" aria-label="Navegação principal">
-          {sections.map((section, sectionIndex) => (
+          {sections.map((section) => (
             <section key={section.title} className="mb-4 last:mb-0 md:mb-5">
               {!collapsed && <h2 className="mb-2 px-2 text-[8px] md:px-3 md:text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-400">{section.title}</h2>}
               <div className="space-y-1">
-                {section.items.map((item, itemIndex) => {
+                {section.items.map((item) => {
                   const active = pathname === item.path || (nested.has(item.path) && pathname.startsWith(item.path + "/"));
                   return <Link key={item.path} href={item.path} aria-current={active ? "page" : undefined} aria-label={collapsed ? item.name : undefined} title={collapsed ? item.name : undefined} className={["group flex min-h-10 items-center rounded-lg py-2 text-[11px] transition-colors md:min-h-10 md:rounded-xl md:py-2.5 md:text-[13px]", collapsed ? "justify-center px-0" : "gap-2 px-2 md:gap-3 md:px-3", active ? "bg-white font-semibold text-[#0B2D4D] shadow-[0_6px_18px_rgba(0,0,0,0.12)]" : "text-slate-200 hover:bg-white/[0.08] hover:text-white"].join(" ")}>
-                    <span className={active ? "text-[#C8A24A]" : "text-slate-400 group-hover:text-[#E0B85A]"}><NavIcon index={sectionIndex * 4 + itemIndex} /></span>
+                    <span className={active ? "text-[#C8A24A]" : "text-slate-400 group-hover:text-[#E0B85A]"}><NavIcon path={item.path} /></span>
                     {!collapsed && <span className="truncate">{item.name}</span>}
                   </Link>;
                 })}
