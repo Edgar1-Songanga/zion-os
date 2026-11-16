@@ -295,7 +295,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
   }
 
   return (
-    <article id={`resa-post-${content.feed_item_id || content.id}`} className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.05)] transition-shadow hover:shadow-[0_18px_55px_rgba(15,23,42,0.08)]">
+    <article id={`resa-post-${content.id}`} className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.05)] transition-shadow hover:shadow-[0_18px_55px_rgba(15,23,42,0.08)]">
       <div className="p-6 sm:p-7">
         <header className="flex items-start gap-4">
           {content.is_institutional ? (
