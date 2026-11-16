@@ -55,6 +55,14 @@ begin
     null;
   end;
 
+  begin
+    insert into public.resa_calls(conversation_id,initiator_id,kind,status)
+    values ('96000000-0000-4000-8000-000000000101',auth.uid(),'audio','ringing');
+    raise exception 'Existing direct conversation bypassed private profile call visibility';
+  exception when insufficient_privilege then
+    null;
+  end;
+
   -- Follow eligibility remains independent so a private-profile follow/request
   -- flow is not accidentally disabled by the contact-visibility guard.
   if not private.resa_contact_allowed(auth.uid(),'96000000-0000-4000-8000-000000000002','follow_policy') then
