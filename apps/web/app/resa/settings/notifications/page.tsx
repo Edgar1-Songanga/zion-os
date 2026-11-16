@@ -28,6 +28,9 @@ const defaults: Preferences = {
 
 const notificationTypes = [
   { value: "resa.follow", label: "Novos seguidores", detail: "Quando alguém começa a seguir o teu perfil." },
+  { value: "resa.follow_request", label: "Pedidos para seguir", detail: "Quando alguém pede acesso ao teu perfil privado." },
+  { value: "resa.follow_request.accepted", label: "Pedidos aceites", detail: "Quando um pedido teu para seguir é aceite." },
+  { value: "resa.follow_request.declined", label: "Pedidos recusados", detail: "Quando um pedido teu para seguir não é aceite." },
   { value: "resa.comment", label: "Comentários", detail: "Quando alguém comenta as tuas publicações." },
   { value: "resa.reaction", label: "Reações", detail: "Quando alguém reage às tuas publicações." },
   { value: "resa.share", label: "Partilhas", detail: "Quando alguém partilha as tuas publicações." },
