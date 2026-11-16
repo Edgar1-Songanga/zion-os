@@ -79,9 +79,21 @@ begin
     raise exception 'Requester could not cancel a renewed pending request';
   end if;
 
-  -- A second requester can cancel their own pending request.
+  -- A second requester can be declined by the owner, then request again.
   perform set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000003',true);
   v_request := public.resa_create_follow_request('97000000-0000-4000-8000-000000000002');
+  v_request_id := (v_request->>'id')::uuid;
+  perform set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000002',true);
+  perform public.resa_decide_follow_request(v_request_id,'decline');
+  if not exists (
+    select 1 from public.resa_follow_requests where id = v_request_id and status = 'declined'
+  ) then raise exception 'Declined request status was not persisted'; end if;
+
+  perform set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000003',true);
+  v_request := public.resa_create_follow_request('97000000-0000-4000-8000-000000000002');
+  if v_request->>'status' <> 'pending' then
+    raise exception 'Requester could not submit a fresh request after decline';
+  end if;
   if not public.resa_cancel_follow_request('97000000-0000-4000-8000-000000000002') then
     raise exception 'Requester could not cancel their pending request';
   end if;
