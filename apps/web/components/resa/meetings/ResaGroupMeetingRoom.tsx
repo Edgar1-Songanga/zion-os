@@ -237,7 +237,24 @@ export default function ResaGroupMeetingRoom({
         setConnected(false);
         setConnecting(false);
         setReconnecting(false);
+        setCameraOn(false);
+        setMicrophoneOn(false);
+        setScreenShareOn(false);
+        setPeople([]);
+        remoteRef.current?.replaceChildren();
+        remoteScreenRef.current?.replaceChildren();
         setError("A ligação à reunião foi interrompida. Verifica a rede; se não recuperar, sai e volta a entrar.");
+        // A terminal disconnect is no longer an active meeting presence.
+        // Do not leave a ghost participant marked as PRESENT in the roster.
+        if (presenceSet) {
+          presenceSet = false;
+          void resaRequest(`/v1/resa/group-meetings/${meetingId}/presence`, {
+            method: "POST",
+            body: JSON.stringify({ status: "LEFT" }),
+          }).then(() => onRefresh()).catch(() => {
+            if (active) setError("A ligação terminou, mas não foi possível atualizar a presença. Sai da reunião e tenta novamente.");
+          });
+        }
       });
 
     async function connect() {
