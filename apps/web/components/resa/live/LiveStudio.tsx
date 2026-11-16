@@ -277,8 +277,7 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
           window.setTimeout(() => setLiveReactions((current) => current.filter((item) => item.id !== reaction.id)), 5000);
         }
       } catch {
-        // Ignore malformed packets instead of breaking the live session.
-      }
+        // Ignore malformed packets instead of breaking the live session.      }
     };
 
   const loadMessageHistory = () => {
@@ -339,10 +338,22 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
         }
       })
       .on(RoomEvent.Disconnected, () => {
-        if (mounted) {
-          setConnected(false);
-          setReconnecting(false);
-        }
+        if (!mounted) return;
+        setConnected(false);
+        setReconnecting(false);
+        setCamera(false);
+        setMicrophone(false);
+        setScreenShare(false);
+        setCanSpeak(false);
+        setParticipants([]);
+        setRaisedHands([]);
+        setHandRaised(false);
+        setAudioNeedsGesture(false);
+        localVideoRef.current?.pause();
+        if (localVideoRef.current) localVideoRef.current.srcObject = null;
+        remoteRef.current?.replaceChildren();
+        remoteScreenRef.current?.replaceChildren();
+        setNotice("A ligação à Live foi encerrada. Volta a entrar para continuares a participar.");
       });
 
     void (async () => {
@@ -557,8 +568,7 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
     if (!room || !isHost || typeof MediaRecorder === "undefined") { setError("A gravação local não é suportada neste navegador."); return; }
     try {
       const tracks: MediaStreamTrack[] = [];
-      const collect = (publication: any) => {
-        const mediaTrack = publication.track?.mediaStreamTrack as MediaStreamTrack | undefined;
+      const collect = (publication: any) => {        const mediaTrack = publication.track?.mediaStreamTrack as MediaStreamTrack | undefined;
         if (mediaTrack && mediaTrack.readyState === "live" && !tracks.some((item) => item.id === mediaTrack.id)) tracks.push(mediaTrack);
       };
       room.localParticipant.trackPublications.forEach(collect);
@@ -837,8 +847,7 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
     if (mediaBroadcasting) {
       await stopMediaBroadcast();
       setNotice("A transmissão do leitor foi parada.");
-      return;
-    }
+      return;    }
     const room = roomRef.current;
     const element = mediaVideoRef.current ?? mediaAudioRef.current;
     if (!isHost || !connected || !room || !element) return;
