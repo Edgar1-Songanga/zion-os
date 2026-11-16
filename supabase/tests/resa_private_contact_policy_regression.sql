@@ -68,6 +68,15 @@ begin
   if not private.resa_contact_allowed(auth.uid(),'96000000-0000-4000-8000-000000000002','follow_policy') then
     raise exception 'Private profile follow eligibility was incorrectly disabled';
   end if;
+
+  insert into public.resa_follows(follower_id,followed_id)
+  values (auth.uid(),'96000000-0000-4000-8000-000000000002');
+  if not private.resa_contact_allowed(auth.uid(),'96000000-0000-4000-8000-000000000002','message_policy') then
+    raise exception 'An accepted follower cannot message a private profile under an everyone message policy';
+  end if;
+  if not private.resa_contact_allowed(auth.uid(),'96000000-0000-4000-8000-000000000002','call_policy') then
+    raise exception 'An accepted follower cannot call a private profile under an everyone call policy';
+  end if;
 end;
 $test$;
 
