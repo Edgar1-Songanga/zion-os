@@ -120,13 +120,13 @@ export default function Sidebar() {
   const nested = new Set(["/admin", "/church-administration", "/secretariat", "/finance", "/hr", "/payroll", "/reports", "/ministry", "/youth", "/stewardship", "/resa", "/sabbath-school"]);
   return (
     <>
-      <aside className="sticky top-0 flex h-dvh min-h-0 max-h-dvh w-[clamp(112px,26vw,252px)] shrink-0 self-stretch flex-col overflow-hidden border-r border-white/10 bg-[linear-gradient(180deg,#0B2D4D_0%,#071E35_100%)] px-2 py-4 text-white shadow-[8px_0_30px_rgba(7,30,53,0.10)] md:w-[252px] md:px-3.5 md:py-5">
+      <aside className="sticky top-0 flex h-fit max-h-dvh w-[clamp(112px,26vw,252px)] shrink-0 self-start flex-col overflow-hidden border-r border-white/10 bg-[linear-gradient(180deg,#0B2D4D_0%,#071E35_100%)] px-2 py-4 text-white shadow-[8px_0_30px_rgba(7,30,53,0.10)] md:w-[252px] md:px-3.5 md:py-5">
         <Link href="/dashboard" className="shrink-0 px-1 md:px-3" aria-label="ZION OS — Painel principal">
           <h1 className="text-[19px] font-semibold tracking-[0.16em] text-white md:text-[25px] md:tracking-[0.24em]">ZION<span className="text-[#C8A24A]">OS</span></h1>
           <p className="mt-1 text-[8px] uppercase tracking-[0.1em] text-slate-300 md:text-[10px] md:tracking-[0.16em]">{t("globalDigitalEcosystem")}</p>
         </Link>
 
-        <nav className="mt-5 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 md:mt-7 [scrollbar-color:rgba(203,213,225,0.35)_transparent] [scrollbar-width:thin]" aria-label="Navegação principal">
+        <nav className="mt-5 min-h-0 overflow-y-auto overscroll-contain pr-1 md:mt-7 [scrollbar-color:rgba(203,213,225,0.35)_transparent] [scrollbar-width:thin]" aria-label="Navegação principal">
           {sections.map((section, sectionIndex) => (
             <section key={section.title} className="mb-4 last:mb-0 md:mb-5">
               <h2 className="mb-2 px-2 text-[8px] md:px-3 md:text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-400">{section.title}</h2>
