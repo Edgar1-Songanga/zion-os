@@ -77,9 +77,17 @@ begin
   for update;
 
   if found then
-    if v_request.status in ('pending','accepted') then
+    if v_request.status = 'pending' then
       return to_jsonb(v_request);
     end if;
+    if v_request.status = 'accepted' and exists (
+      select 1 from public.resa_follows f
+      where f.follower_id = v_actor and f.followed_id = p_target_id
+    ) then
+      return to_jsonb(v_request);
+    end if;
+    -- If the requester unfollowed after a previous approval, allow a fresh
+    -- request instead of leaving a stale accepted state permanently blocking it.
     update public.resa_follow_requests
       set status = 'pending', created_at = now(), updated_at = now(), decided_at = null
       where id = v_request.id
