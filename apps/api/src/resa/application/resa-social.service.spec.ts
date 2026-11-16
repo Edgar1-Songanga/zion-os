@@ -53,6 +53,26 @@ describe('ResaSocialService feeds', () => {
     expect(upsertSpy).not.toHaveBeenCalled();
   });
 
+  it('creates an approval request instead of a follow edge for a private profile', async () => {
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'profiles') return [{ id: FOLLOWED_ID, privacy: { profile_visibility: 'private', follow_policy: 'auto' } }] as never;
+      return [] as never;
+    });
+    const upsertSpy = jest.spyOn(SupabaseRestClient.prototype, 'upsert');
+    rpcSpy.mockResolvedValueOnce({ id: 'request-1', status: 'pending' } as never);
+
+    await expect(service.createFollowRequest('session-token', FOLLOWED_ID))
+      .resolves.toEqual({ id: 'request-1', status: 'pending' });
+    expect(rpcSpy).toHaveBeenCalledWith('resa_create_follow_request', 'session-token', { p_target_id: FOLLOWED_ID });
+    expect(upsertSpy).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid follow request decisions before calling the database', async () => {
+    await expect(service.decideFollowRequest('session-token', 'request-1', 'maybe'))
+      .rejects.toThrow('decision must be accept or decline');
+    expect(rpcSpy).not.toHaveBeenCalledWith('resa_decide_follow_request', expect.anything(), expect.anything());
+  });
+
   it('rejects follows when the target disabled new followers', async () => {
     getSpy.mockImplementation(async (table: string) => {
       if (table === 'profiles') return [{ id: FOLLOWED_ID, privacy: { profile_visibility: 'public', follow_policy: 'none' } }] as never;
