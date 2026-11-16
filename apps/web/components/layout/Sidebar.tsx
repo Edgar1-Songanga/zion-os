@@ -122,7 +122,7 @@ export default function Sidebar({ collapsed = false }: { collapsed?: boolean }) 
     <>
       <aside className={["sticky top-0 flex h-dvh max-h-dvh shrink-0 self-start flex-col overflow-hidden border-r border-white/10 bg-[linear-gradient(180deg,#0B2D4D_0%,#071E35_100%)] py-4 text-white shadow-[8px_0_30px_rgba(7,30,53,0.10)] transition-[width,padding] duration-200 md:py-5", collapsed ? "w-[64px] px-2 md:w-[76px] md:px-2" : "w-[clamp(112px,26vw,252px)] px-2 md:w-[252px] md:px-3.5"].join(" ")}>
         <Link href="/dashboard" className={["shrink-0", collapsed ? "px-0 text-center" : "px-1 md:px-3"].join(" ")} aria-label="ZION OS — Painel principal">
-          <h1 className="text-[19px] font-semibold tracking-[0.16em] text-white md:text-[25px] md:tracking-[0.24em]">ZION<span className="text-[#C8A24A]">OS</span></h1>
+          <h1 className="text-[19px] font-semibold tracking-[0.16em] text-white md:text-[25px] md:tracking-[0.24em]">{collapsed ? <span className="text-[#C8A24A]">Z</span> : <>ZION<span className="text-[#C8A24A]">OS</span></>}</h1>
           {!collapsed && <p className="mt-1 text-[8px] uppercase tracking-[0.1em] text-slate-300 md:text-[10px] md:tracking-[0.16em]">{t("globalDigitalEcosystem")}</p>}
         </Link>
 
@@ -133,7 +133,7 @@ export default function Sidebar({ collapsed = false }: { collapsed?: boolean }) 
               <div className="space-y-1">
                 {section.items.map((item, itemIndex) => {
                   const active = pathname === item.path || (nested.has(item.path) && pathname.startsWith(item.path + "/"));
-                  return <Link key={item.path} href={item.path} aria-current={active ? "page" : undefined} title={collapsed ? item.name : undefined} className={["group flex min-h-10 items-center rounded-lg py-2 text-[11px] transition-colors md:min-h-10 md:rounded-xl md:py-2.5 md:text-[13px]", collapsed ? "justify-center px-0" : "gap-2 px-2 md:gap-3 md:px-3", active ? "bg-white font-semibold text-[#0B2D4D] shadow-[0_6px_18px_rgba(0,0,0,0.12)]" : "text-slate-200 hover:bg-white/[0.08] hover:text-white"].join(" ")}>
+                  return <Link key={item.path} href={item.path} aria-current={active ? "page" : undefined} aria-label={collapsed ? item.name : undefined} title={collapsed ? item.name : undefined} className={["group flex min-h-10 items-center rounded-lg py-2 text-[11px] transition-colors md:min-h-10 md:rounded-xl md:py-2.5 md:text-[13px]", collapsed ? "justify-center px-0" : "gap-2 px-2 md:gap-3 md:px-3", active ? "bg-white font-semibold text-[#0B2D4D] shadow-[0_6px_18px_rgba(0,0,0,0.12)]" : "text-slate-200 hover:bg-white/[0.08] hover:text-white"].join(" ")}>
                     <span className={active ? "text-[#C8A24A]" : "text-slate-400 group-hover:text-[#E0B85A]"}><NavIcon index={sectionIndex * 4 + itemIndex} /></span>
                     {!collapsed && <span className="truncate">{item.name}</span>}
                   </Link>;
