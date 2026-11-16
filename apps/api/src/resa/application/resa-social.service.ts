@@ -602,6 +602,58 @@ export class ResaSocialService {
     return rows[0];
   }
   async unfollow(token: string, followedId: string) { const a = await this.actor(token); await this.db.delete('resa_follows', token, `?follower_id=eq.${a.id}&followed_id=eq.${followedId}`); return { removed: true }; }
+
+  async createFollowRequest(token: string, targetId: string) {
+    const actor = await this.actor(token);
+    const id = this.clean(targetId, 'user_id', 80);
+    if (actor.id === id) throw new BadRequestException('You cannot follow yourself');
+    const targets = await this.db.get<any[]>('profiles', token, `?select=id,privacy&id=eq.${encodeURIComponent(id)}&limit=1`);
+    if (!targets[0]) throw new NotFoundException('Profile not found');
+    if (targets[0].privacy?.profile_visibility !== 'private') {
+      return { status: 'following', follow: await this.follow(token, id) };
+    }
+    if (targets[0].privacy?.follow_policy === 'none') {
+      throw new ForbiddenException('Este perfil não aceita novos seguidores.');
+    }
+    return this.db.rpc<any>('resa_create_follow_request', token, { p_target_id: id });
+  }
+
+  async cancelFollowRequest(token: string, targetId: string) {
+    const actor = await this.actor(token);
+    const id = this.clean(targetId, 'user_id', 80);
+    if (actor.id === id) throw new BadRequestException('Invalid follow request target');
+    const cancelled = await this.db.rpc<boolean>('resa_cancel_follow_request', token, { p_target_id: id });
+    return { cancelled: Boolean(cancelled) };
+  }
+
+  async incomingFollowRequests(token: string) {
+    const actor = await this.actor(token);
+    const requests = await this.db.get<any[]>(
+      'resa_follow_requests', token,
+      `?select=id,requester_id,target_id,status,created_at&target_id=eq.${actor.id}&status=eq.pending&order=created_at.desc&limit=100`,
+    );
+    if (!requests.length) return [];
+    const ids = [...new Set(requests.map((request) => request.requester_id).filter(Boolean))];
+    const profiles = await this.db.rpc<any[]>('resa_profiles_for_ids', token, { p_user_ids: ids });
+    const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
+    return requests.map((request) => ({
+      ...request,
+      profile: profileById.get(request.requester_id) ?? null,
+    }));
+  }
+
+  async decideFollowRequest(token: string, requestId: string, decision: string) {
+    await this.actor(token);
+    const id = this.clean(requestId, 'request_id', 80);
+    if (decision !== 'accept' && decision !== 'decline') {
+      throw new BadRequestException('decision must be accept or decline');
+    }
+    return this.db.rpc<any>('resa_decide_follow_request', token, {
+      p_request_id: id,
+      p_decision: decision,
+    });
+  }
+
   async publicProfile(token: string, userId: string) {
     const actor = await this.actor(token);
     const id = this.clean(userId, 'user_id', 80);
@@ -614,6 +666,11 @@ export class ResaSocialService {
     ]);
     profile.viewer_has_blocked = blocks.length > 0;
     profile.viewer_has_muted = mutes.length > 0;
+    const pendingRequests = actor.id === id ? [] : await this.db.get<any[]>(
+      'resa_follow_requests', token,
+      `?select=id&requester_id=eq.${actor.id}&target_id=eq.${encodeURIComponent(id)}&status=eq.pending&limit=1`,
+    );
+    profile.viewer_follow_request_pending = pendingRequests.length > 0;
     const contents = profile.private_locked ? [] : await this.db.get<any[]>('resa_contents', token, `?select=id,author_id,type,title,body,created_at,media_type,media_url,language&moderation_status=eq.active&type=neq.story&author_id=eq.${encodeURIComponent(id)}&visibility=in.(public,followers,community,organization)&order=created_at.desc&limit=20`);
     return { profile, contents };
   }

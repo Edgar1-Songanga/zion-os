@@ -20,17 +20,25 @@ type Profile = {
   group_invite_allowed: boolean;
   follow_allowed: boolean;
   private_locked?: boolean;
+  viewer_follow_request_pending?: boolean;
   viewer_has_blocked?: boolean;
   viewer_has_muted?: boolean;
 };
 type Content = { id: string; title?: string | null; body?: string | null; media_type?: string | null; media_url?: string | null; created_at: string };
 type Result = { profile: Profile; contents: Content[] };
+type FollowRequest = {
+  id: string;
+  requester_id: string;
+  created_at: string;
+  profile?: { display_name?: string | null; first_name?: string | null; last_name?: string | null; avatar_url?: string | null } | null;
+};
 
 export default function ResaMemberProfile({ userId }: { userId: string }) {
   const [data, setData] = useState<Result | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [followRequests, setFollowRequests] = useState<FollowRequest[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -38,11 +46,15 @@ export default function ResaMemberProfile({ userId }: { userId: string }) {
     setError("");
     try {
       const result = await resaRequest<Result>("/v1/resa/profiles/" + encodeURIComponent(userId));
+      const requests = result.profile.is_owner
+        ? await resaRequest<FollowRequest[]>("/v1/resa/follow-requests/incoming")
+        : [];
       const media = await resolveResaMediaUrls(result.contents.filter((item) => !item.media_url && item.media_type).map((item) => item.id));
       setData({
         ...result,
         contents: result.contents.map((item) => ({ ...item, media_url: item.media_url || media[item.id] || null })),
       });
+      setFollowRequests(requests);
       setError("");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível abrir este perfil.");
@@ -57,10 +69,47 @@ export default function ResaMemberProfile({ userId }: { userId: string }) {
     if (!data || busy) return;
     setBusy(true);
     try {
-      await resaRequest("/v1/resa/profiles/" + encodeURIComponent(userId) + "/follow", { method: data.profile.is_following ? "DELETE" : "POST" });
+      if (data.profile.is_following) {
+        await resaRequest("/v1/resa/profiles/" + encodeURIComponent(userId) + "/follow", { method: "DELETE" });
+      } else if (data.profile.private_locked) {
+        await resaRequest("/v1/resa/profiles/" + encodeURIComponent(userId) + "/follow-request", { method: "POST" });
+      } else {
+        await resaRequest("/v1/resa/profiles/" + encodeURIComponent(userId) + "/follow", { method: "POST" });
+      }
       await load();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível atualizar a ligação.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function cancelFollowRequest() {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await resaRequest("/v1/resa/profiles/" + encodeURIComponent(userId) + "/follow-request", { method: "DELETE" });
+      await load();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível cancelar o pedido.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function decideFollowRequest(requestId: string, decision: "accept" | "decline") {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await resaRequest("/v1/resa/follow-requests/" + encodeURIComponent(requestId) + "/decision", {
+        method: "POST",
+        body: JSON.stringify({ decision }),
+      });
+      await load();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Não foi possível atualizar o pedido.");
     } finally {
       setBusy(false);
     }
@@ -116,7 +165,8 @@ export default function ResaMemberProfile({ userId }: { userId: string }) {
         </div>
         {profile.private_locked && <p className="mt-5 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">Este perfil é privado. Pode seguir este membro se ele aceitar novos seguidores; as publicações e os detalhes só serão apresentados depois de o seguir.</p>}
         {!profile.is_owner && <div className="mt-6 flex flex-wrap gap-2 border-t border-slate-100 pt-5">
-          {!profile.viewer_has_blocked && profile.follow_allowed && <button type="button" disabled={busy} onClick={() => void toggleFollow()} className="rounded-xl bg-[#0C1A3D] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{busy ? "A atualizar…" : profile.is_following ? "A seguir" : "Seguir"}</button>}
+          {!profile.viewer_has_blocked && profile.follow_allowed && !(profile.private_locked && profile.viewer_follow_request_pending) && <button type="button" disabled={busy} onClick={() => void toggleFollow()} className="rounded-xl bg-[#0C1A3D] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{busy ? "A atualizar…" : profile.is_following ? "A seguir" : profile.private_locked ? "Pedir para seguir" : "Seguir"}</button>}
+          {!profile.viewer_has_blocked && profile.private_locked && profile.viewer_follow_request_pending && <><span className="rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-600">Pedido enviado</span><button type="button" disabled={busy} onClick={() => void cancelFollowRequest()} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Cancelar pedido</button></>}
           {!profile.viewer_has_blocked && profile.message_allowed && <Link href={"/resa/messages?to=" + encodeURIComponent(userId)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-[#0C1A3D] hover:bg-slate-50">Mensagem</Link>}
           {!profile.viewer_has_blocked && profile.call_allowed && <Link href={"/resa/messages?to=" + encodeURIComponent(userId) + "&call=audio"} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-[#0C1A3D] hover:bg-slate-50">Ligar</Link>}
           {profile.viewer_has_blocked && <p className="w-full rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">Bloqueaste este membro. As publicações e interações entre as duas contas estão limitadas.</p>}
@@ -125,6 +175,17 @@ export default function ResaMemberProfile({ userId }: { userId: string }) {
         </div>}
         {error && <p role="alert" className="mt-4 text-sm text-red-700">{error}</p>}
       </section>
+      {profile.is_owner && <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center justify-between"><h2 className="text-lg font-semibold text-[#0C1A3D]">Pedidos para seguir</h2><span className="text-xs text-slate-400">{followRequests.length} pendentes</span></div>
+        {followRequests.length === 0 && <p className="text-sm text-slate-500">Não existem pedidos pendentes.</p>}
+        {followRequests.map((request) => {
+          const requesterName = request.profile?.display_name?.trim() || [request.profile?.first_name, request.profile?.last_name].filter(Boolean).join(" ").trim() || "Membro RESA";
+          return <div key={request.id} className="flex flex-col gap-3 border-t border-slate-100 pt-3 sm:flex-row sm:items-center">
+            <div className="min-w-0 flex-1"><p className="font-semibold text-slate-800">{requesterName}</p><p className="text-xs text-slate-400">Pedido recebido em {new Date(request.created_at).toLocaleDateString("pt-PT")}</p></div>
+            <div className="flex gap-2"><button type="button" disabled={busy} onClick={() => void decideFollowRequest(request.id, "accept")} className="rounded-lg bg-[#0C1A3D] px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">Aceitar</button><button type="button" disabled={busy} onClick={() => void decideFollowRequest(request.id, "decline")} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50">Recusar</button></div>
+          </div>;
+        })}
+      </section>}
       <section className="space-y-3">
         <div className="flex items-center justify-between"><h2 className="text-lg font-semibold text-[#0C1A3D]">Publicações</h2><span className="text-xs text-slate-400">{data.contents.length} recentes</span></div>
         {data.contents.length === 0 && <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500">Ainda não existem publicações públicas neste perfil.</div>}

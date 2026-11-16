@@ -65,8 +65,26 @@ export default function ResaSocialNetwork({ userId }: { userId: string }) {
     setError("");
     setNotice("");
     try {
-      await resaRequest("/v1/resa/profiles/" + encodeURIComponent(personId) + "/follow", { method: following ? "DELETE" : "POST" });
-      setNotice(following ? "Deixou de seguir este perfil." : "Ligação criada. Já está a seguir este perfil.");
+      if (following) {
+        await resaRequest("/v1/resa/profiles/" + encodeURIComponent(personId) + "/follow", { method: "DELETE" });
+        setNotice("Deixou de seguir este perfil.");
+      } else {
+        // Resolve the target's effective privacy before choosing the action.
+        // Private profiles require an approval request; a direct follow would
+        // correctly be rejected by the API and would leave this discovery card broken.
+        const result = await resaRequest<{ profile: { private_locked?: boolean; viewer_follow_request_pending?: boolean } }>(
+          "/v1/resa/profiles/" + encodeURIComponent(personId),
+        );
+        if (result.profile.viewer_follow_request_pending) {
+          setNotice("Já existe um pedido pendente para este perfil.");
+        } else if (result.profile.private_locked) {
+          await resaRequest("/v1/resa/profiles/" + encodeURIComponent(personId) + "/follow-request", { method: "POST" });
+          setNotice("Pedido enviado. O proprietário do perfil terá de o aprovar.");
+        } else {
+          await resaRequest("/v1/resa/profiles/" + encodeURIComponent(personId) + "/follow", { method: "POST" });
+          setNotice("Ligação criada. Já está a seguir este perfil.");
+        }
+      }
       await load();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível atualizar a ligação.");
