@@ -49,6 +49,8 @@ type CommentItem = {
   content?: string | null;
   body?: string | null;
   author_id?: string;
+  author_display_name?: string | null;
+  author_avatar_url?: string | null;
   created_at: string;
 };
 
@@ -181,7 +183,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
     if (!showComments || commentsLoadedRef.current) return;
     commentsLoadedRef.current = true;
     void resaRequest<CommentItem[]>("/v1/resa/content/" + content.id + "/comments")
-      .then((items) => { setComments(items); setCommentCount((current) => Math.max(current, items.length)); })
+      .then((items) => { setComments([...items].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at))); setCommentCount((current) => Math.max(current, items.length)); })
       .catch(() => { commentsLoadedRef.current = false; });
   }, [content.id, showComments]);
 
@@ -237,12 +239,17 @@ export default function FeedCard({ content }: { content: ResaContent }) {
         method: "POST",
         body: JSON.stringify({ body: value }),
       });
-      setComments((current) => [created, ...current]);
+      setComments((current) => [...current, created].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at)));
       setCommentCount((current) => current + 1);
       commentsLoadedRef.current = true;
       setComment("");
       setShowComments(true);
       setActionFeedback("Comentário publicado.");
+      // Refresh author metadata from the API without turning a successful
+      // publication into a failed submission if the refresh is unavailable.
+      void resaRequest<CommentItem[]>("/v1/resa/content/" + content.id + "/comments")
+        .then((items) => setComments([...items].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at))))
+        .catch(() => undefined);
     } catch (error) {
       setActionFeedback(error instanceof Error ? error.message : "Não foi possível publicar o comentário.");
     } finally {
@@ -453,7 +460,13 @@ export default function FeedCard({ content }: { content: ResaContent }) {
           <div className="mt-4 space-y-2">
             {comments.map((item) => (
               <div key={item.id} className="rounded-2xl bg-slate-50 p-3 text-sm leading-6 text-slate-700">
-                {item.content || item.body || ""}
+                <div className="mb-1 flex items-center justify-between gap-3">
+                  <span className="font-semibold text-slate-900">{item.author_display_name || "Membro RESA"}</span>
+                  <time className="shrink-0 text-[11px] text-slate-400" dateTime={item.created_at}>
+                    {Number.isNaN(Date.parse(item.created_at)) ? "" : new Date(item.created_at).toLocaleString(locale)}
+                  </time>
+                </div>
+                <p className="whitespace-pre-wrap break-words">{item.content || item.body || ""}</p>
               </div>
             ))}
           </div>
