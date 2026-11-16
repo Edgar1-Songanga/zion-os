@@ -279,6 +279,20 @@ describe('ResaGroupMeetingService', () => {
     expect(postSpy).not.toHaveBeenCalled();
   });
 
+  it('treats repeated meeting leave presence updates as idempotent', async () => {
+    actorId = PARTICIPANT_ID;
+    getSpy.mockResolvedValueOnce([{
+      meeting_id: MEETING_ID, user_id: PARTICIPANT_ID, participant_role: 'PARTICIPANT', status: 'LEFT',
+      joined_at: new Date().toISOString(), left_at: new Date().toISOString(),
+    }] as never);
+
+    const result = await service.setPresence('session-token', MEETING_ID, 'LEFT');
+
+    expect(result.status).toBe('LEFT');
+    expect(patchSpy).not.toHaveBeenCalled();
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+
   it('allows a participant already marked present to reconnect', async () => {
     actorId = PARTICIPANT_ID;
     patchSpy.mockResolvedValueOnce([{
