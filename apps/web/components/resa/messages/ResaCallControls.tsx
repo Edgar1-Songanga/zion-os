@@ -73,16 +73,12 @@ export default function ResaCallControls({ conversationId, peerName = "Membro RE
         }
         if (callRef.current?.id === next.id && ["ended", "declined", "missed"].includes(next.status)) {
           if (next.status === "missed") setError("A chamada não foi atendida. Pode tentar novamente.");
-          // A remote status update is an intentional lifecycle transition,
-          // not a network failure. Mark the disconnect before LiveKit emits
-          // RoomEvent.Disconnected so it cannot surface a misleading error.
-          intentionalDisconnectRef.current = true;
+          // Clear the active call ref before disconnecting so LiveKit's
+          // Disconnected event cannot misreport a remote end as a network failure.
           const room = roomRef.current;
           roomRef.current = null;
           callRef.current = null;
-          void room?.disconnect(true).finally(() => {
-            intentionalDisconnectRef.current = false;
-          });
+          void room?.disconnect(true);
           setCall(null); setActive(false); setCallStatus("ringing"); setConnected(false); setReconnecting(false); setScreenShare(false); setRemoteScreenShare(false);
         }
         if (incoming?.id === next.id && ["ended", "declined", "missed"].includes(next.status)) setIncoming(null);
