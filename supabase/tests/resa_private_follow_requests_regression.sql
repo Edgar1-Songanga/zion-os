@@ -71,6 +71,20 @@ begin
   perform set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000001',true);
   delete from public.resa_follows
   where follower_id = auth.uid() and followed_id = '97000000-0000-4000-8000-000000000002';
+  if not exists (
+    select 1 from public.resa_follow_requests
+    where id = v_request_id and status = 'withdrawn'
+  ) then raise exception 'Unfollow did not revoke the previous approval'; end if;
+
+  -- The old approval must not authorize a direct edge recreation.
+  begin
+    insert into public.resa_follows(follower_id,followed_id)
+    values (auth.uid(),'97000000-0000-4000-8000-000000000002');
+    raise exception 'Stale approval allowed a direct follow after unfollow';
+  exception when insufficient_privilege then
+    null;
+  end;
+
   v_request := public.resa_create_follow_request('97000000-0000-4000-8000-000000000002');
   if v_request->>'status' <> 'pending' then
     raise exception 'A previous accepted request prevented a new request after unfollow';
