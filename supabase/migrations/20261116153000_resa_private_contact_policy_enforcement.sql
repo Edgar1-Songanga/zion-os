@@ -2,7 +2,7 @@ begin;
 
 -- Keep contact permissions aligned with the public profile projection.
 -- A private profile must not be reachable through direct conversation RPCs
--- or an already-existing conversation unless the viewer is an accepted follower.
+-- or an already-existing conversation unless the viewer already follows the profile.
 create or replace function private.resa_contact_allowed(
   p_actor_id uuid,
   p_target_id uuid,
