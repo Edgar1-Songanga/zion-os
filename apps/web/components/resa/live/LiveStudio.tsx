@@ -277,7 +277,8 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
           window.setTimeout(() => setLiveReactions((current) => current.filter((item) => item.id !== reaction.id)), 5000);
         }
       } catch {
-        // Ignore malformed packets instead of breaking the live session.      }
+        // Ignore malformed packets instead of breaking the live session.
+      }
     };
 
   const loadMessageHistory = () => {
