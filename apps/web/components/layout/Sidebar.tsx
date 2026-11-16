@@ -139,7 +139,7 @@ export default function Sidebar({ collapsed = false }: { collapsed?: boolean }) 
           {!collapsed && <p className="mt-1 text-[8px] uppercase tracking-[0.1em] text-slate-300 md:text-[10px] md:tracking-[0.16em]">{t("globalDigitalEcosystem")}</p>}
         </Link>
 
-        <nav className="mt-5 min-h-0 overflow-y-auto overscroll-contain pr-1 md:mt-7 [scrollbar-color:rgba(203,213,225,0.35)_transparent] [scrollbar-width:thin]" aria-label="Navegação principal">
+        <nav id="primary-navigation" className="mt-5 min-h-0 overflow-y-auto overscroll-contain pr-1 md:mt-7 [scrollbar-color:rgba(203,213,225,0.35)_transparent] [scrollbar-width:thin]" aria-label="Navegação principal">
           {sections.map((section) => (
             <section key={section.title} className="mb-4 last:mb-0 md:mb-5">
               {!collapsed && <h2 className="mb-2 px-2 text-[8px] md:px-3 md:text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-400">{section.title}</h2>}
