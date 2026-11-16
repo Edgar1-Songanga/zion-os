@@ -202,14 +202,21 @@ set search_path = pg_catalog, pg_temp
 as $function$
 declare
   target_privacy jsonb;
+  accepted_by_owner boolean := false;
 begin
   if auth.uid() is null then
     if current_setting('role', true) = 'authenticated' then
       raise exception 'authenticated follow requires a user identity' using errcode = '42501';
     end if;
   else
-    if new.follower_id <> auth.uid() then
-      raise exception 'follow actor must match authenticated user' using errcode = '42501';
+    accepted_by_owner := auth.uid() = new.followed_id and exists (
+      select 1 from public.resa_follow_requests r
+      where r.requester_id = new.follower_id
+        and r.target_id = new.followed_id
+        and r.status = 'accepted'
+    );
+    if new.follower_id <> auth.uid() and not accepted_by_owner then
+      raise exception 'follow actor must match authenticated user or an accepted request owner' using errcode = '42501';
     end if;
 
     select p.privacy into target_privacy
@@ -228,7 +235,11 @@ begin
       raise exception 'private profile requires an accepted follow request' using errcode = '42501';
     end if;
 
-    if not private.resa_contact_allowed(new.follower_id, new.followed_id, 'follow_policy') then
+    if not accepted_by_owner
+       and not private.resa_contact_allowed(new.follower_id, new.followed_id, 'follow_policy') then
+      raise exception 'profile does not accept new followers' using errcode = '42501';
+    end if;
+    if accepted_by_owner and coalesce(target_privacy->>'follow_policy', 'auto') = 'none' then
       raise exception 'profile does not accept new followers' using errcode = '42501';
     end if;
   end if;
