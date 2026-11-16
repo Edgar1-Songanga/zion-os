@@ -36,7 +36,7 @@ function uniqueSections(sections: NavSection[]): NavSection[] {
   })).filter((section) => section.items.length > 0);
 }
 
-export default function Sidebar() {
+export default function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
   const pathname = usePathname();
   const { t } = useTranslation();
   const [globalAdmin, setGlobalAdmin] = useState(false);
@@ -120,22 +120,22 @@ export default function Sidebar() {
   const nested = new Set(["/admin", "/church-administration", "/secretariat", "/finance", "/hr", "/payroll", "/reports", "/ministry", "/youth", "/stewardship", "/resa", "/sabbath-school"]);
   return (
     <>
-      <aside className="sticky top-0 flex h-fit max-h-dvh w-[clamp(112px,26vw,252px)] shrink-0 self-start flex-col overflow-hidden border-r border-white/10 bg-[linear-gradient(180deg,#0B2D4D_0%,#071E35_100%)] px-2 py-4 text-white shadow-[8px_0_30px_rgba(7,30,53,0.10)] md:w-[252px] md:px-3.5 md:py-5">
-        <Link href="/dashboard" className="shrink-0 px-1 md:px-3" aria-label="ZION OS — Painel principal">
+      <aside className={["sticky top-0 flex h-dvh max-h-dvh shrink-0 self-start flex-col overflow-hidden border-r border-white/10 bg-[linear-gradient(180deg,#0B2D4D_0%,#071E35_100%)] py-4 text-white shadow-[8px_0_30px_rgba(7,30,53,0.10)] transition-[width,padding] duration-200 md:py-5", collapsed ? "w-[64px] px-2 md:w-[76px] md:px-2" : "w-[clamp(112px,26vw,252px)] px-2 md:w-[252px] md:px-3.5"].join(" ")}>
+        <Link href="/dashboard" className={["shrink-0", collapsed ? "px-0 text-center" : "px-1 md:px-3"].join(" ")} aria-label="ZION OS — Painel principal">
           <h1 className="text-[19px] font-semibold tracking-[0.16em] text-white md:text-[25px] md:tracking-[0.24em]">ZION<span className="text-[#C8A24A]">OS</span></h1>
-          <p className="mt-1 text-[8px] uppercase tracking-[0.1em] text-slate-300 md:text-[10px] md:tracking-[0.16em]">{t("globalDigitalEcosystem")}</p>
+          {!collapsed && <p className="mt-1 text-[8px] uppercase tracking-[0.1em] text-slate-300 md:text-[10px] md:tracking-[0.16em]">{t("globalDigitalEcosystem")}</p>}
         </Link>
 
         <nav className="mt-5 min-h-0 overflow-y-auto overscroll-contain pr-1 md:mt-7 [scrollbar-color:rgba(203,213,225,0.35)_transparent] [scrollbar-width:thin]" aria-label="Navegação principal">
           {sections.map((section, sectionIndex) => (
             <section key={section.title} className="mb-4 last:mb-0 md:mb-5">
-              <h2 className="mb-2 px-2 text-[8px] md:px-3 md:text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-400">{section.title}</h2>
+              {!collapsed && <h2 className="mb-2 px-2 text-[8px] md:px-3 md:text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-400">{section.title}</h2>}
               <div className="space-y-1">
                 {section.items.map((item, itemIndex) => {
                   const active = pathname === item.path || (nested.has(item.path) && pathname.startsWith(item.path + "/"));
-                  return <Link key={item.path} href={item.path} aria-current={active ? "page" : undefined} className={["group flex min-h-9 items-center gap-2 rounded-lg px-2 py-2 text-[11px] transition-colors md:min-h-10 md:gap-3 md:rounded-xl md:px-3 md:py-2.5 md:text-[13px]", active ? "bg-white font-semibold text-[#0B2D4D] shadow-[0_6px_18px_rgba(0,0,0,0.12)]" : "text-slate-200 hover:bg-white/[0.08] hover:text-white"].join(" ")}>
+                  return <Link key={item.path} href={item.path} aria-current={active ? "page" : undefined} title={collapsed ? item.name : undefined} className={["group flex min-h-10 items-center rounded-lg py-2 text-[11px] transition-colors md:min-h-10 md:rounded-xl md:py-2.5 md:text-[13px]", collapsed ? "justify-center px-0" : "gap-2 px-2 md:gap-3 md:px-3", active ? "bg-white font-semibold text-[#0B2D4D] shadow-[0_6px_18px_rgba(0,0,0,0.12)]" : "text-slate-200 hover:bg-white/[0.08] hover:text-white"].join(" ")}>
                     <span className={active ? "text-[#C8A24A]" : "text-slate-400 group-hover:text-[#E0B85A]"}><NavIcon index={sectionIndex * 4 + itemIndex} /></span>
-                    <span className="truncate">{item.name}</span>
+                    {!collapsed && <span className="truncate">{item.name}</span>}
                   </Link>;
                 })}
               </div>
@@ -144,10 +144,10 @@ export default function Sidebar() {
         </nav>
 
         <div className="mt-2 shrink-0 border-t border-white/10 px-1 pt-2 md:mt-4 md:px-2 md:pt-3">
-          <p className="px-1 pb-2 text-[9px] leading-3 text-slate-300 md:px-2 md:text-[10px] md:leading-4">A navegação apresenta apenas as áreas disponíveis para a tua função.</p>
-          <button type="button" onClick={() => void signOut()} disabled={signingOut} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-[11px] font-semibold md:min-h-11 md:gap-3 md:rounded-xl md:px-3 md:py-2.5 md:text-[13px] text-red-200 transition hover:bg-red-500/15 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E0B85A] disabled:cursor-wait disabled:opacity-60">
+          {!collapsed && <p className="px-1 pb-2 text-[9px] leading-3 text-slate-300 md:px-2 md:text-[10px] md:leading-4">A navegação apresenta apenas as áreas disponíveis para a tua função.</p>}
+          <button type="button" onClick={() => void signOut()} disabled={signingOut} title="Terminar sessão" className={["flex min-h-10 w-full items-center rounded-lg py-2 text-left text-[11px] font-semibold md:min-h-11 md:rounded-xl md:py-2.5 md:text-[13px] text-red-200", collapsed ? "justify-center px-0" : "gap-2 px-2 md:gap-3 md:px-3", transition hover:bg-red-500/15 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E0B85A] disabled:cursor-wait disabled:opacity-60"].join(" ")}>
             <svg aria-hidden="true" viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M10 17l5-5-5-5M15 12H3M21 4v16" /></svg>
-            <span>{signingOut ? "A terminar sessão…" : "Terminar sessão"}</span>
+            {!collapsed && <span>{signingOut ? "A terminar sessão…" : "Terminar sessão"}</span>}
           </button>
           {signOutError && <p role="alert" className="px-3 pt-2 text-[11px] text-red-200">Não foi possível terminar a sessão. Tente novamente.</p>}
         </div>
