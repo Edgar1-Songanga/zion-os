@@ -4,13 +4,38 @@ create table if not exists public.resa_follow_requests (
   id uuid primary key default gen_random_uuid(),
   requester_id uuid not null references auth.users(id) on delete cascade,
   target_id uuid not null references auth.users(id) on delete cascade,
-  status text not null default 'pending' check (status in ('pending','accepted','declined')),
+  status text not null default 'pending' check (status in ('pending','accepted','declined','withdrawn')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   decided_at timestamptz,
   constraint resa_follow_requests_no_self check (requester_id <> target_id),
   constraint resa_follow_requests_unique_pair unique (requester_id, target_id)
 );
+
+-- An approval is valid only while the corresponding follow edge exists.
+-- Revoke that approval when the follower removes the relationship, otherwise
+-- a stale accepted request could be replayed through a direct table insert.
+create or replace function private.resa_revoke_follow_approval_after_unfollow()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, public, pg_temp
+as $function$
+begin
+  update public.resa_follow_requests
+     set status = 'withdrawn', updated_at = now(), decided_at = now()
+   where requester_id = old.follower_id
+     and target_id = old.followed_id
+     and status = 'accepted';
+  return old;
+end;
+$function$;
+
+revoke all on function private.resa_revoke_follow_approval_after_unfollow() from public, anon, authenticated;
+drop trigger if exists resa_revoke_follow_approval_after_unfollow on public.resa_follows;
+create trigger resa_revoke_follow_approval_after_unfollow
+after delete on public.resa_follows
+for each row execute function private.resa_revoke_follow_approval_after_unfollow();
 
 create index if not exists resa_follow_requests_target_pending_idx
   on public.resa_follow_requests(target_id, created_at desc)
