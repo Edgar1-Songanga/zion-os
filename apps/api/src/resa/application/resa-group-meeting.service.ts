@@ -338,7 +338,12 @@ export class ResaGroupMeetingService {
       return rows[0];
     }
     const participants = await this.participant(token, id, actor.id);
-    if (!participants || participants.status !== 'PRESENT') throw new BadRequestException('Participant is not currently in the meeting');
+    if (!participants || !['PRESENT', 'LEFT'].includes(participants.status)) {
+      throw new BadRequestException('Participant is not currently in the meeting');
+    }
+    // LEFT is idempotent: a client may retry after a timeout even though the
+    // first request committed successfully on the server.
+    if (participants.status === 'LEFT') return participants;
     const rows = await this.db.patch<any[]>('resa_group_meeting_participants', token,
       { status: 'LEFT', left_at: new Date().toISOString() },
       `?meeting_id=eq.${id}&user_id=eq.${actor.id}&status=eq.PRESENT`);
