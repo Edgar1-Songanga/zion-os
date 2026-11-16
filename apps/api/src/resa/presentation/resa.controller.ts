@@ -34,9 +34,9 @@ export class ResaController {
   @Delete('profiles/:userId/mute') unmuteProfile(@Headers('authorization') a: string | undefined, @Param('userId') id: string) { return this.resa.unmuteProfile(this.token(a), id); }
   @Get('profiles/muted') mutedProfiles(@Headers('authorization') a: string | undefined) { return this.resa.mutedProfiles(this.token(a)); }
   @Get('profiles/:userId/following') follows(@Headers('authorization') a: string | undefined, @Param('userId') id: string) { return this.resa.follows(this.token(a), id); }
-  @Get('profiles/:userId') profile(@Headers('authorization') a: string | undefined, @Param('userId') id: string) { return this.resa.publicProfile(this.token(a), id); }
-  @Get('profiles/:userId/social') social(@Headers('authorization') a: string | undefined, @Param('userId') id: string) { return this.resa.social(this.token(a), id); }
   @Get('profiles/suggestions') suggestions(@Headers('authorization') a: string | undefined, @Query('limit') limit?: string) { return this.resa.suggestions(this.token(a), Number(limit) || 12); }
+  @Get('profiles/:userId/social') social(@Headers('authorization') a: string | undefined, @Param('userId') id: string) { return this.resa.social(this.token(a), id); }
+  @Get('profiles/:userId') profile(@Headers('authorization') a: string | undefined, @Param('userId') id: string) { return this.resa.publicProfile(this.token(a), id); }
   @Post('content/:contentId/mentions') mention(@Headers('authorization') a: string | undefined, @Param('contentId') id: string, @Body() b: { mentioned_user_id: string }) { return this.resa.mention(this.token(a), id, b.mentioned_user_id); }
   @Get('topics/:slug') topicFeed(@Headers('authorization') a: string | undefined, @Param('slug') slug: string, @Query('limit') limit?: string) { return this.resa.topicFeed(this.token(a), slug, Number(limit) || 50); }
   @Post('topics') topic(@Headers('authorization') a: string | undefined, @Body() b: { name: string }) { return this.resa.topic(this.token(a), b.name); }
