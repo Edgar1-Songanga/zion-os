@@ -67,6 +67,10 @@ begin
     raise exception 'profile does not accept new followers' using errcode = '42501';
   end if;
 
+  -- Serialize requests for this pair so concurrent taps cannot race the
+  -- unique constraint or emit duplicate notifications.
+  perform pg_advisory_xact_lock(hashtextextended(v_actor::text || ':' || p_target_id::text, 0));
+
   select * into v_request
   from public.resa_follow_requests
   where requester_id = v_actor and target_id = p_target_id
