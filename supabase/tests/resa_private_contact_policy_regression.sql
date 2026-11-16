@@ -12,6 +12,10 @@ insert into public.profiles(id,display_name,privacy) values
  ('96000000-0000-4000-8000-000000000002','Private Contact Owner','{"profile_visibility":"private","message_policy":"everyone","call_policy":"everyone","group_invite_policy":"everyone","follow_policy":"auto"}')
 on conflict (id) do update set privacy=excluded.privacy;
 
+-- The group-invite guard requires a request identity even when fixtures are
+-- seeded by the database owner before switching to the authenticated role.
+select set_config('request.jwt.claim.sub','96000000-0000-4000-8000-000000000001',false);
+
 insert into public.resa_conversations(id,created_by,kind,title) values
  ('96000000-0000-4000-8000-000000000101','96000000-0000-4000-8000-000000000001','direct','Pre-existing direct thread')
 on conflict (id) do nothing;
