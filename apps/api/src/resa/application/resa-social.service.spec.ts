@@ -977,3 +977,68 @@ describe('ResaSocialService institutional publishing authorization', () => {
     expect(postSpy).not.toHaveBeenCalled();
   });
 });
+
+
+describe('ResaSocialService direct publication lookup', () => {
+  let service: ResaSocialService;
+  let getSpy: jest.SpyInstance;
+  let rpcSpy: jest.SpyInstance;
+  const content = {
+    id: '33333333-3333-4333-8333-333333333333',
+    author_id: FOLLOWED_ID,
+    type: 'text',
+    visibility: 'public',
+    moderation_status: 'active',
+  };
+
+  beforeEach(() => {
+    const identity = { getCurrentUser: jest.fn().mockResolvedValue({ id: ACTOR_ID }) };
+    service = new ResaSocialService(identity as never, new ResaRecommendationService());
+    getSpy = jest.spyOn(SupabaseRestClient.prototype, 'get').mockImplementation(async (table: string) => {
+      if (table === 'resa_contents') return [content] as never;
+      if (table === 'resa_saves' || table === 'resa_reactions' || table === 'resa_shares') return [{ content_id: content.id }] as never;
+      return [] as never;
+    });
+    rpcSpy = jest.spyOn(SupabaseRestClient.prototype, 'rpc').mockImplementation(async (name: string) => {
+      if (name === 'resa_profiles_for_ids') {
+        return [{ id: FOLLOWED_ID, display_name: 'Author Name', avatar_url: 'https://example.test/avatar.webp' }] as never;
+      }
+      if (name === 'resa_content_engagement_counts') {
+        return [{ content_id: content.id, reaction_count: 7, comment_count: 3, share_count: 2 }] as never;
+      }
+      return [] as never;
+    });
+  });
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it('returns the author, engagement totals and viewer interaction state for an active direct link', async () => {
+    const result = await service.getContentById('session-token', content.id);
+
+    expect(getSpy).toHaveBeenCalledWith(
+      'resa_contents',
+      'session-token',
+      expect.stringContaining('&moderation_status=eq.active'),
+    );
+    expect(rpcSpy).toHaveBeenCalledWith('resa_profiles_for_ids', 'session-token', { p_user_ids: [FOLLOWED_ID] });
+    expect(rpcSpy).toHaveBeenCalledWith('resa_content_engagement_counts', 'session-token', { p_content_ids: [content.id] });
+    expect(result).toEqual(expect.objectContaining({
+      author_display_name: 'Author Name',
+      author_avatar_url: 'https://example.test/avatar.webp',
+      reaction_count: 7,
+      comment_count: 3,
+      share_count: 2,
+      viewer_saved: true,
+      viewer_reacted: true,
+      viewer_reposted: true,
+    }));
+  });
+
+  it('does not resolve a publication that is absent or excluded by active moderation filtering', async () => {
+    getSpy.mockResolvedValueOnce([] as never);
+
+    await expect(service.getContentById('session-token', content.id))
+      .rejects.toThrow('RESA publication not found');
+    expect(rpcSpy).not.toHaveBeenCalled();
+  });
+});
