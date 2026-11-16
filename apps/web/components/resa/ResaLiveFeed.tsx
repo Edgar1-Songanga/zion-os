@@ -215,7 +215,7 @@ export default function ResaLiveFeed() {
     <div className="space-y-6">
       <CreatePost onPublished={() => void load(true)} />
 
-      <div className="flex items-center justify-between px-1">
+      <div className="flex flex-col gap-3 px-1 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{t("now")}</p>
           <h2 className="mt-1 text-xl font-semibold tracking-tight text-[#0C1A3D]">{t("communityWall")}</h2>
@@ -225,6 +225,7 @@ export default function ResaLiveFeed() {
             <button type="button" aria-pressed={feedMode === "latest"} onClick={() => setFeedMode("latest")} className={`rounded-lg px-3 py-2 text-xs font-semibold transition ${feedMode === "latest" ? "bg-white text-[#0C1A3D] shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>Mais recentes</button>
           </div>
         </div>
+        <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => void resetFeedMemory()}
@@ -242,6 +243,7 @@ export default function ResaLiveFeed() {
           <ResaIcon name="message" size={15} />
           {refreshing ? t("refreshing") : t("refresh")}
         </button>
+        </div>
       </div>
 
       {loading && (
