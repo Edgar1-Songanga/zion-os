@@ -37,6 +37,7 @@ export default function SecretariatOfflineSyncPanel({ organizationId, onServerRe
   const running = useRef<number | null>(null);
   const cancelDiscardRef = useRef<HTMLButtonElement | null>(null);
   const confirmDiscardRef = useRef<HTMLButtonElement | null>(null);
+  const discardTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     refreshCallback.current = onServerRefresh;
@@ -44,6 +45,7 @@ export default function SecretariatOfflineSyncPanel({ organizationId, onServerRe
 
   useEffect(() => {
     if (discardTarget) cancelDiscardRef.current?.focus();
+    else discardTriggerRef.current?.focus();
   }, [discardTarget]);
 
   const refreshQueue = useCallback(async (activeScope: OfflineScope, sequence: number) => {
@@ -162,7 +164,8 @@ export default function SecretariatOfflineSyncPanel({ organizationId, onServerRe
     };
   }, [refresh, synchronize]);
 
-  async function discard(operationId: string) {
+  function discard(operationId: string, trigger: HTMLButtonElement) {
+    discardTriggerRef.current = trigger;
     setDiscardTarget(operationId);
   }
 
@@ -216,21 +219,40 @@ export default function SecretariatOfflineSyncPanel({ organizationId, onServerRe
       </div>
 
       {discardTarget && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-4" onKeyDown={event => {
-          if (event.key === "Escape" && !discarding) setDiscardTarget(null);
-        }}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-4">
           <section
-            role="dialog"
+            role="alertdialog"
             aria-modal="true"
             aria-labelledby="offline-discard-title"
+            aria-describedby="offline-discard-description"
+            onKeyDown={event => {
+              if (event.key === "Escape" && !discarding) {
+                event.preventDefault();
+                setDiscardTarget(null);
+                return;
+              }
+              if (event.key === "Tab") {
+                const first = cancelDiscardRef.current;
+                const last = confirmDiscardRef.current;
+                if (!first || !last) return;
+                if (event.shiftKey && document.activeElement === first) {
+                  event.preventDefault();
+                  last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                  event.preventDefault();
+                  first.focus();
+                }
+              }
+            }}
             className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl"
           >
             <h3 id="offline-discard-title" className="text-base font-semibold text-slate-900">Descartar rascunho?</h3>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
+            <p id="offline-discard-description" className="mt-2 text-sm leading-6 text-slate-600">
               Esta operação remove o rascunho guardado neste dispositivo. Não será possível recuperar os dados descartados.
             </p>
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
+                ref={cancelDiscardRef}
                 type="button"
                 disabled={discarding}
                 onClick={() => setDiscardTarget(null)}
@@ -239,6 +261,7 @@ export default function SecretariatOfflineSyncPanel({ organizationId, onServerRe
                 Cancelar
               </button>
               <button
+                ref={confirmDiscardRef}
                 type="button"
                 disabled={discarding}
                 onClick={() => void confirmDiscard()}
@@ -269,7 +292,7 @@ export default function SecretariatOfflineSyncPanel({ organizationId, onServerRe
               {(draft.status === "needs_attention" || draft.status === "rejected") && (
                 <button
                   type="button"
-                  onClick={() => void discard(draft.id)}
+                  onClick={event => discard(draft.id, event.currentTarget)}
                   className="w-fit text-xs font-semibold text-red-700 underline-offset-4 hover:underline"
                 >
                   Descartar rascunho
