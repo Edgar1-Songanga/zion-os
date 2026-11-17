@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import { createClient } from "@/lib/supabase/client";
 import ResaSocialNetwork from "@/components/resa/social/ResaSocialNetwork";
@@ -32,9 +32,6 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [avatarPreview, setAvatarPreview] = useState("");
-  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -69,58 +66,16 @@ export default function ProfilePage() {
   const initials = displayName.split(/\s+/).filter(Boolean).slice(0, 2)
     .map((part) => part[0]?.toUpperCase()).join("");
 
-  useEffect(() => {
-    if (!avatarFile) {
-      setAvatarPreview("");
-      return;
-    }
-    const previewUrl = URL.createObjectURL(avatarFile);
-    setAvatarPreview(previewUrl);
-    return () => URL.revokeObjectURL(previewUrl);
-  }, [avatarFile]);
-
-  function selectAvatar(file?: File) {
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setError("Escolha uma imagem para a fotografia de perfil.");
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setError("A fotografia ultrapassa o limite de 5 MB.");
-      return;
-    }
-    setError("");
-    setSaved(false);
-    setAvatarFile(file);
-  }
-
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true); setSaved(false); setError("");
     try {
-      let avatarUrl = profile.avatar_url?.trim() || null;
-      if (avatarFile) {
-        const supabase = createClient();
-        const { data: userData, error: userError } = await supabase.auth.getUser();
-        if (userError || !userData.user) throw new Error("A sessão RESA não está disponível.");
-
-        const extension = avatarFile.name.split(".").pop()?.toLowerCase() || "jpg";
-        const path = `${userData.user.id}/avatar-${crypto.randomUUID()}.${extension}`;
-        const upload = await supabase.storage.from("resa-media").upload(path, avatarFile, {
-          contentType: avatarFile.type,
-          upsert: false,
-        });
-        if (upload.error) throw new Error(upload.error.message);
-        avatarUrl = supabase.storage.from("resa-media").getPublicUrl(path).data.publicUrl;
-      }
-
       const updated = await resaRequest<Profile>("/v1/identity/profile", {
         method: "PATCH",
         body: JSON.stringify({
           display_name: profile.display_name?.trim() || null,
           first_name: profile.first_name?.trim() || null,
           last_name: profile.last_name?.trim() || null,
-          avatar_url: avatarUrl,
           bio: profile.bio?.trim() || null,
           country_code: profile.country_code?.trim().toUpperCase() || null,
           locale: profile.locale,
@@ -128,7 +83,6 @@ export default function ProfilePage() {
         }),
       });
       setProfile((current) => ({ ...current, ...updated }));
-      setAvatarFile(null);
       setSaved(true);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível guardar o perfil.");
@@ -148,10 +102,9 @@ export default function ProfilePage() {
         <header className="relative overflow-hidden rounded-3xl bg-[var(--zion-primary)] p-7 text-white shadow-[var(--zion-shadow-lg)] sm:p-8">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(200,162,74,0.25),transparent_42%)]" />
           <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center">
-            <button type="button" onClick={() => avatarInputRef.current?.click()} className="group relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/10 text-3xl font-semibold ring-1 ring-white/20" aria-label="Alterar fotografia de perfil" title="Alterar fotografia">
-              {(avatarPreview || profile.avatar_url) ? <img src={avatarPreview || profile.avatar_url || ""} alt={`Fotografia de ${displayName}`} className="h-full w-full object-cover" /> : (initials || "Z")}
-              <span className="absolute inset-x-0 bottom-0 bg-black/60 px-2 py-1 text-center text-[10px] font-semibold text-white opacity-0 transition group-hover:opacity-100">Alterar</span>
-            </button>
+            <div className="group relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/10 text-3xl font-semibold ring-1 ring-white/20">
+              {(profile.avatar_url) ? <img src={profile.avatar_url || ""} alt={`Fotografia de ${displayName}`} className="h-full w-full object-cover" /> : (initials || "Z")}
+            </div>
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">Perfil ZION</p>
               <div className="mt-2 flex flex-wrap items-center gap-3"><h1 className="truncate text-3xl font-semibold tracking-tight">{displayName}</h1>{verified && <span className="inline-flex items-center gap-2 rounded-full border border-sky-200/30 bg-sky-400/15 px-3 py-1.5 text-sm font-bold text-sky-100 shadow-[0_0_24px_rgba(56,189,248,0.22)]" aria-label="Conta ZION verificada"><svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 text-sky-300" fill="currentColor"><path fillRule="evenodd" d="M12 1.75a2.7 2.7 0 0 1 2.17 1.09l.48.65.8.1a2.7 2.7 0 0 1 2.27 1.62l.29.74.74.29a2.7 2.7 0 0 1 1.62 2.27l.1.8.65.48a2.7 2.7 0 0 1 0 4.34l-.65.48-.1.8a2.7 2.7 0 0 1-1.62 2.27l-.74.29-.29.74a2.7 2.7 0 0 1-2.27 1.62l-.8.1-.48.65a2.7 2.7 0 0 1-4.34 0l-.48-.65-.8-.1a2.7 2.7 0 0 1-2.27-1.62l-.29-.74-.74-.29a2.7 2.7 0 0 1-1.62-2.27l-.1-.8-.65-.48a2.7 2.7 0 0 1 0-4.34l.65-.48.1-.8a2.7 2.7 0 0 1 1.62-2.27l.74-.29.29-.74a2.7 2.7 0 0 1 2.27-1.62l.8-.1.48-.65A2.7 2.7 0 0 1 12 1.75Zm3.28 6.9a.9.9 0 0 0-1.27 0l-3.1 3.1-1.3-1.3a.9.9 0 0 0-1.27 1.27l1.94 1.94a.9.9 0 0 0 1.27 0l3.73-3.73a.9.9 0 0 0 0-1.27Z" clipRule="evenodd"/></svg>Conta verificada</span>}</div>
@@ -182,10 +135,8 @@ export default function ProfilePage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-[var(--zion-dark)]">Fotografia de perfil</p>
-                  <p className="mt-1 text-xs text-[var(--zion-muted)]">Escolha uma fotografia real. JPG, PNG ou WebP até 5 MB.</p>
+                  <p className="mt-1 text-xs text-[var(--zion-muted)]">A alteração está temporariamente indisponível enquanto o fluxo de análise segura de imagens é integrado. A fotografia actual permanece visível.</p>
                 </div>
-                <input ref={avatarInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={(e) => selectAvatar(e.target.files?.[0])} />
-                <button type="button" onClick={() => avatarInputRef.current?.click()} className="rounded-xl border border-[var(--zion-border)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--zion-dark)] transition hover:border-[var(--zion-sky)] hover:text-[var(--zion-primary)]">{avatarFile ? "Escolher outra" : "Alterar fotografia"}</button>
               </div>
             </div>
           </div>
