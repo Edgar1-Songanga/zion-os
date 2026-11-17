@@ -52,7 +52,11 @@ export default function ResaCallControls({ conversationId, peerName = "Membro RE
   }, [supabase]);
 
   useEffect(() => {
-    if (!ready || !autoStart || autoStartConversationRef.current === conversationId) return;
+    if (!autoStart) {
+      autoStartConversationRef.current = null;
+      return;
+    }
+    if (!ready || autoStartConversationRef.current === conversationId) return;
     autoStartConversationRef.current = conversationId;
     startCallRef.current(autoStart);
     onAutoStartHandledRef.current?.();
