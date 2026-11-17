@@ -7,7 +7,7 @@ New feed media is uploaded to the private Supabase Storage bucket `resa-content-
 The classifier must:
 - Authenticate with the bearer secret configured as `RESA_MEDIA_MODERATION_SECRET`.
 - Download and inspect the source URL without logging or retaining it.
-- Return JSON with `decision` (`approved`, `rejected`, or `review`), `confidence` (0–1), `provider`, and `categories` (string array).
+- Return JSON with `decision` (`approved`, `rejected`, or `review`), `confidence` (0–1), `provider`, `categories` (string array), `detected_mime_type` (the actual decoded MIME type), and `bytes_processed` (the exact source size). The API compares the decoded MIME and byte count with the upload metadata; mismatches fail closed.
 - For video, decode the complete duration and inspect frames at intervals no greater than one second. Return `frames_analyzed` and `coverage_ratio` (0–1). The API rejects a result with less than 90% coverage.
 - Treat explicit sexual nudity and pornographic content as `rejected`; ambiguous, low-confidence, or out-of-scope content as `review`. Do not classify solely by skin exposure.
 - Return a non-2xx response or time out on processing failure. The API fails closed.
@@ -25,7 +25,7 @@ No default provider is assumed. If any required service is absent, media publica
 
 ## Supabase Storage prerequisite
 
-Create `resa-content-private` as a **private** bucket, 50 MiB maximum, with JPEG, PNG, WebP, GIF, MP4, WebM and QuickTime MIME types. Apply the existing migration `20261108223000_resa_private_content_storage_foundation.sql` and this gate migration. Do not make this bucket public and do not create it by directly writing `storage.buckets`.
+Create `resa-content-private` as a **private** bucket, 50 MiB maximum, with JPEG, PNG, WebP, MP4, WebM and QuickTime MIME types. Animated GIF is deliberately excluded until the worker can inspect every frame. Apply the existing migration `20261108223000_resa_private_content_storage_foundation.sql` and this gate migration. Do not make this bucket public and do not create it by directly writing `storage.buckets`.
 
 ## Operational controls
 
