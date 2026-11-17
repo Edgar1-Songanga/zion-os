@@ -3,6 +3,7 @@ begin;
 alter table public.resa_contents
   add column if not exists media_moderation_status text,
   add column if not exists media_moderation_provider text,
+  add column if not exists media_moderation_model text,
   add column if not exists media_moderation_score numeric(5,4),
   add column if not exists media_moderation_categories text[],
   add column if not exists media_moderated_at timestamptz;
@@ -53,6 +54,7 @@ begin
   if new.media_type is null and new.media_url is null and new.media_path is null then
     if new.media_moderation_status is not null
        or new.media_moderation_provider is not null
+       or new.media_moderation_model is not null
        or new.media_moderation_score is not null
        or new.media_moderation_categories is not null
        or new.media_moderated_at is not null then
@@ -69,6 +71,7 @@ begin
      or (storage.foldername(new.media_path))[1] <> new.author_id::text
      or new.media_moderation_status <> 'approved'
      or nullif(btrim(new.media_moderation_provider),'') is null
+     or nullif(btrim(new.media_moderation_model),'') is null
      or new.media_moderation_score is null
      or new.media_moderation_score < 0
      or new.media_moderation_score > 1
@@ -86,7 +89,7 @@ revoke all on function private.resa_guard_moderated_media_write() from public, a
 drop trigger if exists trg_resa_guard_moderated_media_write on public.resa_contents;
 create trigger trg_resa_guard_moderated_media_write
 before insert or update of media_type, media_url, media_path,
-  media_moderation_status, media_moderation_provider, media_moderation_score,
+  media_moderation_status, media_moderation_provider, media_moderation_model, media_moderation_score,
   media_moderation_categories, media_moderated_at
 on public.resa_contents
 for each row execute function private.resa_guard_moderated_media_write();
