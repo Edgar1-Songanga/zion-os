@@ -17,7 +17,7 @@ describe('NotificationService notification filtering', () => {
 
   afterEach(() => jest.restoreAllMocks());
 
-  it('filters muted social actors and keeps ephemeral call alerts out of inbox history', async () => {
+  it('filters muted social actors and keeps actionable call history in the inbox', async () => {
     getSpy.mockImplementation(async (table: string) => {
       if (table === 'resa_user_mutes') return [{ muted_id: MUTED_ID }] as never;
       if (table === 'notifications') return [
@@ -31,7 +31,7 @@ describe('NotificationService notification filtering', () => {
 
     const result = await service.list('session-token', false, 50);
 
-    expect(result.map((item) => item.id)).toEqual(['visible', 'system']);
+    expect(result.map((item) => item.id)).toEqual(['visible', 'call-alert', 'system']);
   });
 
   it('preserves the requested limit when no accounts are muted', async () => {
