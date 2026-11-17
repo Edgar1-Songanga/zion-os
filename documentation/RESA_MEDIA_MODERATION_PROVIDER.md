@@ -7,7 +7,7 @@ New feed media is uploaded to the private Supabase Storage bucket `resa-content-
 The classifier must:
 - Authenticate with the bearer secret configured as `RESA_MEDIA_MODERATION_SECRET`.
 - Download and inspect the source URL without logging or retaining it.
-- Return JSON with `decision` (`approved`, `rejected`, or `review`), `confidence` (0–1), `provider`, `categories` (string array), `detected_mime_type` (the actual decoded MIME type), and `bytes_processed` (the exact source size). The API compares the decoded MIME and byte count with the upload metadata; mismatches fail closed.
+- Return JSON with `decision` (`approved`, `rejected`, or `review`), `confidence` (0–1), `provider`, `model_version`, `policy_version` (must equal `resa-explicit-sexual-nudity-v1`), `categories` (string array), `detected_mime_type` (the actual decoded MIME type), and `bytes_processed` (the exact source size). The API compares the decoded MIME and byte count with the upload metadata; mismatches fail closed. An `approved` decision below 0.85 confidence is routed to review and blocked.
 - For video, decode the complete duration and inspect frames at intervals no greater than one second. Return `frames_analyzed` and `coverage_ratio` (0–1). The API rejects a result with less than 90% coverage.
 - Treat explicit sexual nudity and pornographic content as `rejected`; ambiguous, low-confidence, or out-of-scope content as `review`. Do not classify solely by skin exposure.
 - Return a non-2xx response or time out on processing failure. The API fails closed.
