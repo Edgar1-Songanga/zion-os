@@ -108,26 +108,31 @@ export default function SpiritualChat() {
       };
       setMessages((current) => [...current, assistantMessage]);
 
-      let activeConversationId = conversationId;
-      if (!activeConversationId) {
-        const created = await resaRequest<Conversation>("/v1/spiritual/chat/conversations", {
+      try {
+        let activeConversationId = conversationId;
+        if (!activeConversationId) {
+          const created = await resaRequest<Conversation>("/v1/spiritual/chat/conversations", {
+            method: "POST",
+            body: JSON.stringify({ title: prompt.slice(0, 120) }),
+          });
+          activeConversationId = created.id;
+          setConversationId(created.id);
+        }
+        await resaRequest("/v1/spiritual/chat/conversations/" + encodeURIComponent(activeConversationId) + "/messages", {
           method: "POST",
-          body: JSON.stringify({ title: prompt.slice(0, 120) }),
+          body: JSON.stringify({
+            question: prompt,
+            answer: safeResult.content,
+            payload: { references: safeResult.references, provider: safeResult.provider },
+          }),
         });
-        activeConversationId = created.id;
-        setConversationId(created.id);
+        setPersistenceStatus("saved");
+        const refreshed = await resaRequest<{ items: Conversation[] }>("/v1/spiritual/chat/conversations");
+        setConversations(refreshed.items ?? []);
+      } catch {
+        setPersistenceStatus("local");
+        setError("A resposta foi gerada, mas não foi possível sincronizar o histórico. O conteúdo continua visível nesta sessão.");
       }
-      await resaRequest("/v1/spiritual/chat/conversations/" + encodeURIComponent(activeConversationId) + "/messages", {
-        method: "POST",
-        body: JSON.stringify({
-          question: prompt,
-          answer: safeResult.content,
-          payload: { references: safeResult.references, provider: safeResult.provider },
-        }),
-      });
-      setPersistenceStatus("saved");
-      const refreshed = await resaRequest<{ items: Conversation[] }>("/v1/spiritual/chat/conversations");
-      setConversations(refreshed.items ?? []);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível obter uma resposta da IA. Tenta novamente.");
       setPersistenceStatus("local");
