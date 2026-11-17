@@ -1,0 +1,72 @@
+name: Web browser E2E
+
+on:
+  pull_request:
+    paths:
+      - "apps/web/**"
+      - ".github/workflows/web-browser-e2e.yml"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "package.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-browser-e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser:
+    name: Chromium browser smoke tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: local-browser-test-key
+      NEXT_PUBLIC_ZION_API_URL: http://127.0.0.1:3001
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Web for production
+        run: pnpm --filter web build
+
+      - name: Install pinned Playwright runner outside the workspace
+        run: |
+          npm install --prefix "$RUNNER_TEMP/zion-playwright" --no-save --no-package-lock @playwright/test@1.65.1
+          echo "NODE_PATH=$RUNNER_TEMP/zion-playwright/node_modules" >> "$GITHUB_ENV"
+
+      - name: Install Chromium and operating-system dependencies
+        run: "$RUNNER_TEMP/zion-playwright/node_modules/.bin/playwright install --with-deps chromium"
+
+      - name: Run browser smoke tests against the production build
+        run: "$RUNNER_TEMP/zion-playwright/node_modules/.bin/playwright test --config=apps/web/e2e/playwright.config.cjs"
+
+      - name: Upload Playwright report and traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zion-web-playwright-report
+          path: |
+            apps/web/e2e/playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
