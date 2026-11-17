@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { OrganizationSelector, type ZionOrganization } from "@/components/organization/OrganizationSelector";
 import { ResaApiError, resaRequest } from "@/lib/resa/api";
 import SecretariatOfflineSyncPanel from "@/components/secretariat/SecretariatOfflineSyncPanel";
