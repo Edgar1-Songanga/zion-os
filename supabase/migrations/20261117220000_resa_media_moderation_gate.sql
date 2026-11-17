@@ -40,6 +40,7 @@ with check (
   and media_path is null
   and media_moderation_status is null
   and media_moderation_provider is null
+  and media_moderation_model is null
   and media_moderation_score is null
   and media_moderation_categories is null
   and media_moderated_at is null
