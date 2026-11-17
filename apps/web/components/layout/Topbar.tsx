@@ -38,7 +38,7 @@ function roleLabel(user: User | null, memberships: Membership[]) {
   return "Perfil institucional por configurar";
 }
 
-export default function Topbar() {
+export default function Topbar({ onMenuClick }: { onMenuClick?: () => void }) {
   const { t } = useTranslation();
   const menuRef = useRef<HTMLDivElement>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -127,6 +127,9 @@ export default function Topbar() {
   return (
     <header className="sticky top-0 z-30 flex h-[68px] shrink-0 items-center justify-between gap-2 border-b border-slate-200/80 bg-white/90 px-2 backdrop-blur-xl sm:px-6">
       <div className="flex min-w-0 items-center gap-2 sm:gap-5">
+        <button type="button" onClick={onMenuClick} aria-label="Abrir navegação" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[#0B2D4D] transition hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8A24A] md:hidden">
+          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+        </button>
         <div className="min-w-0">
           <h2 className="text-[14px] font-semibold tracking-[0.08em] text-[#0B2D4D] sm:text-[18px] sm:tracking-[0.12em]">ZION OS</h2>
           <p className="mt-0.5 hidden truncate text-[11px] text-slate-500 sm:block">{t("brandDescription")}</p>
