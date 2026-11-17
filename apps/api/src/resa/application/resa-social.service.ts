@@ -2,11 +2,12 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { IdentityService } from '../../identity/application/identity.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 import { ResaRecommendationService } from './recommendation.service';
+import { ResaMediaModerationService } from './resa-media-moderation.service';
 
 @Injectable()
 export class ResaSocialService {
   private readonly db = new SupabaseRestClient();
-  constructor(private readonly identity: IdentityService, private readonly recommendations: ResaRecommendationService) {}
+  constructor(private readonly identity: IdentityService, private readonly recommendations: ResaRecommendationService, private readonly mediaModeration: ResaMediaModerationService) {}
   private async actor(token: string) { return this.identity.getCurrentUser(token); }
   private async mutedAuthorIds(token: string, userId: string): Promise<string[]> {
     const rows = await this.db.get<any[]>(
@@ -527,16 +528,27 @@ export class ResaSocialService {
       }
     }
     if (visibility === 'organization' && !organizationId) throw new BadRequestException('organization_id is required for organization-only content');
-    const mediaType = input.media_type === 'image' || input.media_type === 'video' ? input.media_type : null;
-    const mediaUrl = typeof input.media_url === 'string' && input.media_url.trim() ? input.media_url.trim() : null;
-    const mediaPath = typeof input.media_path === 'string' && input.media_path.trim() ? input.media_path.trim() : null;
-    if (mediaType && !mediaUrl) throw new BadRequestException('media_url is required when media_type is provided');
-    if (visibility !== 'public' && (mediaType || mediaUrl || mediaPath)) {
-      throw new BadRequestException('Media attachments currently require public visibility. Private media delivery is being secured separately.');
+    const hasMedia = input.media_type !== undefined || input.media_path !== undefined || input.media_url !== undefined;
+    let mediaType: 'image' | 'video' | null = null;
+    let mediaPath: string | null = null;
+    let moderation: ReturnType<ResaMediaModerationService['verifyApprovalToken']> | null = null;
+    if (hasMedia) {
+      if (input.media_url) throw new BadRequestException('Public media URLs are no longer accepted for new RESA publications.');
+      if (input.media_type !== 'image' && input.media_type !== 'video') throw new BadRequestException('Invalid media type.');
+      if (typeof input.media_path !== 'string' || !input.media_path.trim()) throw new BadRequestException('A private media path is required.');
+      mediaType = input.media_type;
+      mediaPath = input.media_path.trim();
+      moderation = this.mediaModeration.verifyApprovalToken(input.media_moderation_token, {
+        userId: a.id, mediaPath, mediaType,
+      });
+      if (visibility !== 'public') throw new BadRequestException('Media publications currently require public visibility.');
     }
-    const body = { author_id: a.id, type, title: typeof input.title === 'string' ? input.title.trim() || null : null, body: typeof input.body === 'string' ? input.body.trim() || null : null, visibility, language: typeof input.language === 'string' && input.language.trim() ? input.language.trim() : 'pt', organization_id: organizationId, community_id: communityId, ministry_id: ministryId, scripture_references: Array.isArray(input.scripture_references) ? input.scripture_references.slice(0, 50) : [], media_type: mediaType, media_url: mediaUrl, media_path: mediaPath };
-    if (!body.body && !body.title) throw new BadRequestException('title or body is required');
-    const rows = await this.db.post<any[]>('resa_contents', token, body); return rows[0];
+    const body = { author_id: a.id, type, title: typeof input.title === 'string' ? input.title.trim() || null : null, body: typeof input.body === 'string' ? input.body.trim() || null : null, visibility, language: typeof input.language === 'string' && input.language.trim() ? input.language.trim() : 'pt', organization_id: organizationId, community_id: communityId, ministry_id: ministryId, scripture_references: Array.isArray(input.scripture_references) ? input.scripture_references.slice(0, 50) : [], media_type: mediaType, media_url: null, media_path: mediaPath, media_moderation_status: moderation ? 'approved' : null, media_moderation_provider: moderation?.provider ?? null, media_moderation_score: moderation?.confidence ?? null, media_moderation_categories: moderation?.categories ?? null, media_moderated_at: moderation ? new Date(moderation.issuedAt).toISOString() : null };
+    if (!body.body && !body.title && !mediaType) throw new BadRequestException('title or body is required');
+    const rows = hasMedia
+      ? await this.db.postAsServiceRole<any[]>('resa_contents', body)
+      : await this.db.post<any[]>('resa_contents', token, body);
+    return rows[0];
   }
   async comment(token: string, contentId: string, input: { body: string; parent_id?: string | null }) {
     const actor = await this.actor(token);
