@@ -15,9 +15,9 @@ export default function DashboardContent() {
   const copy = (key: string) => t(key as Parameters<typeof t>[0]);
 
   return (
-    <main lang={locale} aria-busy={!ready} className="mx-auto max-w-[1440px] space-y-7 pb-8">
+    <div lang={locale} aria-busy={!ready} className="mx-auto max-w-[1440px] space-y-7 pb-8">
       <section className="relative isolate overflow-hidden rounded-[30px] bg-[#07152B] px-6 py-9 text-white shadow-[0_28px_90px_rgba(7,21,43,0.18)] sm:px-10 sm:py-12 lg:px-14 lg:py-14">
-        <div aria-hidden="true" className="absolute inset-0 z-0 bg-cover bg-center opacity-35" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=1800&q=85')" }} />
+        <div aria-hidden="true" className="absolute inset-0 z-0 bg-[radial-gradient(ellipse_at_78%_18%,rgba(226,196,119,0.20),transparent_34%),radial-gradient(ellipse_at_20%_90%,rgba(37,99,235,0.18),transparent_42%)]" />
         <div aria-hidden="true" className="absolute inset-0 z-[1] bg-[linear-gradient(105deg,rgba(5,15,32,0.98)_0%,rgba(7,21,43,0.88)_56%,rgba(7,21,43,0.52)_100%)]" />
         <div aria-hidden="true" className="absolute -right-24 -top-28 h-80 w-80 rounded-full border border-[#E2C477]/20" />
         <div aria-hidden="true" className="absolute -right-8 -top-12 h-48 w-48 rounded-full border border-white/10" />
@@ -51,6 +51,6 @@ export default function DashboardContent() {
         </div>
       </section>
       <p className="px-1 text-center text-xs leading-5 text-slate-400">{copy("dashClosing")}</p>
-    </main>
+    </div>
   );
 }
