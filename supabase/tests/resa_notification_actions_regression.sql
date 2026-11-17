@@ -19,6 +19,21 @@ end;
 $test$;
 
 -- The message trigger must create a conversation-style notification with sender identity and preview.
+do $test$
+begin
+  if auth.uid() <> '10000000-0000-4000-8000-000000000001'::uuid then
+    raise exception 'Regression fixture did not retain the authenticated caller';
+  end if;
+  if not private.resa_contact_allowed(
+    '10000000-0000-4000-8000-000000000001',
+    '10000000-0000-4000-8000-000000000002',
+    'message_policy'
+  ) then
+    raise exception 'Regression recipient profile must allow direct messages';
+  end if;
+end;
+$test$;
+
 drop trigger if exists trg_resa_message_core_notification on public.resa_messages;
 create trigger trg_resa_message_core_notification
   after insert on public.resa_messages
