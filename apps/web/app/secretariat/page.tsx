@@ -172,6 +172,9 @@ export default function SecretariatPage() {
   const [decisionNote, setDecisionNote] = useState("");
   const [decisionSaving, setDecisionSaving] = useState(false);
   const decisionContextSequence = useRef(0);
+  const decisionDialogElementRef = useRef<HTMLElement | null>(null);
+  const decisionTriggerElementRef = useRef<HTMLElement | null>(null);
+  const decisionWasOpenRef = useRef(false);
 
   const loadMembers = useCallback(async (id: string) => {
     if (!id) return;
@@ -546,10 +549,27 @@ export default function SecretariatPage() {
     setDecisionSaving(false);
   }
 
-  function openDecisionDialog(dialog: NonNullable<typeof decisionDialog>) {
+  function openDecisionDialog(dialog: NonNullable<typeof decisionDialog>, trigger: HTMLElement) {
+    decisionTriggerElementRef.current = trigger;
     setDecisionNote("");
     setDecisionDialog(dialog);
   }
+
+  useEffect(() => {
+    if (decisionDialog) {
+      decisionWasOpenRef.current = true;
+      const focusTarget = decisionDialogElementRef.current?.querySelector<HTMLElement>(
+        "textarea, button:not([disabled])",
+      );
+      focusTarget?.focus();
+      return;
+    }
+    if (decisionWasOpenRef.current) {
+      decisionWasOpenRef.current = false;
+      decisionTriggerElementRef.current?.focus();
+      decisionTriggerElementRef.current = null;
+    }
+  }, [decisionDialog]);
 
   async function toggleTransferHistory(transferId: string) {
     if (transferHistoryId === transferId) {
@@ -885,7 +905,7 @@ export default function SecretariatPage() {
                 <span className={`inline-flex w-fit rounded-full px-3 py-1.5 text-xs font-semibold ${record.status === "VALIDATED" ? "bg-emerald-50 text-emerald-700" : record.status === "REJECTED" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-800"}`}>{BAPTISM_STATUS_LABELS[record.status]}</span>
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                {record.status === "PENDING" && <><button type="button" onClick={() => openDecisionDialog({ kind: "baptism", record, status: "VALIDATED" })} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white">Validar</button><button type="button" onClick={() => openDecisionDialog({ kind: "baptism", record, status: "REJECTED" })} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">Rejeitar</button></>}
+                {record.status === "PENDING" && <><button type="button" onClick={(event) => openDecisionDialog({ kind: "baptism", record, status: "VALIDATED" }, event.currentTarget)} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white">Validar</button><button type="button" onClick={(event) => openDecisionDialog({ kind: "baptism", record, status: "REJECTED" }, event.currentTarget)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">Rejeitar</button></>}
                 <button type="button" onClick={() => void toggleBaptismHistory(record.id)} className="text-xs font-semibold text-[#7B6127] underline-offset-4 hover:underline">{baptismHistoryId === record.id ? "Fechar histórico" : "Ver histórico"}</button>
               </div>
               {baptismHistoryId === record.id && <div className="rounded-xl bg-slate-50 p-4">{baptismHistory.length === 0 ? <p className="text-xs text-slate-500">Sem eventos disponíveis para este registo.</p> : <ol className="space-y-2">{baptismHistory.map((event) => <li key={event.id} className="text-xs text-slate-600">{event.previous_status ? `${BAPTISM_STATUS_LABELS[event.previous_status as keyof typeof BAPTISM_STATUS_LABELS] ?? event.previous_status} → ` : "Criado → "}{BAPTISM_STATUS_LABELS[event.new_status as keyof typeof BAPTISM_STATUS_LABELS] ?? event.new_status} · {dateLabel(event.changed_at)}{event.note ? ` · ${event.note}` : ""}</li>)}</ol>}</div>}
@@ -920,7 +940,7 @@ export default function SecretariatPage() {
               <div className="flex flex-wrap items-center gap-3">
                 {isOrigin && transfer.status === "DRAFT" && <button type="button" onClick={() => void changeTransferStatus(transfer, "SUBMITTED")} className="rounded-lg bg-[#0C1A3D] px-3 py-2 text-xs font-semibold text-white">Submeter</button>}
                 {isOrigin && ["DRAFT", "SUBMITTED"].includes(transfer.status) && <button type="button" onClick={() => void changeTransferStatus(transfer, "CANCELLED")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold">Cancelar</button>}
-                {!isOrigin && transfer.status === "SUBMITTED" && <><button type="button" onClick={() => openDecisionDialog({ kind: "transfer", record: transfer, status: "ACCEPTED" })} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white">Aceitar</button><button type="button" onClick={() => openDecisionDialog({ kind: "transfer", record: transfer, status: "REJECTED" })} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">Recusar</button></>}
+                {!isOrigin && transfer.status === "SUBMITTED" && <><button type="button" onClick={(event) => openDecisionDialog({ kind: "transfer", record: transfer, status: "ACCEPTED" }, event.currentTarget)} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white">Aceitar</button><button type="button" onClick={(event) => openDecisionDialog({ kind: "transfer", record: transfer, status: "REJECTED" }, event.currentTarget)} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">Recusar</button></>}
                 <button type="button" onClick={() => void toggleTransferHistory(transfer.id)} className="text-xs font-semibold text-[#7B6127] underline-offset-4 hover:underline">{transferHistoryId === transfer.id ? "Fechar histórico" : "Ver histórico"}</button>
               </div>
               {transferHistoryId === transfer.id && <div className="rounded-xl bg-slate-50 p-4">{transferHistory.length === 0 ? <p className="text-xs text-slate-500">Sem eventos ou sem permissão para consultar o histórico.</p> : <ol className="space-y-2">{transferHistory.map((event) => <li key={event.id} className="text-xs text-slate-600">{event.previous_status ? `${TRANSFER_STATUS_LABELS[event.previous_status as keyof typeof TRANSFER_STATUS_LABELS] ?? event.previous_status} → ` : "Criado → "}{TRANSFER_STATUS_LABELS[event.new_status as keyof typeof TRANSFER_STATUS_LABELS] ?? event.new_status} · {dateLabel(event.changed_at)}{event.note ? ` · ${event.note}` : ""}</li>)}</ol>}</div>}
@@ -969,7 +989,34 @@ export default function SecretariatPage() {
       </div>
       {decisionDialog && (
         <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/55 p-0 backdrop-blur-sm sm:items-center sm:p-6" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !decisionSaving) setDecisionDialog(null); }}>
-          <section role="dialog" aria-modal="true" aria-labelledby="secretariat-decision-title" className="w-full max-w-lg rounded-t-3xl border border-white/20 bg-white p-5 shadow-2xl sm:rounded-3xl sm:p-7">
+          <section ref={decisionDialogElementRef} role="dialog" aria-modal="true" aria-labelledby="secretariat-decision-title" onKeyDown={(event) => {
+            if (event.key === "Escape" && !decisionSaving) {
+              event.preventDefault();
+              setDecisionDialog(null);
+              setDecisionNote("");
+              return;
+            }
+            if (event.key !== "Tab") return;
+            const focusable = Array.from(
+              event.currentTarget.querySelectorAll<HTMLElement>(
+                'textarea:not([disabled]), button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+              ),
+            ).filter((element) => element.offsetParent !== null);
+            if (focusable.length === 0) {
+              event.preventDefault();
+              event.currentTarget.focus();
+              return;
+            }
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+              event.preventDefault();
+              last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+              event.preventDefault();
+              first.focus();
+            }
+          }} tabIndex={-1} className="w-full max-w-lg rounded-t-3xl border border-white/20 bg-white p-5 shadow-2xl sm:rounded-3xl sm:p-7">
             <div className="mb-5 flex items-start justify-between gap-4">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#9B7A34]">Decisão administrativa</p>
