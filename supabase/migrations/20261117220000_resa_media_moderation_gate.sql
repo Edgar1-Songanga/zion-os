@@ -65,7 +65,7 @@ begin
     return new;
   end if;
 
-  if auth.role() <> 'service_role'
+  if coalesce(auth.role(), '') <> 'service_role'
      or new.media_type not in ('image','video')
      or new.media_url is not null
      or new.media_path is null
