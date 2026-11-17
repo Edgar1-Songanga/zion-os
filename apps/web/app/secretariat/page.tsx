@@ -141,7 +141,6 @@ export default function SecretariatPage() {
   const [archiveQuery, setArchiveQuery] = useState("");
   const [archiveLoading, setArchiveLoading] = useState(false);
   const [archiveHasMore, setArchiveHasMore] = useState(false);
-  const [archiveNextOffset, setArchiveNextOffset] = useState(0);
   const archiveNextOffsetRef = useRef(0);
   const [archiveError, setArchiveError] = useState("");
   const [formOpen, setFormOpen] = useState(false);
@@ -235,7 +234,6 @@ export default function SecretariatPage() {
       setArchiveMembers([]);
       setArchiveHasMore(false);
       archiveNextOffsetRef.current = 0;
-      setArchiveNextOffset(0);
     }
     try {
       const page = await resaRequest<{ items: Member[]; hasMore: boolean; nextOffset: number }>(
@@ -245,7 +243,6 @@ export default function SecretariatPage() {
       setArchiveMembers((current) => append ? [...current, ...page.items] : page.items);
       setArchiveHasMore(page.hasMore);
       archiveNextOffsetRef.current = page.nextOffset;
-      setArchiveNextOffset(page.nextOffset);
     } catch (reason) {
       if (requestId !== archiveRequestSequence.current) return;
       if (!append) setArchiveMembers([]);
