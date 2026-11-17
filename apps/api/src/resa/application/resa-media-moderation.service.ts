@@ -18,6 +18,7 @@ type ModerationClaims = {
   mediaType: MediaType;
   mimeType: string;
   provider: string;
+  modelVersion: string;
   confidence: number;
   categories: string[];
   issuedAt: number;
@@ -154,11 +155,13 @@ export class ResaMediaModerationService {
     const decision = result?.decision;
     const confidence = Number(result?.confidence);
     const provider = typeof result?.provider === 'string' ? result.provider.slice(0, 100) : '';
+    const modelVersion = typeof result?.model_version === 'string' ? result.model_version.slice(0, 100) : '';
     const categories = Array.isArray(result?.categories)
       ? result.categories.filter((value: unknown): value is string => typeof value === 'string').slice(0, 20).map((value: string) => value.slice(0, 80))
       : [];
     if (!['approved', 'rejected', 'review'].includes(decision)
-      || !provider || !Number.isFinite(confidence) || confidence < 0 || confidence > 1
+      || !provider || !modelVersion || result?.policy_version !== 'resa-explicit-sexual-nudity-v1'
+      || !Number.isFinite(confidence) || confidence < 0 || confidence > 1
       || result?.detected_mime_type !== mimeType || Number(result?.bytes_processed) !== fileSize) {
       throw new ServiceUnavailableException('A análise não produziu um resultado verificável. A publicação foi bloqueada.');
     }
@@ -168,6 +171,9 @@ export class ResaMediaModerationService {
       if (!Number.isSafeInteger(frames) || frames < 1 || !Number.isFinite(coverage) || coverage < 0.9 || coverage > 1) {
         throw new ServiceUnavailableException('A análise do vídeo não cobriu suficientemente a sua duração. A publicação foi bloqueada.');
       }
+    }
+    if (decision === 'approved' && confidence < 0.85) {
+      throw new ConflictException('O resultado da análise não tem confiança suficiente. O ficheiro precisa de revisão adicional.');
     }
     if (decision === 'rejected') {
       throw new UnprocessableEntityException('Esta imagem ou vídeo contém conteúdo sexual explícito ou nudez não permitida pelas regras do RESA.');
@@ -183,6 +189,7 @@ export class ResaMediaModerationService {
       mediaType,
       mimeType,
       provider,
+      modelVersion,
       confidence,
       categories,
       issuedAt,
