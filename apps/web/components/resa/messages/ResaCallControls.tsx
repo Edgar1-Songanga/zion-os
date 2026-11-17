@@ -314,35 +314,46 @@ export default function ResaCallControls({ conversationId, peerName = "Membro RE
     if (!target || callActionRef.current || callRef.current) return;
     callActionRef.current = "accepting";
     setCallActionBusy(true);
+    let acceptedByThisClient = false;
     try {
       setError(null); setConnectionFailed(false);
       callRef.current = target; setCall(target);
-      await joinMedia(target, target.kind);
       if (!userId.current) throw new Error("Sessão ZION não encontrada.");
-      // Compare-and-set before writing participant presence. If another tab
-      // accepted or declined first, this client must not leave a ghost "joined" row.
+
+      // Win the ringing -> active transition before connecting media. A losing
+      // tab must never publish camera/microphone tracks or create a joined row.
       const { data: accepted, error: updateError } = await supabase.from("resa_calls")
         .update({ status: "active", answered_at: new Date().toISOString() })
         .eq("id", target.id).eq("status", "ringing")
         .select("id").maybeSingle();
       if (updateError) throw updateError;
       if (!accepted) throw new Error("Esta chamada já foi atendida ou terminou noutro dispositivo.");
+      acceptedByThisClient = true;
+
       const { error: participantError } = await supabase.from("resa_call_participants")
         .upsert({ call_id: target.id, user_id: userId.current, status: "joined", joined_at: new Date().toISOString() }, { onConflict: "call_id,user_id" });
-      if (participantError) {
-        // The call was accepted, but the participant row could not be persisted.
-        // End only this accepted call instead of leaving it active without a peer.
-        await supabase.from("resa_calls")
-          .update({ status: "ended", ended_at: new Date().toISOString() })
-          .eq("id", target.id).eq("status", "active");
-        throw participantError;
-      }
+      if (participantError) throw participantError;
+
+      await joinMedia(target, target.kind);
       setIncoming(null); setCallStatus("active"); setActive(true);
     } catch (reason) {
       intentionalDisconnectRef.current = true;
-      await roomRef.current?.disconnect(true); roomRef.current = null;
+      const room = roomRef.current;
+      roomRef.current = null;
+      callRef.current = null;
+      if (acceptedByThisClient && userId.current) {
+        await supabase.from("resa_call_participants")
+          .update({ status: "left", left_at: new Date().toISOString() })
+          .eq("call_id", target.id).eq("user_id", userId.current).eq("status", "joined");
+        await supabase.from("resa_calls")
+          .update({ status: "ended", ended_at: new Date().toISOString() })
+          .eq("id", target.id).eq("status", "active");
+      }
+      await room?.disconnect(true);
       intentionalDisconnectRef.current = false;
-      callRef.current = null; setCall(null);
+      callRef.current = null;
+      setCall(null); setActive(false); setIncoming(null);
+      setConnected(false); setReconnecting(false);
       setError(reason instanceof Error ? reason.message : "Não foi possível atender a chamada.");
     } finally {
       callActionRef.current = null;
