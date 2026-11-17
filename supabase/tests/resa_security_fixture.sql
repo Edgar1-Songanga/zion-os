@@ -90,7 +90,10 @@ create table public.notifications (
 );
 create or replace function auth.uid()
 returns uuid language sql stable
-as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+as $ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $;
+create or replace function auth.role()
+returns text language sql stable
+as $ select nullif(current_setting('request.jwt.claim.role', true), '') $;
 
 create or replace function private.has_org_permission(p_organization_id uuid, p_permission text)
 returns boolean language sql stable
