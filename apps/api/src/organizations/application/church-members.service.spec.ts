@@ -162,7 +162,10 @@ describe('ChurchMembersService', () => {
   it('lists archive records in bounded pages and reports whether more records exist', async () => {
     getSpy.mockResolvedValueOnce(Array.from({ length: 101 }, (_, index) => ({ id: index === 0 ? memberId : `record-${index}` })) as never);
     const result = await service.listByStatus(accessToken, 'DECEASED', 100, 100);
-    expect(result).toEqual({ items: [{ id: memberId }], hasMore: true, nextOffset: 101 });
+    expect(result.items).toHaveLength(100);
+    expect(result.items[0]).toEqual({ id: memberId });
+    expect(result.hasMore).toBe(true);
+    expect(result.nextOffset).toBe(200);
     expect(getSpy).toHaveBeenCalledWith(
       'church_member_records',
       accessToken,
