@@ -131,7 +131,7 @@ export default function ProfilePage() {
             <div className="space-y-3 sm:col-span-2">
               <div className="flex flex-col gap-3 rounded-xl border border-[var(--zion-border)] bg-[var(--zion-light)] p-4 sm:flex-row sm:items-center">
                 <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-xl font-bold text-[var(--zion-primary)] ring-1 ring-[var(--zion-border)]">
-                  {(avatarPreview || profile.avatar_url) ? <img src={avatarPreview || profile.avatar_url || ""} alt="" className="h-full w-full object-cover" /> : (initials || "Z")}
+                  {(profile.avatar_url) ? <img src={profile.avatar_url || ""} alt="" className="h-full w-full object-cover" /> : (initials || "Z")}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-[var(--zion-dark)]">Fotografia de perfil</p>
