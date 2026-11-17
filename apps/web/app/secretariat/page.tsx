@@ -317,7 +317,7 @@ export default function SecretariatPage() {
     const operationId = crypto.randomUUID();
     const entityId = submittedMember?.id ?? crypto.randomUUID();
     const expectedVersion = submittedMember?.row_version ?? null;
-    const canUseIdempotentEndpoint = !editingMember ||
+    const canUseIdempotentEndpoint = !submittedMember ||
       (Number.isSafeInteger(expectedVersion) && (expectedVersion ?? 0) > 0);
     const legacyPath = `/v1/organizations/${encodeURIComponent(submittedOrganizationId)}/church-members${submittedMember ? `/${encodeURIComponent(submittedMember.id)}` : ""}`;
 
