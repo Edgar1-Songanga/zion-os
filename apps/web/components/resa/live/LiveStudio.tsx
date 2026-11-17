@@ -350,6 +350,12 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
         setRaisedHands([]);
         setHandRaised(false);
         setAudioNeedsGesture(false);
+        // A terminal disconnect must stop local recording and any media-player
+        // tracks too; clearing the visible state alone would leave resources alive.
+        stopRecording();
+        void stopMediaBroadcast();
+        setRecording(false);
+        setMediaBroadcasting(false);
         localVideoRef.current?.pause();
         if (localVideoRef.current) localVideoRef.current.srcObject = null;
         remoteRef.current?.replaceChildren();
