@@ -498,9 +498,7 @@ export default function SecretariatPage() {
         method: "POST",
         body: JSON.stringify(payload),
       });
-      if (contextVersion !== decisionContextSequence.current) return false;
-      const items = await resaRequest<MemberTransfer[]>(`/v1/organizations/${encodeURIComponent(orgId)}/church-member-transfers`);
-      if (contextVersion !== decisionContextSequence.current) return false;
+      const items = await resaRequest<MemberTransfer[]>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-member-transfers`);
       setTransfers(items);
       formElement.reset();
       setTransferNotice("Pedido de transferência criado como rascunho. Submeta-o para decisão da organização de destino.");
@@ -521,7 +519,9 @@ export default function SecretariatPage() {
         method: "PATCH",
         body: JSON.stringify({ status, decision_note: note?.trim() || null }),
       });
-      const items = await resaRequest<MemberTransfer[]>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-member-transfers`);
+      if (contextVersion !== decisionContextSequence.current) return false;
+      const items = await resaRequest<MemberTransfer[]>(`/v1/organizations/${encodeURIComponent(orgId)}/church-member-transfers`);
+      if (contextVersion !== decisionContextSequence.current) return false;
       setTransfers(items);
       setTransferNotice("Estado da transferência actualizado e registado no histórico.");
       return true;
