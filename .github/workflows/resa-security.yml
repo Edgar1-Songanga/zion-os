@@ -23,6 +23,7 @@ on:
       - "supabase/tests/resa_interaction_audience_regression.sql"
       - "supabase/tests/resa_live_hand_raise_queue_regression.sql"
       - "supabase/migrations/*live_hand_raise*"
+      - "supabase/tests/resa_notification_actions*"
       - "supabase/tests/resa_security_fixture.sql"
       - "supabase/tests/resa_group_meetings_regression.sql"
       - "supabase/tests/resa_live_hand_raise_queue_regression.sql"
@@ -233,6 +234,15 @@ jobs:
       - name: Verify RESA Live Studio hand-raise persistence and RLS
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_live_hand_raise_queue_regression.sql
+      - name: Seed message and call notification lifecycle fixture
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_notification_actions_fixture.sql
+      - name: Apply message and call notification actions
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261117120000_resa_message_and_call_notification_actions.sql
+      - name: Verify message previews and actionable call history
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_notification_actions_regression.sql
       - name: Stop disposable PostgreSQL
         if: always()
         run: docker rm -f zion-resa-security-postgres || true
