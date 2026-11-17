@@ -288,7 +288,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
     setSavingEdit(true);
     setActionFeedback(null);
     try {
-      const updated = await resaRequest<{ edited_at?: string | null }>("/v1/resa/content/" + content.id, {
+      await resaRequest<{ edited_at?: string | null }>("/v1/resa/content/" + content.id, {
         method: "PATCH",
         body: JSON.stringify({ title: postTitle, body: postBody }),
       });
