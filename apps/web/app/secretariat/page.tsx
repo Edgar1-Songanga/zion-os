@@ -140,6 +140,8 @@ export default function SecretariatPage() {
   const [archiveMembers, setArchiveMembers] = useState<Member[]>([]);
   const [archiveQuery, setArchiveQuery] = useState("");
   const [archiveLoading, setArchiveLoading] = useState(false);
+  const [archiveHasMore, setArchiveHasMore] = useState(false);
+  const [archiveNextOffset, setArchiveNextOffset] = useState(0);
   const [archiveError, setArchiveError] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
@@ -223,22 +225,32 @@ export default function SecretariatPage() {
 
   const archiveRequestSequence = useRef(0);
 
-  const loadArchive = useCallback(async (status: "DECEASED" | "REMOVED") => {
+  const loadArchive = useCallback(async (status: "DECEASED" | "REMOVED", append = false) => {
     const requestId = ++archiveRequestSequence.current;
+    const offset = append ? archiveNextOffset : 0;
     setArchiveLoading(true);
     setArchiveError("");
+    if (!append) {
+      setArchiveMembers([]);
+      setArchiveHasMore(false);
+      setArchiveNextOffset(0);
+    }
     try {
-      const data = await resaRequest<Member[]>(`/v1/church-members/status/${status}`);
+      const page = await resaRequest<{ items: Member[]; hasMore: boolean; nextOffset: number }>(
+        `/v1/church-members/status/${status}?offset=${offset}&limit=100`,
+      );
       if (requestId !== archiveRequestSequence.current) return;
-      setArchiveMembers(data);
+      setArchiveMembers((current) => append ? [...current, ...page.items] : page.items);
+      setArchiveHasMore(page.hasMore);
+      setArchiveNextOffset(page.nextOffset);
     } catch (reason) {
       if (requestId !== archiveRequestSequence.current) return;
-      setArchiveMembers([]);
+      if (!append) setArchiveMembers([]);
       setArchiveError(reason instanceof Error ? reason.message : "Não foi possível consultar o arquivo de membros.");
     } finally {
       if (requestId === archiveRequestSequence.current) setArchiveLoading(false);
     }
-  }, []);
+  }, [archiveNextOffset]);
 
   useEffect(() => {
     void loadArchive(archiveStatus);
@@ -801,7 +813,11 @@ export default function SecretariatPage() {
             </div>
           </div>
           {archiveError && <p role="alert" className="m-5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{archiveError}</p>}
-          {archiveLoading ? <p className="p-6 text-sm text-slate-500">A consultar o arquivo…</p> : filteredArchiveMembers.length === 0 ? <p className="p-6 text-sm text-slate-500">{archiveMembers.length ? "Não existem resultados para esta pesquisa." : "Não existem registos visíveis nesta categoria para as permissões da sessão."}</p> : <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-4 font-semibold">Membro</th><th className="px-5 py-4 font-semibold">Número</th><th className="px-5 py-4 font-semibold">Organização</th><th className="px-5 py-4 font-semibold">Estado</th><th className="px-5 py-4 font-semibold">Última actualização</th></tr></thead><tbody className="divide-y divide-slate-100">{filteredArchiveMembers.map((member) => <tr key={member.id}><td className="px-5 py-4"><p className="font-semibold">{member.first_name} {member.last_name}</p><p className="mt-1 text-xs text-slate-500">Nascimento: {dateLabel(member.birth_date)}</p></td><td className="px-5 py-4 text-slate-600">{member.member_number || "—"}</td><td className="px-5 py-4 font-mono text-xs text-slate-500">{member.organization_id}</td><td className="px-5 py-4">{STATUS_LABELS[member.membership_status] ?? member.membership_status}</td><td className="px-5 py-4 text-slate-600">{new Intl.DateTimeFormat("pt-PT", { dateStyle: "medium" }).format(new Date(member.updated_at))}</td></tr>)}</tbody></table></div>}
+          {archiveLoading && archiveMembers.length === 0 ? <p className="p-6 text-sm text-slate-500">A consultar o arquivo…</p> : filteredArchiveMembers.length === 0 ? <p className="p-6 text-sm text-slate-500">{archiveMembers.length ? "Não existem resultados nos registos já carregados para esta pesquisa." : "Não existem registos visíveis nesta categoria para as permissões da sessão."}</p> : <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-4 font-semibold">Membro</th><th className="px-5 py-4 font-semibold">Número</th><th className="px-5 py-4 font-semibold">Organização</th><th className="px-5 py-4 font-semibold">Estado</th><th className="px-5 py-4 font-semibold">Última actualização</th></tr></thead><tbody className="divide-y divide-slate-100">{filteredArchiveMembers.map((member) => <tr key={member.id}><td className="px-5 py-4"><p className="font-semibold">{member.first_name} {member.last_name}</p><p className="mt-1 text-xs text-slate-500">Nascimento: {dateLabel(member.birth_date)}</p></td><td className="px-5 py-4 text-slate-600">{member.member_number || "—"}</td><td className="px-5 py-4 font-mono text-xs text-slate-500">{member.organization_id}</td><td className="px-5 py-4">{STATUS_LABELS[member.membership_status] ?? member.membership_status}</td><td className="px-5 py-4 text-slate-600">{new Intl.DateTimeFormat("pt-PT", { dateStyle: "medium" }).format(new Date(member.updated_at))}</td></tr>)}</tbody></table></div>}
+          <div className="flex flex-col gap-2 border-t border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-slate-500" aria-live="polite">{archiveMembers.length} registos carregados{archiveHasMore ? " · existem mais registos" : " · arquivo completo"}</p>
+            {archiveHasMore && <button type="button" onClick={() => void loadArchive(archiveStatus, true)} disabled={archiveLoading} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:opacity-50">{archiveLoading ? "A carregar…" : "Carregar mais registos"}</button>}
+          </div>
         </section>
 
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
