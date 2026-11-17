@@ -9,6 +9,13 @@ insert into public.profiles(id, display_name, first_name, last_name) values
   ('10000000-0000-4000-8000-000000000002', 'Rute Test', 'Rute', 'Test')
 on conflict (id) do update set display_name = excluded.display_name;
 
+update public.profiles
+set privacy = coalesce(privacy, '{}'::jsonb) || jsonb_build_object('message_policy', 'everyone', 'call_policy', 'everyone')
+where id in (
+  '10000000-0000-4000-8000-000000000001',
+  '10000000-0000-4000-8000-000000000002'
+);
+
 select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000001', false);
 
 insert into public.resa_conversations(id, created_by, kind, title)
