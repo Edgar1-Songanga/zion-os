@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import ResaIcon from "@/components/resa/core/ResaIcon";
 import { createClient } from "@/lib/supabase/client";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import ResaCallControls from "@/components/resa/messages/ResaCallControls";
 
 type ConversationMember = {
@@ -92,6 +92,7 @@ export default function MessagesPage() {
   const currentUserIdRef = useRef<string | null>(null);
   const selectedConversationRef = useRef<Conversation | null>(null);
   const searchParams = useSearchParams();
+  const router = useRouter();
   const startedTarget = useRef<string | null>(null);
   const startedConversation = useRef<string | null>(null);
   const startedCall = useRef<string | null>(null);
@@ -439,7 +440,10 @@ export default function MessagesPage() {
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef2f8] text-[#0C1A3D]"><ResaIcon name="message" size={18} /></div>
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-[#0C1A3D]">{selectedConversation?.title || "Selecione uma conversa"}</p>
-                <div className="flex items-center justify-between gap-3"><p className="text-xs text-slate-400">{selectedConversation ? "Mensagens privadas" : "Escolha uma conversa para começar"}</p>{selectedConversation && <ResaCallControls conversationId={selectedConversation.id} peerName={selectedConversation.members?.find((member) => member.id !== currentUserId)?.display_name || selectedConversation.title || "Membro RESA"} peerAvatarUrl={selectedConversation.members?.find((member) => member.id !== currentUserId)?.avatar_url || null} autoStart={autoStartCall?.conversationId === selectedConversation.id ? autoStartCall.kind : null} onAutoStartHandled={() => setAutoStartCall(null)} />}</div>
+                <div className="flex items-center justify-between gap-3"><p className="text-xs text-slate-400">{selectedConversation ? "Mensagens privadas" : "Escolha uma conversa para começar"}</p>{selectedConversation && <ResaCallControls conversationId={selectedConversation.id} peerName={selectedConversation.members?.find((member) => member.id !== currentUserId)?.display_name || selectedConversation.title || "Membro RESA"} peerAvatarUrl={selectedConversation.members?.find((member) => member.id !== currentUserId)?.avatar_url || null} autoStart={autoStartCall?.conversationId === selectedConversation.id ? autoStartCall.kind : null} onAutoStartHandled={() => {
+                  setAutoStartCall(null);
+                  if (searchParams.get("call")) router.replace("/resa/messages?conversation=" + encodeURIComponent(selectedConversation.id));
+                }} />}</div>
               </div>
             </div>
 
