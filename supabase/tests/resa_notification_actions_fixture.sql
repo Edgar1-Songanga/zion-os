@@ -23,6 +23,8 @@ insert into public.resa_conversation_members(conversation_id, user_id, role) val
   ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', 'member')
 on conflict (conversation_id, user_id) do nothing;
 
+select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000001', false);
+
 insert into public.resa_calls(id, conversation_id, initiator_id, kind, status, created_at, ended_at)
 values (
   '30000000-0000-4000-8000-000000000001',
