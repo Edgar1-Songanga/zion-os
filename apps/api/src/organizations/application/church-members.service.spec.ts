@@ -178,6 +178,23 @@ describe('ChurchMembersService', () => {
     );
   });
 
+  it('applies archive search on the server before pagination across member number and names', async () => {
+    await service.listByStatus(accessToken, 'DECEASED', 0, 100, 'Ana, Silva');
+    const query = getSpy.mock.calls[0][2] as string;
+    expect(query).toContain('membership_status=eq.DECEASED');
+    const searchExpression = decodeURIComponent(query.split('&or=')[1].split('&order=')[0]);
+    expect(searchExpression).toContain('member_number.ilike."*Ana, Silva*"');
+    expect(searchExpression).toContain('first_name.ilike."*Ana, Silva*"');
+    expect(searchExpression).toContain('last_name.ilike."*Ana, Silva*"');
+    expect(query).toContain('&limit=101&offset=0');
+  });
+
+  it('rejects overlong archive search input before querying records', async () => {
+    await expect(service.listByStatus(accessToken, 'DECEASED', 0, 100, 'a'.repeat(121)))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(getSpy).not.toHaveBeenCalled();
+  });
+
   it('rejects invalid archive pagination before querying records', async () => {
     await expect(service.listByStatus(accessToken, 'DECEASED', -1, 100)).rejects.toBeInstanceOf(BadRequestException);
     await expect(service.listByStatus(accessToken, 'DECEASED', 0, 101)).rejects.toBeInstanceOf(BadRequestException);
