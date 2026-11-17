@@ -536,10 +536,12 @@ export class ResaSocialService {
       if (input.media_url) throw new BadRequestException('Public media URLs are no longer accepted for new RESA publications.');
       if (input.media_type !== 'image' && input.media_type !== 'video') throw new BadRequestException('Invalid media type.');
       if (typeof input.media_path !== 'string' || !input.media_path.trim()) throw new BadRequestException('A private media path is required.');
-      mediaType = input.media_type;
-      mediaPath = input.media_path.trim();
+      const verifiedMediaType: 'image' | 'video' = input.media_type;
+      const verifiedMediaPath = input.media_path.trim();
+      mediaType = verifiedMediaType;
+      mediaPath = verifiedMediaPath;
       moderation = this.mediaModeration.verifyApprovalToken(input.media_moderation_token, {
-        userId: a.id, mediaPath, mediaType,
+        userId: a.id, mediaPath: verifiedMediaPath, mediaType: verifiedMediaType,
       });
       if (visibility !== 'public') throw new BadRequestException('Media publications currently require public visibility.');
     }
