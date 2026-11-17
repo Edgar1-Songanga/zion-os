@@ -616,7 +616,7 @@ describe('ResaSocialService feeds', () => {
     })).rejects.toThrow('community_id is required for community-only content');
   });
 
-  it('rejects follower-only media while the media bucket is public', async () => {
+  it('rejects legacy public media URLs before any content write', async () => {
     const postSpy = jest.spyOn(SupabaseRestClient.prototype, 'post');
 
     await expect(service.createContent('session-token', {
@@ -626,7 +626,7 @@ describe('ResaSocialService feeds', () => {
       media_type: 'image',
       media_url: 'https://example.test/public-image.jpg',
       media_path: ACTOR_ID + '/private-image.jpg',
-    })).rejects.toThrow('Media attachments currently require public visibility');
+    })).rejects.toThrow('Public media URLs are no longer accepted');
 
     expect(postSpy).not.toHaveBeenCalled();
   });
