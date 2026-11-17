@@ -57,6 +57,22 @@ export class SupabaseRestClient {
     });
   }
 
+  async postAsServiceRole<T>(table: string, body: unknown, query = ''): Promise<T> {
+    if (!env.supabaseServiceRoleKey || !env.supabaseUrl || !env.supabasePublishableKey) {
+      throw new ServiceUnavailableException('A publicação de media protegida ainda não está configurada.');
+    }
+    return this.request<T>(`POST ${table} (trusted media moderation)`, `${env.supabaseUrl}/rest/v1/${table}${query}`, {
+      method: 'POST',
+      headers: {
+        apikey: env.supabasePublishableKey,
+        Authorization: `Bearer ${env.supabaseServiceRoleKey}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=representation',
+      },
+      body: JSON.stringify(body),
+    });
+  }
+
   async upsert<T>(table: string, accessToken: string, body: unknown, query = ''): Promise<T> {
     return this.request<T>(`UPSERT ${table}`, `${env.supabaseUrl}/rest/v1/${table}${query}`, {
       method: 'POST',
