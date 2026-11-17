@@ -36,7 +36,7 @@ function uniqueSections(sections: NavSection[]): NavSection[] {
   })).filter((section) => section.items.length > 0);
 }
 
-export default function Sidebar() {
+export default function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
   const { t } = useTranslation();
   const [globalAdmin, setGlobalAdmin] = useState(false);
@@ -120,8 +120,9 @@ export default function Sidebar() {
   const nested = new Set(["/admin", "/church-administration", "/secretariat", "/finance", "/hr", "/payroll", "/reports", "/ministry", "/youth", "/stewardship", "/resa", "/sabbath-school"]);
   return (
     <>
-      <aside className="sticky top-0 flex h-fit max-h-dvh w-[clamp(112px,26vw,252px)] shrink-0 self-start flex-col overflow-hidden border-r border-white/10 bg-[linear-gradient(180deg,#0B2D4D_0%,#071E35_100%)] px-2 py-4 text-white shadow-[8px_0_30px_rgba(7,30,53,0.10)] md:w-[252px] md:px-3.5 md:py-5">
-        <Link href="/dashboard" className="shrink-0 px-1 md:px-3" aria-label="ZION OS — Painel principal">
+      {mobileOpen && <button type="button" aria-label="Fechar navegação" onClick={onClose} className="fixed inset-0 z-40 bg-slate-950/55 backdrop-blur-[2px] md:hidden" />}
+      <aside className={["fixed inset-y-0 left-0 z-50 flex h-dvh w-[min(18rem,86vw)] shrink-0 flex-col overflow-hidden border-r border-white/10 bg-[linear-gradient(180deg,#0B2D4D_0%,#071E35_100%)] px-3.5 py-5 text-white shadow-[8px_0_30px_rgba(7,30,53,0.18)] transition-transform duration-200 md:sticky md:top-0 md:z-auto md:h-fit md:max-h-dvh md:w-[252px] md:translate-x-0 md:self-start md:px-3.5 md:py-5", mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"].join(" ")}>
+        <Link href="/dashboard" onClick={onClose} className="shrink-0 px-1 md:px-3" aria-label="ZION OS — Painel principal">
           <h1 className="text-[19px] font-semibold tracking-[0.16em] text-white md:text-[25px] md:tracking-[0.24em]">ZION<span className="text-[#C8A24A]">OS</span></h1>
           <p className="mt-1 text-[8px] uppercase tracking-[0.1em] text-slate-300 md:text-[10px] md:tracking-[0.16em]">{t("globalDigitalEcosystem")}</p>
         </Link>
@@ -133,7 +134,7 @@ export default function Sidebar() {
               <div className="space-y-1">
                 {section.items.map((item, itemIndex) => {
                   const active = pathname === item.path || (nested.has(item.path) && pathname.startsWith(item.path + "/"));
-                  return <Link key={item.path} href={item.path} aria-current={active ? "page" : undefined} className={["group flex min-h-9 items-center gap-2 rounded-lg px-2 py-2 text-[11px] transition-colors md:min-h-10 md:gap-3 md:rounded-xl md:px-3 md:py-2.5 md:text-[13px]", active ? "bg-white font-semibold text-[#0B2D4D] shadow-[0_6px_18px_rgba(0,0,0,0.12)]" : "text-slate-200 hover:bg-white/[0.08] hover:text-white"].join(" ")}>
+                  return <Link key={item.path} href={item.path} onClick={onClose} aria-current={active ? "page" : undefined} className={["group flex min-h-9 items-center gap-2 rounded-lg px-2 py-2 text-[11px] transition-colors md:min-h-10 md:gap-3 md:rounded-xl md:px-3 md:py-2.5 md:text-[13px]", active ? "bg-white font-semibold text-[#0B2D4D] shadow-[0_6px_18px_rgba(0,0,0,0.12)]" : "text-slate-200 hover:bg-white/[0.08] hover:text-white"].join(" ")}>
                     <span className={active ? "text-[#C8A24A]" : "text-slate-400 group-hover:text-[#E0B85A]"}><NavIcon index={sectionIndex * 4 + itemIndex} /></span>
                     <span className="truncate">{item.name}</span>
                   </Link>;
