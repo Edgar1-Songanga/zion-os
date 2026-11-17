@@ -26,7 +26,7 @@ type ModerationClaims = {
 
 const MAX_BYTES = 50 * 1024 * 1024;
 const MIME_TYPES: Record<MediaType, string[]> = {
-  image: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+  image: ['image/jpeg', 'image/png', 'image/webp'],
   video: ['video/mp4', 'video/webm', 'video/quicktime'],
 };
 
@@ -102,7 +102,7 @@ export class ResaMediaModerationService {
 
     if (mediaType !== 'image' && mediaType !== 'video') throw new BadRequestException('Tipo de media inválido.');
     if (!MIME_TYPES[mediaType].includes(mimeType)) throw new BadRequestException('Formato de ficheiro não permitido.');
-    if (!Number.isSafeInteger(fileSize) || Number(fileSize) < 1 || Number(fileSize) > MAX_BYTES) {
+    if (typeof fileSize !== 'number' || !Number.isSafeInteger(fileSize) || fileSize < 1 || fileSize > MAX_BYTES) {
       throw new BadRequestException('O ficheiro excede o limite permitido de 50 MB.');
     }
     if (!mediaPath.startsWith(actor.id + '/') || mediaPath.length > 500
@@ -158,7 +158,8 @@ export class ResaMediaModerationService {
       ? result.categories.filter((value: unknown): value is string => typeof value === 'string').slice(0, 20).map((value: string) => value.slice(0, 80))
       : [];
     if (!['approved', 'rejected', 'review'].includes(decision)
-      || !provider || !Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
+      || !provider || !Number.isFinite(confidence) || confidence < 0 || confidence > 1
+      || result?.detected_mime_type !== mimeType || Number(result?.bytes_processed) !== fileSize) {
       throw new ServiceUnavailableException('A análise não produziu um resultado verificável. A publicação foi bloqueada.');
     }
     if (mediaType === 'video') {
