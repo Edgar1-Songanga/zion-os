@@ -320,7 +320,7 @@ export class ChurchMembersService {
   }
 
   private escapePostgrestSearch(value: string): string {
-    return value.replace(/[\\\\"%_*]/g, (character) => `\\\\${character}`);
+    return value.replace(/([\\"%_*])/g, '\\$1');
   }
 
   private isValidDate(value: string): boolean {
