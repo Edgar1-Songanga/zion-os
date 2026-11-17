@@ -159,13 +159,26 @@ describe('ChurchMembersService', () => {
     );
   });
 
-  it('lists deceased and removed records across only RLS-authorized organizations', async () => {
-    await service.listByStatus(accessToken, 'DECEASED');
+  it('lists archive records in bounded pages and reports whether more records exist', async () => {
+    getSpy.mockResolvedValueOnce([{ id: memberId }, { id: 'extra-record' }] as never);
+    const result = await service.listByStatus(accessToken, 'DECEASED', 100, 100);
+    expect(result).toEqual({ items: [{ id: memberId }], hasMore: true, nextOffset: 101 });
     expect(getSpy).toHaveBeenCalledWith(
       'church_member_records',
       accessToken,
       expect.stringContaining('membership_status=eq.DECEASED'),
     );
+    expect(getSpy).toHaveBeenCalledWith(
+      'church_member_records',
+      accessToken,
+      expect.stringContaining('&limit=101&offset=100'),
+    );
+  });
+
+  it('rejects invalid archive pagination before querying records', async () => {
+    await expect(service.listByStatus(accessToken, 'DECEASED', -1, 100)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.listByStatus(accessToken, 'DECEASED', 0, 101)).rejects.toBeInstanceOf(BadRequestException);
+    expect(getSpy).not.toHaveBeenCalled();
   });
 
   it('rejects global member register filters outside deceased and removed states', async () => {
