@@ -442,18 +442,22 @@ export default function SecretariatPage() {
   }
 
   async function decideBaptism(record: BaptismRecord, status: "VALIDATED" | "REJECTED", note: string): Promise<boolean> {
+    const contextVersion = decisionContextSequence.current;
+    const orgId = organizationId;
     setBaptismError("");
     setBaptismNotice("");
     try {
-      await resaRequest<BaptismRecord>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-baptisms/${encodeURIComponent(record.id)}/decision`, {
+      await resaRequest<BaptismRecord>(`/v1/organizations/${encodeURIComponent(orgId)}/church-baptisms/${encodeURIComponent(record.id)}/decision`, {
         method: "PATCH",
         body: JSON.stringify({ status, validation_note: note.trim() || null }),
       });
-      await loadMembers(organizationId);
+      if (contextVersion !== decisionContextSequence.current) return false;
+      await loadMembers(orgId);
+      if (contextVersion !== decisionContextSequence.current) return false;
       setBaptismNotice(status === "VALIDATED" ? "Baptismo validado; a data oficial do membro foi actualizada." : "Registo de baptismo rejeitado e decisão auditada.");
       return true;
     } catch (reason) {
-      setBaptismError(reason instanceof Error ? reason.message : "Não foi possível decidir este registo.");
+      if (contextVersion === decisionContextSequence.current) setBaptismError(reason instanceof Error ? reason.message : "Não foi possível decidir este registo.");
       return false;
     }
   }
