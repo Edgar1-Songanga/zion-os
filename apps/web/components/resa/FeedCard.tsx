@@ -78,6 +78,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
   const { t, locale } = useTranslation();
   const [mediaUrl, setMediaUrl] = useState<string | null>(content.media_url ?? null);
   const [viewerId, setViewerId] = useState<string | null>(null);
+  const isOwner = !content.is_institutional && viewerId === content.author_id;
   const [postBody, setPostBody] = useState(content.body ?? "");
   const [postTitle, setPostTitle] = useState(content.title ?? "");
   const [editing, setEditing] = useState(false);
@@ -111,6 +112,10 @@ export default function FeedCard({ content }: { content: ResaContent }) {
 
   useEffect(() => {
     let active = true;
+    const supabase = createClient();
+    void supabase.auth.getUser().then(({ data }) => {
+      if (active) setViewerId(data.user?.id ?? null);
+    }).catch(() => { if (active) setViewerId(null); });
     setMediaUrl(content.media_url ?? null);
     if (!content.media_url && content.media_type) {
       void resolveResaMediaUrl(content.id).then((url) => {
@@ -288,13 +293,13 @@ export default function FeedCard({ content }: { content: ResaContent }) {
     setSavingEdit(true);
     setActionFeedback(null);
     try {
-      await resaRequest<{ edited_at?: string | null }>("/v1/resa/content/" + content.id, {
+      const updated = await resaRequest<{ edited_at?: string | null }>("/v1/resa/content/" + content.id, {
         method: "PATCH",
         body: JSON.stringify({ title: postTitle, body: postBody }),
       });
       setEditing(false);
+      setWasEdited(true);
       setActionFeedback("Publicação actualizada.");
-      if (updated.edited_at) content.edited_at = updated.edited_at;
     } catch (error) {
       setActionFeedback(error instanceof Error ? error.message : "Não foi possível editar a publicação.");
     } finally {
@@ -374,8 +379,9 @@ export default function FeedCard({ content }: { content: ResaContent }) {
         </header>
 
         <div className="mt-6">
-          {content.title && <h4 className="mb-2 text-lg font-semibold tracking-tight text-[#0C1A3D]">{content.title}</h4>}
-          {content.body && <p className="whitespace-pre-wrap text-[15px] leading-7 text-slate-700">{renderLinkedText(content.body)}</p>}
+          {postTitle && <h4 className="mb-2 text-lg font-semibold tracking-tight text-[#0C1A3D]">{postTitle}</h4>}
+          {wasEdited && <span className="mb-2 inline-flex rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-500">Editada</span>}
+          {postBody && <p className="whitespace-pre-wrap text-[15px] leading-7 text-slate-700">{renderLinkedText(postBody)}</p>}
           {content.is_institutional && (
             <div className="mt-4 flex flex-wrap gap-2 rounded-2xl border border-blue-100 bg-blue-50/50 p-3 text-xs text-slate-600">
               {content.type === "institutional_class" && typeof content.meeting_day === "number" && (
