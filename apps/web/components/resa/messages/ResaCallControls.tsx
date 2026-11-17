@@ -319,17 +319,24 @@ export default function ResaCallControls({ conversationId, peerName = "Membro RE
       callRef.current = target; setCall(target);
       await joinMedia(target, target.kind);
       if (!userId.current) throw new Error("Sessão ZION não encontrada.");
-      const { error: participantError } = await supabase.from("resa_call_participants")
-        .upsert({ call_id: target.id, user_id: userId.current, status: "joined", joined_at: new Date().toISOString() }, { onConflict: "call_id,user_id" });
-      if (participantError) throw participantError;
-      // Compare-and-set the ringing state: a second tab or a concurrent
-      // decline/timeout must not be able to accept an already-finalized call.
+      // Compare-and-set before writing participant presence. If another tab
+      // accepted or declined first, this client must not leave a ghost "joined" row.
       const { data: accepted, error: updateError } = await supabase.from("resa_calls")
         .update({ status: "active", answered_at: new Date().toISOString() })
         .eq("id", target.id).eq("status", "ringing")
         .select("id").maybeSingle();
       if (updateError) throw updateError;
       if (!accepted) throw new Error("Esta chamada já foi atendida ou terminou noutro dispositivo.");
+      const { error: participantError } = await supabase.from("resa_call_participants")
+        .upsert({ call_id: target.id, user_id: userId.current, status: "joined", joined_at: new Date().toISOString() }, { onConflict: "call_id,user_id" });
+      if (participantError) {
+        // The call was accepted, but the participant row could not be persisted.
+        // End only this accepted call instead of leaving it active without a peer.
+        await supabase.from("resa_calls")
+          .update({ status: "ended", ended_at: new Date().toISOString() })
+          .eq("id", target.id).eq("status", "active");
+        throw participantError;
+      }
       setIncoming(null); setCallStatus("active"); setActive(true);
     } catch (reason) {
       intentionalDisconnectRef.current = true;
