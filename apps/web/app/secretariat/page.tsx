@@ -445,6 +445,8 @@ export default function SecretariatPage() {
   async function createBaptism(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!organizationId) return;
+    const submittedOrganizationId = organizationId;
+    const isCurrentContext = () => organizationContextRef.current === submittedOrganizationId;
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
     const payload = {
@@ -460,18 +462,20 @@ export default function SecretariatPage() {
     setBaptismError("");
     setBaptismNotice("");
     try {
-      await resaRequest<BaptismRecord>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-baptisms`, {
+      await resaRequest<BaptismRecord>(`/v1/organizations/${encodeURIComponent(submittedOrganizationId)}/church-baptisms`, {
         method: "POST",
         body: JSON.stringify(payload),
       });
-      const items = await resaRequest<BaptismRecord[]>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-baptisms`);
+      if (!isCurrentContext()) return;
+      const items = await resaRequest<BaptismRecord[]>(`/v1/organizations/${encodeURIComponent(submittedOrganizationId)}/church-baptisms`);
+      if (!isCurrentContext()) return;
       setBaptisms(items);
       formElement.reset();
       setBaptismNotice("Registo de baptismo criado e enviado para validação.");
     } catch (reason) {
-      setBaptismError(reason instanceof Error ? reason.message : "Não foi possível registar o baptismo.");
+      if (isCurrentContext()) setBaptismError(reason instanceof Error ? reason.message : "Não foi possível registar o baptismo.");
     } finally {
-      setBaptismSaving(false);
+      if (isCurrentContext()) setBaptismSaving(false);
     }
   }
 
@@ -511,11 +515,14 @@ export default function SecretariatPage() {
   async function createTransfer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!organizationId) return;
+    const submittedOrganizationId = organizationId;
+    const submittedDestinationOrganizationId = destinationOrganizationId;
+    const isCurrentContext = () => organizationContextRef.current === submittedOrganizationId;
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
     const payload = {
       member_record_id: String(form.get("member_record_id") ?? ""),
-      destination_organization_id: destinationOrganizationId,
+      destination_organization_id: submittedDestinationOrganizationId,
       request_date: String(form.get("request_date") ?? ""),
       reason: String(form.get("reason") ?? "").trim() || null,
       document_reference: String(form.get("document_reference") ?? "").trim() || null,
@@ -524,18 +531,20 @@ export default function SecretariatPage() {
     setTransferError("");
     setTransferNotice("");
     try {
-      await resaRequest<MemberTransfer>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-member-transfers`, {
+      await resaRequest<MemberTransfer>(`/v1/organizations/${encodeURIComponent(submittedOrganizationId)}/church-member-transfers`, {
         method: "POST",
         body: JSON.stringify(payload),
       });
-      const items = await resaRequest<MemberTransfer[]>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-member-transfers`);
+      if (!isCurrentContext()) return;
+      const items = await resaRequest<MemberTransfer[]>(`/v1/organizations/${encodeURIComponent(submittedOrganizationId)}/church-member-transfers`);
+      if (!isCurrentContext()) return;
       setTransfers(items);
       formElement.reset();
       setTransferNotice("Pedido de transferência criado como rascunho. Submeta-o para decisão da organização de destino.");
     } catch (reason) {
-      setTransferError(reason instanceof Error ? reason.message : "Não foi possível criar o pedido de transferência.");
+      if (isCurrentContext()) setTransferError(reason instanceof Error ? reason.message : "Não foi possível criar o pedido de transferência.");
     } finally {
-      setTransferSaving(false);
+      if (isCurrentContext()) setTransferSaving(false);
     }
   }
 
@@ -578,6 +587,8 @@ export default function SecretariatPage() {
   async function createFamilyRelationship(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!organizationId) return;
+    const submittedOrganizationId = organizationId;
+    const isCurrentContext = () => organizationContextRef.current === submittedOrganizationId;
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
     const payload = {
@@ -590,18 +601,20 @@ export default function SecretariatPage() {
     setFamilyError("");
     setFamilyNotice("");
     try {
-      await resaRequest<FamilyRelationship>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-member-families`, {
+      await resaRequest<FamilyRelationship>(`/v1/organizations/${encodeURIComponent(submittedOrganizationId)}/church-member-families`, {
         method: "POST",
         body: JSON.stringify(payload),
       });
-      const relationships = await resaRequest<FamilyRelationship[]>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-member-families`);
+      if (!isCurrentContext()) return;
+      const relationships = await resaRequest<FamilyRelationship[]>(`/v1/organizations/${encodeURIComponent(submittedOrganizationId)}/church-member-families`);
+      if (!isCurrentContext()) return;
       setFamilyRelationships(relationships);
       formElement.reset();
       setFamilyNotice("Relação familiar registada.");
     } catch (reason) {
-      setFamilyError(reason instanceof Error ? reason.message : "Não foi possível guardar a relação familiar.");
+      if (isCurrentContext()) setFamilyError(reason instanceof Error ? reason.message : "Não foi possível guardar a relação familiar.");
     } finally {
-      setFamilySaving(false);
+      if (isCurrentContext()) setFamilySaving(false);
     }
   }
 
@@ -761,6 +774,9 @@ export default function SecretariatPage() {
                 memberSaveSequence.current += 1;
                 organizationContextRef.current = id;
                 setSaving(false);
+                setBaptismSaving(false);
+                setTransferSaving(false);
+                setFamilySaving(false);
                 setFormOpen(false);
                 setEditingMember(null);
                 setIdentityCandidates([]);
