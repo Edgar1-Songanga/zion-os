@@ -52,7 +52,18 @@ as $function$
 declare
   v_title text;
   v_body text;
+  v_caller_name text;
 begin
+  select coalesce(
+    nullif(btrim(p.display_name), ''),
+    nullif(btrim(concat_ws(' ', p.first_name, p.last_name)), ''),
+    'Membro RESA'
+  )
+  into v_caller_name
+  from public.profiles p
+  where p.id = new.initiator_id;
+  v_caller_name := coalesce(v_caller_name, 'Membro RESA');
+
   if new.status is not distinct from old.status then
     return new;
   end if;
@@ -60,25 +71,25 @@ begin
   if new.status = 'active' then
     v_title := 'Chamada atendida';
     v_body := case when new.kind = 'video'
-      then 'A tua videochamada foi atendida.'
-      else 'A tua chamada de áudio foi atendida.'
+      then 'A tua videochamada com ' || v_caller_name || ' foi atendida.'
+      else 'A tua chamada de áudio com ' || v_caller_name || ' foi atendida.'
     end;
   elsif new.status = 'missed' then
     v_title := 'Chamada perdida';
     v_body := case when new.kind = 'video'
-      then 'Não atendeste à videochamada. Podes voltar a ligar ou enviar uma mensagem.'
-      else 'Não atendeste à chamada de áudio. Podes voltar a ligar ou enviar uma mensagem.'
+      then 'Não atendeste à videochamada de ' || v_caller_name || '. Podes voltar a ligar ou enviar uma mensagem.'
+      else 'Não atendeste à chamada de áudio de ' || v_caller_name || '. Podes voltar a ligar ou enviar uma mensagem.'
     end;
   elsif new.status = 'declined' then
     v_title := 'Chamada recusada';
-    v_body := 'A chamada foi recusada. Podes tentar novamente ou enviar uma mensagem.';
+    v_body := 'A chamada de ' || v_caller_name || ' foi recusada. Podes tentar novamente ou enviar uma mensagem.';
   elsif new.status = 'ended' then
     if old.status = 'active' then
       v_title := 'Chamada terminada';
-      v_body := 'A chamada terminou. Podes voltar a ligar ou enviar uma mensagem.';
+      v_body := 'A chamada com ' || v_caller_name || ' terminou. Podes voltar a ligar ou enviar uma mensagem.';
     else
       v_title := 'Chamada cancelada';
-      v_body := 'A chamada foi cancelada antes de ser atendida.';
+      v_body := 'A chamada de ' || v_caller_name || ' foi cancelada antes de ser atendida.';
     end if;
   else
     return new;
@@ -120,11 +131,11 @@ set
     else n.title
   end,
   body = case
-    when c.status = 'missed' then 'Não atendeste à chamada. Podes voltar a ligar ou enviar uma mensagem.'
-    when c.status = 'declined' then 'A chamada foi recusada. Podes tentar novamente ou enviar uma mensagem.'
-    when c.status = 'active' then 'A tua chamada foi atendida.'
-    when c.status = 'ended' and c.answered_at is not null then 'A chamada terminou. Podes voltar a ligar ou enviar uma mensagem.'
-    when c.status = 'ended' then 'A chamada foi cancelada antes de ser atendida.'
+    when c.status = 'missed' then 'Não atendeste à chamada de ' || coalesce(nullif(btrim(p.display_name), ''), nullif(btrim(concat_ws(' ', p.first_name, p.last_name)), ''), 'Membro RESA') || '. Podes voltar a ligar ou enviar uma mensagem.'
+    when c.status = 'declined' then 'A chamada de ' || coalesce(nullif(btrim(p.display_name), ''), nullif(btrim(concat_ws(' ', p.first_name, p.last_name)), ''), 'Membro RESA') || ' foi recusada. Podes tentar novamente ou enviar uma mensagem.'
+    when c.status = 'active' then 'A tua chamada com ' || coalesce(nullif(btrim(p.display_name), ''), nullif(btrim(concat_ws(' ', p.first_name, p.last_name)), ''), 'Membro RESA') || ' foi atendida.'
+    when c.status = 'ended' and c.answered_at is not null then 'A chamada com ' || coalesce(nullif(btrim(p.display_name), ''), nullif(btrim(concat_ws(' ', p.first_name, p.last_name)), ''), 'Membro RESA') || ' terminou. Podes voltar a ligar ou enviar uma mensagem.'
+    when c.status = 'ended' then 'A chamada de ' || coalesce(nullif(btrim(p.display_name), ''), nullif(btrim(concat_ws(' ', p.first_name, p.last_name)), ''), 'Membro RESA') || ' foi cancelada antes de ser atendida.'
     else n.body
   end,
   data = coalesce(n.data, '{}'::jsonb) || jsonb_build_object(
@@ -134,5 +145,6 @@ set
     'initiator_id', c.initiator_id
   )
 from public.resa_calls c
+left join public.profiles p on p.id = c.initiator_id
 where n.type in ('resa.call.audio', 'resa.call.video')
   and n.data ->> 'call_id' = c.id::text;
