@@ -569,7 +569,8 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
     if (!room || !isHost || typeof MediaRecorder === "undefined") { setError("A gravação local não é suportada neste navegador."); return; }
     try {
       const tracks: MediaStreamTrack[] = [];
-      const collect = (publication: any) => {        const mediaTrack = publication.track?.mediaStreamTrack as MediaStreamTrack | undefined;
+      const collect = (publication: any) => {
+        const mediaTrack = publication.track?.mediaStreamTrack as MediaStreamTrack | undefined;
         if (mediaTrack && mediaTrack.readyState === "live" && !tracks.some((item) => item.id === mediaTrack.id)) tracks.push(mediaTrack);
       };
       room.localParticipant.trackPublications.forEach(collect);
@@ -848,7 +849,8 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
     if (mediaBroadcasting) {
       await stopMediaBroadcast();
       setNotice("A transmissão do leitor foi parada.");
-      return;    }
+      return;
+    }
     const room = roomRef.current;
     const element = mediaVideoRef.current ?? mediaAudioRef.current;
     if (!isHost || !connected || !room || !element) return;
