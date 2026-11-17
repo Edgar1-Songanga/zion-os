@@ -167,7 +167,6 @@ export default function SecretariatPage() {
 
   const loadRequestId = useRef(0);
   const organizationContextRef = useRef(organizationId);
-  organizationContextRef.current = organizationId;
   const memberSaveSequence = useRef(0);
 
   const loadMembers = useCallback(async (id: string) => {
