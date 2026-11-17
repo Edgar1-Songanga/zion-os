@@ -221,6 +221,9 @@ export default function SecretariatPage() {
   }, []);
 
   useEffect(() => {
+    // A decision dialog must never outlive the organization context it was opened in.
+    setDecisionDialog(null);
+    setDecisionNote("");
     if (organizationId) void loadMembers(organizationId);
   }, [organizationId, loadMembers]);
 
