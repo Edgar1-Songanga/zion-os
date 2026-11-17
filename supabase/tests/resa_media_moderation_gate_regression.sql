@@ -50,9 +50,17 @@ begin
       array['safe']::text[],
       now()
     );
-    raise exception 'Client self-approved media insert unexpectedly succeeded';
+    raise exception 'RESA_TEST_UNEXPECTED_SELF_APPROVAL';
   exception
-    when insufficient_privilege then null;
+    when insufficient_privilege or check_violation then null;
+    when raise_exception then
+      if sqlerrm = 'RESA_TEST_UNEXPECTED_SELF_APPROVAL' then
+        raise;
+      elsif sqlerrm = 'RESA media must be privately stored and approved by the trusted moderation service' then
+        null;
+      else
+        raise;
+      end if;
   end;
 end;
 $test$;
