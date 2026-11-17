@@ -546,7 +546,7 @@ export class ResaSocialService {
     }
     const owned = await this.db.get<any[]>('resa_contents', token,
       `?select=id,author_id,title,body,moderation_status&id=eq.${encodeURIComponent(id)}&author_id=eq.${encodeURIComponent(actor.id)}&limit=1`);
-    if (!owned[0]) throw new NotFoundException('Publicação não encontrada ou não pertence à tua conta.');
+    if (!owned[0] || owned[0].author_id !== actor.id) throw new NotFoundException('Publicação não encontrada ou não pertence à tua conta.');
     if (owned[0].moderation_status && owned[0].moderation_status !== 'active') {
       throw new ForbiddenException('Esta publicação não pode ser editada enquanto estiver sob moderação.');
     }
