@@ -70,7 +70,7 @@ export default function CreatePost({ onPublished, initialType = "text" }: { onPu
       const { data: userData, error: userError } = await supabase.auth.getUser();
       if (userError || !userData.user) throw new Error(t("sessionUnavailable"));
 
-      let mediaPayload: { media_type: "image" | "video"; media_url: string; media_path: string } | null = null;
+      let mediaPayload: { media_type: "image" | "video"; media_path: string; media_moderation_token: string } | null = null;
       if (media) {
         const extension = media.name.split(".").pop()?.toLowerCase() || "bin";
         const path = `${userData.user.id}/${crypto.randomUUID()}.${extension}`;
@@ -185,7 +185,7 @@ export default function CreatePost({ onPublished, initialType = "text" }: { onPu
           throw moderationError;
         }
         setModeratingMedia(false);
-        mediaPayload = { media_type: mediaType, media_path: path, media_moderation_token: moderation.moderation_token } as typeof mediaPayload;
+        mediaPayload = { media_type: mediaType, media_path: path, media_moderation_token: moderation.moderation_token };
       }
 
       const publication = await resaRequest<{ id: string }>("/v1/resa/content", {
