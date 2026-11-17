@@ -204,8 +204,10 @@ export default function MessagesPage() {
       selectConversation(conversationId);
     }
     const callKind = searchParams.get("call");
-    if ((callKind === "audio" || callKind === "video") && startedCall.current !== conversationId + ":" + callKind) {
-      startedCall.current = conversationId + ":" + callKind;
+    const callRequest = searchParams.get("call_request") ?? "";
+    const callKey = conversationId + ":" + callKind + ":" + callRequest;
+    if ((callKind === "audio" || callKind === "video") && startedCall.current !== callKey) {
+      startedCall.current = callKey;
       setAutoStartCall({ conversationId, kind: callKind });
     }
   }, [items, searchParams, selectConversation]);
