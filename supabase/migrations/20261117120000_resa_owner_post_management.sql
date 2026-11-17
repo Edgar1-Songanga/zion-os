@@ -12,7 +12,4 @@ on public.resa_contents
 for delete to authenticated
 using (author_id = (select auth.uid()));
 
-create index if not exists resa_contents_author_created_idx
-  on public.resa_contents(author_id, created_at desc);
-
 commit;
