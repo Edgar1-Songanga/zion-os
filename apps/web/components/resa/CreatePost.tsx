@@ -13,7 +13,7 @@ const types = [
   { value: "story", labelKey: "post", icon: "story" },
 ] as const;
 
-const mediaAccept = "image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime";
+const mediaAccept = "image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime";
 const MAX_MEDIA_SIZE = 50 * 1024 * 1024;
 
 export default function CreatePost({ onPublished, initialType = "text" }: { onPublished?: () => void; initialType?: "text" | "prayer" | "bible_study" | "story" }) {
