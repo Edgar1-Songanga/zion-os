@@ -39,6 +39,20 @@ function uniqueSections(sections: NavSection[]): NavSection[] {
 export default function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
   const { t } = useTranslation();
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose?.();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [mobileOpen, onClose]);
   const [globalAdmin, setGlobalAdmin] = useState(false);
   const [roleKeys, setRoleKeys] = useState<string[]>([]);
   const [signingOut, setSigningOut] = useState(false);
@@ -121,7 +135,7 @@ export default function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: 
   return (
     <>
       {mobileOpen && <button type="button" aria-label="Fechar navegação" onClick={onClose} className="fixed inset-0 z-40 bg-slate-950/55 backdrop-blur-[2px] md:hidden" />}
-      <aside className={["fixed inset-y-0 left-0 z-50 flex h-dvh w-[min(18rem,86vw)] shrink-0 flex-col overflow-hidden border-r border-white/10 bg-[linear-gradient(180deg,#0B2D4D_0%,#071E35_100%)] px-3.5 py-5 text-white shadow-[8px_0_30px_rgba(7,30,53,0.18)] transition-transform duration-200 md:sticky md:top-0 md:z-auto md:h-fit md:max-h-dvh md:w-[252px] md:translate-x-0 md:self-start md:px-3.5 md:py-5", mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"].join(" ")}>
+      <aside role={mobileOpen ? "dialog" : undefined} aria-modal={mobileOpen ? true : undefined} aria-label={mobileOpen ? "Navegação principal" : undefined} className={["fixed inset-y-0 left-0 z-50 flex h-dvh w-[min(18rem,86vw)] shrink-0 flex-col overflow-hidden border-r border-white/10 bg-[linear-gradient(180deg,#0B2D4D_0%,#071E35_100%)] px-3.5 py-5 text-white shadow-[8px_0_30px_rgba(7,30,53,0.18)] transition-transform duration-200 md:sticky md:top-0 md:z-auto md:h-fit md:max-h-dvh md:w-[252px] md:translate-x-0 md:self-start md:px-3.5 md:py-5", mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"].join(" ")}>
         <Link href="/dashboard" onClick={onClose} className="shrink-0 px-1 md:px-3" aria-label="ZION OS — Painel principal">
           <h1 className="text-[19px] font-semibold tracking-[0.16em] text-white md:text-[25px] md:tracking-[0.24em]">ZION<span className="text-[#C8A24A]">OS</span></h1>
           <p className="mt-1 text-[8px] uppercase tracking-[0.1em] text-slate-300 md:text-[10px] md:tracking-[0.16em]">{t("globalDigitalEcosystem")}</p>
