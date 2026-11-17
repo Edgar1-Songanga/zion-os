@@ -264,7 +264,8 @@ export default function SecretariatPage() {
   }, [archiveMembers, archiveQuery]);
 
   const filteredMembers = useMemo(() => {
-    const normalized = query.trim().toLocaleLowerCase("pt");    if (!normalized) return members;
+    const normalized = query.trim().toLocaleLowerCase("pt");
+    if (!normalized) return members;
     return members.filter((member) =>
       [member.member_number, member.first_name, member.last_name, member.phone, member.email]
         .some((value) => value?.toLocaleLowerCase("pt").includes(normalized)),
@@ -513,7 +514,8 @@ export default function SecretariatPage() {
       ? window.prompt(status === "ACCEPTED" ? "Nota da decisão de aceitação (opcional):" : "Motivo da recusa (recomendado):")
       : null;
     if ((status === "ACCEPTED" || status === "REJECTED") && note === null) return;
-    setTransferError("");    setTransferNotice("");
+    setTransferError("");
+    setTransferNotice("");
     try {
       await resaRequest<MemberTransfer>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-member-transfers/${encodeURIComponent(transfer.id)}/status`, {
         method: "PATCH",
@@ -793,7 +795,8 @@ export default function SecretariatPage() {
           </section>
         )}
 
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">          <div className="flex flex-col gap-4 border-b border-slate-100 p-5 sm:flex-row sm:items-end sm:justify-between sm:p-7">
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-col gap-4 border-b border-slate-100 p-5 sm:flex-row sm:items-end sm:justify-between sm:p-7">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9B7A34]">Registo eclesiástico</p>
               <h2 className="mt-2 text-xl font-semibold">Membros da organização</h2>
