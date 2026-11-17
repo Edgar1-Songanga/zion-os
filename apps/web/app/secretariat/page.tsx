@@ -142,6 +142,7 @@ export default function SecretariatPage() {
   const [archiveLoading, setArchiveLoading] = useState(false);
   const [archiveHasMore, setArchiveHasMore] = useState(false);
   const [archiveNextOffset, setArchiveNextOffset] = useState(0);
+  const archiveNextOffsetRef = useRef(0);
   const [archiveError, setArchiveError] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
@@ -227,12 +228,13 @@ export default function SecretariatPage() {
 
   const loadArchive = useCallback(async (status: "DECEASED" | "REMOVED", append = false) => {
     const requestId = ++archiveRequestSequence.current;
-    const offset = append ? archiveNextOffset : 0;
+    const offset = append ? archiveNextOffsetRef.current : 0;
     setArchiveLoading(true);
     setArchiveError("");
     if (!append) {
       setArchiveMembers([]);
       setArchiveHasMore(false);
+      archiveNextOffsetRef.current = 0;
       setArchiveNextOffset(0);
     }
     try {
@@ -242,6 +244,7 @@ export default function SecretariatPage() {
       if (requestId !== archiveRequestSequence.current) return;
       setArchiveMembers((current) => append ? [...current, ...page.items] : page.items);
       setArchiveHasMore(page.hasMore);
+      archiveNextOffsetRef.current = page.nextOffset;
       setArchiveNextOffset(page.nextOffset);
     } catch (reason) {
       if (requestId !== archiveRequestSequence.current) return;
@@ -250,7 +253,7 @@ export default function SecretariatPage() {
     } finally {
       if (requestId === archiveRequestSequence.current) setArchiveLoading(false);
     }
-  }, [archiveNextOffset]);
+  }, []);
 
   useEffect(() => {
     void loadArchive(archiveStatus);
