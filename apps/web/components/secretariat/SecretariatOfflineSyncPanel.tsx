@@ -35,10 +35,16 @@ export default function SecretariatOfflineSyncPanel({ organizationId, onServerRe
   const refreshCallback = useRef(onServerRefresh);
   const contextSequence = useRef(0);
   const running = useRef<number | null>(null);
+  const cancelDiscardRef = useRef<HTMLButtonElement | null>(null);
+  const confirmDiscardRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     refreshCallback.current = onServerRefresh;
   }, [onServerRefresh]);
+
+  useEffect(() => {
+    if (discardTarget) cancelDiscardRef.current?.focus();
+  }, [discardTarget]);
 
   const refreshQueue = useCallback(async (activeScope: OfflineScope, sequence: number) => {
     const items = await listSecretariatMemberDrafts(activeScope);
