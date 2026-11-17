@@ -130,7 +130,7 @@ export class ResaSocialService {
     // Original publications and repost events are independent feed entries.
     // Both streams use the same (created_at,id) cursor, so pagination remains
     // chronological and does not collapse two reposts of the same publication.
-    const contentQuery = `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&moderation_status=eq.active&type=neq.story&visibility=in.(public,followers,community,organization)${authorFilter}&order=created_at.desc,id.desc&limit=${size + 1}${cursorFilter}`;
+    const contentQuery = `?select=id,author_id,type,title,body,visibility,language,created_at,edited_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&moderation_status=eq.active&type=neq.story&visibility=in.(public,followers,community,organization)${authorFilter}&order=created_at.desc,id.desc&limit=${size + 1}${cursorFilter}`;
     const shareQuery = `?select=id,content_id,user_id,created_at&share_type=eq.repost${shareAuthorFilter}&order=created_at.desc,id.desc&limit=${size + 1}${cursorFilter}`;
     const institutionalCursorFilter = cursorFilter.replaceAll('created_at', 'published_at');
     const institutionalQuery = `?select=id,source_type,source_id,organization_id,organization_name,organization_type,ministry_id,ministry_name,title,body,starts_at,ends_at,location,meeting_day,meeting_time,room_label,activity_type,status,published_at&is_active=eq.true&order=published_at.desc,id.desc&limit=${size + 1}${institutionalCursorFilter}`;
@@ -667,7 +667,7 @@ export class ResaSocialService {
     ]);
     profile.viewer_has_blocked = blocks.length > 0;
     profile.viewer_has_muted = mutes.length > 0;
-    const contents = profile.private_locked ? [] : await this.db.get<any[]>('resa_contents', token, `?select=id,author_id,type,title,body,created_at,media_type,media_url,language&moderation_status=eq.active&type=neq.story&author_id=eq.${encodeURIComponent(id)}&visibility=in.(public,followers,community,organization)&order=created_at.desc&limit=20`);
+    const contents = profile.private_locked ? [] : await this.db.get<any[]>('resa_contents', token, `?select=id,author_id,type,title,body,created_at,edited_at,media_type,media_url,language&moderation_status=eq.active&type=neq.story&author_id=eq.${encodeURIComponent(id)}&visibility=in.(public,followers,community,organization)&order=created_at.desc&limit=20`);
     return { profile, contents };
   }
 
