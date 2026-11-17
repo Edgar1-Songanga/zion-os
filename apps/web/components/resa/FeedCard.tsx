@@ -84,6 +84,7 @@ export default function FeedCard({ content }: { content: ResaContent }) {
   const [savingEdit, setSavingEdit] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleted, setDeleted] = useState(false);
+  const [wasEdited, setWasEdited] = useState(Boolean(content.edited_at));
   const [reaction, setReaction] = useState(Boolean(content.viewer_reacted));
   const [saved, setSaved] = useState(Boolean(content.viewer_saved));
   const [reactionCount, setReactionCount] = useState(content.reaction_count ?? 0);
