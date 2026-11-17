@@ -341,7 +341,7 @@ export default function NotificationBell() {
     const destination = "/resa/messages?conversation=" + encodeURIComponent(conversationId);
     setOpen(false);
     void markRead(item.id);
-    router.push(action === "call" ? destination + "&call=" + kind : destination);
+    router.push(action === "call" ? destination + "&call=" + kind + "&call_request=" + Date.now().toString() : destination);
   }
 
   return (
