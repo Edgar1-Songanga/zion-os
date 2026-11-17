@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { IdentityService } from './identity.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 
@@ -95,6 +95,26 @@ export class ProfileService {
     const updates = Object.fromEntries(
       PROFILE_FIELDS.filter((field)=>Object.prototype.hasOwnProperty.call(input,field)).map((field)=>[field,input[field]]),
     ) as Partial<Omit<Profile,'id'>>;
+
+    // Profile pictures must not bypass RESA's private upload + moderation gate.
+    // Until this endpoint accepts and verifies a moderation proof, only the
+    // already-persisted avatar may be retained; arbitrary URLs are never trusted.
+    if (Object.prototype.hasOwnProperty.call(input, 'avatar_url')) {
+      const current = await this.db.get<Pick<Profile, 'avatar_url'>[]>(
+        'profiles', accessToken,
+        `?select=avatar_url&id=eq.${user.id}&limit=1`,
+      );
+      const currentAvatar = current[0]?.avatar_url ?? null;
+      const requestedAvatar = typeof input.avatar_url === 'string' && input.avatar_url.trim()
+        ? input.avatar_url.trim()
+        : null;
+      if (requestedAvatar !== currentAvatar) {
+        throw new ForbiddenException(
+          'A alteração da fotografia está temporariamente bloqueada até passar pela moderação segura do RESA.',
+        );
+      }
+      delete updates.avatar_url;
+    }
     if ('privacy' in updates && updates.privacy) {
       const privacy = updates.privacy as Partial<ProfilePrivacy>;
       const visibilityValues = ['public','friends','friends_of_friends','private'];
