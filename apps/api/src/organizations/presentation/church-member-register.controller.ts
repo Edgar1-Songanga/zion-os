@@ -17,9 +17,10 @@ export class ChurchMemberRegisterController {
     @Param('status') status: string,
     @Query('offset') offset = '0',
     @Query('limit') limit = '100',
+    @Query('search') search = '',
   ) {
     const parsedOffset = Number(offset);
     const parsedLimit = Number(limit);
-    return this.members.listByStatus(this.token(authorization), status.toUpperCase(), parsedOffset, parsedLimit);
+    return this.members.listByStatus(this.token(authorization), status.toUpperCase(), parsedOffset, parsedLimit, search);
   }
 }
