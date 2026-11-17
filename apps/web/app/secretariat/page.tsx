@@ -709,7 +709,38 @@ export default function SecretariatPage() {
 
         <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-end sm:justify-between">
           <div className="w-full max-w-xl">
-            <OrganizationSelector value={organizationId} onChange={(id, selected) => { setIdentityCandidates([]); setNotice(""); setOrganization(selected); setOrganizationId(id); }} />
+            <OrganizationSelector value={organizationId} onChange={(id, selected) => {
+              if (id !== organizationId) {
+                loadRequestId.current += 1;
+                setMembers([]);
+                setTransfers([]);
+                setFamilyRelationships([]);
+                setBaptisms([]);
+                setHistory([]);
+                setHistoryMemberId("");
+                setBaptismHistory([]);
+                setBaptismHistoryId("");
+                setTransferHistory([]);
+                setTransferHistoryId("");
+                setIdentityCandidates([]);
+                setDestinationOrganizationId("");
+                setQuery("");
+                setLoading(false);
+                setTransfersLoading(false);
+                setFamilyLoading(false);
+                setBaptismsLoading(false);
+                setError("");
+                setTransferError("");
+                setFamilyError("");
+                setBaptismError("");
+                setTransferNotice("");
+                setFamilyNotice("");
+                setBaptismNotice("");
+                setNotice("");
+              }
+              setOrganization(selected);
+              setOrganizationId(id);
+            }} />
             {organization && <p className="mt-2 text-xs text-slate-500">Âmbito activo: <strong className="text-slate-700">{organization.name}</strong> · {organization.organization_type}</p>}
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
