@@ -15,6 +15,18 @@ create unique index if not exists resa_contents_media_path_unique
   on public.resa_contents(media_path)
   where media_path is not null;
 
+-- The uploader must be able to read its own quarantined object so the API can
+-- create a short-lived URL for the classifier before a content row exists.
+drop policy if exists "RESA private media owner moderation read" on storage.objects;
+create policy "RESA private media owner moderation read"
+on storage.objects
+for select
+to authenticated
+using (
+  bucket_id = 'resa-content-private'
+  and (storage.foldername(name))[1] = (select auth.uid())::text
+);
+
 -- Direct authenticated inserts cannot attach media. New media publications must
 -- pass the API's classifier gate and use the trusted service-role insertion path.
 drop policy if exists resa_contents_owner_insert on public.resa_contents;
