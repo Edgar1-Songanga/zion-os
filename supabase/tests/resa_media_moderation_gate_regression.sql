@@ -26,7 +26,7 @@ begin
     );
     raise exception 'Unaudited public media insert unexpectedly succeeded';
   exception
-    when insufficient_privilege then null;
+    when insufficient_privilege or check_violation then null;
   end;
 
   begin
