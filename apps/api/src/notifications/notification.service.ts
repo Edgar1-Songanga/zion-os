@@ -19,7 +19,10 @@ export class NotificationService {
     return notifications
       // Message and call notifications are persistent inbox items. Call rows are
       // updated by the database when the call reaches a terminal state.
-      .filter((notification) => !notification.data?.actor_id || !mutedIds.has(notification.data.actor_id))
+      .filter((notification) => {
+        const actorId = notification.data?.actor_id ?? notification.data?.initiator_id;
+        return !actorId || !mutedIds.has(actorId);
+      })
       .slice(0, size);
   }
 
