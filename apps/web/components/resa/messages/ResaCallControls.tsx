@@ -341,6 +341,9 @@ export default function ResaCallControls({ conversationId, peerName = "Membro RE
       const room = roomRef.current;
       roomRef.current = null;
       callRef.current = null;
+      // Stop any partially connected media immediately; database reconciliation
+      // must not keep the camera or microphone live while requests are pending.
+      await room?.disconnect(true);
       if (acceptedByThisClient && userId.current) {
         await supabase.from("resa_call_participants")
           .update({ status: "left", left_at: new Date().toISOString() })
@@ -349,7 +352,6 @@ export default function ResaCallControls({ conversationId, peerName = "Membro RE
           .update({ status: "ended", ended_at: new Date().toISOString() })
           .eq("id", target.id).eq("status", "active");
       }
-      await room?.disconnect(true);
       intentionalDisconnectRef.current = false;
       callRef.current = null;
       setCall(null); setActive(false); setIncoming(null);
