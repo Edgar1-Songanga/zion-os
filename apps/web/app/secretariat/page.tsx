@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { OrganizationSelector, type ZionOrganization } from "@/components/organization/OrganizationSelector";
 import { ResaApiError, resaRequest } from "@/lib/resa/api";
 import SecretariatOfflineSyncPanel from "@/components/secretariat/SecretariatOfflineSyncPanel";
@@ -171,6 +171,7 @@ export default function SecretariatPage() {
   >(null);
   const [decisionNote, setDecisionNote] = useState("");
   const [decisionSaving, setDecisionSaving] = useState(false);
+  const decisionContextSequence = useRef(0);
 
   const loadMembers = useCallback(async (id: string) => {
     if (!id) return;
@@ -221,9 +222,11 @@ export default function SecretariatPage() {
   }, []);
 
   useEffect(() => {
-    // A decision dialog must never outlive the organization context it was opened in.
+    // Invalidate pending decisions whenever the active organization changes.
+    decisionContextSequence.current += 1;
     setDecisionDialog(null);
     setDecisionNote("");
+    setDecisionSaving(false);
     if (organizationId) void loadMembers(organizationId);
   }, [organizationId, loadMembers]);
 
