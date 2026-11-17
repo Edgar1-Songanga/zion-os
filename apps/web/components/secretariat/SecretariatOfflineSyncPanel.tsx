@@ -31,28 +31,33 @@ export default function SecretariatOfflineSyncPanel({ organizationId, onServerRe
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const refreshCallback = useRef(onServerRefresh);
-  const running = useRef(false);
+  const contextSequence = useRef(0);
+  const running = useRef<number | null>(null);
 
   useEffect(() => {
     refreshCallback.current = onServerRefresh;
   }, [onServerRefresh]);
 
-  const refreshQueue = useCallback(async (activeScope: OfflineScope) => {
+  const refreshQueue = useCallback(async (activeScope: OfflineScope, sequence: number) => {
     const items = await listSecretariatMemberDrafts(activeScope);
-    setDrafts(items);
+    if (contextSequence.current === sequence) setDrafts(items);
   }, []);
 
   const refresh = useCallback(async () => {
-    if (!organizationId) {
+    const sequence = contextSequence.current;
+    const requestedOrganizationId = organizationId;
+    if (!requestedOrganizationId) {
       scopeRef.current = null;
       setDrafts([]);
       return;
     }
     try {
-      const nextScope = await getSecretariatOfflineScope(organizationId);
+      const nextScope = await getSecretariatOfflineScope(requestedOrganizationId);
+      if (contextSequence.current !== sequence || nextScope.organizationId !== requestedOrganizationId) return;
       scopeRef.current = nextScope;
-      await refreshQueue(nextScope);
+      await refreshQueue(nextScope, sequence);
     } catch (error) {
+      if (contextSequence.current !== sequence) return;
       scopeRef.current = null;
       setDrafts([]);
       setMessage(error instanceof Error ? error.message : "Não foi possível abrir a fila offline.");
@@ -60,15 +65,23 @@ export default function SecretariatOfflineSyncPanel({ organizationId, onServerRe
   }, [organizationId, refreshQueue]);
 
   const synchronize = useCallback(async () => {
-    if (!organizationId || !navigator.onLine || running.current) return;
-    running.current = true;
+    const sequence = contextSequence.current;
+    const requestedOrganizationId = organizationId;
+    if (!requestedOrganizationId || !navigator.onLine || running.current === sequence) return;
+    running.current = sequence;
     setBusy(true);
     setMessage("");
     try {
-      const activeScope = scopeRef.current ?? await getSecretariatOfflineScope(organizationId);
+      const cachedScope = scopeRef.current;
+      const activeScope = cachedScope?.organizationId === requestedOrganizationId
+        ? cachedScope
+        : await getSecretariatOfflineScope(requestedOrganizationId);
+      if (contextSequence.current !== sequence || activeScope.organizationId !== requestedOrganizationId) return;
       scopeRef.current = activeScope;
       const result = await syncSecretariatMemberDrafts(activeScope);
-      await refreshQueue(activeScope);
+      if (contextSequence.current !== sequence) return;
+      await refreshQueue(activeScope, sequence);
+      if (contextSequence.current !== sequence) return;
       if (result.synced > 0 || result.needsAttention > 0) refreshCallback.current();
       if (result.synced > 0) {
         setMessage(`${result.synced} registo(s) sincronizado(s) com o servidor.`);
@@ -78,12 +91,22 @@ export default function SecretariatOfflineSyncPanel({ organizationId, onServerRe
         setMessage("Algumas operações foram rejeitadas. Consulta o motivo antes de as corrigir.");
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "A sincronização não foi concluída.");
+      if (contextSequence.current === sequence) setMessage(error instanceof Error ? error.message : "A sincronização não foi concluída.");
     } finally {
-      running.current = false;
-      setBusy(false);
+      if (running.current === sequence) {
+        running.current = null;
+        if (contextSequence.current === sequence) setBusy(false);
+      }
     }
   }, [organizationId, refreshQueue]);
+
+  useEffect(() => {
+    contextSequence.current += 1;
+    scopeRef.current = null;
+    setDrafts([]);
+    setMessage("");
+    setBusy(false);
+  }, [organizationId]);
 
   useEffect(() => {
     setOnline(typeof navigator === "undefined" ? false : navigator.onLine);
@@ -134,7 +157,7 @@ export default function SecretariatOfflineSyncPanel({ organizationId, onServerRe
     if (!activeScope || !window.confirm("Descartar este rascunho local? Esta acção não pode ser anulada.")) return;
     const removed = await discardSecretariatMemberDraft(activeScope, operationId);
     if (removed) setMessage("Rascunho local descartado.");
-    await refreshQueue(activeScope);
+    await refreshQueue(activeScope, contextSequence.current);
   }
 
   if (!organizationId || (drafts.length === 0 && online && !message)) return null;
