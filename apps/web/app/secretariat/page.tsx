@@ -222,8 +222,7 @@ export default function SecretariatPage() {
   }, []);
 
   useEffect(() => {
-    // Invalidate pending decisions whenever the active organization changes.
-    decisionContextSequence.current += 1;
+    // The selector invalidates pending decisions synchronously before changing organization.
     setDecisionDialog(null);
     setDecisionNote("");
     setDecisionSaving(false);
