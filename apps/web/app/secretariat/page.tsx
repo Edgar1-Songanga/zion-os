@@ -803,7 +803,8 @@ export default function SecretariatPage() {
                   })}
                 </tbody>
               </table>
-            </div>}
+              </div>
+            </>}
         </section>
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="flex flex-col gap-4 border-b border-slate-100 p-5 sm:flex-row sm:items-end sm:justify-between sm:p-7">
