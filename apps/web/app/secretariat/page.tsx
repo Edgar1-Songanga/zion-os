@@ -316,13 +316,13 @@ export default function SecretariatPage() {
     };
     const operationId = crypto.randomUUID();
     const entityId = submittedMember?.id ?? crypto.randomUUID();
-    const expectedVersion = editingMember?.row_version ?? null;
+    const expectedVersion = submittedMember?.row_version ?? null;
     const canUseIdempotentEndpoint = !editingMember ||
       (Number.isSafeInteger(expectedVersion) && (expectedVersion ?? 0) > 0);
-    const legacyPath = `/v1/organizations/${encodeURIComponent(submittedOrganizationId)}/church-members${submittedMember ? `/${encodeURIComponent(editingMember.id)}` : ""}`;
+    const legacyPath = `/v1/organizations/${encodeURIComponent(submittedOrganizationId)}/church-members${submittedMember ? `/${encodeURIComponent(submittedMember.id)}` : ""}`;
 
     async function saveDraftOffline() {
-      const scope = await getSecretariatOfflineScope(organizationId);
+      const scope = await getSecretariatOfflineScope(submittedOrganizationId);
       await enqueueSecretariatMemberDraft({
         scope,
         operationId,
@@ -405,7 +405,7 @@ export default function SecretariatPage() {
           // server committed but its response was lost, replay remains idempotent.
           await saveDraftOffline();
         } catch (queueError) {
-          setError(queueError instanceof Error ? queueError.message : "Não foi possível guardar o rascunho offline.");
+          if (isCurrentContext()) setError(queueError instanceof Error ? queueError.message : "Não foi possível guardar o rascunho offline.");
         }
       } else if (reason instanceof Error && reason.message.toLowerCase().includes("possible existing member")) {
         try {
