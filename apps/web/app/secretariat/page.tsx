@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { OrganizationSelector, type ZionOrganization } from "@/components/organization/OrganizationSelector";
 import { ResaApiError, resaRequest } from "@/lib/resa/api";
 import SecretariatOfflineSyncPanel from "@/components/secretariat/SecretariatOfflineSyncPanel";
@@ -164,6 +164,9 @@ export default function SecretariatPage() {
   const [transferNotice, setTransferNotice] = useState("");
   const [transferHistoryId, setTransferHistoryId] = useState("");
   const [transferHistory, setTransferHistory] = useState<TransferEvent[]>([]);
+  const memberHistoryRequest = useRef(0);
+  const baptismHistoryRequest = useRef(0);
+  const transferHistoryRequest = useRef(0);
 
   const loadMembers = useCallback(async (id: string) => {
     if (!id) return;
@@ -446,18 +449,22 @@ export default function SecretariatPage() {
   }
 
   async function toggleBaptismHistory(baptismId: string) {
+    const requestId = ++baptismHistoryRequest.current;
     if (baptismHistoryId === baptismId) {
       setBaptismHistoryId("");
       setBaptismHistory([]);
       return;
     }
+    const requestedOrganizationId = organizationId;
     setBaptismHistoryId(baptismId);
     setBaptismHistory([]);
     try {
-      const events = await resaRequest<BaptismEvent[]>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-baptisms/${encodeURIComponent(baptismId)}/history`);
-      setBaptismHistory(events);
+      const events = await resaRequest<BaptismEvent[]>(`/v1/organizations/${encodeURIComponent(requestedOrganizationId)}/church-baptisms/${encodeURIComponent(baptismId)}/history`);
+      if (requestId === baptismHistoryRequest.current) setBaptismHistory(events);
     } catch (reason) {
-      setBaptismError(reason instanceof Error ? reason.message : "Não foi possível consultar o histórico do baptismo.");
+      if (requestId === baptismHistoryRequest.current) {
+        setBaptismError(reason instanceof Error ? reason.message : "Não foi possível consultar o histórico do baptismo.");
+      }
     }
   }
 
@@ -513,18 +520,22 @@ export default function SecretariatPage() {
   }
 
   async function toggleTransferHistory(transferId: string) {
+    const requestId = ++transferHistoryRequest.current;
     if (transferHistoryId === transferId) {
       setTransferHistoryId("");
       setTransferHistory([]);
       return;
     }
+    const requestedOrganizationId = organizationId;
     setTransferHistoryId(transferId);
     setTransferHistory([]);
     try {
-      const events = await resaRequest<TransferEvent[]>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-member-transfers/${encodeURIComponent(transferId)}/history`);
-      setTransferHistory(events);
+      const events = await resaRequest<TransferEvent[]>(`/v1/organizations/${encodeURIComponent(requestedOrganizationId)}/church-member-transfers/${encodeURIComponent(transferId)}/history`);
+      if (requestId === transferHistoryRequest.current) setTransferHistory(events);
     } catch (reason) {
-      setTransferError(reason instanceof Error ? reason.message : "Não foi possível carregar o histórico da transferência.");
+      if (requestId === transferHistoryRequest.current) {
+        setTransferError(reason instanceof Error ? reason.message : "Não foi possível carregar o histórico da transferência.");
+      }
     }
   }
 
@@ -559,24 +570,29 @@ export default function SecretariatPage() {
   }
 
   async function toggleHistory(memberId: string) {
+    const requestId = ++memberHistoryRequest.current;
     if (historyMemberId === memberId) {
       setHistoryMemberId("");
       setHistory([]);
+      setHistoryLoading(false);
       return;
     }
+    const requestedOrganizationId = organizationId;
     setHistoryMemberId(memberId);
     setHistory([]);
     setHistoryLoading(true);
     setError("");
     try {
       const data = await resaRequest<StatusEvent[]>(
-        `/v1/organizations/${encodeURIComponent(organizationId)}/church-members/${encodeURIComponent(memberId)}/status-history`,
+        `/v1/organizations/${encodeURIComponent(requestedOrganizationId)}/church-members/${encodeURIComponent(memberId)}/status-history`,
       );
-      setHistory(data);
+      if (requestId === memberHistoryRequest.current) setHistory(data);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Não foi possível consultar o histórico.");
+      if (requestId === memberHistoryRequest.current) {
+        setError(reason instanceof Error ? reason.message : "Não foi possível consultar o histórico.");
+      }
     } finally {
-      setHistoryLoading(false);
+      if (requestId === memberHistoryRequest.current) setHistoryLoading(false);
     }
   }
 
@@ -681,7 +697,7 @@ export default function SecretariatPage() {
 
         <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-end sm:justify-between">
           <div className="w-full max-w-xl">
-            <OrganizationSelector value={organizationId} onChange={(id, selected) => { setIdentityCandidates([]); setNotice(""); setOrganization(selected); setOrganizationId(id); }} />
+            <OrganizationSelector value={organizationId} onChange={(id, selected) => { if (id !== organizationId) { memberHistoryRequest.current += 1; baptismHistoryRequest.current += 1; transferHistoryRequest.current += 1; setHistoryLoading(false); } setIdentityCandidates([]); setNotice(""); setOrganization(selected); setOrganizationId(id); }} />
             {organization && <p className="mt-2 text-xs text-slate-500">Âmbito activo: <strong className="text-slate-700">{organization.name}</strong> · {organization.organization_type}</p>}
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
