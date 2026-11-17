@@ -30,6 +30,8 @@ export default function SecretariatOfflineSyncPanel({ organizationId, onServerRe
   const [online, setOnline] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [discardTarget, setDiscardTarget] = useState<string | null>(null);
+  const [discarding, setDiscarding] = useState(false);
   const refreshCallback = useRef(onServerRefresh);
   const contextSequence = useRef(0);
   const running = useRef<number | null>(null);
@@ -106,6 +108,8 @@ export default function SecretariatOfflineSyncPanel({ organizationId, onServerRe
     setDrafts([]);
     setMessage("");
     setBusy(false);
+    setDiscardTarget(null);
+    setDiscarding(false);
   }, [organizationId]);
 
   useEffect(() => {
@@ -153,11 +157,28 @@ export default function SecretariatOfflineSyncPanel({ organizationId, onServerRe
   }, [refresh, synchronize]);
 
   async function discard(operationId: string) {
+    setDiscardTarget(operationId);
+  }
+
+  async function confirmDiscard() {
+    const operationId = discardTarget;
     const activeScope = scopeRef.current;
-    if (!activeScope || !window.confirm("Descartar este rascunho local? Esta acção não pode ser anulada.")) return;
-    const removed = await discardSecretariatMemberDraft(activeScope, operationId);
-    if (removed) setMessage("Rascunho local descartado.");
-    await refreshQueue(activeScope, contextSequence.current);
+    const sequence = contextSequence.current;
+    if (!operationId || !activeScope || discarding) return;
+    setDiscarding(true);
+    try {
+      const removed = await discardSecretariatMemberDraft(activeScope, operationId);
+      if (contextSequence.current !== sequence || scopeRef.current?.organizationId !== activeScope.organizationId) return;
+      if (removed) setMessage("Rascunho local descartado.");
+      setDiscardTarget(null);
+      await refreshQueue(activeScope, sequence);
+    } catch (error) {
+      if (contextSequence.current === sequence) {
+        setMessage(error instanceof Error ? error.message : "Não foi possível descartar o rascunho.");
+      }
+    } finally {
+      if (contextSequence.current === sequence) setDiscarding(false);
+    }
   }
 
   if (!organizationId || (drafts.length === 0 && online && !message)) return null;
@@ -187,6 +208,42 @@ export default function SecretariatOfflineSyncPanel({ organizationId, onServerRe
           {busy ? "A sincronizar…" : "Sincronizar agora"}
         </button>
       </div>
+
+      {discardTarget && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-4" onKeyDown={event => {
+          if (event.key === "Escape" && !discarding) setDiscardTarget(null);
+        }}>
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="offline-discard-title"
+            className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl"
+          >
+            <h3 id="offline-discard-title" className="text-base font-semibold text-slate-900">Descartar rascunho?</h3>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Esta operação remove o rascunho guardado neste dispositivo. Não será possível recuperar os dados descartados.
+            </p>
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                disabled={discarding}
+                onClick={() => setDiscardTarget(null)}
+                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={discarding}
+                onClick={() => void confirmDiscard()}
+                className="rounded-xl bg-red-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {discarding ? "A descartar…" : "Sim, descartar"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
 
       {message && <p className="mt-3 text-xs text-slate-600">{message}</p>}
 
