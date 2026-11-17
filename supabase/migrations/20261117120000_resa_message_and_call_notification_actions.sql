@@ -107,3 +107,32 @@ create trigger resa_calls_update_notification
   for each row
   when (old.status is distinct from new.status)
   execute function public.resa_update_call_notification();
+
+-- Reconcile call notifications that were already stored before this migration.
+update public.notifications n
+set
+  title = case
+    when c.status = 'missed' then 'Chamada perdida'
+    when c.status = 'declined' then 'Chamada recusada'
+    when c.status = 'active' then 'Chamada atendida'
+    when c.status = 'ended' and c.answered_at is not null then 'Chamada terminada'
+    when c.status = 'ended' then 'Chamada cancelada'
+    else n.title
+  end,
+  body = case
+    when c.status = 'missed' then 'Não atendeste à chamada. Podes voltar a ligar ou enviar uma mensagem.'
+    when c.status = 'declined' then 'A chamada foi recusada. Podes tentar novamente ou enviar uma mensagem.'
+    when c.status = 'active' then 'A tua chamada foi atendida.'
+    when c.status = 'ended' and c.answered_at is not null then 'A chamada terminou. Podes voltar a ligar ou enviar uma mensagem.'
+    when c.status = 'ended' then 'A chamada foi cancelada antes de ser atendida.'
+    else n.body
+  end,
+  data = coalesce(n.data, '{}'::jsonb) || jsonb_build_object(
+    'call_status', c.status,
+    'kind', c.kind,
+    'conversation_id', c.conversation_id,
+    'initiator_id', c.initiator_id
+  )
+from public.resa_calls c
+where n.type in ('resa.call.audio', 'resa.call.video')
+  and n.data ->> 'call_id' = c.id::text;
