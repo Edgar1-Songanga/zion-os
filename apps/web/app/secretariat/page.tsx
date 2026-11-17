@@ -166,6 +166,8 @@ export default function SecretariatPage() {
   const [transferHistory, setTransferHistory] = useState<TransferEvent[]>([]);
 
   const loadRequestId = useRef(0);
+  const organizationContextRef = useRef(organizationId);
+  const memberSaveSequence = useRef(0);
 
   const loadMembers = useCallback(async (id: string) => {
     if (!id) return;
@@ -286,6 +288,17 @@ export default function SecretariatPage() {
   async function createMember(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!organizationId) return;
+    const submittedOrganizationId = organizationId;
+    const submittedMember = editingMember;
+    const saveSequence = ++memberSaveSequence.current;
+    const isCurrentContext = () =>
+      memberSaveSequence.current === saveSequence && organizationContextRef.current === submittedOrganizationId;
+    if (submittedMember && submittedMember.organization_id !== submittedOrganizationId) {
+      setError("O membro seleccionado já não pertence à organização activa. Volta a seleccioná-lo.");
+      setEditingMember(null);
+      setFormOpen(false);
+      return;
+    }
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
     const payload = {
@@ -301,26 +314,28 @@ export default function SecretariatPage() {
       membership_status: String(form.get("membership_status") ?? "ACTIVE"),
     };
     const operationId = crypto.randomUUID();
-    const entityId = editingMember?.id ?? crypto.randomUUID();
-    const expectedVersion = editingMember?.row_version ?? null;
-    const canUseIdempotentEndpoint = !editingMember ||
+    const entityId = submittedMember?.id ?? crypto.randomUUID();
+    const expectedVersion = submittedMember?.row_version ?? null;
+    const canUseIdempotentEndpoint = !submittedMember ||
       (Number.isSafeInteger(expectedVersion) && (expectedVersion ?? 0) > 0);
-    const legacyPath = `/v1/organizations/${encodeURIComponent(organizationId)}/church-members${editingMember ? `/${encodeURIComponent(editingMember.id)}` : ""}`;
+    const legacyPath = `/v1/organizations/${encodeURIComponent(submittedOrganizationId)}/church-members${submittedMember ? `/${encodeURIComponent(submittedMember.id)}` : ""}`;
 
     async function saveDraftOffline() {
-      const scope = await getSecretariatOfflineScope(organizationId);
+      const scope = await getSecretariatOfflineScope(submittedOrganizationId);
       await enqueueSecretariatMemberDraft({
         scope,
         operationId,
         entityId,
-        action: editingMember ? "update" : "create",
+        action: submittedMember ? "update" : "create",
         expectedVersion,
         payload,
       });
-      setNotice("Rascunho guardado localmente e encriptado. Será sincronizado quando a ligação regressar.");
-      setFormOpen(false);
-      setEditingMember(null);
-      formElement.reset();
+      if (isCurrentContext()) {
+        setNotice("Rascunho guardado localmente e encriptado. Será sincronizado quando a ligação regressar.");
+        setFormOpen(false);
+        setEditingMember(null);
+        formElement.reset();
+      }
     }
 
     setSaving(true);
@@ -332,9 +347,9 @@ export default function SecretariatPage() {
       try {
         await saveDraftOffline();
       } catch (queueError) {
-        setError(queueError instanceof Error ? queueError.message : "Não foi possível guardar o rascunho offline.");
+        if (isCurrentContext()) setError(queueError instanceof Error ? queueError.message : "Não foi possível guardar o rascunho offline.");
       } finally {
-        setSaving(false);
+        if (isCurrentContext()) setSaving(false);
       }
       return;
     }
@@ -344,13 +359,13 @@ export default function SecretariatPage() {
       if (canUseIdempotentEndpoint) {
         try {
           await resaRequest<Member>(
-            `/v1/organizations/${encodeURIComponent(organizationId)}/church-members/offline-sync`,
+            `/v1/organizations/${encodeURIComponent(submittedOrganizationId)}/church-members/offline-sync`,
             {
               method: "POST",
               body: JSON.stringify({
                 operationId,
                 entityId,
-                action: editingMember ? "update" : "create",
+                action: submittedMember ? "update" : "create",
                 expectedVersion,
                 payload,
               }),
@@ -362,22 +377,23 @@ export default function SecretariatPage() {
           if (!(reason instanceof ResaApiError) || reason.status !== 404) throw reason;
           usedLegacyEndpoint = true;
           await resaRequest<Member>(legacyPath, {
-            method: editingMember ? "PATCH" : "POST",
+            method: submittedMember ? "PATCH" : "POST",
             body: JSON.stringify(payload),
           });
         }
       } else {
         usedLegacyEndpoint = true;
         await resaRequest<Member>(legacyPath, {
-          method: editingMember ? "PATCH" : "POST",
+          method: submittedMember ? "PATCH" : "POST",
           body: JSON.stringify(payload),
         });
       }
-      setNotice(editingMember ? "Registo de membro actualizado." : "Registo de membro criado e guardado na base de dados.");
+      if (!isCurrentContext()) return;
+      setNotice(submittedMember ? "Registo de membro actualizado." : "Registo de membro criado e guardado na base de dados.");
       setFormOpen(false);
       setEditingMember(null);
       formElement.reset();
-      await loadMembers(organizationId);
+      await loadMembers(submittedOrganizationId);
     } catch (reason) {
       const transportFailure =
         (typeof navigator !== "undefined" && !navigator.onLine) ||
@@ -388,12 +404,12 @@ export default function SecretariatPage() {
           // server committed but its response was lost, replay remains idempotent.
           await saveDraftOffline();
         } catch (queueError) {
-          setError(queueError instanceof Error ? queueError.message : "Não foi possível guardar o rascunho offline.");
+          if (isCurrentContext()) setError(queueError instanceof Error ? queueError.message : "Não foi possível guardar o rascunho offline.");
         }
       } else if (reason instanceof Error && reason.message.toLowerCase().includes("possible existing member")) {
         try {
           const candidates = await resaRequest<IdentityCandidate[]>(
-            `/v1/organizations/${encodeURIComponent(organizationId)}/church-members/identity-candidates`,
+            `/v1/organizations/${encodeURIComponent(submittedOrganizationId)}/church-members/identity-candidates`,
             {
               method: "POST",
               body: JSON.stringify({
@@ -404,22 +420,25 @@ export default function SecretariatPage() {
               }),
             },
           );
+          if (!isCurrentContext()) return;
           setIdentityCandidates(candidates);
           setError("");
           setNotice("");
         } catch (lookupReason) {
-          setError(lookupReason instanceof Error ? lookupReason.message : reason.message);
+          if (isCurrentContext()) setError(lookupReason instanceof Error ? lookupReason.message : reason.message);
         }
       } else if (reason instanceof ResaApiError && reason.status === 409) {
-        await loadMembers(organizationId);
+        if (!isCurrentContext()) return;
+        await loadMembers(submittedOrganizationId);
+        if (!isCurrentContext()) return;
         setFormOpen(false);
         setEditingMember(null);
         setError("O registo foi alterado no servidor. Actualizei a listagem; abre novamente o membro antes de repetir a alteração.");
       } else {
-        setError(reason instanceof Error ? reason.message : "Não foi possível guardar o membro.");
+        if (isCurrentContext()) setError(reason instanceof Error ? reason.message : "Não foi possível guardar o membro.");
       }
     } finally {
-      setSaving(false);
+      if (isCurrentContext()) setSaving(false);
     }
   }
 
@@ -738,6 +757,14 @@ export default function SecretariatPage() {
                 setBaptismNotice("");
                 setNotice("");
               }
+              if (id !== organizationId) {
+                memberSaveSequence.current += 1;
+                organizationContextRef.current = id;
+                setSaving(false);
+                setFormOpen(false);
+                setEditingMember(null);
+                setIdentityCandidates([]);
+              }
               setOrganization(selected);
               setOrganizationId(id);
             }} />
@@ -786,7 +813,7 @@ export default function SecretariatPage() {
               <h2 className="mt-2 text-xl font-semibold">Dados do membro</h2>
               <p className="mt-1 text-sm text-slate-500">Com ligação, os dados são enviados para a API autenticada. Sem ligação, apenas este rascunho elegível fica encriptado no dispositivo para sincronização posterior.</p>
             </div>
-            <form key={editingMember?.id ?? "new-member"} onSubmit={createMember} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <form key={`${organizationId}:${editingMember?.id ?? "new-member"}`} onSubmit={createMember} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <label className="grid gap-1.5 text-xs font-medium text-slate-600">Nome próprio *<input required name="first_name" defaultValue={editingMember?.first_name ?? ""} maxLength={120} className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#C8A24A]" /></label>
               <label className="grid gap-1.5 text-xs font-medium text-slate-600">Apelido *<input required name="last_name" defaultValue={editingMember?.last_name ?? ""} maxLength={160} className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#C8A24A]" /></label>
               <label className="grid gap-1.5 text-xs font-medium text-slate-600">N.º de membro<input name="member_number" defaultValue={editingMember?.member_number ?? ""} maxLength={80} className="rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#C8A24A]" /></label>
