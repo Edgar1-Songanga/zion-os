@@ -498,7 +498,9 @@ export default function SecretariatPage() {
         method: "POST",
         body: JSON.stringify(payload),
       });
-      const items = await resaRequest<MemberTransfer[]>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-member-transfers`);
+      if (contextVersion !== decisionContextSequence.current) return false;
+      const items = await resaRequest<MemberTransfer[]>(`/v1/organizations/${encodeURIComponent(orgId)}/church-member-transfers`);
+      if (contextVersion !== decisionContextSequence.current) return false;
       setTransfers(items);
       formElement.reset();
       setTransferNotice("Pedido de transferência criado como rascunho. Submeta-o para decisão da organização de destino.");
@@ -510,10 +512,12 @@ export default function SecretariatPage() {
   }
 
   async function changeTransferStatus(transfer: MemberTransfer, status: MemberTransfer["status"], note: string | null = null): Promise<boolean> {
+    const contextVersion = decisionContextSequence.current;
+    const orgId = organizationId;
     setTransferError("");
     setTransferNotice("");
     try {
-      await resaRequest<MemberTransfer>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-member-transfers/${encodeURIComponent(transfer.id)}/status`, {
+      await resaRequest<MemberTransfer>(`/v1/organizations/${encodeURIComponent(orgId)}/church-member-transfers/${encodeURIComponent(transfer.id)}/status`, {
         method: "PATCH",
         body: JSON.stringify({ status, decision_note: note?.trim() || null }),
       });
@@ -522,7 +526,7 @@ export default function SecretariatPage() {
       setTransferNotice("Estado da transferência actualizado e registado no histórico.");
       return true;
     } catch (reason) {
-      setTransferError(reason instanceof Error ? reason.message : "A transição foi recusada. Confirme o âmbito e as permissões da organização.");
+      if (contextVersion === decisionContextSequence.current) setTransferError(reason instanceof Error ? reason.message : "A transição foi recusada. Confirme o âmbito e as permissões da organização.");
       return false;
     }
   }
