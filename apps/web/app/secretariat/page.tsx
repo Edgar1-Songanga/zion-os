@@ -534,10 +534,12 @@ export default function SecretariatPage() {
   async function submitDecision(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!decisionDialog || decisionSaving) return;
+    const contextVersion = decisionContextSequence.current;
     setDecisionSaving(true);
     const saved = decisionDialog.kind === "baptism"
       ? await decideBaptism(decisionDialog.record, decisionDialog.status, decisionNote)
       : await changeTransferStatus(decisionDialog.record, decisionDialog.status, decisionNote);
+    if (contextVersion !== decisionContextSequence.current) return;
     if (saved) {
       setDecisionDialog(null);
       setDecisionNote("");
