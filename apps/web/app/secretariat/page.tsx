@@ -164,6 +164,13 @@ export default function SecretariatPage() {
   const [transferNotice, setTransferNotice] = useState("");
   const [transferHistoryId, setTransferHistoryId] = useState("");
   const [transferHistory, setTransferHistory] = useState<TransferEvent[]>([]);
+  const [decisionDialog, setDecisionDialog] = useState<
+    | { kind: "baptism"; record: BaptismRecord; status: "VALIDATED" | "REJECTED" }
+    | { kind: "transfer"; record: MemberTransfer; status: "ACCEPTED" | "REJECTED" }
+    | null
+  >(null);
+  const [decisionNote, setDecisionNote] = useState("");
+  const [decisionSaving, setDecisionSaving] = useState(false);
 
   const loadMembers = useCallback(async (id: string) => {
     if (!id) return;
@@ -428,9 +435,7 @@ export default function SecretariatPage() {
     }
   }
 
-  async function decideBaptism(record: BaptismRecord, status: "VALIDATED" | "REJECTED") {
-    const note = window.prompt(status === "VALIDATED" ? "Nota de validação (opcional):" : "Motivo da rejeição (recomendado):");
-    if (note === null) return;
+  async function decideBaptism(record: BaptismRecord, status: "VALIDATED" | "REJECTED", note: string): Promise<boolean> {
     setBaptismError("");
     setBaptismNotice("");
     try {
@@ -440,8 +445,10 @@ export default function SecretariatPage() {
       });
       await loadMembers(organizationId);
       setBaptismNotice(status === "VALIDATED" ? "Baptismo validado; a data oficial do membro foi actualizada." : "Registo de baptismo rejeitado e decisão auditada.");
+      return true;
     } catch (reason) {
       setBaptismError(reason instanceof Error ? reason.message : "Não foi possível decidir este registo.");
+      return false;
     }
   }
 
@@ -492,24 +499,41 @@ export default function SecretariatPage() {
     }
   }
 
-  async function changeTransferStatus(transfer: MemberTransfer, status: MemberTransfer["status"]) {
-    const note = status === "ACCEPTED" || status === "REJECTED"
-      ? window.prompt(status === "ACCEPTED" ? "Nota da decisão de aceitação (opcional):" : "Motivo da recusa (recomendado):")
-      : null;
-    if ((status === "ACCEPTED" || status === "REJECTED") && note === null) return;
+  async function changeTransferStatus(transfer: MemberTransfer, status: MemberTransfer["status"], note: string | null = null): Promise<boolean> {
     setTransferError("");
     setTransferNotice("");
     try {
       await resaRequest<MemberTransfer>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-member-transfers/${encodeURIComponent(transfer.id)}/status`, {
         method: "PATCH",
-        body: JSON.stringify({ status, decision_note: note }),
+        body: JSON.stringify({ status, decision_note: note?.trim() || null }),
       });
       const items = await resaRequest<MemberTransfer[]>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-member-transfers`);
       setTransfers(items);
       setTransferNotice("Estado da transferência actualizado e registado no histórico.");
+      return true;
     } catch (reason) {
       setTransferError(reason instanceof Error ? reason.message : "A transição foi recusada. Confirme o âmbito e as permissões da organização.");
+      return false;
     }
+  }
+
+  async function submitDecision(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!decisionDialog || decisionSaving) return;
+    setDecisionSaving(true);
+    const saved = decisionDialog.kind === "baptism"
+      ? await decideBaptism(decisionDialog.record, decisionDialog.status, decisionNote)
+      : await changeTransferStatus(decisionDialog.record, decisionDialog.status, decisionNote);
+    if (saved) {
+      setDecisionDialog(null);
+      setDecisionNote("");
+    }
+    setDecisionSaving(false);
+  }
+
+  function openDecisionDialog(dialog: NonNullable<typeof decisionDialog>) {
+    setDecisionNote("");
+    setDecisionDialog(dialog);
   }
 
   async function toggleTransferHistory(transferId: string) {
@@ -846,7 +870,7 @@ export default function SecretariatPage() {
                 <span className={`inline-flex w-fit rounded-full px-3 py-1.5 text-xs font-semibold ${record.status === "VALIDATED" ? "bg-emerald-50 text-emerald-700" : record.status === "REJECTED" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-800"}`}>{BAPTISM_STATUS_LABELS[record.status]}</span>
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                {record.status === "PENDING" && <><button type="button" onClick={() => void decideBaptism(record, "VALIDATED")} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white">Validar</button><button type="button" onClick={() => void decideBaptism(record, "REJECTED")} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">Rejeitar</button></>}
+                {record.status === "PENDING" && <><button type="button" onClick={() => openDecisionDialog({ kind: "baptism", record, status: "VALIDATED" })} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white">Validar</button><button type="button" onClick={() => openDecisionDialog({ kind: "baptism", record, status: "REJECTED" })} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">Rejeitar</button></>}
                 <button type="button" onClick={() => void toggleBaptismHistory(record.id)} className="text-xs font-semibold text-[#7B6127] underline-offset-4 hover:underline">{baptismHistoryId === record.id ? "Fechar histórico" : "Ver histórico"}</button>
               </div>
               {baptismHistoryId === record.id && <div className="rounded-xl bg-slate-50 p-4">{baptismHistory.length === 0 ? <p className="text-xs text-slate-500">Sem eventos disponíveis para este registo.</p> : <ol className="space-y-2">{baptismHistory.map((event) => <li key={event.id} className="text-xs text-slate-600">{event.previous_status ? `${BAPTISM_STATUS_LABELS[event.previous_status as keyof typeof BAPTISM_STATUS_LABELS] ?? event.previous_status} → ` : "Criado → "}{BAPTISM_STATUS_LABELS[event.new_status as keyof typeof BAPTISM_STATUS_LABELS] ?? event.new_status} · {dateLabel(event.changed_at)}{event.note ? ` · ${event.note}` : ""}</li>)}</ol>}</div>}
@@ -881,7 +905,7 @@ export default function SecretariatPage() {
               <div className="flex flex-wrap items-center gap-3">
                 {isOrigin && transfer.status === "DRAFT" && <button type="button" onClick={() => void changeTransferStatus(transfer, "SUBMITTED")} className="rounded-lg bg-[#0C1A3D] px-3 py-2 text-xs font-semibold text-white">Submeter</button>}
                 {isOrigin && ["DRAFT", "SUBMITTED"].includes(transfer.status) && <button type="button" onClick={() => void changeTransferStatus(transfer, "CANCELLED")} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold">Cancelar</button>}
-                {!isOrigin && transfer.status === "SUBMITTED" && <><button type="button" onClick={() => void changeTransferStatus(transfer, "ACCEPTED")} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white">Aceitar</button><button type="button" onClick={() => void changeTransferStatus(transfer, "REJECTED")} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">Recusar</button></>}
+                {!isOrigin && transfer.status === "SUBMITTED" && <><button type="button" onClick={() => openDecisionDialog({ kind: "transfer", record: transfer, status: "ACCEPTED" })} className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white">Aceitar</button><button type="button" onClick={() => openDecisionDialog({ kind: "transfer", record: transfer, status: "REJECTED" })} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700">Recusar</button></>}
                 <button type="button" onClick={() => void toggleTransferHistory(transfer.id)} className="text-xs font-semibold text-[#7B6127] underline-offset-4 hover:underline">{transferHistoryId === transfer.id ? "Fechar histórico" : "Ver histórico"}</button>
               </div>
               {transferHistoryId === transfer.id && <div className="rounded-xl bg-slate-50 p-4">{transferHistory.length === 0 ? <p className="text-xs text-slate-500">Sem eventos ou sem permissão para consultar o histórico.</p> : <ol className="space-y-2">{transferHistory.map((event) => <li key={event.id} className="text-xs text-slate-600">{event.previous_status ? `${TRANSFER_STATUS_LABELS[event.previous_status as keyof typeof TRANSFER_STATUS_LABELS] ?? event.previous_status} → ` : "Criado → "}{TRANSFER_STATUS_LABELS[event.new_status as keyof typeof TRANSFER_STATUS_LABELS] ?? event.new_status} · {dateLabel(event.changed_at)}{event.note ? ` · ${event.note}` : ""}</li>)}</ol>}</div>}
@@ -928,6 +952,30 @@ export default function SecretariatPage() {
         </section>
         <p className="px-1 text-xs leading-5 text-slate-400">Os registos e relatórios desta página reflectem apenas os dados acessíveis à sessão autenticada para a organização seleccionada. O relatório operacional não substitui os formulários oficiais nem os prazos de reporte definidos pela Associação/Conferência.</p>
       </div>
+      {decisionDialog && (
+        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/55 p-0 backdrop-blur-sm sm:items-center sm:p-6" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !decisionSaving) setDecisionDialog(null); }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="secretariat-decision-title" className="w-full max-w-lg rounded-t-3xl border border-white/20 bg-white p-5 shadow-2xl sm:rounded-3xl sm:p-7">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#9B7A34]">Decisão administrativa</p>
+                <h2 id="secretariat-decision-title" className="mt-2 text-xl font-semibold text-slate-950">{decisionDialog.kind === "baptism" ? (decisionDialog.status === "VALIDATED" ? "Validar registo de baptismo" : "Rejeitar registo de baptismo") : (decisionDialog.status === "ACCEPTED" ? "Aceitar transferência" : "Recusar transferência")}</h2>
+                <p className="mt-1 text-sm text-slate-500">{decisionDialog.kind === "baptism" ? "A decisão ficará registada no histórico do baptismo." : "A decisão ficará registada no histórico da transferência."}</p>
+              </div>
+              <button type="button" onClick={() => setDecisionDialog(null)} disabled={decisionSaving} aria-label="Fechar diálogo" className="rounded-full border border-slate-200 px-3 py-1.5 text-slate-500 disabled:opacity-40">✕</button>
+            </div>
+            <div className="mb-4 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
+              {decisionDialog.kind === "baptism" ? <><span className="font-semibold">{members.find((item) => item.id === decisionDialog.record.member_record_id)?.first_name ?? "Membro"} {members.find((item) => item.id === decisionDialog.record.member_record_id)?.last_name ?? ""}</span><span className="block text-xs text-slate-500">{dateLabel(decisionDialog.record.baptism_date)} · {decisionDialog.record.congregation_name}</span></> : <><span className="font-semibold">{members.find((item) => item.id === decisionDialog.record.member_record_id)?.first_name ?? "Membro"} {members.find((item) => item.id === decisionDialog.record.member_record_id)?.last_name ?? ""}</span><span className="block text-xs text-slate-500">Pedido de {dateLabel(decisionDialog.record.request_date)}</span></>}
+            </div>
+            <form onSubmit={submitDecision} className="grid gap-4">
+              <label className="grid gap-1.5 text-sm font-medium text-slate-700">{decisionDialog.status === "REJECTED" ? "Motivo da rejeição" : "Nota da decisão"}{decisionDialog.status === "REJECTED" && <span className="text-xs font-normal text-slate-500">Explique a razão para manter um registo administrativo claro.</span>}<textarea value={decisionNote} onChange={(event) => setDecisionNote(event.target.value)} maxLength={2000} rows={4} required={decisionDialog.status === "REJECTED"} placeholder={decisionDialog.status === "REJECTED" ? "Indique o motivo da rejeição…" : "Adicionar uma nota (opcional)…"} className="w-full resize-y rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none transition focus:border-[#9B7A34] focus:ring-2 focus:ring-[#9B7A34]/15" /></label>
+              <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
+                <button type="button" onClick={() => setDecisionDialog(null)} disabled={decisionSaving} className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 disabled:opacity-40">Cancelar</button>
+                <button type="submit" disabled={decisionSaving || (decisionDialog.status === "REJECTED" && !decisionNote.trim())} className={`rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-50 ${decisionDialog.status === "REJECTED" ? "bg-red-700" : "bg-[#0C1A3D]"}`}>{decisionSaving ? "A registar decisão…" : "Confirmar decisão"}</button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
     </main>
   );
 }
