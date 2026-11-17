@@ -1,4 +1,5 @@
 import { ResaSocialService } from './resa-social.service';
+import { ResaMediaModerationService } from './resa-media-moderation.service';
 import { ResaRecommendationService } from './recommendation.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 
@@ -17,7 +18,7 @@ describe('ResaSocialService feeds', () => {
 
   beforeEach(() => {
     const identity = { getCurrentUser: jest.fn().mockResolvedValue({ id: ACTOR_ID }) };
-    service = new ResaSocialService(identity as never, new ResaRecommendationService());
+    service = new ResaSocialService(identity as never, new ResaRecommendationService(), new ResaMediaModerationService(identity as never));
     getSpy = jest.spyOn(SupabaseRestClient.prototype, 'get').mockImplementation(async (table: string) => {
       if (table === 'resa_follows') return follows as never;
       if (table === 'profiles') return [{ id: FOLLOWED_ID, privacy: {} }] as never;
