@@ -1,4 +1,4 @@
-import { BadGatewayException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { BadGatewayException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 import { ResaGroupMeetingService } from './resa-group-meeting.service';
 
