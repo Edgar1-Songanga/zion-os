@@ -182,6 +182,7 @@ export default function SecretariatPage() {
 
   const loadRequestId = useRef(0);
   const organizationContextRef = useRef(organizationId);
+  const organizationContextSequence = useRef(0);
   const memberSaveSequence = useRef(0);
 
   const loadMembers = useCallback(async (id: string) => {
@@ -474,6 +475,11 @@ export default function SecretariatPage() {
   async function createBaptism(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!organizationId) return;
+    const submittedOrganizationId = organizationId;
+    const submittedContextSequence = organizationContextSequence.current;
+    const isCurrentContext = () =>
+      organizationContextSequence.current === submittedContextSequence &&
+      organizationContextRef.current === submittedOrganizationId;
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
     const payload = {
@@ -489,18 +495,20 @@ export default function SecretariatPage() {
     setBaptismError("");
     setBaptismNotice("");
     try {
-      await resaRequest<BaptismRecord>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-baptisms`, {
+      await resaRequest<BaptismRecord>(`/v1/organizations/${encodeURIComponent(submittedOrganizationId)}/church-baptisms`, {
         method: "POST",
         body: JSON.stringify(payload),
       });
-      const items = await resaRequest<BaptismRecord[]>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-baptisms`);
+      if (!isCurrentContext()) return;
+      const items = await resaRequest<BaptismRecord[]>(`/v1/organizations/${encodeURIComponent(submittedOrganizationId)}/church-baptisms`);
+      if (!isCurrentContext()) return;
       setBaptisms(items);
       formElement.reset();
       setBaptismNotice("Registo de baptismo criado e enviado para validação.");
     } catch (reason) {
-      setBaptismError(reason instanceof Error ? reason.message : "Não foi possível registar o baptismo.");
+      if (isCurrentContext()) setBaptismError(reason instanceof Error ? reason.message : "Não foi possível registar o baptismo.");
     } finally {
-      setBaptismSaving(false);
+      if (isCurrentContext()) setBaptismSaving(false);
     }
   }
 
@@ -546,11 +554,18 @@ export default function SecretariatPage() {
   async function createTransfer(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!organizationId) return;
+    const submittedOrganizationId = organizationId;
+    const submittedDestinationOrganizationId = destinationOrganizationId;
+    const submittedContextSequence = organizationContextSequence.current;
+    const isCurrentContext = () =>
+      organizationContextSequence.current === submittedContextSequence &&
+      organizationContextRef.current === submittedOrganizationId &&
+      destinationOrganizationId === submittedDestinationOrganizationId;
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
     const payload = {
       member_record_id: String(form.get("member_record_id") ?? ""),
-      destination_organization_id: destinationOrganizationId,
+      destination_organization_id: submittedDestinationOrganizationId,
       request_date: String(form.get("request_date") ?? ""),
       reason: String(form.get("reason") ?? "").trim() || null,
       document_reference: String(form.get("document_reference") ?? "").trim() || null,
@@ -559,18 +574,20 @@ export default function SecretariatPage() {
     setTransferError("");
     setTransferNotice("");
     try {
-      await resaRequest<MemberTransfer>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-member-transfers`, {
+      await resaRequest<MemberTransfer>(`/v1/organizations/${encodeURIComponent(submittedOrganizationId)}/church-member-transfers`, {
         method: "POST",
         body: JSON.stringify(payload),
       });
-      const items = await resaRequest<MemberTransfer[]>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-member-transfers`);
+      if (!isCurrentContext()) return;
+      const items = await resaRequest<MemberTransfer[]>(`/v1/organizations/${encodeURIComponent(submittedOrganizationId)}/church-member-transfers`);
+      if (!isCurrentContext()) return;
       setTransfers(items);
       formElement.reset();
       setTransferNotice("Pedido de transferência criado como rascunho. Submeta-o para decisão da organização de destino.");
     } catch (reason) {
-      setTransferError(reason instanceof Error ? reason.message : "Não foi possível criar o pedido de transferência.");
+      if (isCurrentContext()) setTransferError(reason instanceof Error ? reason.message : "Não foi possível criar o pedido de transferência.");
     } finally {
-      setTransferSaving(false);
+      if (isCurrentContext()) setTransferSaving(false);
     }
   }
 
@@ -638,6 +655,11 @@ export default function SecretariatPage() {
   async function createFamilyRelationship(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!organizationId) return;
+    const submittedOrganizationId = organizationId;
+    const submittedContextSequence = organizationContextSequence.current;
+    const isCurrentContext = () =>
+      organizationContextSequence.current === submittedContextSequence &&
+      organizationContextRef.current === submittedOrganizationId;
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
     const payload = {
@@ -650,18 +672,20 @@ export default function SecretariatPage() {
     setFamilyError("");
     setFamilyNotice("");
     try {
-      await resaRequest<FamilyRelationship>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-member-families`, {
+      await resaRequest<FamilyRelationship>(`/v1/organizations/${encodeURIComponent(submittedOrganizationId)}/church-member-families`, {
         method: "POST",
         body: JSON.stringify(payload),
       });
-      const relationships = await resaRequest<FamilyRelationship[]>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-member-families`);
+      if (!isCurrentContext()) return;
+      const relationships = await resaRequest<FamilyRelationship[]>(`/v1/organizations/${encodeURIComponent(submittedOrganizationId)}/church-member-families`);
+      if (!isCurrentContext()) return;
       setFamilyRelationships(relationships);
       formElement.reset();
       setFamilyNotice("Relação familiar registada.");
     } catch (reason) {
-      setFamilyError(reason instanceof Error ? reason.message : "Não foi possível guardar a relação familiar.");
+      if (isCurrentContext()) setFamilyError(reason instanceof Error ? reason.message : "Não foi possível guardar a relação familiar.");
     } finally {
-      setFamilySaving(false);
+      if (isCurrentContext()) setFamilySaving(false);
     }
   }
 
@@ -803,7 +827,11 @@ export default function SecretariatPage() {
                 loadRequestId.current += 1;
                 memberSaveSequence.current += 1;
                 organizationContextRef.current = id;
+                organizationContextSequence.current += 1;
                 setSaving(false);
+                setBaptismSaving(false);
+                setTransferSaving(false);
+                setFamilySaving(false);
                 setFormOpen(false);
                 setEditingMember(null);
                 setMembers([]);
@@ -997,7 +1025,7 @@ export default function SecretariatPage() {
           </div>
           {familyError && <p role="alert" className="mx-5 mt-5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 sm:mx-7">{familyError}</p>}
           {familyNotice && <p role="status" className="mx-5 mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 sm:mx-7">{familyNotice}</p>}
-          <form onSubmit={createFamilyRelationship} className="grid gap-4 border-b border-slate-100 p-5 sm:grid-cols-2 sm:p-7 lg:grid-cols-4">
+          <form key={organizationId} onSubmit={createFamilyRelationship} className="grid gap-4 border-b border-slate-100 p-5 sm:grid-cols-2 sm:p-7 lg:grid-cols-4">
             <label className="grid gap-1.5 text-xs font-medium text-slate-600">Membro<select required name="member_record_id" defaultValue="" className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm"><option value="" disabled>Seleccionar membro</option>{members.map((member) => <option key={member.id} value={member.id}>{member.first_name} {member.last_name}{member.member_number ? ` · ${member.member_number}` : ""}</option>)}</select></label>
             <label className="grid gap-1.5 text-xs font-medium text-slate-600">Relação<select required name="relationship_type" defaultValue="PARENT_OF" className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm">{Object.entries(RELATIONSHIP_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
             <label className="grid gap-1.5 text-xs font-medium text-slate-600">Membro relacionado<select required name="related_member_record_id" defaultValue="" className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm"><option value="" disabled>Seleccionar membro</option>{members.map((member) => <option key={member.id} value={member.id}>{member.first_name} {member.last_name}{member.member_number ? ` · ${member.member_number}` : ""}</option>)}</select></label>
@@ -1018,7 +1046,7 @@ export default function SecretariatPage() {
           </div>
           {baptismError && <p role="alert" className="mx-5 mt-5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 sm:mx-7">{baptismError}</p>}
           {baptismNotice && <p role="status" className="mx-5 mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 sm:mx-7">{baptismNotice}</p>}
-          <form onSubmit={createBaptism} className="grid gap-4 border-b border-slate-100 p-5 sm:grid-cols-2 lg:grid-cols-3 sm:p-7">
+          <form key={organizationId} onSubmit={createBaptism} className="grid gap-4 border-b border-slate-100 p-5 sm:grid-cols-2 lg:grid-cols-3 sm:p-7">
             <label className="grid gap-1.5 text-xs font-medium text-slate-600">Membro<select required name="member_record_id" defaultValue="" className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm"><option value="" disabled>Seleccionar membro</option>{members.map((member) => <option key={member.id} value={member.id}>{member.first_name} {member.last_name}{member.member_number ? ` · ${member.member_number}` : ""}</option>)}</select></label>
             <label className="grid gap-1.5 text-xs font-medium text-slate-600">Data do baptismo<input required type="date" name="baptism_date" className="rounded-xl border border-slate-200 px-3 py-3 text-sm" /></label>
             <label className="grid gap-1.5 text-xs font-medium text-slate-600">Local<input required name="location" maxLength={250} className="rounded-xl border border-slate-200 px-3 py-3 text-sm" /></label>
@@ -1052,7 +1080,7 @@ export default function SecretariatPage() {
           </div>
           {transferError && <p role="alert" className="mx-5 mt-5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 sm:mx-7">{transferError}</p>}
           {transferNotice && <p role="status" className="mx-5 mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 sm:mx-7">{transferNotice}</p>}
-          <form onSubmit={createTransfer} className="grid gap-4 border-b border-slate-100 p-5 sm:grid-cols-2 lg:grid-cols-3 sm:p-7">
+          <form key={organizationId} onSubmit={createTransfer} className="grid gap-4 border-b border-slate-100 p-5 sm:grid-cols-2 lg:grid-cols-3 sm:p-7">
             <label className="grid gap-1.5 text-xs font-medium text-slate-600">Membro a transferir<select required name="member_record_id" defaultValue="" className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm"><option value="" disabled>Seleccionar membro</option>{members.map((member) => <option key={member.id} value={member.id}>{member.first_name} {member.last_name}{member.member_number ? ` · ${member.member_number}` : ""}</option>)}</select></label>
             <OrganizationSelector value={destinationOrganizationId} onChange={(id) => setDestinationOrganizationId(id)} />
             <label className="grid gap-1.5 text-xs font-medium text-slate-600">Data do pedido<input required type="date" name="request_date" defaultValue={new Date().toISOString().slice(0, 10)} className="rounded-xl border border-slate-200 px-3 py-3 text-sm" /></label>
