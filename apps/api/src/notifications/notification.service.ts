@@ -17,10 +17,12 @@ export class NotificationService {
     ]);
     const mutedIds = new Set(mutes.map((row) => row.muted_id));
     return notifications
-      // Call alerts are ephemeral and delivered by the dedicated call surface / Web Push.
-      // Keeping them in the general history creates stale unread items after a call ends.
-      .filter((notification) => !String(notification.type ?? "").startsWith("resa.call."))
-      .filter((notification) => !notification.data?.actor_id || !mutedIds.has(notification.data.actor_id))
+      // Message and call notifications are persistent inbox items. Call rows are
+      // updated by the database when the call reaches a terminal state.
+      .filter((notification) => {
+        const actorId = notification.data?.actor_id ?? notification.data?.initiator_id;
+        return !actorId || !mutedIds.has(actorId);
+      })
       .slice(0, size);
   }
 

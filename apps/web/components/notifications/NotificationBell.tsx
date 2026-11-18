@@ -330,6 +330,20 @@ export default function NotificationBell() {
     router.push(notificationDestination(item));
   }
 
+  function openCallAction(item: NotificationItem, action: "call" | "message") {
+    const data = item.data ?? {};
+    const conversationId = typeof data.conversation_id === "string" ? data.conversation_id : "";
+    if (!conversationId) {
+      openNotification(item);
+      return;
+    }
+    const kind = data.kind === "video" || item.type.endsWith(".video") ? "video" : "audio";
+    const destination = "/resa/messages?conversation=" + encodeURIComponent(conversationId);
+    setOpen(false);
+    void markRead(item.id);
+    router.push(action === "call" ? destination + "&call=" + kind + "&call_request=" + Date.now().toString() : destination);
+  }
+
   return (
     <div ref={rootRef} className="relative shrink-0">
       <button
@@ -401,20 +415,52 @@ export default function NotificationBell() {
           </div>
           {loadError && <div role="status" className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">A ligação às notificações está instável. O sistema tentará atualizar novamente.</div>}\n          <div className="max-h-80 overflow-y-auto">
             {!items.length && <p className="px-5 py-10 text-center text-sm text-[var(--zion-muted)]">{loadError ? "Não foi possível atualizar as notificações." : "Não há notificações."}</p>}
-            {items.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => openNotification(item)}
-                className={`flex w-full gap-3 border-b border-[var(--zion-border)] px-4 py-3 text-left transition hover:bg-[var(--zion-light)] ${item.read_at ? "bg-white" : "bg-[var(--zion-sky)]/5"}`}
-              >
-                <span className={"mt-1 h-2 w-2 shrink-0 rounded-full " + (item.read_at ? "bg-slate-200" : "bg-[var(--zion-gold)]")} />
-                <span className="min-w-0">
-                  <span className="block text-sm font-semibold text-[var(--zion-dark)]">{item.title}</span>
-                  <span className="mt-0.5 block text-xs leading-5 text-[var(--zion-muted)]">{item.body}</span>
-                </span>
-              </button>
-            ))}
+            {items.map((item) => {
+              const data = item.data ?? {};
+              const conversationId = typeof data.conversation_id === "string" ? data.conversation_id : "";
+              const isMessage = item.type.startsWith("resa.message");
+              const isCall = item.type.startsWith("resa.call.");
+              return (
+                <div key={item.id} className={`border-b border-[var(--zion-border)] ${item.read_at ? "bg-white" : "bg-[var(--zion-sky)]/5"}`}>
+                  <button
+                    type="button"
+                    onClick={() => openNotification(item)}
+                    aria-label={isMessage ? "Abrir mensagem de " + item.title : isCall ? "Abrir registo de chamada" : "Abrir notificação"}
+                    className="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-[var(--zion-light)]"
+                  >
+                    <span aria-hidden="true" className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-base ${isMessage ? "bg-sky-50 text-sky-700" : isCall ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+                      {isMessage ? "✉" : isCall ? "☎" : "🔔"}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-2">
+                        <span className="block truncate text-sm font-semibold text-[var(--zion-dark)]">{item.title}</span>
+                        {!item.read_at && <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--zion-gold)]" />}
+                      </span>
+                      <span className="mt-0.5 block text-xs leading-5 text-[var(--zion-muted)]">{item.body}</span>
+                      {isMessage && <span className="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-sky-700">Mensagem</span>}
+                    </span>
+                  </button>
+                  {isCall && conversationId && (
+                    <div className="flex flex-wrap gap-2 px-4 pb-3 pl-16">
+                      <button
+                        type="button"
+                        onClick={() => openCallAction(item, "call")}
+                        className="min-h-9 rounded-lg bg-[var(--zion-primary)] px-3 py-2 text-[11px] font-semibold text-white transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--zion-sky)]"
+                      >
+                        Voltar a ligar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openCallAction(item, "message")}
+                        className="min-h-9 rounded-lg border border-[var(--zion-border)] bg-white px-3 py-2 text-[11px] font-semibold text-[var(--zion-primary)] transition hover:bg-[var(--zion-light)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--zion-sky)]"
+                      >
+                        Enviar mensagem
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
         </div>

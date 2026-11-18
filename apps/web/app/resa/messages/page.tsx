@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import ResaIcon from "@/components/resa/core/ResaIcon";
 import { createClient } from "@/lib/supabase/client";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import ResaCallControls from "@/components/resa/messages/ResaCallControls";
 
 type ConversationMember = {
@@ -79,7 +79,7 @@ export default function MessagesPage() {
   const [newOpen, setNewOpen] = useState(false);
   const [loadingPeople, setLoadingPeople] = useState(false);
   const [startingPersonId, setStartingPersonId] = useState<string | null>(null);
-  const [autoStartCallConversationId, setAutoStartCallConversationId] = useState<string | null>(null);
+  const [autoStartCall, setAutoStartCall] = useState<{ conversationId: string; kind: "audio" | "video" } | null>(null);
   const [callOnlyConversationId, setCallOnlyConversationId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -92,14 +92,16 @@ export default function MessagesPage() {
   const currentUserIdRef = useRef<string | null>(null);
   const selectedConversationRef = useRef<Conversation | null>(null);
   const searchParams = useSearchParams();
+  const router = useRouter();
   const startedTarget = useRef<string | null>(null);
   const startedConversation = useRef<string | null>(null);
+  const startedCall = useRef<string | null>(null);
   const startedInvite = useRef<string | null>(null);
 
   useEffect(() => {
-    if (autoStartCallConversationId && selected && selected !== autoStartCallConversationId) setAutoStartCallConversationId(null);
+    if (autoStartCall && selected && selected !== autoStartCall.conversationId) setAutoStartCall(null);
     if (callOnlyConversationId && selected && selected !== callOnlyConversationId) setCallOnlyConversationId(null);
-  }, [autoStartCallConversationId, callOnlyConversationId, selected]);
+  }, [autoStartCall, callOnlyConversationId, selected]);
 
   const selectedConversation = useMemo(
     () => items.find((item) => item.id === selected) ?? null,
@@ -197,10 +199,18 @@ export default function MessagesPage() {
 
   useEffect(() => {
     const conversationId = searchParams.get("conversation");
-    if (!conversationId || startedConversation.current === conversationId) return;
-    if (!items.some((item) => item.id === conversationId)) return;
-    startedConversation.current = conversationId;
-    selectConversation(conversationId);
+    if (!conversationId || !items.some((item) => item.id === conversationId)) return;
+    if (startedConversation.current !== conversationId) {
+      startedConversation.current = conversationId;
+      selectConversation(conversationId);
+    }
+    const callKind = searchParams.get("call");
+    const callRequest = searchParams.get("call_request") ?? "";
+    const callKey = conversationId + ":" + callKind + ":" + callRequest;
+    if ((callKind === "audio" || callKind === "video") && startedCall.current !== callKey) {
+      startedCall.current = callKey;
+      setAutoStartCall({ conversationId, kind: callKind });
+    }
   }, [items, searchParams, selectConversation]);
 
   useEffect(() => {
@@ -314,9 +324,10 @@ export default function MessagesPage() {
         body: JSON.stringify({ member_ids: [person.id], title: displayName, purpose }),
       });
       if (purpose === 'call') {
-        setAutoStartCallConversationId(conversation.id);
+        setAutoStartCall({ conversationId: conversation.id, kind: "audio" });
         setCallOnlyConversationId(conversation.id);
       } else {
+        setAutoStartCall(null);
         setCallOnlyConversationId(null);
       }
       setQuery("");
@@ -429,7 +440,10 @@ export default function MessagesPage() {
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef2f8] text-[#0C1A3D]"><ResaIcon name="message" size={18} /></div>
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-[#0C1A3D]">{selectedConversation?.title || "Selecione uma conversa"}</p>
-                <div className="flex items-center justify-between gap-3"><p className="text-xs text-slate-400">{selectedConversation ? "Mensagens privadas" : "Escolha uma conversa para começar"}</p>{selectedConversation && <ResaCallControls conversationId={selectedConversation.id} peerName={selectedConversation.members?.find((member) => member.id !== currentUserId)?.display_name || selectedConversation.title || "Membro RESA"} peerAvatarUrl={selectedConversation.members?.find((member) => member.id !== currentUserId)?.avatar_url || null} autoStart={autoStartCallConversationId === selectedConversation.id ? "audio" : null} onAutoStartHandled={() => setAutoStartCallConversationId(null)} />}</div>
+                <div className="flex items-center justify-between gap-3"><p className="text-xs text-slate-400">{selectedConversation ? "Mensagens privadas" : "Escolha uma conversa para começar"}</p>{selectedConversation && <ResaCallControls conversationId={selectedConversation.id} peerName={selectedConversation.members?.find((member) => member.id !== currentUserId)?.display_name || selectedConversation.title || "Membro RESA"} peerAvatarUrl={selectedConversation.members?.find((member) => member.id !== currentUserId)?.avatar_url || null} autoStart={autoStartCall?.conversationId === selectedConversation.id ? autoStartCall.kind : null} onAutoStartHandled={() => {
+                  setAutoStartCall(null);
+                  if (searchParams.get("call")) router.replace("/resa/messages?conversation=" + encodeURIComponent(selectedConversation.id));
+                }} />}</div>
               </div>
             </div>
 
