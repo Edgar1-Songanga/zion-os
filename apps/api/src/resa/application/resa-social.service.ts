@@ -413,10 +413,64 @@ export class ResaSocialService {
   }
 
   async explore(token: string, query?: string, limit = 30) {
-    const viewer = await this.actor(token); const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
+    const viewer = await this.actor(token);
+    const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
     const mutedIds = await this.mutedAuthorIds(token, viewer.id);
-    const filter = query?.trim() ? `&or=(title.ilike.*${encodeURIComponent(query.trim())}*,body.ilike.*${encodeURIComponent(query.trim())}*)` : '';
-    return this.db.get('resa_contents', token, `?select=*&moderation_status=eq.active&type=neq.story&visibility=in.(public,followers,community,organization)${this.mutedAuthorFilter(mutedIds)}&order=created_at.desc&limit=${size}${filter}`);
+    const filter = query?.trim()
+      ? `&or=(title.ilike.*${encodeURIComponent(query.trim())}*,body.ilike.*${encodeURIComponent(query.trim())}*)`
+      : '';
+    const institutionalMuteFilter = mutedIds.length
+      ? `&organization_id=not.in.(${mutedIds.join(',')})`
+      : '';
+
+    const [contentRows, institutionalRows] = await Promise.all([
+      this.db.get<any[]>(
+        'resa_contents',
+        token,
+        `?select=*&moderation_status=eq.active&type=neq.story&visibility=in.(public,followers,community,organization)${this.mutedAuthorFilter(mutedIds)}&order=created_at.desc&limit=${size}${filter}`,
+      ),
+      this.db.get<any[]>(
+        'resa_institutional_publications',
+        token,
+        `?select=id,source_type,source_id,organization_id,organization_name,organization_type,ministry_id,ministry_name,title,body,starts_at,ends_at,location,meeting_day,meeting_time,room_label,activity_type,status,published_at&is_active=eq.true${institutionalMuteFilter}&order=published_at.desc,id.desc&limit=${size}${filter}`,
+      ),
+    ]);
+
+    const entries = [
+      ...contentRows,
+      ...institutionalRows.map((item) => ({
+        id: item.id,
+        author_id: item.organization_id,
+        type: item.source_type === 'SABBATH_SCHOOL_CLASS' ? 'bible_study' : 'article',
+        title: item.title,
+        body: item.body,
+        visibility: 'public',
+        language: 'pt',
+        created_at: item.published_at,
+        feed_item_id: item.id,
+        feed_item_type: 'institutional',
+        is_institutional: true,
+        institution_name: item.organization_name,
+        institution_type: item.organization_type,
+        ministry_id: item.ministry_id,
+        ministry_name: item.ministry_name,
+        institutional_source_type: item.source_type,
+        institutional_source_id: item.source_id,
+        starts_at: item.starts_at,
+        ends_at: item.ends_at,
+        location: item.location,
+        meeting_day: item.meeting_day,
+        meeting_time: item.meeting_time,
+        room_label: item.room_label,
+        activity_type: item.activity_type,
+        institutional_status: item.status,
+      })),
+    ];
+
+    return entries
+      .sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at)
+        || String(right.id).localeCompare(String(left.id)))
+      .slice(0, size);
   }
   async stories(token: string, limit = 30) {
     const viewer = await this.actor(token);
