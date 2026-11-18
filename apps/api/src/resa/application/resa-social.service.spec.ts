@@ -542,6 +542,39 @@ describe('ResaSocialService feeds', () => {
     });
   });
 
+  it('excludes blocked authors from content and repost publishers in every feed mode', async () => {
+    const blockedId = '77777777-7777-4777-8777-777777777777';
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_user_blocks') return [{ blocked_id: blockedId }] as never;
+      if (table === 'resa_contents') return [] as never;
+      if (table === 'resa_institutional_publications') return [] as never;
+      return [] as never;
+    });
+
+    await service.feed('session-token', 30, 'latest');
+
+    expect(getSpy).toHaveBeenCalledWith(
+      'resa_contents',
+      'session-token',
+      expect.stringContaining('author_id=not.in.(' + blockedId + ')'),
+    );
+    expect(getSpy).toHaveBeenCalledWith(
+      'resa_shares',
+      'session-token',
+      expect.stringContaining('user_id=not.in.(' + blockedId + ')'),
+    );
+  });
+
+  it('does not put institutional projections in Following until an institution identity is in the follow graph', async () => {
+    await service.feed('session-token', 30, 'following');
+
+    expect(getSpy).not.toHaveBeenCalledWith(
+      'resa_institutional_publications',
+      'session-token',
+      expect.any(String),
+    );
+  });
+
   it('distributes followed members reposts as distinct feed items linked to the original publication', async () => {
     const sourceAuthorId = '33333333-3333-4333-8333-333333333333';
     const sourceId = '55555555-5555-4555-8555-555555555555';

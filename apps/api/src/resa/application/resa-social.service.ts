@@ -133,24 +133,28 @@ export class ResaSocialService {
       cursorFilter = `&or=(created_at.lt.${encodeURIComponent(createdAt)},and(created_at.eq.${encodeURIComponent(createdAt)},id.lt.${itemId}))`;
     }
 
-    const [followingRows, muteRows] = await Promise.all([
+    const [followingRows, muteRows, blockRows] = await Promise.all([
       mode === 'following'
         ? this.db.get<any[]>('resa_follows', token, `?select=followed_id&follower_id=eq.${actor.id}&order=created_at.desc&limit=1000`)
         : Promise.resolve(null),
       this.db.get<any[]>('resa_user_mutes', token, `?select=muted_id&muter_id=eq.${actor.id}&limit=1000`),
+      this.db.get<any[]>('resa_user_blocks', token, `?select=blocked_id&blocker_id=eq.${actor.id}&limit=1000`),
     ]);
     const mutedIds = [...new Set(muteRows.map((row) => row.muted_id).filter(Boolean))];
-    const mutedSet = new Set(mutedIds);
+    const blockedIds = [...new Set(blockRows.map((row) => row.blocked_id).filter(Boolean))];
+    const excludedIds = [...new Set([...mutedIds, ...blockedIds])];
+    const mutedSet = new Set(excludedIds);
     const followedIds = followingRows
       ? [...new Set([actor.id, ...followingRows.map((row) => row.followed_id).filter(Boolean)])]
         .filter((id) => !mutedSet.has(id))
       : [];
     const authorFilter = mode === 'following'
       ? `&author_id=in.(${followedIds.join(',')})`
-      : mutedIds.length ? `&author_id=not.in.(${mutedIds.join(',')})` : '';
+      : excludedIds.length ? `&author_id=not.in.(${excludedIds.join(',')})` : '';
     const shareAuthorFilter = mode === 'following'
       ? `&user_id=in.(${followedIds.join(',')})`
-      : mutedIds.length ? `&user_id=not.in.(${mutedIds.join(',')})` : '';
+      : excludedIds.length ? `&user_id=not.in.(${excludedIds.join(',')})` : '';
+
 
     // Original publications and repost events are independent feed entries.
     // Both streams use the same (created_at,id) cursor, so pagination remains
