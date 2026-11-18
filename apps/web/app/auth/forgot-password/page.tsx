@@ -17,14 +17,18 @@ export default function ForgotPasswordPage() {
     setMessage("");
     setLoading(true);
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/update-password`,
-    });
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/auth/update-password`,
+      });
 
-    if (error) setError(error.message);
-    else setMessage("Se o endereço estiver associado a uma conta, receberá instruções para redefinir a palavra-passe.");
-
-    setLoading(false);
+      if (error) setError(error.message);
+      else setMessage("Se o endereço estiver associado a uma conta, receberá instruções para redefinir a palavra-passe.");
+    } catch {
+      setError("Não foi possível contactar o serviço de autenticação. Verifique a ligação e tente novamente.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -40,8 +44,8 @@ export default function ForgotPasswordPage() {
             onChange={(e) => setEmail(e.target.value)}
             className="w-full rounded-xl border border-[var(--zion-border)] bg-white px-4 py-3 outline-none transition focus:border-[var(--zion-sky)] focus:ring-4 focus:ring-[var(--zion-sky)]/10"
             placeholder="nome@exemplo.com" />
-          {error && <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
-          {message && <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</p>}
+          {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+          {message && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</p>}
           <button type="submit" disabled={loading}
             className="w-full rounded-xl bg-[var(--zion-primary)] px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-[var(--zion-primary-deep)] disabled:opacity-60">
             {loading ? "A enviar..." : "Enviar instruções"}
