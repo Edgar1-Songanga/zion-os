@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import { OrganizationSelector, type ZionOrganization } from "@/components/organization/OrganizationSelector";
 import { YOUTH_PROGRAMS } from "@/components/youth/core/YouthProgram";
@@ -79,7 +79,6 @@ export default function YouthClubOperations() {
   const [peopleLoading, setPeopleLoading] = useState(false);
   const [peopleSaving, setPeopleSaving] = useState(false);
   const [logoPreview, setLogoPreview] = useState("");
-  const logoInputRef = useRef<HTMLInputElement>(null);
 
   async function loadClubs(id: string) {
     setOrganizationId(id);
