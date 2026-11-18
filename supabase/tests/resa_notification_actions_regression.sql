@@ -144,6 +144,16 @@ values (
   )
 );
 
+-- The notification lifecycle test must satisfy the hardened answer rule:
+-- the recipient must have joined this call before the call becomes active.
+insert into public.resa_call_participants(call_id, user_id, status, joined_at)
+values (
+  '30000000-0000-4000-8000-000000000003',
+  '10000000-0000-4000-8000-000000000002',
+  'joined',
+  now()
+);
+
 update public.resa_calls
 set status = 'active', answered_at = now()
 where id = '30000000-0000-4000-8000-000000000003';
