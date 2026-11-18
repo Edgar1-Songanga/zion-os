@@ -49,11 +49,11 @@ class FrameApprovalPostgresTests(unittest.TestCase):
             """,
             (
                 cls.actor_id,
-                Jsonb({"zion_global_role": "global_admin", "zion_verified": "true"}),
+                Jsonb({"zion_global_role": "global_admin", "zion_verified": True}),
                 Jsonb({}),
                 cls.forged_actor_id,
-                Jsonb({"zion_global_role": "member", "zion_verified": "false"}),
-                Jsonb({"zion_global_role": "global_admin", "zion_verified": "true"}),
+                Jsonb({"zion_global_role": "member", "zion_verified": False}),
+                Jsonb({"zion_global_role": "global_admin", "zion_verified": True}),
             ),
         )
         cls.plan_hash = "a" * 64
