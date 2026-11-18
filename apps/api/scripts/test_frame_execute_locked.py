@@ -207,6 +207,38 @@ class FramePlanValidationTests(unittest.TestCase):
                         migration_versions=versions,
                     )
 
+
+    def test_rejects_transaction_pooler_port(self):
+        executor.validate_connection_mode(5432)
+        with self.assertRaisesRegex(executor.PlanValidationError, "transaction pooling is unsupported"):
+            executor.validate_connection_mode(6543)
+
+    def test_rejects_backend_pid_changes_between_transactions(self):
+        class FakeResult:
+            def __init__(self, value):
+                self.value = value
+
+            def fetchone(self):
+                return (self.value,)
+
+        class FakeConnection:
+            def __init__(self, pid):
+                self.pid = pid
+                self.rolled_back = False
+
+            def execute(self, _query):
+                return FakeResult(self.pid)
+
+            def rollback(self):
+                self.rolled_back = True
+
+        stable = FakeConnection(1234)
+        self.assertIsNone(executor.assert_session_pinned(stable, 1234))
+        changed = FakeConnection(5678)
+        with self.assertRaisesRegex(executor.PlanValidationError, "backend changed"):
+            executor.assert_session_pinned(changed, 1234)
+        self.assertTrue(changed.rolled_back)
+
     def test_rejects_path_traversal_and_unsorted_inventory(self):
         bad = self.make_plan()
         bad["manifest"]["migrations"][0]["name"] = "../unapproved.sql"

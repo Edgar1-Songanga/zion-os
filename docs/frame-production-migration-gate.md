@@ -47,6 +47,7 @@ CI may lint and test migrations in a disposable/non-production database. CI pass
 - The approval binds the exact plan SHA-256, commit, production project, target, ordered migration versions, actor UUID and expiry.
 - The execute workflow requires the approval UUID. The executor validates the approval against the checked-out plan, obtains the PostgreSQL advisory lock, rejects replay and commits the consumption event before starting the CLI.
 - A failed or partial execution burns the approval. Post-execution audit persistence failures are recorded as audit incidents, not as migration rollback claims.
+- The executor rejects Supabase transaction-pooler port 6543 and verifies `pg_backend_pid()` across transaction boundaries so session-level advisory locks cannot silently degrade to transaction-scoped locks.
 - No new production migration was introduced. PR CI covers API, Python plan/approval validation and append-only audit behavior. A disposable PostgreSQL test for actual single-use consumption and concurrent lock rejection is being added in the current follow-up.
 
 ## Implementation sequence

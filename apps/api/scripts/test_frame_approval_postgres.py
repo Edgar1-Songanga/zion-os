@@ -68,11 +68,17 @@ class FrameApprovalPostgresTests(unittest.TestCase):
         self.conn2.rollback()
 
     def test_advisory_lock_rejects_concurrent_executor_and_consumption_rejects_replay(self):
+        executor.validate_connection_mode(self.conn1.info.port)
+        backend_pid = self.conn1.execute("SELECT pg_backend_pid()").fetchone()[0]
+        self.conn1.commit()
+        executor.assert_session_pinned(self.conn1, backend_pid)
+
         first_lock = self.conn1.execute(
             "SELECT pg_try_advisory_lock(%s, %s)",
             (executor.LOCK_CLASS_ID, executor.LOCK_OBJECT_ID),
         ).fetchone()[0]
         self.conn1.commit()
+        executor.assert_session_pinned(self.conn1, backend_pid)
         self.assertTrue(first_lock)
 
         second_lock = self.conn2.execute(
@@ -93,6 +99,7 @@ class FrameApprovalPostgresTests(unittest.TestCase):
             execution_metadata=metadata,
         )
         self.assertEqual(str(actor), str(self.actor_id))
+        executor.assert_session_pinned(self.conn1, backend_pid)
 
         self.conn1.execute(
             "SELECT pg_advisory_unlock(%s, %s)",
@@ -106,6 +113,9 @@ class FrameApprovalPostgresTests(unittest.TestCase):
         ).fetchone()[0]
         self.conn2.commit()
         self.assertTrue(second_lock_after_release)
+        second_backend_pid = self.conn2.execute("SELECT pg_backend_pid()").fetchone()[0]
+        self.conn2.commit()
+        executor.assert_session_pinned(self.conn2, second_backend_pid)
         with self.assertRaisesRegex(executor.PlanValidationError, "already been consumed"):
             executor.consume_approval(
                 self.conn2,

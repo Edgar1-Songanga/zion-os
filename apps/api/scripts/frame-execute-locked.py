@@ -165,6 +165,30 @@ def validate_approval(
 
 
 
+
+def validate_connection_mode(port: Any) -> None:
+    """Reject Supabase transaction-pooler connections for session advisory locks."""
+    try:
+        normalized_port = int(port)
+    except (TypeError, ValueError):
+        raise PlanValidationError("Frame cannot verify the PostgreSQL connection mode.")
+    if normalized_port == 6543:
+        raise PlanValidationError(
+            "Frame requires a direct or session-pinned PostgreSQL connection; transaction pooling is unsupported."
+        )
+
+
+def assert_session_pinned(conn: Any, expected_backend_pid: int) -> None:
+    """Fail closed if a new transaction is served by a different PostgreSQL backend."""
+    row = conn.execute("SELECT pg_backend_pid()").fetchone()
+    if not row or row[0] != expected_backend_pid:
+        conn.rollback()
+        raise PlanValidationError(
+            "Frame PostgreSQL backend changed between transactions; session advisory-lock guarantees are unavailable."
+        )
+
+
+
 def consume_approval(
     conn: Any,
     *,
@@ -281,12 +305,17 @@ def main() -> int:
 
     conn = None
     actor_user_id = None
+    backend_pid = None
     locked = False
     return_code = 1
     command_started = False
     command_finished = False
     try:
         conn = psycopg.connect(database_url, autocommit=False, connect_timeout=15)
+        validate_connection_mode(conn.info.port)
+        backend_pid = conn.execute("SELECT pg_backend_pid()").fetchone()[0]
+        conn.commit()
+        assert_session_pinned(conn, backend_pid)
         row = conn.execute(
             "SELECT pg_try_advisory_lock(%s, %s)",
             (LOCK_CLASS_ID, LOCK_OBJECT_ID),
@@ -300,6 +329,7 @@ def main() -> int:
         # The approval is an append-only audit row written through the ZION API
         # using a signed Supabase session and verified global-admin claims.
         # Consume it while holding the advisory lock, before running the CLI.
+        assert_session_pinned(conn, backend_pid)
         actual_versions = [item["version"] for item in plan["manifest"]["migrations"]]
         actor_user_id = consume_approval(
             conn,
@@ -311,6 +341,7 @@ def main() -> int:
             execution_metadata=metadata,
         )
 
+        assert_session_pinned(conn, backend_pid)
         conn.execute(
             """
             INSERT INTO public.audit_logs
@@ -321,10 +352,15 @@ def main() -> int:
         )
         conn.commit()
 
+        assert_session_pinned(conn, backend_pid)
+        # End the verification transaction before the potentially long-running
+        # CLI process; the session-level lock remains held on this pinned backend.
+        conn.commit()
         command_started = True
         completed = subprocess.run(sys.argv[2:], check=False)
         command_finished = True
         return_code = completed.returncode
+        assert_session_pinned(conn, backend_pid)
         if return_code == 0:
             action = ALLOWED_ACTIONS["succeeded"]
         else:
@@ -346,6 +382,7 @@ def main() -> int:
         if conn is not None and locked and actor_user_id is not None:
             try:
                 conn.rollback()
+                assert_session_pinned(conn, backend_pid)
                 metadata["failure_code"] = "frame_executor_exception"
                 metadata["reason"] = type(error).__name__
                 if command_finished and return_code == 0:
@@ -370,6 +407,7 @@ def main() -> int:
         if conn is not None:
             if locked:
                 try:
+                    assert_session_pinned(conn, backend_pid)
                     conn.execute(
                         "SELECT pg_advisory_unlock(%s, %s)",
                         (LOCK_CLASS_ID, LOCK_OBJECT_ID),
