@@ -111,7 +111,7 @@ export default function SignUpPage() {
         <p className="mt-2 text-sm leading-6 text-[var(--zion-muted)]">Crie o seu acesso inicial ao ZION OS.</p>
         {!awaitingPhone ? <form onSubmit={handleSubmit} className="mt-8 space-y-5">
           <div className="grid grid-cols-2 rounded-xl bg-[var(--zion-light)] p-1" role="group" aria-label="Método de registo">
-            <button type="button" onClick={() => { setMethod("phone"); setError(""); setMessage(""); }} aria-pressed={method === "phone"} className={method === "phone" ? "rounded-lg bg-white px-3 py-2 text-sm font-semibold text-[var(--zion-primary)] shadow-sm" : "rounded-lg px-3 py-2 text-sm text-[var(--zion-muted)]"}>Telefone</button>
+            <button type="button" onClick={() => { setMethod("phone"); setEmailConfirmationPending(false); setError(""); setMessage(""); }} aria-pressed={method === "phone"} className={method === "phone" ? "rounded-lg bg-white px-3 py-2 text-sm font-semibold text-[var(--zion-primary)] shadow-sm" : "rounded-lg px-3 py-2 text-sm text-[var(--zion-muted)]"}>Telefone</button>
             <button type="button" onClick={() => { setMethod("email"); setError(""); setMessage(""); }} aria-pressed={method === "email"} className={method === "email" ? "rounded-lg bg-white px-3 py-2 text-sm font-semibold text-[var(--zion-primary)] shadow-sm" : "rounded-lg px-3 py-2 text-sm text-[var(--zion-muted)]"}>Email</button>
           </div>
           {method === "phone" ? <label className="block">
@@ -120,7 +120,7 @@ export default function SignUpPage() {
             <span className="mt-1 block text-xs text-[var(--zion-muted)]">Para números angolanos, pode escrever apenas os 9 dígitos.</span>
           </label> : <label className="block">
             <span className="text-sm font-medium text-[var(--zion-dark)]">Email</span>
-            <input type="email" required autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} className="mt-2 w-full rounded-xl border border-[var(--zion-border)] px-4 py-3 outline-none focus:border-[var(--zion-sky)] focus:ring-4 focus:ring-[var(--zion-sky)]/10" />
+            <input type="email" required autoComplete="email" value={email} onChange={e => { setEmail(e.target.value); setEmailConfirmationPending(false); }} className="mt-2 w-full rounded-xl border border-[var(--zion-border)] px-4 py-3 outline-none focus:border-[var(--zion-sky)] focus:ring-4 focus:ring-[var(--zion-sky)]/10" />
           </label>}
           <label className="block">
             <span className="text-sm font-medium text-[var(--zion-dark)]">Palavra-passe</span>
