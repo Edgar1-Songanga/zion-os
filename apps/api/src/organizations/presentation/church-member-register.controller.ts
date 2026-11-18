@@ -1,4 +1,4 @@
-import { Controller, Get, Headers, Param, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Headers, Param, Query, UnauthorizedException } from '@nestjs/common';
 import { ChurchMembersService } from '../application/church-members.service';
 
 @Controller('v1/church-members')
@@ -15,7 +15,12 @@ export class ChurchMemberRegisterController {
   listByStatus(
     @Headers('authorization') authorization: string | undefined,
     @Param('status') status: string,
+    @Query('offset') offset = '0',
+    @Query('limit') limit = '100',
+    @Query('search') search = '',
   ) {
-    return this.members.listByStatus(this.token(authorization), status.toUpperCase());
+    const parsedOffset = Number(offset);
+    const parsedLimit = Number(limit);
+    return this.members.listByStatus(this.token(authorization), status.toUpperCase(), parsedOffset, parsedLimit, search);
   }
 }

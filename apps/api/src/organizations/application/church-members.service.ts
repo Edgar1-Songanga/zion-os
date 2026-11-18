@@ -197,16 +197,37 @@ export class ChurchMembersService {
     return updated[0];
   }
 
-  async listByStatus(accessToken: string, status: string) {
+  async listByStatus(accessToken: string, status: string, offset = 0, limit = 100, search = '') {
     await this.identity.getCurrentUser(accessToken);
     if (!(ARCHIVE_STATUSES as readonly string[]).includes(status)) {
       throw new BadRequestException('Only DECEASED or REMOVED records can be listed globally.');
     }
-    return this.db.get<MemberRecord[]>(
+    if (!Number.isSafeInteger(offset) || offset < 0) {
+      throw new BadRequestException('Archive offset must be a non-negative integer.');
+    }
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+      throw new BadRequestException('Archive page size must be between 1 and 100.');
+    }
+
+    if (typeof search !== 'string' || search.length > 120) {
+      throw new BadRequestException('Archive search must contain at most 120 characters.');
+    }
+    const normalizedSearch = search.trim();
+    const escapedSearch = this.escapePostgrestSearch(normalizedSearch);
+    const searchFilter = normalizedSearch
+      ? `&or=${encodeURIComponent(`(member_number.ilike."*${escapedSearch}*",first_name.ilike."*${escapedSearch}*",last_name.ilike."*${escapedSearch}*")`)}`
+      : '';
+    const rows = await this.db.get<MemberRecord[]>(
       'church_member_records',
       accessToken,
-      `?select=id,organization_id,member_number,first_name,last_name,birth_date,gender,membership_status,joined_on,updated_at,row_version&membership_status=eq.${status}&order=last_name.asc,first_name.asc&limit=500`,
+      `?select=id,organization_id,member_number,first_name,last_name,birth_date,gender,membership_status,joined_on,updated_at,row_version&membership_status=eq.${status}${searchFilter}&order=last_name.asc,first_name.asc,id.asc&limit=${limit + 1}&offset=${offset}`,
     );
+    const items = rows.slice(0, limit);
+    return {
+      items,
+      hasMore: rows.length > limit,
+      nextOffset: offset + items.length,
+    };
   }
 
   async remove(accessToken: string, organizationId: string, memberId: string) {
@@ -296,6 +317,10 @@ export class ChurchMembersService {
       }
     }
     return result;
+  }
+
+  private escapePostgrestSearch(value: string): string {
+    return value.replace(/([\\"%_*])/g, '\\$1');
   }
 
   private isValidDate(value: string): boolean {
