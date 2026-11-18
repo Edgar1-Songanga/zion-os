@@ -73,10 +73,13 @@ export default function ResaCallControls({ conversationId, peerName = "Membro RE
         }
         if (callRef.current?.id === next.id && ["ended", "declined", "missed"].includes(next.status)) {
           if (next.status === "missed") setError("A chamada não foi atendida. Pode tentar novamente.");
-          void roomRef.current?.disconnect(true);
+          // Clear the active call ref before disconnecting so LiveKit's
+          // Disconnected event cannot misreport a remote end as a network failure.
+          const room = roomRef.current;
           roomRef.current = null;
           callRef.current = null;
-          setCall(null); setActive(false); setCallStatus("ringing"); setConnected(false); setReconnecting(false); setScreenShare(false);
+          void room?.disconnect(true);
+          setCall(null); setActive(false); setCallStatus("ringing"); setConnected(false); setReconnecting(false); setScreenShare(false); setRemoteScreenShare(false);
         }
         if (incoming?.id === next.id && ["ended", "declined", "missed"].includes(next.status)) setIncoming(null);
       }).subscribe();
@@ -322,23 +325,52 @@ export default function ResaCallControls({ conversationId, peerName = "Membro RE
     if (!target || callActionRef.current || callRef.current) return;
     callActionRef.current = "accepting";
     setCallActionBusy(true);
+    let acceptedByThisClient = false;
     try {
       setError(null); setConnectionFailed(false);
       callRef.current = target; setCall(target);
-      await joinMedia(target, target.kind);
       if (!userId.current) throw new Error("Sessão ZION não encontrada.");
+
+      // Win the ringing -> active transition before connecting media. A losing
+      // tab must never publish camera/microphone tracks or create a joined row.
+      const { data: accepted, error: updateError } = await supabase.from("resa_calls")
+        .update({ status: "active", answered_at: new Date().toISOString() })
+        .eq("id", target.id).eq("status", "ringing")
+        .select("id").maybeSingle();
+      if (updateError) throw updateError;
+      if (!accepted) throw new Error("Esta chamada já foi atendida ou terminou noutro dispositivo.");
+      acceptedByThisClient = true;
+
       const { error: participantError } = await supabase.from("resa_call_participants")
         .upsert({ call_id: target.id, user_id: userId.current, status: "joined", joined_at: new Date().toISOString() }, { onConflict: "call_id,user_id" });
       if (participantError) throw participantError;
-      const { error: updateError } = await supabase.from("resa_calls")
-        .update({ status: "active", answered_at: new Date().toISOString() }).eq("id", target.id);
-      if (updateError) throw updateError;
+
+      await joinMedia(target, target.kind);
       setIncoming(null); setCallStatus("active"); setActive(true);
     } catch (reason) {
       intentionalDisconnectRef.current = true;
-      await roomRef.current?.disconnect(true); roomRef.current = null;
+      const room = roomRef.current;
+      roomRef.current = null;
+      callRef.current = null;
+      // Stop any partially connected media immediately; database reconciliation
+      // must not keep the camera or microphone live while requests are pending.
+      try {
+        await room?.disconnect(true);
+      } catch {
+        // Continue reconciling the call even if the media SDK cannot close cleanly.
+      }
+      if (acceptedByThisClient && userId.current) {
+        await supabase.from("resa_call_participants")
+          .update({ status: "left", left_at: new Date().toISOString() })
+          .eq("call_id", target.id).eq("user_id", userId.current).eq("status", "joined");
+        await supabase.from("resa_calls")
+          .update({ status: "ended", ended_at: new Date().toISOString() })
+          .eq("id", target.id).eq("status", "active");
+      }
       intentionalDisconnectRef.current = false;
-      callRef.current = null; setCall(null);
+      callRef.current = null;
+      setCall(null); setActive(false); setIncoming(null);
+      setConnected(false); setReconnecting(false);
       setError(reason instanceof Error ? reason.message : "Não foi possível atender a chamada.");
     } finally {
       callActionRef.current = null;
@@ -352,13 +384,17 @@ export default function ResaCallControls({ conversationId, peerName = "Membro RE
     callActionRef.current = "declining";
     setCallActionBusy(true);
     try {
-      const { error: updateError } = await supabase.from("resa_calls")
-        .update({ status: "declined", ended_at: new Date().toISOString() }).eq("id", target.id).eq("status", "ringing");
+      // Only one client may transition a ringing call to declined.
+      const { data: declined, error: updateError } = await supabase.from("resa_calls")
+        .update({ status: "declined", ended_at: new Date().toISOString() })
+        .eq("id", target.id).eq("status", "ringing")
+        .select("id").maybeSingle();
       if (updateError) {
         setError(updateError.message);
         return;
       }
       setIncoming((current) => current?.id === target.id ? null : current);
+      if (!declined) setError("Esta chamada já foi atendida ou terminou noutro dispositivo.");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível recusar a chamada.");
     } finally {
