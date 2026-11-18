@@ -154,9 +154,7 @@ export class ResaSocialService {
     const shareAuthorFilter = mode === 'following'
       ? `&user_id=in.(${followedIds.join(',')})`
       : excludedIds.length ? `&user_id=not.in.(${excludedIds.join(',')})` : '';
-    const institutionalAuthorFilter = mode === 'following'
-      ? `&organization_id=in.(${followedIds.join(',')})`
-      : excludedIds.length ? `&organization_id=not.in.(${excludedIds.join(',')})` : '';
+
 
     // Original publications and repost events are independent feed entries.
     // Both streams use the same (created_at,id) cursor, so pagination remains
@@ -164,11 +162,13 @@ export class ResaSocialService {
     const contentQuery = `?select=id,author_id,type,title,body,visibility,language,created_at,edited_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&moderation_status=eq.active&type=neq.story&visibility=in.(public,followers,community,organization)${authorFilter}&order=created_at.desc,id.desc&limit=${size + 1}${cursorFilter}`;
     const shareQuery = `?select=id,content_id,user_id,created_at&share_type=eq.repost${shareAuthorFilter}&order=created_at.desc,id.desc&limit=${size + 1}${cursorFilter}`;
     const institutionalCursorFilter = cursorFilter.replaceAll('created_at', 'published_at');
-    const institutionalQuery = `?select=id,source_type,source_id,organization_id,organization_name,organization_type,ministry_id,ministry_name,title,body,starts_at,ends_at,location,meeting_day,meeting_time,room_label,activity_type,status,published_at&is_active=eq.true${institutionalAuthorFilter}&order=published_at.desc,id.desc&limit=${size + 1}${institutionalCursorFilter}`;
+    const institutionalQuery = `?select=id,source_type,source_id,organization_id,organization_name,organization_type,ministry_id,ministry_name,title,body,starts_at,ends_at,location,meeting_day,meeting_time,room_label,activity_type,status,published_at&is_active=eq.true&order=published_at.desc,id.desc&limit=${size + 1}${institutionalCursorFilter}`;
     const [contentRows, shareRows, institutionalRows] = await Promise.all([
       this.db.get<any[]>('resa_contents', token, contentQuery),
       this.db.get<any[]>('resa_shares', token, shareQuery),
-      this.db.get<any[]>('resa_institutional_publications', token, institutionalQuery),
+      mode === 'following'
+        ? Promise.resolve([])
+        : this.db.get<any[]>('resa_institutional_publications', token, institutionalQuery),
     ]);
 
     const sharedContentIds = [...new Set(shareRows.map((row) => row.content_id).filter(Boolean))];
