@@ -139,7 +139,10 @@ export default function SecretariatPage() {
   const [archiveStatus, setArchiveStatus] = useState<"DECEASED" | "REMOVED">("DECEASED");
   const [archiveMembers, setArchiveMembers] = useState<Member[]>([]);
   const [archiveQuery, setArchiveQuery] = useState("");
+  const [archiveSearch, setArchiveSearch] = useState("");
   const [archiveLoading, setArchiveLoading] = useState(false);
+  const [archiveHasMore, setArchiveHasMore] = useState(false);
+  const archiveNextOffsetRef = useRef(0);
   const [archiveError, setArchiveError] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
@@ -223,33 +226,36 @@ export default function SecretariatPage() {
 
   const archiveRequestSequence = useRef(0);
 
-  const loadArchive = useCallback(async (status: "DECEASED" | "REMOVED") => {
+  const loadArchive = useCallback(async (status: "DECEASED" | "REMOVED", append = false, search = archiveSearch) => {
     const requestId = ++archiveRequestSequence.current;
+    const offset = append ? archiveNextOffsetRef.current : 0;
     setArchiveLoading(true);
     setArchiveError("");
+    if (!append) {
+      setArchiveMembers([]);
+      setArchiveHasMore(false);
+      archiveNextOffsetRef.current = 0;
+    }
     try {
-      const data = await resaRequest<Member[]>(`/v1/church-members/status/${status}`);
+      const page = await resaRequest<{ items: Member[]; hasMore: boolean; nextOffset: number }>(
+        `/v1/church-members/status/${status}?offset=${offset}&limit=100&search=${encodeURIComponent(search)}`,
+      );
       if (requestId !== archiveRequestSequence.current) return;
-      setArchiveMembers(data);
+      setArchiveMembers((current) => append ? [...current, ...page.items] : page.items);
+      setArchiveHasMore(page.hasMore);
+      archiveNextOffsetRef.current = page.nextOffset;
     } catch (reason) {
       if (requestId !== archiveRequestSequence.current) return;
-      setArchiveMembers([]);
+      if (!append) setArchiveMembers([]);
       setArchiveError(reason instanceof Error ? reason.message : "Não foi possível consultar o arquivo de membros.");
     } finally {
       if (requestId === archiveRequestSequence.current) setArchiveLoading(false);
     }
-  }, []);
+  }, [archiveSearch]);
 
   useEffect(() => {
     void loadArchive(archiveStatus);
-  }, [archiveStatus, loadArchive]);
-
-  const filteredArchiveMembers = useMemo(() => {
-    const normalized = archiveQuery.trim().toLocaleLowerCase("pt");
-    if (!normalized) return archiveMembers;
-    return archiveMembers.filter((member) => [member.member_number, member.first_name, member.last_name, member.organization_id]
-      .some((value) => value?.toLocaleLowerCase("pt").includes(normalized)));
-  }, [archiveMembers, archiveQuery]);
+  }, [archiveStatus, archiveSearch, loadArchive]);
 
   const filteredMembers = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("pt");
@@ -791,17 +797,24 @@ export default function SecretariatPage() {
               <h2 className="mt-2 text-xl font-semibold">Registo de falecidos e registos removidos</h2>
               <p className="mt-1 text-sm text-slate-500">Consulta os registos históricos autorizados pela política de acesso da organização. Os registos não são apagados fisicamente.</p>
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <label className="grid gap-1 text-xs font-medium text-slate-500">Pesquisar no arquivo<input value={archiveQuery} onChange={(event) => setArchiveQuery(event.target.value)} placeholder="Nome, número ou organização" className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /></label>
+            <div className="flex flex-col gap-3">
+              <form onSubmit={(event) => { event.preventDefault(); const nextSearch = archiveQuery.trim(); if (nextSearch === archiveSearch) void loadArchive(archiveStatus, false, nextSearch); else setArchiveSearch(nextSearch); }} className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <label className="grid flex-1 gap-1 text-xs font-medium text-slate-500">Pesquisar em todo o arquivo<input value={archiveQuery} onChange={(event) => setArchiveQuery(event.target.value)} maxLength={120} placeholder="Nome ou número de membro" className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-normal text-slate-800" /></label>
+                <button type="submit" disabled={archiveLoading} className="rounded-xl bg-[#0C1A3D] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">Pesquisar</button>
+              </form>
               <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => setArchiveStatus("DECEASED")} aria-pressed={archiveStatus === "DECEASED"} className={`rounded-xl px-4 py-2.5 text-sm font-semibold ${archiveStatus === "DECEASED" ? "bg-[#0C1A3D] text-white" : "border border-slate-200 text-slate-700"}`}>Falecidos</button>
-              <button type="button" onClick={() => setArchiveStatus("REMOVED")} aria-pressed={archiveStatus === "REMOVED"} className={`rounded-xl px-4 py-2.5 text-sm font-semibold ${archiveStatus === "REMOVED" ? "bg-[#0C1A3D] text-white" : "border border-slate-200 text-slate-700"}`}>Registos removidos</button>
-              <button type="button" onClick={() => void loadArchive(archiveStatus)} disabled={archiveLoading} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:opacity-50">Actualizar</button>
+                <button type="button" onClick={() => setArchiveStatus("DECEASED")} aria-pressed={archiveStatus === "DECEASED"} className={`rounded-xl px-4 py-2.5 text-sm font-semibold ${archiveStatus === "DECEASED" ? "bg-[#0C1A3D] text-white" : "border border-slate-200 text-slate-700"}`}>Falecidos</button>
+                <button type="button" onClick={() => setArchiveStatus("REMOVED")} aria-pressed={archiveStatus === "REMOVED"} className={`rounded-xl px-4 py-2.5 text-sm font-semibold ${archiveStatus === "REMOVED" ? "bg-[#0C1A3D] text-white" : "border border-slate-200 text-slate-700"}`}>Registos removidos</button>
+                <button type="button" onClick={() => void loadArchive(archiveStatus)} disabled={archiveLoading} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:opacity-50">Actualizar</button>
               </div>
             </div>
           </div>
           {archiveError && <p role="alert" className="m-5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{archiveError}</p>}
-          {archiveLoading ? <p className="p-6 text-sm text-slate-500">A consultar o arquivo…</p> : filteredArchiveMembers.length === 0 ? <p className="p-6 text-sm text-slate-500">{archiveMembers.length ? "Não existem resultados para esta pesquisa." : "Não existem registos visíveis nesta categoria para as permissões da sessão."}</p> : <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-4 font-semibold">Membro</th><th className="px-5 py-4 font-semibold">Número</th><th className="px-5 py-4 font-semibold">Organização</th><th className="px-5 py-4 font-semibold">Estado</th><th className="px-5 py-4 font-semibold">Última actualização</th></tr></thead><tbody className="divide-y divide-slate-100">{filteredArchiveMembers.map((member) => <tr key={member.id}><td className="px-5 py-4"><p className="font-semibold">{member.first_name} {member.last_name}</p><p className="mt-1 text-xs text-slate-500">Nascimento: {dateLabel(member.birth_date)}</p></td><td className="px-5 py-4 text-slate-600">{member.member_number || "—"}</td><td className="px-5 py-4 font-mono text-xs text-slate-500">{member.organization_id}</td><td className="px-5 py-4">{STATUS_LABELS[member.membership_status] ?? member.membership_status}</td><td className="px-5 py-4 text-slate-600">{new Intl.DateTimeFormat("pt-PT", { dateStyle: "medium" }).format(new Date(member.updated_at))}</td></tr>)}</tbody></table></div>}
+          {archiveLoading && archiveMembers.length === 0 ? <p className="p-6 text-sm text-slate-500">A consultar o arquivo…</p> : archiveMembers.length === 0 ? <p className="p-6 text-sm text-slate-500">{archiveSearch ? "Não foram encontrados registos para esta pesquisa." : "Não existem registos visíveis nesta categoria para as permissões da sessão."}</p> : <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-4 font-semibold">Membro</th><th className="px-5 py-4 font-semibold">Número</th><th className="px-5 py-4 font-semibold">Organização</th><th className="px-5 py-4 font-semibold">Estado</th><th className="px-5 py-4 font-semibold">Última actualização</th></tr></thead><tbody className="divide-y divide-slate-100">{archiveMembers.map((member) => <tr key={member.id}><td className="px-5 py-4"><p className="font-semibold">{member.first_name} {member.last_name}</p><p className="mt-1 text-xs text-slate-500">Nascimento: {dateLabel(member.birth_date)}</p></td><td className="px-5 py-4 text-slate-600">{member.member_number || "—"}</td><td className="px-5 py-4 font-mono text-xs text-slate-500">{member.organization_id}</td><td className="px-5 py-4">{STATUS_LABELS[member.membership_status] ?? member.membership_status}</td><td className="px-5 py-4 text-slate-600">{new Intl.DateTimeFormat("pt-PT", { dateStyle: "medium" }).format(new Date(member.updated_at))}</td></tr>)}</tbody></table></div>}
+          <div className="flex flex-col gap-2 border-t border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-slate-500" aria-live="polite">{archiveMembers.length} {archiveSearch ? "resultados" : "registos carregados"}{archiveHasMore ? " · existem mais resultados" : " · consulta completa"}</p>
+            {archiveHasMore && <button type="button" onClick={() => void loadArchive(archiveStatus, true)} disabled={archiveLoading} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 disabled:opacity-50">{archiveLoading ? "A carregar…" : "Carregar mais registos"}</button>}
+          </div>
         </section>
 
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
