@@ -279,7 +279,7 @@ export class ResaGroupMeetingService {
         if (currentMeeting?.status === 'SCHEDULED' && currentRoom?.status === 'OPEN') {
           throw new ConflictException('Meeting start is already in progress');
         }
-        throw new BadRequestException('Meeting room state changed before it could be started');
+        throw new Error('Meeting room state changed before it could be started');
       }
 
       const meetingRows = await this.db.patch<any[]>('resa_group_meetings', token,
@@ -294,7 +294,7 @@ export class ResaGroupMeetingService {
       await this.recordEvent(token, id, actor.id, 'ROOM_OPENED', {});
       return meetingRows[0];
     } catch (error) {
-      if (error instanceof ConflictException || error instanceof BadRequestException) throw error;
+      if (error instanceof ConflictException) throw error;
 
       // Only compensate while the meeting is still scheduled. If another
       // request has completed the transition, closing the SFU room here would
