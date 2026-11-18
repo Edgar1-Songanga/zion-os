@@ -154,6 +154,9 @@ values (
   now()
 );
 
+-- Answering is performed by the recipient, not by the call initiator.
+select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000002', false);
+
 update public.resa_calls
 set status = 'active', answered_at = now()
 where id = '30000000-0000-4000-8000-000000000003';
