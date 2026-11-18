@@ -108,6 +108,60 @@ describe('ZionSfuProvider source-scoped participant permissions', () => {
     });
   });
 
+  it('mutes already-published screen video and screen audio when those sources are revoked', async () => {
+    mockListParticipants.mockResolvedValueOnce([{
+      identity: 'presenter-1',
+      tracks: [
+        { sid: 'camera-1', source: 1, type: 'VIDEO' },
+        { sid: 'mic-1', source: 2, type: 'AUDIO' },
+        { sid: 'screen-1', source: 3, type: 'VIDEO' },
+        { sid: 'screen-audio-1', source: 4, type: 'AUDIO' },
+      ],
+    }]);
+
+    await provider.setParticipantPermissions({
+      roomId: 'room-1',
+      identity: 'presenter-1',
+      canPublish: true,
+      canPublishSources: ['camera', 'microphone'],
+    });
+
+    expect(mockUpdateParticipant.mock.invocationCallOrder[0]).toBeLessThan(mockListParticipants.mock.invocationCallOrder[0]);
+    expect(mockMutePublishedTrack).toHaveBeenCalledTimes(2);
+    expect(mockMutePublishedTrack).toHaveBeenCalledWith('room-1', 'presenter-1', 'screen-1', true);
+    expect(mockMutePublishedTrack).toHaveBeenCalledWith('room-1', 'presenter-1', 'screen-audio-1', true);
+  });
+
+  it('does not mute camera or microphone when revoking all participant publishing', async () => {
+    mockListParticipants.mockResolvedValueOnce([{
+      identity: 'participant-1',
+      tracks: [
+        { sid: 'camera-1', source: 'CAMERA', type: 'VIDEO' },
+        { sid: 'mic-1', source: 'MICROPHONE', type: 'AUDIO' },
+      ],
+    }]);
+
+    await provider.setParticipantPermissions({
+      roomId: 'room-1',
+      identity: 'participant-1',
+      canPublish: false,
+    });
+
+    expect(mockMutePublishedTrack).not.toHaveBeenCalled();
+  });
+
+  it('does not inspect or mute screen tracks while screen sharing remains authorized', async () => {
+    await provider.setParticipantPermissions({
+      roomId: 'room-1',
+      identity: 'presenter-1',
+      canPublish: true,
+      canPublishSources: ['camera', 'microphone', 'screen_share', 'screen_share_audio'],
+    });
+
+    expect(mockListParticipants).not.toHaveBeenCalled();
+    expect(mockMutePublishedTrack).not.toHaveBeenCalled();
+  });
+
   it('mutes only microphone tracks for a connected participant', async () => {
     mockListParticipants.mockResolvedValueOnce([{
       identity: 'participant-1',

@@ -102,7 +102,8 @@ export class ZionSfuProvider implements MediaProvider {
       const canPublishSources = input.canPublish
         ? this.toTrackSources(input.canPublishSources ?? ['camera', 'microphone'])
         : [];
-      await this.client().updateParticipant(input.roomId, input.identity, {
+      const client = this.client();
+      await client.updateParticipant(input.roomId, input.identity, {
         permission: {
           canPublish: input.canPublish,
           ...(input.canPublish ? { canPublishSources } : {}),
@@ -110,6 +111,29 @@ export class ZionSfuProvider implements MediaProvider {
           canPublishData: true,
         },
       });
+
+      // Removing screen-share sources from a participant's permission grant
+      // prevents new publications, but an already-published track may remain
+      // active. Explicitly mute every existing screen video/audio track after
+      // the server-side permission update. Camera and microphone are untouched.
+      const allowedSources = input.canPublish
+        ? (input.canPublishSources ?? ['camera', 'microphone'])
+        : [];
+      const revokeScreenVideo = !allowedSources.includes('screen_share');
+      const revokeScreenAudio = !allowedSources.includes('screen_share_audio');
+      if (revokeScreenVideo || revokeScreenAudio) {
+        const participants = await client.listParticipants(input.roomId);
+        const participant = participants.find((item) => item.identity === input.identity);
+        const screenTracks = (participant?.tracks ?? []).filter((track) => {
+          const source = track.source;
+          const isScreenVideo = source === TrackSource.SCREEN_SHARE || String(source).toUpperCase() === 'SCREEN_SHARE';
+          const isScreenAudio = source === TrackSource.SCREEN_SHARE_AUDIO || String(source).toUpperCase() === 'SCREEN_SHARE_AUDIO';
+          return (revokeScreenVideo && isScreenVideo) || (revokeScreenAudio && isScreenAudio);
+        });
+        await Promise.all(screenTracks.map((track) =>
+          client.mutePublishedTrack(input.roomId, input.identity, track.sid, true),
+        ));
+      }
     } catch (error) {
       throw new BadGatewayException(error instanceof Error ? error.message : 'Participant permissions could not be updated');
     }
