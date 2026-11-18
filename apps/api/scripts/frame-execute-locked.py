@@ -124,6 +124,44 @@ def validate_plan(
     return plan
 
 
+
+def validate_approval(
+    approval: Any,
+    actor_user_id: Any,
+    *,
+    approval_id: str,
+    expected_hash: str,
+    expected_commit: str,
+    expected_project_ref: str,
+    migration_versions: list[str],
+    now: datetime | None = None,
+) -> None:
+    """Validate the immutable, actor-bound approval before consuming it."""
+    if not actor_user_id or not isinstance(approval, dict):
+        raise PlanValidationError("Frame approval has no authenticated administrator identity.")
+    if approval.get("approval_id") != approval_id:
+        raise PlanValidationError("Frame approval identifier does not match.")
+    expires_at = approval.get("expires_at")
+    try:
+        expiry = datetime.fromisoformat(str(expires_at).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        raise PlanValidationError("Frame approval expiry is invalid.")
+    current_time = now or datetime.now(timezone.utc)
+    if expiry.tzinfo is None or expiry <= current_time:
+        raise PlanValidationError("Frame approval has expired.")
+
+    expected = {
+        "plan_sha256": expected_hash,
+        "commit_sha": expected_commit,
+        "project_ref": expected_project_ref,
+        "target": "production",
+        "migration_count": len(migration_versions),
+        "migration_versions": migration_versions,
+    }
+    if any(approval.get(key) != value for key, value in expected.items()):
+        raise PlanValidationError("Frame approval does not match the exact plan, commit, target, or migration list.")
+
+
 def main() -> int:
     if len(sys.argv) < 3 or sys.argv[1] != "--":
         print("Usage: frame-execute-locked.py -- <migration command> [args...]", file=sys.stderr)
@@ -203,29 +241,16 @@ def main() -> int:
         if len(approvals) != 1:
             raise PlanValidationError("Frame approval is missing or ambiguous.")
         actor_user_id, approval = approvals[0]
-        if not actor_user_id or not isinstance(approval, dict):
-            raise PlanValidationError("Frame approval has no authenticated administrator identity.")
-        expires_at = approval.get("expires_at")
-        try:
-            expiry = datetime.fromisoformat(str(expires_at).replace("Z", "+00:00"))
-        except (TypeError, ValueError):
-            raise PlanValidationError("Frame approval expiry is invalid.")
-        if expiry.tzinfo is None or expiry <= datetime.now(timezone.utc):
-            raise PlanValidationError("Frame approval has expired.")
-        approved_versions = approval.get("migration_versions")
         actual_versions = [item["version"] for item in plan["manifest"]["migrations"]]
-        expected_approval = {
-            "plan_sha256": expected_hash,
-            "commit_sha": expected_commit,
-            "project_ref": expected_project_ref,
-            "target": "production",
-            "migration_count": len(actual_versions),
-            "migration_versions": actual_versions,
-        }
-        if any(approval.get(key) != value for key, value in expected_approval.items()):
-            raise PlanValidationError("Frame approval does not match the exact plan, commit, target, or migration list.")
-        if not isinstance(approved_versions, list):
-            raise PlanValidationError("Frame approval migration inventory is invalid.")
+        validate_approval(
+            approval,
+            actor_user_id,
+            approval_id=approval_id,
+            expected_hash=expected_hash,
+            expected_commit=expected_commit,
+            expected_project_ref=expected_project_ref,
+            migration_versions=actual_versions,
+        )
 
         already_consumed = conn.execute(
             """
