@@ -39,6 +39,21 @@ describe('ResaSocialService feeds', () => {
   });
 
   afterEach(() => jest.restoreAllMocks());
+  it('makes repost requests idempotent for the same viewer and publication', async () => {
+    const existing = { id: 'repost-1', content_id: 'post-1', user_id: ACTOR_ID, share_type: 'repost' };
+    const upsertSpy = jest.spyOn(SupabaseRestClient.prototype, 'upsert').mockResolvedValue([existing] as never);
+
+    const first = await service.repost('session-token', 'post-1');
+    const second = await service.repost('session-token', 'post-1');
+
+    expect(upsertSpy).toHaveBeenCalledTimes(2);
+    expect(upsertSpy).toHaveBeenCalledWith('resa_shares', 'session-token', {
+      content_id: 'post-1', user_id: ACTOR_ID, share_type: 'repost',
+    }, '?on_conflict=content_id,user_id,share_type');
+    expect(first).toEqual(existing);
+    expect(second).toEqual(existing);
+  });
+
 
 
   it('allows an author to edit only the title and body of their active publication', async () => {
