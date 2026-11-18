@@ -167,52 +167,69 @@ export default function SecretariatPage() {
   const [transferNotice, setTransferNotice] = useState("");
   const [transferHistoryId, setTransferHistoryId] = useState("");
   const [transferHistory, setTransferHistory] = useState<TransferEvent[]>([]);
+  const organizationLoadSequence = useRef(0);
 
   const loadMembers = useCallback(async (id: string) => {
     if (!id) return;
+    const requestId = ++organizationLoadSequence.current;
+    const isCurrentRequest = () => requestId === organizationLoadSequence.current;
     setLoading(true);
     setError("");
     try {
       const data = await resaRequest<Member[]>(`/v1/organizations/${encodeURIComponent(id)}/church-members`);
+      if (!isCurrentRequest()) return;
       setMembers(data);
+
       setTransfersLoading(true);
       setTransferError("");
       try {
         const transferItems = await resaRequest<MemberTransfer[]>(`/v1/organizations/${encodeURIComponent(id)}/church-member-transfers`);
-        setTransfers(transferItems);
+        if (isCurrentRequest()) setTransfers(transferItems);
       } catch (transferReason) {
-        setTransfers([]);
-        setTransferError(transferReason instanceof Error ? transferReason.message : "Não foi possível carregar as transferências.");
+        if (isCurrentRequest()) {
+          setTransfers([]);
+          setTransferError(transferReason instanceof Error ? transferReason.message : "Não foi possível carregar as transferências.");
+        }
       } finally {
-        setTransfersLoading(false);
+        if (isCurrentRequest()) setTransfersLoading(false);
       }
+
+      if (!isCurrentRequest()) return;
       setFamilyLoading(true);
       setFamilyError("");
       try {
         const relationships = await resaRequest<FamilyRelationship[]>(`/v1/organizations/${encodeURIComponent(id)}/church-member-families`);
-        setFamilyRelationships(relationships);
+        if (isCurrentRequest()) setFamilyRelationships(relationships);
       } catch (familyReason) {
-        setFamilyRelationships([]);
-        setFamilyError(familyReason instanceof Error ? familyReason.message : "Não foi possível carregar as relações familiares.");
+        if (isCurrentRequest()) {
+          setFamilyRelationships([]);
+          setFamilyError(familyReason instanceof Error ? familyReason.message : "Não foi possível carregar as relações familiares.");
+        }
       } finally {
-        setFamilyLoading(false);
+        if (isCurrentRequest()) setFamilyLoading(false);
       }
+
+      if (!isCurrentRequest()) return;
       setBaptismsLoading(true);
       setBaptismError("");
       try {
         const baptismItems = await resaRequest<BaptismRecord[]>(`/v1/organizations/${encodeURIComponent(id)}/church-baptisms`);
-        setBaptisms(baptismItems);
+        if (isCurrentRequest()) setBaptisms(baptismItems);
       } catch (baptismReason) {
-        setBaptisms([]);
-        setBaptismError(baptismReason instanceof Error ? baptismReason.message : "Não foi possível carregar os registos de baptismo.");
+        if (isCurrentRequest()) {
+          setBaptisms([]);
+          setBaptismError(baptismReason instanceof Error ? baptismReason.message : "Não foi possível carregar os registos de baptismo.");
+        }
       } finally {
-        setBaptismsLoading(false);
+        if (isCurrentRequest()) setBaptismsLoading(false);
       }
     } catch (reason) {
-      setMembers([]);
-      setError(reason instanceof Error ? reason.message : "Não foi possível carregar o registo de membros.");
+      if (isCurrentRequest()) {
+        setMembers([]);
+        setError(reason instanceof Error ? reason.message : "Não foi possível carregar o registo de membros.");
+      }
     } finally {
-      setLoading(false);
+      if (isCurrentRequest()) setLoading(false);
     }
   }, []);
 
@@ -692,7 +709,38 @@ export default function SecretariatPage() {
 
         <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-end sm:justify-between">
           <div className="w-full max-w-xl">
-            <OrganizationSelector value={organizationId} onChange={(id, selected) => { setIdentityCandidates([]); setNotice(""); setOrganization(selected); setOrganizationId(id); }} />
+            <OrganizationSelector value={organizationId} onChange={(id, selected) => {
+              if (id !== organizationId) {
+                organizationLoadSequence.current += 1;
+                setMembers([]);
+                setTransfers([]);
+                setFamilyRelationships([]);
+                setBaptisms([]);
+                setHistory([]);
+                setHistoryMemberId("");
+                setBaptismHistory([]);
+                setBaptismHistoryId("");
+                setTransferHistory([]);
+                setTransferHistoryId("");
+                setIdentityCandidates([]);
+                setDestinationOrganizationId("");
+                setQuery("");
+                setLoading(false);
+                setTransfersLoading(false);
+                setFamilyLoading(false);
+                setBaptismsLoading(false);
+                setError("");
+                setTransferError("");
+                setFamilyError("");
+                setBaptismError("");
+                setTransferNotice("");
+                setFamilyNotice("");
+                setBaptismNotice("");
+                setNotice("");
+              }
+              setOrganization(selected);
+              setOrganizationId(id);
+            }} />
             {organization && <p className="mt-2 text-xs text-slate-500">Âmbito activo: <strong className="text-slate-700">{organization.name}</strong> · {organization.organization_type}</p>}
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
