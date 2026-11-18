@@ -559,8 +559,7 @@ export default function SecretariatPage() {
     const submittedContextSequence = organizationContextSequence.current;
     const isCurrentContext = () =>
       organizationContextSequence.current === submittedContextSequence &&
-      organizationContextRef.current === submittedOrganizationId &&
-      destinationOrganizationId === submittedDestinationOrganizationId;
+      organizationContextRef.current === submittedOrganizationId;
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
     const payload = {
