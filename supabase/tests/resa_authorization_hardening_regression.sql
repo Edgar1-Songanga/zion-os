@@ -8,6 +8,11 @@ update public.profiles
 set privacy = jsonb_set(coalesce(privacy, '{}'::jsonb), '{call_policy}', '"everyone"'::jsonb, true)
 where id = '10000000-0000-4000-8000-000000000003';
 
+-- Align the fixture's activation boundary with the deliberately aged test call.
+update private.resa_call_expiry_config
+set activated_at = now() - interval '2 minutes'
+where id = true;
+
 insert into public.resa_conversations(id, created_by, kind, title)
 values
  ('60000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000001','group','Authorization regression'),
@@ -128,6 +133,38 @@ $test$;
 
 insert into public.resa_call_participants(call_id,user_id,status,joined_at)
 values ('60000000-0000-4000-8000-000000000004',auth.uid(),'joined',now());
+
+-- A participant may reconnect, but cannot forge an invalid participant state or mutate another row.
+update public.resa_call_participants
+set status='left'
+where call_id='60000000-0000-4000-8000-000000000004' and user_id=auth.uid();
+update public.resa_call_participants
+set status='joined'
+where call_id='60000000-0000-4000-8000-000000000004' and user_id=auth.uid();
+
+do $test$
+declare v_rows integer;
+begin
+  begin
+    update public.resa_call_participants
+    set status='left'
+    where call_id='60000000-0000-4000-8000-000000000004'
+      and user_id='10000000-0000-4000-8000-000000000001';
+    get diagnostics v_rows = row_count;
+    if v_rows <> 0 then raise exception 'A recipient changed another participant state'; end if;
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    update public.resa_call_participants
+    set status='declined'
+    where call_id='60000000-0000-4000-8000-000000000004'
+      and user_id=auth.uid();
+    raise exception 'A joined participant used an invalid declined transition';
+  exception when insufficient_privilege then null;
+  end;
+end;
+$test$;
+
 update public.resa_calls
 set status='active', answered_at=now()
 where id='60000000-0000-4000-8000-000000000004';
