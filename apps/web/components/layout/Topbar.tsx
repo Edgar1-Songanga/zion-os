@@ -262,9 +262,6 @@ export default function Topbar() {
 
       <div className="flex min-w-0 shrink-0 items-center gap-1 sm:gap-2.5">
         <LanguageSelector />
-        <button type="button" aria-label="Tema" className="hidden h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-[#C8A24A] hover:text-[#0B2D4D] sm:flex">
-          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4" strokeLinecap="round" /><circle cx="12" cy="12" r="3.5" /></svg>
-        </button>
         <NotificationBell />
 
         <div ref={menuRef} className="relative ml-0.5 border-l border-slate-200 pl-1.5 sm:ml-1 sm:pl-3">
