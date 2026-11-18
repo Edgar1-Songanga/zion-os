@@ -9,6 +9,7 @@ on:
     paths:
       - 'supabase/migrations/**'
       - 'apps/api/scripts/frame-migration-manifest.cjs'
+      - 'apps/api/scripts/frame-production-workflow.test.cjs'
       - '.github/workflows/frame-production-migrations.yml'
   workflow_dispatch:
     inputs:

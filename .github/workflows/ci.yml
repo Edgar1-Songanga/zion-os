@@ -123,6 +123,9 @@ jobs:
       - name: Test target-bound Frame production plan
         run: node --test apps/api/scripts/frame-production-plan.test.cjs
 
+      - name: Test Frame production workflow safety contract
+        run: node --test apps/api/scripts/frame-production-workflow.test.cjs
+
       - name: Setup Python for Frame executor regression tests
         uses: actions/setup-python@v5
         with:
