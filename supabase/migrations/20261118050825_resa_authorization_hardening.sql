@@ -264,6 +264,9 @@ begin
    where id = p_call_id
      and initiator_id = auth.uid()
      and status = 'ringing'
+     and created_at >= (
+       select activated_at from private.resa_call_expiry_config where id = true
+     )
      and created_at <= clock_timestamp() - interval '45 seconds';
 
   return found;
@@ -305,10 +308,17 @@ as $function$
         select 1 from public.resa_group_meeting_participants p
         where p.meeting_id = p_meeting_id and p.user_id = p_actor_id and p.status = 'LEFT'
       )
+      when p_event_type = 'MEETING_CREATED' then exists (
+        select 1 from public.resa_group_meeting_participants p
+        where p.meeting_id = p_meeting_id
+          and p.user_id = p_actor_id
+          and p.participant_role = 'HOST'
+          and p.status in ('ACCEPTED', 'PRESENT')
+      )
       when p_event_type in (
-        'MEETING_CREATED', 'INVITATION_SENT', 'PARTICIPANT_REMOVED',
-        'ROLE_CHANGED', 'ROOM_OPENED', 'ROOM_CLOSED', 'ROOM_LOCKED',
-        'ROOM_UNLOCKED', 'MODERATOR_ACTION', 'MEETING_ENDED'
+        'INVITATION_SENT', 'PARTICIPANT_REMOVED', 'ROLE_CHANGED',
+        'ROOM_OPENED', 'ROOM_CLOSED', 'ROOM_LOCKED', 'ROOM_UNLOCKED',
+        'MODERATOR_ACTION', 'MEETING_ENDED'
       ) then exists (
         select 1 from public.resa_group_meeting_participants p
         where p.meeting_id = p_meeting_id
