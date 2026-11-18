@@ -4,6 +4,7 @@ import { MediaModule } from '../media/media.module';
 import { ResaEngine } from './domain/resa.engine';
 import { ResaController } from './presentation/resa.controller';
 import { ResaSocialService } from './application/resa-social.service';
+import { ResaMediaModerationService } from './application/resa-media-moderation.service';
 import { ResaRecommendationService } from './application/recommendation.service';
 import { ResaOperationalService } from './application/resa-operational.service';
 import { ResaGroupMeetingService } from './application/resa-group-meeting.service';
@@ -19,7 +20,7 @@ import { ResaFeedMemoryService } from './application/feed-memory.service';
 @Module({
   imports: [IdentityModule, MediaModule],
   controllers: [ResaController, ResaOperationalController, ResaModerationAppealsController, ResaEnforcementController, ResaFeedMemoryController],
-  providers: [ResaEngine, ResaSocialService, ResaRecommendationService, ResaOperationalService, ResaGroupMeetingService, ResaLiveEgressService, ResaModerationAppealsService, ResaEnforcementService, ResaFeedMemoryService],
-  exports: [ResaEngine, ResaSocialService, ResaRecommendationService, ResaOperationalService, ResaGroupMeetingService, ResaLiveEgressService, ResaModerationAppealsService, ResaEnforcementService, ResaFeedMemoryService],
+  providers: [ResaEngine, ResaSocialService, ResaMediaModerationService, ResaRecommendationService, ResaOperationalService, ResaGroupMeetingService, ResaLiveEgressService, ResaModerationAppealsService, ResaEnforcementService, ResaFeedMemoryService],
+  exports: [ResaEngine, ResaSocialService, ResaMediaModerationService, ResaRecommendationService, ResaOperationalService, ResaGroupMeetingService, ResaLiveEgressService, ResaModerationAppealsService, ResaEnforcementService, ResaFeedMemoryService],
 })
 export class ResaModule {}

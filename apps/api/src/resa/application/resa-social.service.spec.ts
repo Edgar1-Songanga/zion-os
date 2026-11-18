@@ -1,4 +1,5 @@
 import { ResaSocialService } from './resa-social.service';
+import { ResaMediaModerationService } from './resa-media-moderation.service';
 import { ResaRecommendationService } from './recommendation.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 
@@ -17,7 +18,7 @@ describe('ResaSocialService feeds', () => {
 
   beforeEach(() => {
     const identity = { getCurrentUser: jest.fn().mockResolvedValue({ id: ACTOR_ID }) };
-    service = new ResaSocialService(identity as never, new ResaRecommendationService());
+    service = new ResaSocialService(identity as never, new ResaRecommendationService(), new ResaMediaModerationService(identity as never));
     getSpy = jest.spyOn(SupabaseRestClient.prototype, 'get').mockImplementation(async (table: string) => {
       if (table === 'resa_follows') return follows as never;
       if (table === 'profiles') return [{ id: FOLLOWED_ID, privacy: {} }] as never;
@@ -729,7 +730,7 @@ describe('ResaSocialService feeds', () => {
     })).rejects.toThrow('community_id is required for community-only content');
   });
 
-  it('rejects follower-only media while the media bucket is public', async () => {
+  it('rejects legacy public media URLs before any content write', async () => {
     const postSpy = jest.spyOn(SupabaseRestClient.prototype, 'post');
 
     await expect(service.createContent('session-token', {
@@ -739,7 +740,7 @@ describe('ResaSocialService feeds', () => {
       media_type: 'image',
       media_url: 'https://example.test/public-image.jpg',
       media_path: ACTOR_ID + '/private-image.jpg',
-    })).rejects.toThrow('Media attachments currently require public visibility');
+    })).rejects.toThrow('Public media URLs are no longer accepted');
 
     expect(postSpy).not.toHaveBeenCalled();
   });

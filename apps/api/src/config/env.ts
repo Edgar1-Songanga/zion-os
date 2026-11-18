@@ -8,6 +8,10 @@ export interface ZionIceServer {
 export const env = {
   supabaseUrl: process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
   supabasePublishableKey: process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '',
+  supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+  resaMediaModerationUrl: process.env.RESA_MEDIA_MODERATION_URL ?? '',
+  resaMediaModerationSecret: process.env.RESA_MEDIA_MODERATION_SECRET ?? '',
+  resaMediaModerationTokenSecret: process.env.RESA_MEDIA_MODERATION_TOKEN_SECRET ?? '',
   iceServersJson: process.env.ZION_ICE_SERVERS_JSON ?? '',
   sfuUrl: process.env.ZION_SFU_URL ?? '',
   sfuControlSecret: process.env.ZION_SFU_CONTROL_SECRET ?? '',

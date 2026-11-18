@@ -13,7 +13,7 @@ const types = [
   { value: "story", labelKey: "post", icon: "story" },
 ] as const;
 
-const mediaAccept = "image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime";
+const mediaAccept = "image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime";
 const MAX_MEDIA_SIZE = 50 * 1024 * 1024;
 
 export default function CreatePost({ onPublished, initialType = "text" }: { onPublished?: () => void; initialType?: "text" | "prayer" | "bible_study" | "story" }) {
@@ -25,6 +25,7 @@ export default function CreatePost({ onPublished, initialType = "text" }: { onPu
   const [preview, setPreview] = useState("");
   const [saving, setSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [moderatingMedia, setModeratingMedia] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -69,7 +70,7 @@ export default function CreatePost({ onPublished, initialType = "text" }: { onPu
       const { data: userData, error: userError } = await supabase.auth.getUser();
       if (userError || !userData.user) throw new Error(t("sessionUnavailable"));
 
-      let mediaPayload: { media_type: "image" | "video"; media_url: string; media_path: string } | null = null;
+      let mediaPayload: { media_type: "image" | "video"; media_path: string; media_moderation_token: string } | null = null;
       if (media) {
         const extension = media.name.split(".").pop()?.toLowerCase() || "bin";
         const path = `${userData.user.id}/${crypto.randomUUID()}.${extension}`;
@@ -85,7 +86,7 @@ export default function CreatePost({ onPublished, initialType = "text" }: { onPu
           return btoa(binary);
         };
         const tusMetadata = [
-          `bucketName ${encodeMetadata("resa-media")}`,
+          `bucketName ${encodeMetadata("resa-content-private")}`,
           `objectName ${encodeMetadata(path)}`,
           `contentType ${encodeMetadata(media.type)}`,
           `cacheControl ${encodeMetadata("3600")}`,
@@ -171,12 +172,20 @@ export default function CreatePost({ onPublished, initialType = "text" }: { onPu
         }
 
         setUploadProgress(null);
-        const publicUrl = supabase.storage.from("resa-media").getPublicUrl(path).data.publicUrl;
-        mediaPayload = {
-          media_type: media.type.startsWith("video/") ? "video" : "image",
-          media_url: publicUrl,
-          media_path: path,
-        };
+        setModeratingMedia(true);
+        const mediaType = media.type.startsWith("video/") ? "video" : "image";
+        let moderation: { moderation_token: string };
+        try {
+          moderation = await resaRequest<{ moderation_token: string }>("/v1/resa/content/media-moderation", {
+            method: "POST",
+            body: JSON.stringify({ media_path: path, media_type: mediaType, mime_type: media.type, file_size: media.size }),
+          });
+        } catch (moderationError) {
+          await supabase.storage.from("resa-content-private").remove([path]).catch(() => undefined);
+          throw moderationError;
+        }
+        setModeratingMedia(false);
+        mediaPayload = { media_type: mediaType, media_path: path, media_moderation_token: moderation.moderation_token };
       }
 
       const publication = await resaRequest<{ id: string }>("/v1/resa/content", {
@@ -213,6 +222,7 @@ export default function CreatePost({ onPublished, initialType = "text" }: { onPu
       onPublished?.();
     } catch (e) {
       setUploadProgress(null);
+      setModeratingMedia(false);
       setError(e instanceof Error ? e.message : t("publishError"));
     } finally {
       setSaving(false);
@@ -293,7 +303,7 @@ export default function CreatePost({ onPublished, initialType = "text" }: { onPu
           <button type="button" onClick={() => void publish()} disabled={saving || (!body.trim() && !media)}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0C1A3D] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40">
             <ResaIcon name="send" size={15} />
-            {uploadProgress !== null ? `${t("publishing")} ${uploadProgress}%` : saving ? t("publishing") : t("publish")}
+            {moderatingMedia ? "A analisar imagem/vídeo…" : uploadProgress !== null ? `${t("publishing")} ${uploadProgress}%` : saving ? t("publishing") : t("publish")}
           </button>
         </div>
 

@@ -1,9 +1,10 @@
 import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query, UnauthorizedException } from '@nestjs/common';
 import { ResaSocialService } from '../application/resa-social.service';
+import { ResaMediaModerationService } from '../application/resa-media-moderation.service';
 
 @Controller('v1/resa')
 export class ResaController {
-  constructor(private readonly resa: ResaSocialService) {}
+  constructor(private readonly resa: ResaSocialService, private readonly mediaModeration: ResaMediaModerationService) {}
   private token(a?: string) { const t = a?.replace(/^Bearer\s+/i, '').trim(); if (!t) throw new UnauthorizedException('Bearer token is required'); return t; }
   @Get('content') content(@Headers('authorization') a: string | undefined, @Query('limit') limit?: string, @Query('before') before?: string) { return this.resa.listContent(this.token(a), Number(limit) || 30, before); }
   @Get('content/:contentId/media-url') contentMediaUrl(@Headers('authorization') a: string | undefined, @Param('contentId') id: string) { return this.resa.contentMediaUrl(this.token(a), id); }
@@ -16,6 +17,7 @@ export class ResaController {
   @Post('stories/:storyId/views') recordStoryView(@Headers('authorization') a: string | undefined, @Param('storyId') id: string) { return this.resa.recordStoryView(this.token(a), id); }
   @Get('stories/:storyId/views') storyViews(@Headers('authorization') a: string | undefined, @Param('storyId') id: string) { return this.resa.storyViews(this.token(a), id); }
   @Get('stories/archive') archivedStories(@Headers('authorization') a: string | undefined, @Query('limit') limit?: string) { return this.resa.archivedStories(this.token(a), Number(limit) || 60); }
+  @Post('content/media-moderation') moderateContentMedia(@Headers('authorization') a: string | undefined, @Body() b: { media_path?: unknown; media_type?: unknown; mime_type?: unknown; file_size?: unknown }) { return this.mediaModeration.moderate(this.token(a), b); }
   @Post('content') createContent(@Headers('authorization') a: string | undefined, @Body() b: any) { return this.resa.createContent(this.token(a), b); }
   @Patch('content/:contentId') updateContent(@Headers('authorization') a: string | undefined, @Param('contentId') id: string, @Body() b: { title?: unknown; body?: unknown }) { return this.resa.updateContent(this.token(a), id, b); }
   @Delete('content/:contentId') deleteContent(@Headers('authorization') a: string | undefined, @Param('contentId') id: string) { return this.resa.deleteContent(this.token(a), id); }

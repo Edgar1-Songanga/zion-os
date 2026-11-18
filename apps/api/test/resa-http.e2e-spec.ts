@@ -5,6 +5,7 @@ import { IdentityController } from '../src/identity/presentation/identity.contro
 import { IdentityService } from '../src/identity/application/identity.service';
 import { ResaController } from '../src/resa/presentation/resa.controller';
 import { ResaSocialService } from '../src/resa/application/resa-social.service';
+import { ResaMediaModerationService } from '../src/resa/application/resa-media-moderation.service';
 import { ResaOperationalController } from '../src/resa/presentation/resa-operational.controller';
 import { ResaOperationalService } from '../src/resa/application/resa-operational.service';
 import { ResaLiveEgressService } from '../src/resa/application/resa-live-egress.service';
@@ -64,6 +65,7 @@ describe('RESA HTTP contracts (e2e)', () => {
       providers: [
         { provide: IdentityService, useValue: identity },
         { provide: ResaSocialService, useValue: social },
+        { provide: ResaMediaModerationService, useValue: { moderate: jest.fn() } },
         { provide: ResaOperationalService, useValue: operational },
         { provide: ResaLiveEgressService, useValue: liveEgress },
         { provide: ResaGroupMeetingService, useValue: groupMeetings },
@@ -77,7 +79,7 @@ describe('RESA HTTP contracts (e2e)', () => {
   });
 
   afterEach(async () => {
-    await app.close();
+    await app?.close();
   });
 
   it('rejects unauthenticated feed and meeting queue requests before invoking services', async () => {

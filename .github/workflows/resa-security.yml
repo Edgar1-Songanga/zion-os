@@ -15,6 +15,9 @@ on:
       - "supabase/tests/resa_content_audience_visibility_regression.sql"
       - "supabase/tests/resa_interaction_audience_regression.sql"
       - "supabase/tests/resa_media_visibility_regression.sql"
+      - "supabase/tests/resa_media_moderation_gate_regression.sql"
+      - "supabase/migrations/*resa_private_content_storage_foundation*"
+      - "supabase/migrations/*resa_media_moderation_gate*"
       - "supabase/tests/resa_event_community_audience_regression.sql"
       - "supabase/tests/resa_user_blocking_regression.sql"
       - "supabase/migrations/*resa_follow_privacy_database_guard*"
@@ -124,6 +127,15 @@ jobs:
       - name: Apply RESA user blocking safety
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108133000_resa_user_blocking_safety.sql
+      - name: Apply private RESA content storage ownership policies
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108223000_resa_private_content_storage_foundation.sql
+      - name: Apply server-enforced RESA media moderation gate
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261117220000_resa_media_moderation_gate.sql
+      - name: Verify direct clients cannot publish or self-approve media
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_media_moderation_gate_regression.sql
       - name: Apply four-level profile visibility
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261108130000_resa_four_level_profile_visibility.sql
