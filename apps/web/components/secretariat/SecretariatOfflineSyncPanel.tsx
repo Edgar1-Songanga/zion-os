@@ -30,29 +30,44 @@ export default function SecretariatOfflineSyncPanel({ organizationId, onServerRe
   const [online, setOnline] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [discardTarget, setDiscardTarget] = useState<string | null>(null);
+  const [discarding, setDiscarding] = useState(false);
   const refreshCallback = useRef(onServerRefresh);
-  const running = useRef(false);
+  const contextSequence = useRef(0);
+  const running = useRef<number | null>(null);
+  const cancelDiscardRef = useRef<HTMLButtonElement | null>(null);
+  const confirmDiscardRef = useRef<HTMLButtonElement | null>(null);
+  const discardTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     refreshCallback.current = onServerRefresh;
   }, [onServerRefresh]);
 
-  const refreshQueue = useCallback(async (activeScope: OfflineScope) => {
+  useEffect(() => {
+    if (discardTarget) cancelDiscardRef.current?.focus();
+    else discardTriggerRef.current?.focus();
+  }, [discardTarget]);
+
+  const refreshQueue = useCallback(async (activeScope: OfflineScope, sequence: number) => {
     const items = await listSecretariatMemberDrafts(activeScope);
-    setDrafts(items);
+    if (contextSequence.current === sequence) setDrafts(items);
   }, []);
 
   const refresh = useCallback(async () => {
-    if (!organizationId) {
+    const sequence = contextSequence.current;
+    const requestedOrganizationId = organizationId;
+    if (!requestedOrganizationId) {
       scopeRef.current = null;
       setDrafts([]);
       return;
     }
     try {
-      const nextScope = await getSecretariatOfflineScope(organizationId);
+      const nextScope = await getSecretariatOfflineScope(requestedOrganizationId);
+      if (contextSequence.current !== sequence || nextScope.organizationId !== requestedOrganizationId) return;
       scopeRef.current = nextScope;
-      await refreshQueue(nextScope);
+      await refreshQueue(nextScope, sequence);
     } catch (error) {
+      if (contextSequence.current !== sequence) return;
       scopeRef.current = null;
       setDrafts([]);
       setMessage(error instanceof Error ? error.message : "Não foi possível abrir a fila offline.");
@@ -60,15 +75,23 @@ export default function SecretariatOfflineSyncPanel({ organizationId, onServerRe
   }, [organizationId, refreshQueue]);
 
   const synchronize = useCallback(async () => {
-    if (!organizationId || !navigator.onLine || running.current) return;
-    running.current = true;
+    const sequence = contextSequence.current;
+    const requestedOrganizationId = organizationId;
+    if (!requestedOrganizationId || !navigator.onLine || running.current === sequence) return;
+    running.current = sequence;
     setBusy(true);
     setMessage("");
     try {
-      const activeScope = scopeRef.current ?? await getSecretariatOfflineScope(organizationId);
+      const cachedScope = scopeRef.current;
+      const activeScope = cachedScope?.organizationId === requestedOrganizationId
+        ? cachedScope
+        : await getSecretariatOfflineScope(requestedOrganizationId);
+      if (contextSequence.current !== sequence || activeScope.organizationId !== requestedOrganizationId) return;
       scopeRef.current = activeScope;
       const result = await syncSecretariatMemberDrafts(activeScope);
-      await refreshQueue(activeScope);
+      if (contextSequence.current !== sequence) return;
+      await refreshQueue(activeScope, sequence);
+      if (contextSequence.current !== sequence) return;
       if (result.synced > 0 || result.needsAttention > 0) refreshCallback.current();
       if (result.synced > 0) {
         setMessage(`${result.synced} registo(s) sincronizado(s) com o servidor.`);
@@ -78,12 +101,24 @@ export default function SecretariatOfflineSyncPanel({ organizationId, onServerRe
         setMessage("Algumas operações foram rejeitadas. Consulta o motivo antes de as corrigir.");
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "A sincronização não foi concluída.");
+      if (contextSequence.current === sequence) setMessage(error instanceof Error ? error.message : "A sincronização não foi concluída.");
     } finally {
-      running.current = false;
-      setBusy(false);
+      if (running.current === sequence) {
+        running.current = null;
+        if (contextSequence.current === sequence) setBusy(false);
+      }
     }
   }, [organizationId, refreshQueue]);
+
+  useEffect(() => {
+    contextSequence.current += 1;
+    scopeRef.current = null;
+    setDrafts([]);
+    setMessage("");
+    setBusy(false);
+    setDiscardTarget(null);
+    setDiscarding(false);
+  }, [organizationId]);
 
   useEffect(() => {
     setOnline(typeof navigator === "undefined" ? false : navigator.onLine);
@@ -129,12 +164,30 @@ export default function SecretariatOfflineSyncPanel({ organizationId, onServerRe
     };
   }, [refresh, synchronize]);
 
-  async function discard(operationId: string) {
+  function discard(operationId: string, trigger: HTMLButtonElement) {
+    discardTriggerRef.current = trigger;
+    setDiscardTarget(operationId);
+  }
+
+  async function confirmDiscard() {
+    const operationId = discardTarget;
     const activeScope = scopeRef.current;
-    if (!activeScope || !window.confirm("Descartar este rascunho local? Esta acção não pode ser anulada.")) return;
-    const removed = await discardSecretariatMemberDraft(activeScope, operationId);
-    if (removed) setMessage("Rascunho local descartado.");
-    await refreshQueue(activeScope);
+    const sequence = contextSequence.current;
+    if (!operationId || !activeScope || discarding) return;
+    setDiscarding(true);
+    try {
+      const removed = await discardSecretariatMemberDraft(activeScope, operationId);
+      if (contextSequence.current !== sequence || scopeRef.current?.organizationId !== activeScope.organizationId) return;
+      if (removed) setMessage("Rascunho local descartado.");
+      setDiscardTarget(null);
+      await refreshQueue(activeScope, sequence);
+    } catch (error) {
+      if (contextSequence.current === sequence) {
+        setMessage(error instanceof Error ? error.message : "Não foi possível descartar o rascunho.");
+      }
+    } finally {
+      if (contextSequence.current === sequence) setDiscarding(false);
+    }
   }
 
   if (!organizationId || (drafts.length === 0 && online && !message)) return null;
@@ -165,6 +218,62 @@ export default function SecretariatOfflineSyncPanel({ organizationId, onServerRe
         </button>
       </div>
 
+      {discardTarget && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-4">
+          <section
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="offline-discard-title"
+            aria-describedby="offline-discard-description"
+            onKeyDown={event => {
+              if (event.key === "Escape" && !discarding) {
+                event.preventDefault();
+                setDiscardTarget(null);
+                return;
+              }
+              if (event.key === "Tab") {
+                const first = cancelDiscardRef.current;
+                const last = confirmDiscardRef.current;
+                if (!first || !last) return;
+                if (event.shiftKey && document.activeElement === first) {
+                  event.preventDefault();
+                  last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                  event.preventDefault();
+                  first.focus();
+                }
+              }
+            }}
+            className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl"
+          >
+            <h3 id="offline-discard-title" className="text-base font-semibold text-slate-900">Descartar rascunho?</h3>
+            <p id="offline-discard-description" className="mt-2 text-sm leading-6 text-slate-600">
+              Esta operação remove o rascunho guardado neste dispositivo. Não será possível recuperar os dados descartados.
+            </p>
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                ref={cancelDiscardRef}
+                type="button"
+                disabled={discarding}
+                onClick={() => setDiscardTarget(null)}
+                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                ref={confirmDiscardRef}
+                type="button"
+                disabled={discarding}
+                onClick={() => void confirmDiscard()}
+                className="rounded-xl bg-red-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {discarding ? "A descartar…" : "Sim, descartar"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
       {message && <p className="mt-3 text-xs text-slate-600">{message}</p>}
 
       {drafts.length > 0 && (
@@ -183,7 +292,7 @@ export default function SecretariatOfflineSyncPanel({ organizationId, onServerRe
               {(draft.status === "needs_attention" || draft.status === "rejected") && (
                 <button
                   type="button"
-                  onClick={() => void discard(draft.id)}
+                  onClick={event => discard(draft.id, event.currentTarget)}
                   className="w-fit text-xs font-semibold text-red-700 underline-offset-4 hover:underline"
                 >
                   Descartar rascunho
