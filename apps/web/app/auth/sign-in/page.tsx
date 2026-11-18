@@ -64,15 +64,21 @@ function SignInForm() {
       return;
     }
 
-    const credentials = method === "email" ? { email, password } : { phone: normalizePhone(phone), password };
+    const credentials = method === "email" ? { email: email.trim(), password } : { phone: normalizePhone(phone), password };
     if (method === "phone" && !/^\+[1-9]\d{7,14}$/.test(credentials.phone ?? "")) {
       setError("Introduza um número de telefone válido com indicativo internacional.");
       setLoading(false);
       return;
     }
-    const { error: signInError } = await supabase.auth.signInWithPassword(credentials);
-    if (signInError) {
-      setError(signInError.message);
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword(credentials);
+      if (signInError) {
+        setError(signInError.message);
+        setLoading(false);
+        return;
+      }
+    } catch {
+      setError("Não foi possível contactar o serviço de autenticação. Verifique a ligação e tente novamente.");
       setLoading(false);
       return;
     }
