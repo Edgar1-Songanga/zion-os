@@ -16,6 +16,7 @@ psycopg_stub = types.ModuleType("psycopg")
 psycopg_types = types.ModuleType("psycopg.types")
 psycopg_json = types.ModuleType("psycopg.types.json")
 psycopg_json.Jsonb = lambda value: value
+psycopg_types.json = psycopg_json
 psycopg_stub.types = psycopg_types
 sys.modules.setdefault("psycopg", psycopg_stub)
 sys.modules.setdefault("psycopg.types", psycopg_types)
