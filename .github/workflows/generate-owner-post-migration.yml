@@ -1,0 +1,42 @@
+name: Generate unique owner post migration with Supabase CLI
+
+on:
+  push:
+    branches:
+      - "fix/unique-owner-post-migration-version"
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install pinned Supabase CLI
+        uses: supabase/setup-cli@v3.2.0
+        with:
+          version: 2.122.1
+
+      - name: Generate a unique migration filename with Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch="supabase/migration-patches/resa_owner_post_management.sql"
+          test -s "$patch"
+          supabase migration new resa_owner_post_management
+          generated="$(find supabase/migrations -maxdepth 1 -type f -name '*_resa_owner_post_management.sql' -print -quit)"
+          test -n "$generated"
+          cp "$patch" "$generated"
+          rm "$patch"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$generated"
+          git rm -- "$patch"
+          git commit -m "fix(db): regenerate owner post migration with unique version"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
