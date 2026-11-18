@@ -130,6 +130,7 @@ def validate_plan(
 def validate_approval(
     approval: Any,
     actor_user_id: Any,
+    actor_app_metadata: Any,
     *,
     approval_id: str,
     expected_hash: str,
@@ -139,8 +140,14 @@ def validate_approval(
     now: datetime | None = None,
 ) -> None:
     """Validate the immutable, actor-bound approval before consuming it."""
-    if not actor_user_id or not isinstance(approval, dict):
-        raise PlanValidationError("Frame approval has no authenticated administrator identity.")
+    if (
+        not actor_user_id
+        or not isinstance(approval, dict)
+        or not isinstance(actor_app_metadata, dict)
+        or actor_app_metadata.get("zion_global_role") != "global_admin"
+        or actor_app_metadata.get("zion_verified") is not True
+    ):
+        raise PlanValidationError("Frame approval actor is not a currently verified ZION global administrator.")
     if approval.get("approval_id") != approval_id:
         raise PlanValidationError("Frame approval identifier does not match.")
     expires_at = approval.get("expires_at")
@@ -206,20 +213,22 @@ def consume_approval(
     """
     approvals = conn.execute(
         """
-        SELECT actor_user_id, metadata
-          FROM public.audit_logs
-         WHERE action = 'frame.migration.plan_approved'
-           AND metadata ->> 'approval_id' = %s
-         FOR UPDATE
+        SELECT l.actor_user_id, l.metadata, u.raw_app_meta_data
+          FROM public.audit_logs AS l
+          JOIN auth.users AS u ON u.id = l.actor_user_id
+         WHERE l.action = 'frame.migration.plan_approved'
+           AND l.metadata ->> 'approval_id' = %s
+         FOR UPDATE OF l, u
         """,
         (approval_id,),
     ).fetchall()
     if len(approvals) != 1:
         raise PlanValidationError("Frame approval is missing or ambiguous.")
-    actor_user_id, approval = approvals[0]
+    actor_user_id, approval, actor_app_metadata = approvals[0]
     validate_approval(
         approval,
         actor_user_id,
+        actor_app_metadata,
         approval_id=approval_id,
         expected_hash=expected_hash,
         expected_commit=expected_commit,

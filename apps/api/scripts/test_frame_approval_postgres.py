@@ -29,7 +29,33 @@ class FrameApprovalPostgresTests(unittest.TestCase):
         cls.conn1 = psycopg.connect(database_url, autocommit=False)
         cls.conn2 = psycopg.connect(database_url, autocommit=False)
         cls.actor_id = uuid.uuid4()
+        cls.forged_actor_id = uuid.uuid4()
         cls.approval_id = str(uuid.uuid4())
+        cls.forged_approval_id = str(uuid.uuid4())
+        cls.conn1.execute("CREATE SCHEMA IF NOT EXISTS auth")
+        cls.conn1.execute(
+            """
+            CREATE TABLE IF NOT EXISTS auth.users (
+              id uuid PRIMARY KEY,
+              raw_app_meta_data jsonb NOT NULL DEFAULT '{}'::jsonb,
+              raw_user_meta_data jsonb NOT NULL DEFAULT '{}'::jsonb
+            )
+            """
+        )
+        cls.conn1.execute(
+            """
+            INSERT INTO auth.users (id, raw_app_meta_data, raw_user_meta_data)
+            VALUES (%s, %s, %s), (%s, %s, %s)
+            """,
+            (
+                cls.actor_id,
+                Jsonb({"zion_global_role": "global_admin", "zion_verified": True}),
+                Jsonb({}),
+                cls.forged_actor_id,
+                Jsonb({"zion_global_role": "member", "zion_verified": False}),
+                Jsonb({"zion_global_role": "global_admin", "zion_verified": True}),
+            ),
+        )
         cls.plan_hash = "a" * 64
         cls.commit_sha = "b" * 40
         cls.project_ref = "w" * 20
@@ -144,6 +170,49 @@ class FrameApprovalPostgresTests(unittest.TestCase):
         ).fetchone()[0]
         self.conn1.commit()
         self.assertEqual(consumed_count, 1, "the approval must have exactly one durable consumption event")
+
+        forged_approval = {
+            "approval_id": self.forged_approval_id,
+            "plan_sha256": self.plan_hash,
+            "commit_sha": self.commit_sha,
+            "project_ref": self.project_ref,
+            "target": "production",
+            "migration_count": len(self.versions),
+            "migration_versions": self.versions,
+            "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat(),
+        }
+        self.conn1.execute(
+            """
+            INSERT INTO public.audit_logs
+              (organization_id, actor_user_id, action, resource_type, resource_id, metadata)
+            VALUES (NULL, %s, 'frame.migration.plan_approved', 'frame_migration', NULL, %s)
+            """,
+            (self.forged_actor_id, Jsonb(forged_approval)),
+        )
+        self.conn1.commit()
+        forged_lock = self.conn1.execute(
+            "SELECT pg_try_advisory_lock(%s, %s)",
+            (executor.LOCK_CLASS_ID, executor.LOCK_OBJECT_ID),
+        ).fetchone()[0]
+        self.conn1.commit()
+        self.assertTrue(forged_lock)
+        executor.assert_session_pinned(self.conn1, backend_pid)
+        with self.assertRaisesRegex(executor.PlanValidationError, "currently verified ZION global administrator"):
+            executor.consume_approval(
+                self.conn1,
+                approval_id=self.forged_approval_id,
+                expected_hash=self.plan_hash,
+                expected_commit=self.commit_sha,
+                expected_project_ref=self.project_ref,
+                migration_versions=self.versions,
+                execution_metadata={"execution_id": str(uuid.uuid4())},
+            )
+        self.conn1.rollback()
+        self.conn1.execute(
+            "SELECT pg_advisory_unlock(%s, %s)",
+            (executor.LOCK_CLASS_ID, executor.LOCK_OBJECT_ID),
+        )
+        self.conn1.commit()
 
 
 if __name__ == "__main__":
