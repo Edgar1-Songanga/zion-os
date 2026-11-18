@@ -33,14 +33,18 @@ export default function SignUpPage() {
         setError("Introduza um número válido. Para Angola, escreva os 9 dígitos; acrescentamos +244.");
         setLoading(false); return;
       }
-      const { data, error: signupError } = await supabase.auth.signUp({
-        phone: normalized, password, options: { channel: "sms" },
-      });
-      if (signupError) setError(signupError.message);
-      else if (data.session) { window.location.replace("/dashboard"); return; }
-      else {
-        setPhone(normalized); setAwaitingPhone(true);
-        setMessage("Introduza o código SMS enviado para " + normalized + " para ativar a conta.");
+      try {
+        const { data, error: signupError } = await supabase.auth.signUp({
+          phone: normalized, password, options: { channel: "sms" },
+        });
+        if (signupError) setError(signupError.message);
+        else if (data.session) { window.location.replace("/dashboard"); return; }
+        else {
+          setPhone(normalized); setAwaitingPhone(true);
+          setMessage("Introduza o código SMS enviado para " + normalized + " para ativar a conta.");
+        }
+      } catch {
+        setError("Não foi possível contactar o serviço de autenticação. Verifique a ligação e tente novamente.");
       }
       setLoading(false); return;
     }
