@@ -15,6 +15,7 @@ describe('ResaOperationalService live permissions', () => {
     createRoom: jest.Mock;
     closeRoom: jest.Mock;
     createJoinConfig: jest.Mock;
+    listParticipants: jest.Mock;
     setParticipantPublishing: jest.Mock;
     setParticipantPermissions: jest.Mock;
     setRoomPublishingForAttendees: jest.Mock;
@@ -32,6 +33,7 @@ describe('ResaOperationalService live permissions', () => {
       createRoom: jest.fn(),
       closeRoom: jest.fn().mockResolvedValue(undefined),
       createJoinConfig: jest.fn().mockResolvedValue({ mode: 'SFU', provider: 'ZION_SFU', roomId: 'zion-live-' + LIVE_ID, joinUrl: 'wss://media.example', token: 'token' }),
+      listParticipants: jest.fn().mockResolvedValue([]),
       setParticipantPublishing: jest.fn().mockResolvedValue(undefined),
       setParticipantPermissions: jest.fn().mockResolvedValue(undefined),
       setRoomPublishingForAttendees: jest.fn().mockResolvedValue(undefined),
@@ -87,6 +89,72 @@ describe('ResaOperationalService live permissions', () => {
     expect(getSpy).toHaveBeenCalledTimes(4);
     expect(getSpy).toHaveBeenCalledWith('resa_contents', 'session-token', expect.stringContaining('type=neq.story'));
     expect(getSpy).toHaveBeenCalledWith('resa_communities', 'session-token', expect.stringContaining('status=eq.active'));
+  });
+
+  it('updates an already-connected participant when the host promotes them to live moderator', async () => {
+    const postSpy = jest.spyOn(SupabaseRestClient.prototype, 'post').mockResolvedValueOnce([
+      { live_id: LIVE_ID, moderator_user_id: TARGET_ID, granted_by: actorId },
+    ] as never);
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_live_sessions') return [{ id: LIVE_ID, host_id: actorId, status: 'live' }] as never;
+      if (table === 'resa_live_moderators') return [] as never;
+      return [] as never;
+    });
+    media.listParticipants.mockResolvedValueOnce([{ identity: TARGET_ID }]);
+
+    const result = await service.setLiveModerator('session-token', LIVE_ID, TARGET_ID, true);
+
+    expect(result).toEqual({ liveId: LIVE_ID, moderatorUserId: TARGET_ID, enabled: true });
+    expect(postSpy).toHaveBeenCalledWith('resa_live_moderators', 'session-token', {
+      live_id: LIVE_ID, moderator_user_id: TARGET_ID, granted_by: actorId,
+    });
+    expect(media.setParticipantPermissions).toHaveBeenCalledWith({
+      roomId: 'zion-live-' + LIVE_ID,
+      identity: TARGET_ID,
+      canPublish: true,
+      canPublishSources: ['camera', 'microphone', 'screen_share', 'screen_share_audio'],
+    });
+  });
+
+  it('revokes the SFU participant and cached credentials after moderator demotion', async () => {
+    const deleteSpy = jest.spyOn(SupabaseRestClient.prototype, 'delete').mockResolvedValue(undefined as never);
+    getSpy.mockResolvedValueOnce([{ id: LIVE_ID, host_id: actorId, status: 'live' }] as never);
+
+    const result = await service.setLiveModerator('session-token', LIVE_ID, TARGET_ID, false);
+
+    expect(result).toEqual({ liveId: LIVE_ID, moderatorUserId: TARGET_ID, enabled: false });
+    expect(deleteSpy).toHaveBeenCalledWith('resa_live_moderators', 'session-token',
+      `?live_id=eq.${LIVE_ID}&moderator_user_id=eq.${TARGET_ID}`);
+    expect(media.removeParticipant).toHaveBeenCalledWith({ roomId: 'zion-live-' + LIVE_ID, identity: TARGET_ID });
+    expect(deleteSpy.mock.invocationCallOrder[0]).toBeLessThan(media.removeParticipant.mock.invocationCallOrder[0]);
+  });
+
+  it('does not demote a live moderator in the database if SFU credential revocation is unavailable', async () => {
+    const deleteSpy = jest.spyOn(SupabaseRestClient.prototype, 'delete').mockResolvedValue(undefined as never);
+    getSpy.mockResolvedValueOnce([{ id: LIVE_ID, host_id: actorId, status: 'live' }] as never);
+    media.removeParticipant = undefined as never;
+
+    await expect(service.setLiveModerator('session-token', LIVE_ID, TARGET_ID, false)).rejects.toBeInstanceOf(BadGatewayException);
+    expect(deleteSpy).not.toHaveBeenCalled();
+  });
+
+  it('rolls back a new moderator assignment when live SFU permissions cannot be applied', async () => {
+    const postSpy = jest.spyOn(SupabaseRestClient.prototype, 'post').mockResolvedValueOnce([
+      { live_id: LIVE_ID, moderator_user_id: TARGET_ID, granted_by: actorId },
+    ] as never);
+    const deleteSpy = jest.spyOn(SupabaseRestClient.prototype, 'delete').mockResolvedValue(undefined as never);
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_live_sessions') return [{ id: LIVE_ID, host_id: actorId, status: 'live' }] as never;
+      if (table === 'resa_live_moderators') return [] as never;
+      return [] as never;
+    });
+    media.listParticipants.mockResolvedValueOnce([{ identity: TARGET_ID }]);
+    media.setParticipantPermissions.mockRejectedValueOnce(new Error('SFU permission update failed'));
+
+    await expect(service.setLiveModerator('session-token', LIVE_ID, TARGET_ID, true)).rejects.toBeInstanceOf(BadGatewayException);
+    expect(postSpy).toHaveBeenCalledTimes(1);
+    expect(deleteSpy).toHaveBeenCalledWith('resa_live_moderators', 'session-token',
+      `?live_id=eq.${LIVE_ID}&moderator_user_id=eq.${TARGET_ID}`);
   });
 
   it('allows an authorized live viewer to resolve the trusted moderator roster', async () => {
@@ -169,6 +237,22 @@ describe('ResaOperationalService live permissions', () => {
       userId: 'authorized-viewer',
       canPublish: false,
     }));
+  });
+
+  it('revalidates a moderator grant after minting a publish-capable LiveKit token', async () => {
+    actorId = 'live-moderator';
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_live_sessions') return [{ id: LIVE_ID, host_id: 'host-user', status: 'live', visibility: 'public' }] as never;
+      if (table === 'resa_live_moderators') {
+        return getSpy.mock.calls.filter((call) => call[0] === 'resa_live_moderators').length === 1
+          ? [{ moderator_user_id: actorId }] as never
+          : [] as never;
+      }
+      return [] as never;
+    });
+
+    await expect(service.liveJoinConfig('session-token', LIVE_ID)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(media.createJoinConfig).toHaveBeenCalledWith(expect.objectContaining({ userId: actorId, canPublish: true, ttl: '10m' }));
   });
 
   it('allows a non-host organization member to join an organization-scoped live returned by RLS', async () => {
