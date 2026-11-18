@@ -542,47 +542,11 @@ describe('ResaSocialService feeds', () => {
     });
   });
 
-  it('includes institutional publications from followed organizations in Following', async () => {
-    const organizationId = '77777777-7777-4777-8777-777777777777';
-    getSpy.mockImplementation(async (table: string, _token: string, query: string) => {
-      if (table === 'resa_follows') return [...follows, { followed_id: organizationId }] as never;
-      if (table === 'resa_institutional_publications') return [{
-        id: 'institutional-followed',
-        source_type: 'YOUTH_ACTIVITY',
-        organization_id: organizationId,
-        organization_name: 'Igreja Central',
-        title: 'Encontro JA',
-        body: 'Actividade da igreja seguida',
-        published_at: '2026-11-18T12:00:00.000Z',
-        is_active: true,
-      }] as never;
-      if (table === 'resa_contents') return followedPosts as never;
-      return [] as never;
-    });
-
-    const result = await service.feed('session-token', 30, 'following');
-
-    expect(getSpy).toHaveBeenCalledWith(
-      'resa_institutional_publications',
-      'session-token',
-      expect.stringContaining('organization_id=in.(' + ACTOR_ID + ',' + FOLLOWED_ID + ',' + organizationId + ')'),
-    );
-    expect(result.items).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        id: 'institutional-followed',
-        is_institutional: true,
-        institution_name: 'Igreja Central',
-        feed_item_type: 'institutional',
-      }),
-    ]));
-  });
-
-  it('excludes blocked and muted institutions from all feed modes', async () => {
-    const mutedOrganizationId = '77777777-7777-4777-8777-777777777777';
-    const blockedOrganizationId = '88888888-8888-4888-8888-888888888888';
+  it('excludes blocked authors from content and repost publishers in every feed mode', async () => {
+    const blockedId = '77777777-7777-4777-8777-777777777777';
     getSpy.mockImplementation(async (table: string) => {
-      if (table === 'resa_user_mutes') return [{ muted_id: mutedOrganizationId }] as never;
-      if (table === 'resa_user_blocks') return [{ blocked_id: blockedOrganizationId }] as never;
+      if (table === 'resa_user_blocks') return [{ blocked_id: blockedId }] as never;
+      if (table === 'resa_contents') return [] as never;
       if (table === 'resa_institutional_publications') return [] as never;
       return [] as never;
     });
@@ -590,9 +554,24 @@ describe('ResaSocialService feeds', () => {
     await service.feed('session-token', 30, 'latest');
 
     expect(getSpy).toHaveBeenCalledWith(
+      'resa_contents',
+      'session-token',
+      expect.stringContaining('author_id=not.in.(' + blockedId + ')'),
+    );
+    expect(getSpy).toHaveBeenCalledWith(
+      'resa_shares',
+      'session-token',
+      expect.stringContaining('user_id=not.in.(' + blockedId + ')'),
+    );
+  });
+
+  it('does not put institutional projections in Following until an institution identity is in the follow graph', async () => {
+    await service.feed('session-token', 30, 'following');
+
+    expect(getSpy).not.toHaveBeenCalledWith(
       'resa_institutional_publications',
       'session-token',
-      expect.stringContaining('organization_id=not.in.(' + mutedOrganizationId + ',' + blockedOrganizationId + ')'),
+      expect.any(String),
     );
   });
 
