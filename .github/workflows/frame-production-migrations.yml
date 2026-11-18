@@ -23,6 +23,10 @@ on:
         description: "Required for execute: SHA-256 printed by a successful plan run"
         required: false
         type: string
+      approval_id:
+        description: "Required for execute: one-use approval ID returned by the authenticated ZION global-admin API"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -138,6 +142,7 @@ jobs:
       ZION_SUPABASE_PROJECT_REF: wwdchvadowqakvrxcnkz
       ZION_SUPABASE_DB_URL: ${{ secrets.ZION_SUPABASE_DB_URL }}
       EXPECTED_PLAN_SHA256: ${{ inputs.expected_plan_sha256 }}
+      FRAME_APPROVAL_ID: ${{ inputs.approval_id }}
     steps:
       - name: Checkout exact approved commit
         uses: actions/checkout@v4
@@ -169,6 +174,7 @@ jobs:
           test -n "$SUPABASE_ACCESS_TOKEN"
           test -n "$SUPABASE_DB_PASSWORD"
           test -n "$ZION_SUPABASE_DB_URL"
+          [[ "$FRAME_APPROVAL_ID" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]]
 
       - name: Recompute and verify approval binding
         shell: bash
