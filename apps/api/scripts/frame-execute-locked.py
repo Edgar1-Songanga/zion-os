@@ -353,6 +353,9 @@ def main() -> int:
         conn.commit()
 
         assert_session_pinned(conn, backend_pid)
+        # End the verification transaction before the potentially long-running
+        # CLI process; the session-level lock remains held on this pinned backend.
+        conn.commit()
         command_started = True
         completed = subprocess.run(sys.argv[2:], check=False)
         command_finished = True
