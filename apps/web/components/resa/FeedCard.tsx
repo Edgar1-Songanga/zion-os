@@ -193,11 +193,24 @@ export default function FeedCard({ content }: { content: ResaContent }) {
   }, [content.id, content.viewer_reacted, content.viewer_saved, content.reaction_count, content.comment_count, content.share_count, content.viewer_reposted]);
 
   useEffect(() => {
+    commentsLoadedRef.current = false;
+    setComments([]);
+  }, [content.id]);
+
+  useEffect(() => {
     if (!showComments || commentsLoadedRef.current) return;
+    let active = true;
     commentsLoadedRef.current = true;
     void resaRequest<CommentItem[]>("/v1/resa/content/" + content.id + "/comments")
-      .then((items) => { setComments(items); setCommentCount((current) => Math.max(current, items.length)); })
-      .catch(() => { commentsLoadedRef.current = false; });
+      .then((items) => {
+        if (!active) return;
+        setComments(items);
+        setCommentCount((current) => Math.max(current, items.length));
+      })
+      .catch(() => {
+        if (active) commentsLoadedRef.current = false;
+      });
+    return () => { active = false; };
   }, [content.id, showComments]);
 
   async function toggleReaction() {
