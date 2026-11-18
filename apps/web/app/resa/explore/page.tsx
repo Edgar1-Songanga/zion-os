@@ -52,6 +52,7 @@ async function hydrateMedia(results: Result[]): Promise<Result[]> {
 function resultHref(item: Result) {
   const id = item.entity_id || item.id;
   switch (item.entity_type) {
+    case "institutional": return "/resa";
     case "profile": return "/resa/profile/" + encodeURIComponent(id);
     case "content": return "/resa?post=" + encodeURIComponent(id);
     case "topic": return "/resa/topics/" + encodeURIComponent(item.normalized_name || item.title?.replace(/^#/, "") || "");
@@ -65,6 +66,7 @@ function resultLabel(type?: string) {
   switch (type) {
     case "profile": return "Pessoa";
     case "content": return "Publicação";
+    case "institutional": return "Publicação institucional";
     case "topic": return "Tópico";
     case "community": return "Comunidade";
     case "event": return "Evento";
@@ -110,7 +112,11 @@ export default function ExplorePage() {
     void resaRequest<Result[]>("/v1/resa/explore")
       .then((data) => {
         if (active && requestVersion.current === 0) {
-          void hydrateMedia(data.map((item) => ({ ...item, entity_type: "content", entity_id: item.id }))).then((hydrated) => {
+          void hydrateMedia(data.map((item) => ({
+            ...item,
+            entity_type: item.is_institutional ? "institutional" : "content",
+            entity_id: item.id,
+          }))).then((hydrated) => {
             if (active && requestVersion.current === 0) setItems(hydrated);
           });
         }
@@ -192,13 +198,14 @@ export default function ExplorePage() {
                       <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{resultLabel(type)}</span>
                       {item.visibility && <span className="text-[10px] font-medium text-slate-400">{item.visibility}</span>}
                     </div>
-                    <h3 className="mt-4 line-clamp-2 text-lg font-semibold text-[#0C1A3D] group-hover:text-blue-800">{title}</h3>
+                    {item.institution_name && <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">{item.institution_name}</p>}
+                    <h3 className="mt-2 line-clamp-2 text-lg font-semibold text-[#0C1A3D] group-hover:text-blue-800">{title}</h3>
                     {item.body && <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-600">{item.body}</p>}
                     {type === "content" && item.media_type === "image" && item.media_url && <img src={item.media_url} alt={title} loading="lazy" className="mt-4 max-h-56 w-full rounded-2xl object-cover" />}
                     {type === "content" && item.media_type === "video" && item.media_url && <video src={item.media_url} controls playsInline preload="none" className="mt-4 max-h-56 w-full rounded-2xl bg-black" />}
                     {type === "event" && item.starts_at && <p className="mt-3 text-xs font-medium text-slate-500">{new Date(item.starts_at).toLocaleString("pt-PT")}{item.location ? " · " + item.location : ""}</p>}
                     {type === "profile" && item.avatar_url && <img src={item.avatar_url} alt="" loading="lazy" className="mt-4 h-10 w-10 rounded-xl object-cover" />}
-                    <p className="mt-5 text-xs font-semibold text-[#0C1A3D]">Abrir {type === "profile" ? "perfil" : type === "content" ? "publicação" : type === "topic" ? "tópico" : type === "community" ? "comunidades" : "eventos"} <span aria-hidden="true">→</span></p>
+                    <p className="mt-5 text-xs font-semibold text-[#0C1A3D]">{type === "institutional" ? "Ver no feed do RESA" : `Abrir ${type === "profile" ? "perfil" : type === "content" ? "publicação" : type === "topic" ? "tópico" : type === "community" ? "comunidades" : "eventos"}`} <span aria-hidden="true">→</span></p>
                   </Link>
                 );
               })}
