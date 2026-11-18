@@ -1,0 +1,58 @@
+name: Netlify free-tier compatibility
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/netlify.toml"
+      - ".github/workflows/netlify-free-compatibility.yml"
+  pull_request:
+    paths:
+      - "apps/web/netlify.toml"
+      - ".github/workflows/netlify-free-compatibility.yml"
+
+concurrency:
+  group: netlify-compatibility-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  nextjs:
+    name: Next.js 16 compatibility build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-build-validation-key
+      NEXT_PUBLIC_ZION_API_URL: https://example.invalid
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.32.1
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build through Netlify's Next.js adapter
+        run: npx --yes netlify-cli@latest build --filter apps/web
+
+      - name: Verify Netlify adapter output
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d apps/web/.next
+          test -d .netlify
+          find .netlify -maxdepth 3 -type f | head -40
