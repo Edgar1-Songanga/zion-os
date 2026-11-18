@@ -44,12 +44,18 @@ export default function UpdatePasswordPage() {
     setLoading(true);
     try {
       const { error } = await supabase.auth.updateUser({ password });
-      if (error) setError(error.message);
-      else {
+      if (error) {
+        setError(error.message);
+        setLoading(false);
+        return;
+      }
+
+      setMessage("Palavra-passe actualizada. Pode entrar novamente.");
+      try {
         const { error: signOutError } = await supabase.auth.signOut();
-        setMessage(signOutError
-          ? "Palavra-passe actualizada. Termine a sessão manualmente antes de voltar a entrar."
-          : "Palavra-passe actualizada. Pode entrar novamente.");
+        if (signOutError) setMessage("Palavra-passe actualizada. Termine a sessão manualmente antes de voltar a entrar.");
+      } catch {
+        setMessage("Palavra-passe actualizada. Termine a sessão manualmente antes de voltar a entrar.");
       }
     } catch {
       setError("Não foi possível actualizar a palavra-passe. Verifique a ligação e tente novamente.");
