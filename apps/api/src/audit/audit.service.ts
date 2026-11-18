@@ -55,13 +55,13 @@ export class AuditService {
     if (
       !input ||
       input.target !== 'production' ||
-      !/^[a-f0-9]{64}$/.test(input.plan_sha256 ?? '') ||
-      !/^[a-f0-9]{40}$/.test(input.commit_sha ?? '') ||
-      !/^[a-z0-9]{20}$/.test(input.project_ref ?? '') ||
+      typeof input.plan_sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(input.plan_sha256) ||
+      typeof input.commit_sha !== 'string' || !/^[a-f0-9]{40}$/.test(input.commit_sha) ||
+      typeof input.project_ref !== 'string' || !/^[a-z0-9]{20}$/.test(input.project_ref) ||
       !Array.isArray(input.migration_versions) ||
       input.migration_versions.length < 1 ||
       input.migration_versions.length > 500 ||
-      !input.migration_versions.every((version) => /^\d{8}(?:\d{6})?$/.test(version)) ||
+      !input.migration_versions.every((version) => typeof version === 'string' && /^\d{8}(?:\d{6})?$/.test(version)) ||
       new Set(input.migration_versions).size !== input.migration_versions.length ||
       input.migration_versions.some((version, index, all) => index > 0 && version <= all[index - 1])
     ) {
