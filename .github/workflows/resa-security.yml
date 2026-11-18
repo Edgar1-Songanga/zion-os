@@ -10,6 +10,7 @@ on:
       - "supabase/tests/resa_account_level_enforcement_regression.sql"
       - "supabase/tests/resa_call_security*"
       - "supabase/tests/resa_member_privacy_regression.sql"
+      - "supabase/tests/resa_private_contact_policy_regression.sql"
       - "supabase/tests/resa_four_level_profile_visibility.sql"
       - "supabase/tests/resa_content_audience_visibility_regression.sql"
       - "supabase/tests/resa_interaction_audience_regression.sql"
@@ -134,6 +135,12 @@ jobs:
       - name: Verify private-profile and disabled-follow policies cannot be bypassed
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_follow_privacy_regression.sql
+      - name: Apply private-profile contact visibility enforcement
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261116153000_resa_private_contact_policy_enforcement.sql
+      - name: Verify private-profile message, call and group-contact boundaries
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_private_contact_policy_regression.sql
       - name: Verify RESA user blocking and interaction boundaries
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_user_blocking_regression.sql
