@@ -46,7 +46,6 @@ describe('YouthClubService', () => {
       name: ' Clube Monte Sinai ',
       programId: 'pathfinders',
       motto: ' Salvar do pecado e guiar no serviço ',
-      coverImageUrl: 'https://media.example.org/pathfinders.jpg',
     });
 
     expect(directory.create).toHaveBeenCalledWith({
@@ -55,8 +54,46 @@ describe('YouthClubService', () => {
       programId: 'pathfinders',
       motto: 'Salvar do pecado e guiar no serviço',
       description: '',
-      coverImageUrl: 'https://media.example.org/pathfinders.jpg',
     }, 'access-token');
+  });
+
+  it('rejects unmoderated image URLs when creating a youth club', async () => {
+    await expect(service.create('token', {
+      organizationId,
+      name: 'Clube Monte Sinai',
+      programId: 'pathfinders',
+      logoUrl: 'https://media.example.org/logo.png',
+    })).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(directory.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects unmoderated image URLs when updating a youth club', async () => {
+    await expect(service.update(clubId, 'token', {
+      logoUrl: 'https://media.example.org/new-logo.png',
+    })).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(directory.update).not.toHaveBeenCalled();
+  });
+
+  it('allows preserving existing club images while updating other fields', async () => {
+    directory.getById.mockResolvedValue({
+      ...record,
+      logoUrl: 'https://media.example.org/existing-logo.png',
+      coverImageUrl: 'https://media.example.org/existing-cover.png',
+    });
+
+    await service.update(clubId, 'token', {
+      name: 'Clube Monte Sinai Renovado',
+      logoUrl: 'https://media.example.org/existing-logo.png',
+      coverImageUrl: 'https://media.example.org/existing-cover.png',
+    });
+
+    expect(directory.update).toHaveBeenCalledWith(clubId, {
+      name: 'Clube Monte Sinai Renovado',
+      logoUrl: 'https://media.example.org/existing-logo.png',
+      coverImageUrl: 'https://media.example.org/existing-cover.png',
+    }, 'token');
   });
 
   it('rejects unsupported programs and non-HTTPS media URLs', async () => {
