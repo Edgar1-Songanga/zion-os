@@ -26,7 +26,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex h-dvh min-h-0 overflow-hidden">
       <Sidebar collapsed={sidebarCollapsed} mobileOpen={mobileNavOpen} onClose={closeMobileNav} />
       <div className="flex h-dvh min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <Topbar sidebarCollapsed={sidebarCollapsed} onMobileMenuClick={() => setMobileNavOpen(true)} onDesktopCollapseClick={() => setSidebarCollapsed((value) => !value)} />
+        <Topbar mobileNavOpen={mobileNavOpen} sidebarCollapsed={sidebarCollapsed} onMobileMenuClick={() => setMobileNavOpen(true)} onDesktopCollapseClick={() => setSidebarCollapsed((value) => !value)} />
         <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-0">
           {children}
           <Footer />
