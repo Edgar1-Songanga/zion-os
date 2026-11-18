@@ -27,7 +27,7 @@ ALLOWED_ACTIONS = {
     "succeeded": "frame.migration.execution_succeeded",
     "failed": "frame.migration.execution_failed",
 }
-MIGRATION_NAME = re.compile(r"^(\\d{8}|\\d{14})_[A-Za-z0-9][A-Za-z0-9_-]*\\.sql$")
+MIGRATION_NAME = re.compile(r"^(\d{8}|\d{14})_[A-Za-z0-9][A-Za-z0-9_-]*\.sql$")
 SHA256 = re.compile(r"^[a-f0-9]{64}$")
 COMMIT_SHA = re.compile(r"^[a-f0-9]{40}$")
 PROJECT_REF = re.compile(r"^[a-z0-9]{20}$")
