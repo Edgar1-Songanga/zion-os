@@ -5,8 +5,14 @@ begin;
 -- The privacy regression suite creates these users and profiles earlier in this workflow.
 -- Permit the third member to receive calls for this isolated group-call test.
 update public.profiles
-set privacy = jsonb_set(coalesce(privacy, '{}'::jsonb), '{call_policy}', '"everyone"'::jsonb, true)
-where id = '10000000-0000-4000-8000-000000000003';
+set privacy = jsonb_set(
+  jsonb_set(coalesce(privacy, '{}'::jsonb), '{call_policy}', '"everyone"'::jsonb, true),
+  '{group_invite_policy}', '"everyone"'::jsonb, true
+)
+where id in (
+  '10000000-0000-4000-8000-000000000002',
+  '10000000-0000-4000-8000-000000000003'
+);
 
 -- Align the fixture's activation boundary with the deliberately aged test call.
 update private.resa_call_expiry_config
