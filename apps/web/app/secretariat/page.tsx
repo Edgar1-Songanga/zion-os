@@ -133,6 +133,7 @@ export default function SecretariatPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [query, setQuery] = useState("");
+  const [memberStatusFilter, setMemberStatusFilter] = useState<"ALL" | Member["membership_status"]>("ALL");
   const [historyMemberId, setHistoryMemberId] = useState("");
   const [history, setHistory] = useState<StatusEvent[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -287,12 +288,18 @@ export default function SecretariatPage() {
 
   const filteredMembers = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("pt");
-    if (!normalized) return members;
-    return members.filter((member) =>
-      [member.member_number, member.first_name, member.last_name, member.phone, member.email]
-        .some((value) => value?.toLocaleLowerCase("pt").includes(normalized)),
-    );
-  }, [members, query]);
+    return members.filter((member) => {
+      const matchesQuery = !normalized || [
+        member.member_number,
+        member.first_name,
+        member.last_name,
+        member.phone,
+        member.email,
+      ].some((value) => value?.toLocaleLowerCase("pt").includes(normalized));
+      const matchesStatus = memberStatusFilter === "ALL" || member.membership_status === memberStatusFilter;
+      return matchesQuery && matchesStatus;
+    });
+  }, [members, query, memberStatusFilter]);
 
   async function createMember(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -824,11 +831,14 @@ export default function SecretariatPage() {
               <h2 className="mt-2 text-xl font-semibold">Membros da organização</h2>
               <p className="mt-1 text-sm text-slate-500">A listagem mostra apenas registos que a sessão autenticada tem autorização para consultar.</p>
             </div>
-            <label className="grid gap-1.5 text-xs font-medium text-slate-500">Pesquisar membros<input type="search" aria-label="Pesquisar membros" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nome, número, telefone ou email" className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm font-normal text-slate-800 outline-none focus:border-[#C8A24A] sm:min-w-[300px]" /></label>
+            <div className="grid gap-3 sm:grid-cols-[minmax(260px,1fr)_190px]">
+              <label className="grid gap-1.5 text-xs font-medium text-slate-500">Pesquisar membros<input type="search" aria-label="Pesquisar membros" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nome, número, telefone ou email" className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm font-normal text-slate-800 outline-none focus:border-[#C8A24A]" /></label>
+              <label className="grid gap-1.5 text-xs font-medium text-slate-500">Filtrar por estado<select aria-label="Filtrar membros por estado" value={memberStatusFilter} onChange={(event) => setMemberStatusFilter(event.target.value as typeof memberStatusFilter)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-normal text-slate-800 outline-none focus:border-[#C8A24A]"><option value="ALL">Todos os estados</option>{Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            </div>
           </div>
           {!organizationId ? <p className="p-7 text-sm text-slate-500">Seleccione uma organização para consultar o registo oficial.</p>
           : loading ? <p className="p-7 text-sm text-slate-500">A carregar registos reais…</p>
-          : filteredMembers.length === 0 ? <p className="p-7 text-sm text-slate-500">{members.length ? "Não existem resultados para esta pesquisa." : "Não existem membros visíveis nesta organização ou a sessão não tem permissão para os consultar."}</p>
+          : filteredMembers.length === 0 ? <p className="p-7 text-sm text-slate-500">{members.length ? "Não existem membros para os filtros seleccionados." : "Não existem membros visíveis nesta organização ou a sessão não tem permissão para os consultar."}</p>
           : <>
               <div className="space-y-3 p-4 md:hidden">
                 {filteredMembers.map((member) => (
