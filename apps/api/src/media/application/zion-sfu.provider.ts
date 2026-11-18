@@ -92,6 +92,15 @@ export class ZionSfuProvider implements MediaProvider {
     });
   }
 
+  async listParticipants(input: { roomId: string }): Promise<Array<{ identity: string }>> {
+    try {
+      const participants = await this.client().listParticipants(input.roomId);
+      return participants.map((participant) => ({ identity: participant.identity }));
+    } catch (error) {
+      throw new BadGatewayException(error instanceof Error ? error.message : 'Live participants could not be listed');
+    }
+  }
+
   async setParticipantPermissions(input: {
     roomId: string;
     identity: string;
