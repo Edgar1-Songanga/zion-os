@@ -168,6 +168,9 @@ export default function SecretariatPage() {
   const [transferNotice, setTransferNotice] = useState("");
   const [transferHistoryId, setTransferHistoryId] = useState("");
   const [transferHistory, setTransferHistory] = useState<TransferEvent[]>([]);
+  const memberHistoryRequest = useRef(0);
+  const baptismHistoryRequest = useRef(0);
+  const transferHistoryRequest = useRef(0);
 
   const loadRequestId = useRef(0);
 
@@ -492,18 +495,20 @@ export default function SecretariatPage() {
   }
 
   async function toggleBaptismHistory(baptismId: string) {
+    const requestId = ++baptismHistoryRequest.current;
     if (baptismHistoryId === baptismId) {
       setBaptismHistoryId("");
       setBaptismHistory([]);
       return;
     }
+    const requestedOrganizationId = organizationId;
     setBaptismHistoryId(baptismId);
     setBaptismHistory([]);
     try {
-      const events = await resaRequest<BaptismEvent[]>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-baptisms/${encodeURIComponent(baptismId)}/history`);
-      setBaptismHistory(events);
+      const events = await resaRequest<BaptismEvent[]>(`/v1/organizations/${encodeURIComponent(requestedOrganizationId)}/church-baptisms/${encodeURIComponent(baptismId)}/history`);
+      if (requestId === baptismHistoryRequest.current) setBaptismHistory(events);
     } catch (reason) {
-      setBaptismError(reason instanceof Error ? reason.message : "Não foi possível consultar o histórico do baptismo.");
+      if (requestId === baptismHistoryRequest.current) setBaptismError(reason instanceof Error ? reason.message : "Não foi possível consultar o histórico do baptismo.");
     }
   }
 
@@ -559,18 +564,20 @@ export default function SecretariatPage() {
   }
 
   async function toggleTransferHistory(transferId: string) {
+    const requestId = ++transferHistoryRequest.current;
     if (transferHistoryId === transferId) {
       setTransferHistoryId("");
       setTransferHistory([]);
       return;
     }
+    const requestedOrganizationId = organizationId;
     setTransferHistoryId(transferId);
     setTransferHistory([]);
     try {
-      const events = await resaRequest<TransferEvent[]>(`/v1/organizations/${encodeURIComponent(organizationId)}/church-member-transfers/${encodeURIComponent(transferId)}/history`);
-      setTransferHistory(events);
+      const events = await resaRequest<TransferEvent[]>(`/v1/organizations/${encodeURIComponent(requestedOrganizationId)}/church-member-transfers/${encodeURIComponent(transferId)}/history`);
+      if (requestId === transferHistoryRequest.current) setTransferHistory(events);
     } catch (reason) {
-      setTransferError(reason instanceof Error ? reason.message : "Não foi possível carregar o histórico da transferência.");
+      if (requestId === transferHistoryRequest.current) setTransferError(reason instanceof Error ? reason.message : "Não foi possível carregar o histórico da transferência.");
     }
   }
 
@@ -605,24 +612,27 @@ export default function SecretariatPage() {
   }
 
   async function toggleHistory(memberId: string) {
+    const requestId = ++memberHistoryRequest.current;
     if (historyMemberId === memberId) {
       setHistoryMemberId("");
       setHistory([]);
+      setHistoryLoading(false);
       return;
     }
+    const requestedOrganizationId = organizationId;
     setHistoryMemberId(memberId);
     setHistory([]);
     setHistoryLoading(true);
     setError("");
     try {
       const data = await resaRequest<StatusEvent[]>(
-        `/v1/organizations/${encodeURIComponent(organizationId)}/church-members/${encodeURIComponent(memberId)}/status-history`,
+        `/v1/organizations/${encodeURIComponent(requestedOrganizationId)}/church-members/${encodeURIComponent(memberId)}/status-history`,
       );
-      setHistory(data);
+      if (requestId === memberHistoryRequest.current) setHistory(data);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Não foi possível consultar o histórico.");
+      if (requestId === memberHistoryRequest.current) setError(reason instanceof Error ? reason.message : "Não foi possível consultar o histórico.");
     } finally {
-      setHistoryLoading(false);
+      if (requestId === memberHistoryRequest.current) setHistoryLoading(false);
     }
   }
 
@@ -729,6 +739,9 @@ export default function SecretariatPage() {
           <div className="w-full max-w-xl">
             <OrganizationSelector value={organizationId} onChange={(id, selected) => {
               if (id !== organizationId) {
+                memberHistoryRequest.current += 1;
+                baptismHistoryRequest.current += 1;
+                transferHistoryRequest.current += 1;
                 loadRequestId.current += 1;
                 setMembers([]);
                 setTransfers([]);
