@@ -143,6 +143,7 @@ class FramePlanValidationTests(unittest.TestCase):
         self.assertIsNone(executor.validate_approval(
             self.make_approval(),
             "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            {"zion_global_role": "global_admin", "zion_verified": "true"},
             approval_id="11111111-1111-4111-8111-111111111111",
             expected_hash=self.expected_hash,
             expected_commit=self.commit,
@@ -150,10 +151,25 @@ class FramePlanValidationTests(unittest.TestCase):
             migration_versions=["20261118000101"],
         ))
 
+
+    def test_rejects_actor_without_current_verified_global_admin_metadata(self):
+        with self.assertRaisesRegex(executor.PlanValidationError, "currently verified ZION global administrator"):
+            executor.validate_approval(
+                self.make_approval(),
+                "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+                {"zion_global_role": "member", "zion_verified": "false"},
+                approval_id="11111111-1111-4111-8111-111111111111",
+                expected_hash=self.expected_hash,
+                expected_commit=self.commit,
+                expected_project_ref=self.project_ref,
+                migration_versions=["20261118000101"],
+            )
+
     def test_rejects_approval_without_authenticated_actor(self):
         with self.assertRaisesRegex(executor.PlanValidationError, "authenticated administrator"):
             executor.validate_approval(
                 self.make_approval(), None,
+                {"zion_global_role": "global_admin", "zion_verified": "true"},
                 approval_id="11111111-1111-4111-8111-111111111111",
                 expected_hash=self.expected_hash,
                 expected_commit=self.commit,
@@ -167,6 +183,7 @@ class FramePlanValidationTests(unittest.TestCase):
             executor.validate_approval(
                 self.make_approval(expires_at=expired),
                 "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+                {"zion_global_role": "global_admin", "zion_verified": "true"},
                 approval_id="11111111-1111-4111-8111-111111111111",
                 expected_hash=self.expected_hash,
                 expected_commit=self.commit,
@@ -179,6 +196,7 @@ class FramePlanValidationTests(unittest.TestCase):
             executor.validate_approval(
                 self.make_approval(),
                 "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+                {"zion_global_role": "global_admin", "zion_verified": "true"},
                 approval_id="22222222-2222-4222-8222-222222222222",
                 expected_hash=self.expected_hash,
                 expected_commit=self.commit,
@@ -200,6 +218,7 @@ class FramePlanValidationTests(unittest.TestCase):
                     executor.validate_approval(
                         self.make_approval(**changes),
                         "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+                        {"zion_global_role": "global_admin", "zion_verified": "true"},
                         approval_id="11111111-1111-4111-8111-111111111111",
                         expected_hash=plan_hash,
                         expected_commit=commit,
