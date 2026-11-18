@@ -5,7 +5,8 @@ import {
   Post,
   UnauthorizedException,
 } from '@nestjs/common';
-import { AuditService, CreateFrameApprovalInput } from './audit.service';
+import { AuditService } from './audit.service';
+import type { CreateFrameApprovalInput } from './audit.service';
 
 @Controller('audit')
 export class AuditController {
