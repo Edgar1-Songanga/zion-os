@@ -47,6 +47,7 @@ export default function Topbar({ mobileNavOpen = false, sidebarCollapsed = false
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [memberships, setMemberships] = useState<Membership[]>([]);
+  const [fallbackRoleKeys, setFallbackRoleKeys] = useState<string[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [quickSearchOpen, setQuickSearchOpen] = useState(false);
   const [quickSearchQuery, setQuickSearchQuery] = useState("");
@@ -67,14 +68,38 @@ export default function Topbar({ mobileNavOpen = false, sidebarCollapsed = false
           ]);
           if (active) {
             setProfile(profileResult.status === "fulfilled" ? profileResult.value : null);
-            setMemberships(accessResult.status === "fulfilled" ? accessResult.value.memberships ?? [] : []);
+            const resolvedMemberships = accessResult.status === "fulfilled" ? accessResult.value.memberships ?? [] : [];
+            setMemberships(resolvedMemberships);
+            if (resolvedMemberships.length > 0) {
+              setFallbackRoleKeys([]);
+            } else {
+              try {
+                const { data: rows, error: membershipError } = await supabase
+                  .from("organization_memberships")
+                  .select("role_id")
+                  .eq("user_id", current.id)
+                  .eq("status", "ACTIVE");
+                if (membershipError) throw membershipError;
+                const roleIds = [...new Set((rows ?? []).map((row) => row.role_id).filter(Boolean))];
+                if (!roleIds.length) {
+                  if (active) setFallbackRoleKeys([]);
+                } else {
+                  const { data: roles, error: rolesError } = await supabase.from("roles").select("key").in("id", roleIds);
+                  if (rolesError) throw rolesError;
+                  if (active) setFallbackRoleKeys((roles ?? []).map((role) => role.key).filter(Boolean));
+                }
+              } catch {
+                if (active) setFallbackRoleKeys([]);
+              }
+            }
           }
         } else if (active) {
           setProfile(null);
           setMemberships([]);
+          setFallbackRoleKeys([]);
         }
       } catch {
-        if (active) { setUser(null); setProfile(null); setMemberships([]); }
+        if (active) { setUser(null); setProfile(null); setMemberships([]); setFallbackRoleKeys([]); }
       }
     };
     void loadIdentity();
@@ -117,9 +142,10 @@ export default function Topbar({ mobileNavOpen = false, sidebarCollapsed = false
       { label: "O meu perfil", description: "Dados e identidade pessoal", path: "/profile", keywords: "conta perfil" },
       { label: "Conta e segurança", description: "Sessão e protecção da conta", path: "/account", keywords: "segurança autenticação password" },
     ];
-    const roles = memberships.map((item) => item.role?.key ?? "");
+    const roles = [...memberships.map((item) => item.role?.key ?? ""), ...fallbackRoleKeys];
     const isGlobalAdmin = user?.app_metadata?.zion_global_role === "global_admin" && user?.app_metadata?.zion_verified === true;
     const hasRole = (...keys: string[]) => isGlobalAdmin || roles.some((key) => keys.includes(key));
+    const isStewardshipManager = !isGlobalAdmin && hasRole("stewardship_manager");
     const privileged = [
       ...(isGlobalAdmin ? [
         { label: "Administração global", description: "Controlo institucional global", path: "/admin", keywords: "admin global" },
@@ -132,7 +158,7 @@ export default function Topbar({ mobileNavOpen = false, sidebarCollapsed = false
       ...(hasRole("youth_director", "organization_owner", "organization_admin", "organization_leader", "pastor", "ministry_leader", "department_leader") ? [
         { label: "Ministério Jovem", description: "Clubes, actividades e operações juvenis", path: "/youth", keywords: "jovens desbravadores aventureiros" },
       ] : []),
-      ...(hasRole("stewardship_manager") ? [
+      ...(isStewardshipManager ? [
         { label: "Mordomia Cristã", description: "Recursos e participação", path: "/stewardship", keywords: "mordomia" },
       ] : []),
       ...(hasRole("secretary", "organization_owner", "organization_admin") ? [
@@ -152,7 +178,7 @@ export default function Topbar({ mobileNavOpen = false, sidebarCollapsed = false
       ] : []),
     ];
     return [...common, ...privileged];
-  }, [memberships, user]);
+  }, [fallbackRoleKeys, memberships, user]);
 
   const filteredQuickLinks = useMemo(() => {
     const query = quickSearchQuery.trim().toLocaleLowerCase();
