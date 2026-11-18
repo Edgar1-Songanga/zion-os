@@ -25,6 +25,8 @@ on:
       - "supabase/migrations/*live_hand_raise*"
       - "supabase/tests/resa_security_fixture.sql"
       - "supabase/tests/resa_group_meetings_regression.sql"
+      - "supabase/tests/resa_authorization_hardening_regression.sql"
+      - "supabase/migrations/*resa_authorization_hardening*"
       - "supabase/tests/resa_live_hand_raise_queue_regression.sql"
       - "supabase/migrations/*live_hand_raise*"
       - ".github/workflows/resa-security.yml"
@@ -35,6 +37,8 @@ on:
       - "supabase/migrations/*department*"
       - "supabase/tests/resa_security*"
       - "supabase/tests/resa_call_security*"
+      - "supabase/tests/resa_authorization_hardening_regression.sql"
+      - "supabase/migrations/*resa_authorization_hardening*"
       - "supabase/tests/resa_story_view_tracking_regression.sql"
       - ".github/workflows/resa-security.yml"
 
@@ -221,9 +225,21 @@ jobs:
       - name: Index RESA group meeting hand-raise foreign keys
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261109205643_resa_group_meeting_hand_raise_fk_indexes.sql
+      - name: Apply RESA authorization hardening migration
+        if: hashFiles('supabase/migrations/*_resa_authorization_hardening.sql') != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          migration="$(find supabase/migrations -maxdepth 1 -type f -name '*_resa_authorization_hardening.sql' -print -quit)"
+          test -n "$migration"
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < "$migration"
       - name: Verify RESA group meeting membership, role, room and hand-raise boundaries
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_group_meetings_regression.sql
+      - name: Verify RESA message, call and meeting-event actor authorization
+        if: hashFiles('supabase/tests/resa_authorization_hardening_regression.sql') != ''
+        run: |
+          docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/tests/resa_authorization_hardening_regression.sql
       - name: Apply persistent RESA Live Studio hand-raise queue
         run: |
           docker exec -i zion-resa-security-postgres psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261110073355_resa_live_hand_raise_queue.sql
