@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslation } from "@/components/i18n";
@@ -39,20 +39,52 @@ function uniqueSections(sections: NavSection[]): NavSection[] {
 export default function Sidebar({ collapsed = false, mobileOpen = false, onClose }: { collapsed?: boolean; mobileOpen?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
   const { t } = useTranslation();
+  const asideRef = useRef<HTMLElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const [isDesktop, setIsDesktop] = useState(false);
 
   useEffect(() => {
-    if (!mobileOpen) return;
+    const media = window.matchMedia("(min-width: 768px)");
+    const update = () => setIsDesktop(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    if (!mobileOpen || isDesktop) return;
     const previousOverflow = document.body.style.overflow;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     document.body.style.overflow = "hidden";
+    closeButtonRef.current?.focus();
+
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose?.();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose?.();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = asideRef.current?.querySelectorAll<HTMLElement>('a[href], button:not([disabled])');
+      if (!focusable?.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
+
     document.addEventListener("keydown", onKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", onKeyDown);
+      previousFocus?.focus();
     };
-  }, [mobileOpen, onClose]);
+  }, [mobileOpen, isDesktop, onClose]);
   const [globalAdmin, setGlobalAdmin] = useState(false);
   const [roleKeys, setRoleKeys] = useState<string[]>([]);
   const [signingOut, setSigningOut] = useState(false);
@@ -134,14 +166,17 @@ export default function Sidebar({ collapsed = false, mobileOpen = false, onClose
   const nested = new Set(["/admin", "/church-administration", "/secretariat", "/finance", "/hr", "/payroll", "/reports", "/ministry", "/youth", "/stewardship", "/resa", "/sabbath-school"]);
   return (
     <>
-      {mobileOpen && <button type="button" aria-label="Fechar navegação" onClick={onClose} className="fixed inset-0 z-40 bg-slate-950/55 backdrop-blur-[2px] md:hidden" />}
-      <aside role={mobileOpen ? "dialog" : undefined} aria-modal={mobileOpen ? true : undefined} aria-label={mobileOpen ? "Navegação principal" : undefined} className={["fixed inset-y-0 left-0 z-50 flex h-dvh w-[min(18rem,86vw)] shrink-0 flex-col overflow-hidden border-r border-white/10 bg-[linear-gradient(180deg,#0B2D4D_0%,#071E35_100%)] px-3.5 py-5 text-white shadow-[8px_0_30px_rgba(7,30,53,0.18)] transition-transform duration-200 md:sticky md:top-0 md:z-auto md:h-fit md:max-h-dvh md:translate-x-0 md:self-start md:h-dvh md:max-h-dvh", mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0", collapsed ? "md:w-[76px] md:px-2" : "md:w-[252px] md:px-3.5"].join(" ")}>
+      {mobileOpen && !isDesktop && <button type="button" aria-label="Fechar navegação" onClick={onClose} className="fixed inset-0 z-40 bg-slate-950/55 backdrop-blur-[2px] md:hidden" />}
+      <aside ref={asideRef} id="primary-navigation" role={mobileOpen && !isDesktop ? "dialog" : undefined} aria-modal={mobileOpen && !isDesktop ? true : undefined} aria-label="Navegação principal" aria-hidden={!isDesktop && !mobileOpen} inert={!isDesktop && !mobileOpen} className={["fixed inset-y-0 left-0 z-50 flex h-dvh w-[min(18rem,86vw)] shrink-0 flex-col overflow-hidden border-r border-white/10 bg-[linear-gradient(180deg,#0B2D4D_0%,#071E35_100%)] px-3.5 py-5 text-white shadow-[8px_0_30px_rgba(7,30,53,0.18)] transition-transform duration-200 md:sticky md:top-0 md:z-auto md:h-fit md:max-h-dvh md:translate-x-0 md:self-start md:h-dvh md:max-h-dvh", mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0", collapsed ? "md:w-[76px] md:px-2" : "md:w-[252px] md:px-3.5"].join(" ")}>
+        <button ref={closeButtonRef} type="button" onClick={onClose} aria-label="Fechar navegação" className="absolute right-3 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 text-slate-200 transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E0B85A] md:hidden">
+          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="m6 6 12 12M18 6 6 18" /></svg>
+        </button>
         <Link href="/dashboard" onClick={onClose} className={["shrink-0 px-1", collapsed ? "md:px-0 md:text-center" : "md:px-3"].join(" ")} aria-label="ZION OS — Painel principal">
           <h1 className="text-[19px] font-semibold tracking-[0.16em] text-white md:text-[25px] md:tracking-[0.24em]">{collapsed ? <><span className="hidden md:inline text-[#C8A24A]">Z</span><span className="md:hidden">ZION<span className="text-[#C8A24A]">OS</span></span></> : <>ZION<span className="text-[#C8A24A]">OS</span></>}</h1>
           {!collapsed && <p className="mt-1 text-[8px] uppercase tracking-[0.1em] text-slate-300 md:text-[10px] md:tracking-[0.16em]">{t("globalDigitalEcosystem")}</p>}
         </Link>
 
-        <nav className="mt-5 min-h-0 overflow-y-auto overscroll-contain pr-1 md:mt-7 [scrollbar-color:rgba(203,213,225,0.35)_transparent] [scrollbar-width:thin]" aria-label="Navegação principal">
+        <nav id="primary-navigation-list" className="mt-5 min-h-0 overflow-y-auto overscroll-contain pr-1 md:mt-7 [scrollbar-color:rgba(203,213,225,0.35)_transparent] [scrollbar-width:thin]" aria-label="Navegação principal">
           {sections.map((section, sectionIndex) => (
             <section key={section.title} className="mb-4 last:mb-0 md:mb-5">
               <h2 className={["mb-2 px-2 text-[8px] md:px-3 md:text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-400", collapsed ? "md:hidden" : ""].join(" ")}>{section.title}</h2>
