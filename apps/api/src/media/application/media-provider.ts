@@ -32,6 +32,7 @@ export interface MediaProvider {
     canPublishSources?: MediaTrackSource[];
     ttl?: string;
   }): Promise<MediaJoinConfig>;
+  listParticipants?(input: { roomId: string }): Promise<Array<{ identity: string }>>;
   setParticipantPublishing?(input: {
     roomId: string;
     identity: string;
