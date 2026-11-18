@@ -145,7 +145,7 @@ def validate_approval(
         or not isinstance(approval, dict)
         or not isinstance(actor_app_metadata, dict)
         or actor_app_metadata.get("zion_global_role") != "global_admin"
-        or actor_app_metadata.get("zion_verified") != "true"
+        or actor_app_metadata.get("zion_verified") is not True
     ):
         raise PlanValidationError("Frame approval actor is not a currently verified ZION global administrator.")
     if approval.get("approval_id") != approval_id:
