@@ -164,6 +164,71 @@ def validate_approval(
         raise PlanValidationError("Frame approval does not match the exact plan, commit, target, or migration list.")
 
 
+
+def consume_approval(
+    conn: Any,
+    *,
+    approval_id: str,
+    expected_hash: str,
+    expected_commit: str,
+    expected_project_ref: str,
+    migration_versions: list[str],
+    execution_metadata: dict[str, Any],
+) -> Any:
+    """Validate and consume an approval while the caller holds the Frame advisory lock.
+
+    Consumption is committed before returning. The same approval therefore
+    cannot authorize a second run, including after a partial CLI failure.
+    """
+    approvals = conn.execute(
+        """
+        SELECT actor_user_id, metadata
+          FROM public.audit_logs
+         WHERE action = 'frame.migration.plan_approved'
+           AND metadata ->> 'approval_id' = %s
+         FOR UPDATE
+        """,
+        (approval_id,),
+    ).fetchall()
+    if len(approvals) != 1:
+        raise PlanValidationError("Frame approval is missing or ambiguous.")
+    actor_user_id, approval = approvals[0]
+    validate_approval(
+        approval,
+        actor_user_id,
+        approval_id=approval_id,
+        expected_hash=expected_hash,
+        expected_commit=expected_commit,
+        expected_project_ref=expected_project_ref,
+        migration_versions=migration_versions,
+    )
+
+    already_consumed = conn.execute(
+        """
+        SELECT 1
+          FROM public.audit_logs
+         WHERE action = %s
+           AND metadata ->> 'approval_id' = %s
+         LIMIT 1
+        """,
+        (ALLOWED_ACTIONS["consumed"], approval_id),
+    ).fetchone()
+    if already_consumed:
+        raise PlanValidationError("Frame approval has already been consumed.")
+
+    event_metadata = {**execution_metadata, "approved_by_user_id": str(actor_user_id)}
+    conn.execute(
+        """
+        INSERT INTO public.audit_logs
+          (organization_id, actor_user_id, action, resource_type, resource_id, metadata)
+        VALUES (NULL, %s, %s, 'frame_migration', NULL, %s)
+        """,
+        (actor_user_id, ALLOWED_ACTIONS["consumed"], Jsonb(event_metadata)),
+    )
+    conn.commit()
+    return actor_user_id
+
+
 def main() -> int:
     if len(sys.argv) < 3 or sys.argv[1] != "--":
         print("Usage: frame-execute-locked.py -- <migration command> [args...]", file=sys.stderr)
@@ -234,56 +299,17 @@ def main() -> int:
 
         # The approval is an append-only audit row written through the ZION API
         # using a signed Supabase session and verified global-admin claims.
-        approvals = conn.execute(
-            """
-            SELECT actor_user_id, metadata
-              FROM public.audit_logs
-             WHERE action = 'frame.migration.plan_approved'
-               AND metadata ->> 'approval_id' = %s
-             FOR UPDATE
-            """,
-            (approval_id,),
-        ).fetchall()
-        if len(approvals) != 1:
-            raise PlanValidationError("Frame approval is missing or ambiguous.")
-        actor_user_id, approval = approvals[0]
+        # Consume it while holding the advisory lock, before running the CLI.
         actual_versions = [item["version"] for item in plan["manifest"]["migrations"]]
-        validate_approval(
-            approval,
-            actor_user_id,
+        actor_user_id = consume_approval(
+            conn,
             approval_id=approval_id,
             expected_hash=expected_hash,
             expected_commit=expected_commit,
             expected_project_ref=expected_project_ref,
             migration_versions=actual_versions,
+            execution_metadata=metadata,
         )
-
-        already_consumed = conn.execute(
-            """
-            SELECT 1
-              FROM public.audit_logs
-             WHERE action = %s
-               AND metadata ->> 'approval_id' = %s
-             LIMIT 1
-            """,
-            (ALLOWED_ACTIONS["consumed"], approval_id),
-        ).fetchone()
-        if already_consumed:
-            raise PlanValidationError("Frame approval has already been consumed.")
-
-        # Consume and commit the approval before any migration command starts.
-        # A failed/partial migration burns the approval; retry requires a new
-        # explicit administrator approval and cannot replay the same grant.
-        metadata["approved_by_user_id"] = str(actor_user_id)
-        conn.execute(
-            """
-            INSERT INTO public.audit_logs
-              (organization_id, actor_user_id, action, resource_type, resource_id, metadata)
-            VALUES (NULL, %s, %s, 'frame_migration', NULL, %s)
-            """,
-            (actor_user_id, ALLOWED_ACTIONS["consumed"], Jsonb(metadata)),
-        )
-        conn.commit()
 
         conn.execute(
             """
