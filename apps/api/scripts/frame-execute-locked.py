@@ -179,7 +179,9 @@ def main() -> int:
         print("Frame requires ZION_SUPABASE_DB_URL and FRAME_PLAN_FILE.", file=sys.stderr)
         return 78
     try:
-        uuid.UUID(approval_id)
+        parsed_approval_id = uuid.UUID(approval_id)
+        if str(parsed_approval_id) != approval_id:
+            raise ValueError("non-canonical UUID")
     except (ValueError, AttributeError):
         print("Frame requires a valid one-use administrator approval ID.", file=sys.stderr)
         return 78
