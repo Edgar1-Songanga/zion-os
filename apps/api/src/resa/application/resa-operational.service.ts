@@ -889,10 +889,27 @@ export class ResaOperationalService {
     const normalized = this.text(query, 'query', 2, 120).replace(/[(),]/g, ' ');
     const term = encodeURIComponent(normalized);
     const size = Math.min(Math.max(Number(limit) || 30, 1), 100);
+    const [muteRows, blockRows] = await Promise.all([
+      this.db.get<any[]>('resa_user_mutes', token,
+        `?select=muted_id&muter_id=eq.${actor.id}&limit=1000`),
+      this.db.get<any[]>('resa_user_blocks', token,
+        `?select=blocked_id&blocker_id=eq.${actor.id}&limit=1000`),
+    ]);
+    const excludedIds = [...new Set([
+      ...muteRows.map((row) => row.muted_id),
+      ...blockRows.map((row) => row.blocked_id),
+    ].filter(Boolean))];
+    const authorExclusion = excludedIds.length
+      ? `&author_id=not.in.(${excludedIds.join(',')})`
+      : '';
+    const organizationExclusion = excludedIds.length
+      ? `&organization_id=not.in.(${excludedIds.join(',')})`
+      : '';
+
     const profileSearch = async () => {
       const profiles = await this.db.rpc<any[]>('resa_search_profiles', token, { p_query: normalized, p_limit: size });
-      // Do not offer the signed-in user as a target for a new direct conversation.
-      return profiles.filter((profile) => profile.id !== actor.id).map((profile) => ({
+      // Do not offer the signed-in user or accounts they muted/blocked as targets.
+      return profiles.filter((profile) => profile.id !== actor.id && !excludedIds.includes(profile.id)).map((profile) => ({
         ...profile,
         entity_type: 'profile',
         entity_id: profile.id,
@@ -901,8 +918,31 @@ export class ResaOperationalService {
       }));
     };
     const contentSearch = async () => (await this.db.get<any[]>('resa_contents', token,
-      `?select=id,title,body,type,author_id,created_at,media_type,media_url,visibility&moderation_status=eq.active&visibility=in.(public,followers,community,organization)&type=neq.story&or=(title.ilike.*${term}*,body.ilike.*${term}*)&order=created_at.desc&limit=${size}`))
+      `?select=id,title,body,type,author_id,created_at,media_type,media_url,visibility&moderation_status=eq.active&visibility=in.(public,followers,community,organization)&type=neq.story${authorExclusion}&or=(title.ilike.*${term}*,body.ilike.*${term}*)&order=created_at.desc&limit=${size}`))
       .map((item) => ({ ...item, entity_type: 'content', entity_id: item.id }));
+    const institutionalSearch = async () => (await this.db.get<any[]>('resa_institutional_publications', token,
+      `?select=id,source_type,source_id,organization_id,organization_name,organization_type,ministry_id,ministry_name,title,body,starts_at,ends_at,location,meeting_day,meeting_time,room_label,activity_type,status,published_at&is_active=eq.true${organizationExclusion}&or=(title.ilike.*${term}*,body.ilike.*${term}*)&order=published_at.desc&limit=${size}`))
+      .map((item) => ({
+        id: item.id,
+        entity_type: 'institutional',
+        entity_id: item.id,
+        author_id: item.organization_id,
+        is_institutional: true,
+        institution_name: item.organization_name,
+        institution_type: item.organization_type,
+        ministry_id: item.ministry_id,
+        ministry_name: item.ministry_name,
+        institutional_source_type: item.source_type,
+        institutional_source_id: item.source_id,
+        title: item.title,
+        body: item.body,
+        visibility: 'public',
+        type: item.source_type === 'SABBATH_SCHOOL_CLASS' ? 'bible_study' : 'article',
+        created_at: item.published_at,
+        starts_at: item.starts_at,
+        ends_at: item.ends_at,
+        location: item.location,
+      }));
     const topicSearch = async () => (await this.db.get<any[]>('resa_topics', token,
       `?select=id,name,normalized_name&or=(name.ilike.*${term}*,normalized_name.ilike.*${term}*)&order=name.asc&limit=${size}`))
       .map((item) => ({ ...item, entity_type: 'topic', entity_id: item.id, title: '#' + item.name, body: item.normalized_name }));
@@ -916,6 +956,7 @@ export class ResaOperationalService {
     const searches: Record<string, () => Promise<any[]>> = {
       profile: profileSearch,
       content: contentSearch,
+      institutional: institutionalSearch,
       topic: topicSearch,
       community: communitySearch,
       event: eventSearch,
