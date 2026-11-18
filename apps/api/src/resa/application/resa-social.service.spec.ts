@@ -848,6 +848,48 @@ describe('ResaSocialService feeds', () => {
     expect(getSpy).toHaveBeenCalledWith('resa_user_mutes', 'session-token', expect.stringContaining('muter_id=eq.' + ACTOR_ID));
     expect(result).toEqual([{ user_id: mutedId, muted_at: '2026-11-08T12:00:00.000Z', profile: { id: mutedId, display_name: 'Muted profile' } }]);
   });
+  it('includes active institutional publications in Explore and filters muted organizations', async () => {
+    const organizationId = '77777777-7777-4777-8777-777777777777';
+    getSpy.mockImplementation(async (table: string, _token: string, query: string) => {
+      if (table === 'resa_user_mutes') return [{ muted_id: organizationId }] as never;
+      if (table === 'resa_institutional_publications') return [{
+        id: 'institutional-1',
+        source_type: 'YOUTH_ACTIVITY',
+        source_id: '88888888-8888-4888-8888-888888888888',
+        organization_id: organizationId,
+        organization_name: 'Igreja Central',
+        organization_type: 'LOCAL_CHURCH',
+        title: 'Acampamento JA',
+        body: 'Actividade pública',
+        published_at: '2026-11-18T08:00:00.000Z',
+        is_active: true,
+      }] as never;
+      return [] as never;
+    });
+
+    const result = await service.explore('session-token', 'Acampamento', 20);
+
+    expect(getSpy).toHaveBeenCalledWith(
+      'resa_institutional_publications',
+      'session-token',
+      expect.stringContaining('is_active=eq.true&organization_id=not.in.(' + organizationId + ')'),
+    );
+    expect(getSpy).toHaveBeenCalledWith(
+      'resa_institutional_publications',
+      'session-token',
+      expect.stringContaining('title.ilike.*Acampamento*'),
+    );
+    expect(result).toMatchObject([{
+      id: 'institutional-1',
+      author_id: organizationId,
+      type: 'article',
+      feed_item_type: 'institutional',
+      is_institutional: true,
+      institution_name: 'Igreja Central',
+      institutional_source_type: 'YOUTH_ACTIVITY',
+    }]);
+  });
+
   it('filters muted authors from Reels, Explore, Stories and topic feeds at query time', async () => {
     const mutedId = '33333333-3333-4333-8333-333333333333';
     getSpy.mockImplementation(async (table: string) => {
