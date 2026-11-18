@@ -4,6 +4,8 @@ import { useState, type FormEvent } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import { OrganizationSelector, ZionOrganization } from "@/components/organization/OrganizationSelector";
 
+const INSTITUTIONAL_ORGANIZATION_TYPES = ["MISSION", "CONFERENCE", "UNION", "DIVISION", "GENERAL_CONFERENCE"];
+
 type Employee = { id: string; employee_number: string; legal_first_name: string; legal_last_name: string; preferred_name?: string | null; employment_status: string; job_title: string; currency_code: string };
 type Leave = { id: string; employee_id: string; leave_type: string; start_date: string; end_date: string; status: string; reason?: string | null };
 
@@ -90,7 +92,7 @@ export default function HumanResources() {
               <h1 className="mt-2 text-3xl font-semibold text-[var(--zion-dark)]">Recursos Humanos</h1>
               <p className="mt-2 max-w-2xl text-slate-500">Este módulo é administrado ao nível da Missão/Associação, União, Divisão ou Associação Geral. Igrejas locais não têm este módulo.</p>
             </div>
-            <OrganizationSelector value={organizationId} onChange={load} allowedOrganizationTypes={["MISSION", "CONFERENCE", "UNION", "DIVISION", "GENERAL_CONFERENCE"]}/>
+            <OrganizationSelector value={organizationId} onChange={load} allowedOrganizationTypes={INSTITUTIONAL_ORGANIZATION_TYPES}/>
           </header>
           <section className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
             Selecione uma organização institucional elegível. Se não tiver acesso a nenhuma, contacte o administrador da sua estrutura.
@@ -101,7 +103,7 @@ export default function HumanResources() {
   }
 
   return <main className="min-h-screen bg-[var(--zion-light)] p-6 lg:p-10"><div className="mx-auto max-w-7xl">
-    <header className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.2em] text-[var(--zion-gold)]">People & Organization</p><h1 className="mt-2 text-3xl font-semibold text-[var(--zion-dark)]">Recursos Humanos</h1><p className="mt-2 max-w-2xl text-slate-500">Colaboradores, vínculos e férias. Os registos pessoais são protegidos pelo acesso hierárquico da organização.</p></div><OrganizationSelector value={organizationId} onChange={load} allowedOrganizationTypes={["MISSION", "CONFERENCE", "UNION", "DIVISION", "GENERAL_CONFERENCE"]}/></header>
+    <header className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.2em] text-[var(--zion-gold)]">People & Organization</p><h1 className="mt-2 text-3xl font-semibold text-[var(--zion-dark)]">Recursos Humanos</h1><p className="mt-2 max-w-2xl text-slate-500">Colaboradores, vínculos e férias. Os registos pessoais são protegidos pelo acesso hierárquico da organização.</p></div><OrganizationSelector value={organizationId} onChange={load} allowedOrganizationTypes={INSTITUTIONAL_ORGANIZATION_TYPES}/></header>
     {organization&&<div className="mb-5 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">Organização: <strong className="text-slate-900">{organization.name}</strong> · {organization.organization_type}</div>}
     {error&&<div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
     {notice&&<div aria-live="polite" className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</div>}

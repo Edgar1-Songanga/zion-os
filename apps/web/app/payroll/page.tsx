@@ -4,6 +4,8 @@ import { useState, type FormEvent } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import { OrganizationSelector, ZionOrganization } from "@/components/organization/OrganizationSelector";
 
+const INSTITUTIONAL_ORGANIZATION_TYPES = ["MISSION", "CONFERENCE", "UNION", "DIVISION", "GENERAL_CONFERENCE"];
+
 type Run = { id: string; period_start: string; period_end: string; status: string; gross_total: number; deduction_total: number; employer_contribution_total: number; net_total: number; currency_code: string };
 
 export default function Payroll() {
@@ -68,7 +70,7 @@ export default function Payroll() {
               <h1 className="mt-2 text-3xl font-semibold text-[var(--zion-dark)]">Payroll</h1>
               <p className="mt-2 max-w-2xl text-slate-500">Este módulo é administrado ao nível da Missão/Associação, União, Divisão ou Associação Geral. Igrejas locais não têm este módulo.</p>
             </div>
-            <OrganizationSelector value={organizationId} onChange={load} allowedOrganizationTypes={["MISSION", "CONFERENCE", "UNION", "DIVISION", "GENERAL_CONFERENCE"]}/>
+            <OrganizationSelector value={organizationId} onChange={load} allowedOrganizationTypes={INSTITUTIONAL_ORGANIZATION_TYPES}/>
           </header>
           <section className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
             Selecione uma organização institucional elegível. Se não tiver acesso a nenhuma, contacte o administrador da sua estrutura.
@@ -79,7 +81,7 @@ export default function Payroll() {
   }
 
   return <main className="min-h-screen bg-[var(--zion-light)] p-6 lg:p-10"><div className="mx-auto max-w-7xl">
-    <header className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.2em] text-[var(--zion-gold)]">Finance • People</p><h1 className="mt-2 text-3xl font-semibold text-[var(--zion-dark)]">Payroll</h1><p className="mt-2 text-slate-500">Períodos de processamento, cálculo controlado e aprovação separada.</p></div><OrganizationSelector value={organizationId} onChange={load} allowedOrganizationTypes={["MISSION", "CONFERENCE", "UNION", "DIVISION", "GENERAL_CONFERENCE"]}/></header>
+    <header className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.2em] text-[var(--zion-gold)]">Finance • People</p><h1 className="mt-2 text-3xl font-semibold text-[var(--zion-dark)]">Payroll</h1><p className="mt-2 text-slate-500">Períodos de processamento, cálculo controlado e aprovação separada.</p></div><OrganizationSelector value={organizationId} onChange={load} allowedOrganizationTypes={INSTITUTIONAL_ORGANIZATION_TYPES}/></header>
     {organization&&<div className="mb-5 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">Organização: <strong className="text-slate-900">{organization.name}</strong> · {organization.organization_type}</div>}
     {error&&<div role="alert" className="mb-4 rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</div>}
     {notice&&<div aria-live="polite" className="mb-4 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</div>}
