@@ -126,7 +126,7 @@ describe('ZionSfuProvider source-scoped participant permissions', () => {
       canPublishSources: ['camera', 'microphone'],
     });
 
-    expect(mockUpdateParticipant).toHaveBeenCalledBefore(mockListParticipants);
+    expect(mockUpdateParticipant.mock.invocationCallOrder[0]).toBeLessThan(mockListParticipants.mock.invocationCallOrder[0]);
     expect(mockMutePublishedTrack).toHaveBeenCalledTimes(2);
     expect(mockMutePublishedTrack).toHaveBeenCalledWith('room-1', 'presenter-1', 'screen-1', true);
     expect(mockMutePublishedTrack).toHaveBeenCalledWith('room-1', 'presenter-1', 'screen-audio-1', true);
