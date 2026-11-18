@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslation } from "@/components/i18n";
@@ -36,9 +36,55 @@ function uniqueSections(sections: NavSection[]): NavSection[] {
   })).filter((section) => section.items.length > 0);
 }
 
-export default function Sidebar() {
+export default function Sidebar({ collapsed = false, mobileOpen = false, onClose }: { collapsed?: boolean; mobileOpen?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
   const { t } = useTranslation();
+  const asideRef = useRef<HTMLElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 768px)");
+    const update = () => setIsDesktop(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    if (!mobileOpen || isDesktop) return;
+    const previousOverflow = document.body.style.overflow;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    document.body.style.overflow = "hidden";
+    closeButtonRef.current?.focus();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose?.();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = asideRef.current?.querySelectorAll<HTMLElement>('a[href], button:not([disabled])');
+      if (!focusable?.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+      previousFocus?.focus();
+    };
+  }, [mobileOpen, isDesktop, onClose]);
   const [globalAdmin, setGlobalAdmin] = useState(false);
   const [roleKeys, setRoleKeys] = useState<string[]>([]);
   const [signingOut, setSigningOut] = useState(false);
@@ -120,22 +166,26 @@ export default function Sidebar() {
   const nested = new Set(["/admin", "/church-administration", "/secretariat", "/finance", "/hr", "/payroll", "/reports", "/ministry", "/youth", "/stewardship", "/resa", "/sabbath-school"]);
   return (
     <>
-      <aside className="sticky top-0 flex h-fit max-h-dvh w-[clamp(112px,26vw,252px)] shrink-0 self-start flex-col overflow-hidden border-r border-white/10 bg-[linear-gradient(180deg,#0B2D4D_0%,#071E35_100%)] px-2 py-4 text-white shadow-[8px_0_30px_rgba(7,30,53,0.10)] md:w-[252px] md:px-3.5 md:py-5">
-        <Link href="/dashboard" className="shrink-0 px-1 md:px-3" aria-label="ZION OS — Painel principal">
-          <h1 className="text-[19px] font-semibold tracking-[0.16em] text-white md:text-[25px] md:tracking-[0.24em]">ZION<span className="text-[#C8A24A]">OS</span></h1>
-          <p className="mt-1 text-[8px] uppercase tracking-[0.1em] text-slate-300 md:text-[10px] md:tracking-[0.16em]">{t("globalDigitalEcosystem")}</p>
+      {mobileOpen && !isDesktop && <button type="button" aria-label="Fechar navegação" onClick={onClose} className="fixed inset-0 z-40 bg-slate-950/55 backdrop-blur-[2px] md:hidden" />}
+      <aside ref={asideRef} id="primary-navigation" role={mobileOpen && !isDesktop ? "dialog" : undefined} aria-modal={mobileOpen && !isDesktop ? true : undefined} aria-label="Navegação principal" aria-hidden={!isDesktop && !mobileOpen} inert={!isDesktop && !mobileOpen} className={["fixed inset-y-0 left-0 z-50 flex h-dvh w-[min(18rem,86vw)] shrink-0 flex-col overflow-hidden border-r border-white/10 bg-[linear-gradient(180deg,#0B2D4D_0%,#071E35_100%)] px-3.5 py-5 text-white shadow-[8px_0_30px_rgba(7,30,53,0.18)] transition-transform duration-200 md:sticky md:top-0 md:z-auto md:translate-x-0 md:self-start md:h-dvh md:max-h-dvh", mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0", collapsed ? "md:w-[76px] md:px-2" : "md:w-[252px] md:px-3.5"].join(" ")}>
+        <button ref={closeButtonRef} type="button" onClick={onClose} aria-label="Fechar navegação" className="absolute right-3 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 text-slate-200 transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E0B85A] md:hidden">
+          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="m6 6 12 12M18 6 6 18" /></svg>
+        </button>
+        <Link href="/dashboard" onClick={onClose} className={["shrink-0 px-1", collapsed ? "md:px-0 md:text-center" : "md:px-3"].join(" ")} aria-label="ZION OS — Painel principal">
+          <h1 className="text-[19px] font-semibold tracking-[0.16em] text-white md:text-[25px] md:tracking-[0.24em]">{collapsed ? <><span className="hidden md:inline text-[#C8A24A]">Z</span><span className="md:hidden">ZION<span className="text-[#C8A24A]">OS</span></span></> : <>ZION<span className="text-[#C8A24A]">OS</span></>}</h1>
+          {!collapsed && <p className="mt-1 text-[8px] uppercase tracking-[0.1em] text-slate-300 md:text-[10px] md:tracking-[0.16em]">{t("globalDigitalEcosystem")}</p>}
         </Link>
 
-        <nav className="mt-5 min-h-0 overflow-y-auto overscroll-contain pr-1 md:mt-7 [scrollbar-color:rgba(203,213,225,0.35)_transparent] [scrollbar-width:thin]" aria-label="Navegação principal">
+        <nav id="primary-navigation-list" className="mt-5 min-h-0 overflow-y-auto overscroll-contain pr-1 md:mt-7 [scrollbar-color:rgba(203,213,225,0.35)_transparent] [scrollbar-width:thin]" aria-label="Navegação principal">
           {sections.map((section, sectionIndex) => (
             <section key={section.title} className="mb-4 last:mb-0 md:mb-5">
-              <h2 className="mb-2 px-2 text-[8px] md:px-3 md:text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-400">{section.title}</h2>
+              <h2 className={["mb-2 px-2 text-[8px] md:px-3 md:text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-400", collapsed ? "md:hidden" : ""].join(" ")}>{section.title}</h2>
               <div className="space-y-1">
                 {section.items.map((item, itemIndex) => {
                   const active = pathname === item.path || (nested.has(item.path) && pathname.startsWith(item.path + "/"));
-                  return <Link key={item.path} href={item.path} aria-current={active ? "page" : undefined} className={["group flex min-h-9 items-center gap-2 rounded-lg px-2 py-2 text-[11px] transition-colors md:min-h-10 md:gap-3 md:rounded-xl md:px-3 md:py-2.5 md:text-[13px]", active ? "bg-white font-semibold text-[#0B2D4D] shadow-[0_6px_18px_rgba(0,0,0,0.12)]" : "text-slate-200 hover:bg-white/[0.08] hover:text-white"].join(" ")}>
+                  return <Link key={item.path} href={item.path} onClick={onClose} aria-label={item.name} title={collapsed ? item.name : undefined} aria-current={active ? "page" : undefined} className={["group flex min-h-10 items-center gap-2 rounded-lg px-2 py-2 text-[11px] transition-colors md:min-h-10 md:rounded-xl md:py-2.5 md:text-[13px]", collapsed ? "md:justify-center md:px-0" : "md:gap-3 md:px-3", active ? "bg-white font-semibold text-[#0B2D4D] shadow-[0_6px_18px_rgba(0,0,0,0.12)]" : "text-slate-200 hover:bg-white/[0.08] hover:text-white"].join(" ")}>
                     <span className={active ? "text-[#C8A24A]" : "text-slate-400 group-hover:text-[#E0B85A]"}><NavIcon index={sectionIndex * 4 + itemIndex} /></span>
-                    <span className="truncate">{item.name}</span>
+                    <span className={["truncate", collapsed ? "md:hidden" : ""].join(" ")}>{item.name}</span>
                   </Link>;
                 })}
               </div>
@@ -144,10 +194,10 @@ export default function Sidebar() {
         </nav>
 
         <div className="mt-2 shrink-0 border-t border-white/10 px-1 pt-2 md:mt-4 md:px-2 md:pt-3">
-          <p className="px-1 pb-2 text-[9px] leading-3 text-slate-300 md:px-2 md:text-[10px] md:leading-4">A navegação apresenta apenas as áreas disponíveis para a tua função.</p>
-          <button type="button" onClick={() => void signOut()} disabled={signingOut} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-[11px] font-semibold md:min-h-11 md:gap-3 md:rounded-xl md:px-3 md:py-2.5 md:text-[13px] text-red-200 transition hover:bg-red-500/15 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E0B85A] disabled:cursor-wait disabled:opacity-60">
+          {!collapsed && <p className="px-1 pb-2 text-[9px] leading-3 text-slate-300 md:px-2 md:text-[10px] md:leading-4">A navegação apresenta apenas as áreas disponíveis para a tua função.</p>}
+          <button type="button" onClick={() => void signOut()} disabled={signingOut} className={["flex min-h-10 w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-[11px] font-semibold md:min-h-11 md:rounded-xl md:py-2.5 md:text-[13px] text-red-200 transition hover:bg-red-500/15 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E0B85A] disabled:cursor-wait disabled:opacity-60", collapsed ? "md:justify-center md:px-0" : "md:gap-3 md:px-3"].join(" ")} title="Terminar sessão">
             <svg aria-hidden="true" viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M10 17l5-5-5-5M15 12H3M21 4v16" /></svg>
-            <span>{signingOut ? "A terminar sessão…" : "Terminar sessão"}</span>
+            <span className={collapsed ? "md:hidden" : ""}>{signingOut ? "A terminar sessão…" : "Terminar sessão"}</span>
           </button>
           {signOutError && <p role="alert" className="px-3 pt-2 text-[11px] text-red-200">Não foi possível terminar a sessão. Tente novamente.</p>}
         </div>

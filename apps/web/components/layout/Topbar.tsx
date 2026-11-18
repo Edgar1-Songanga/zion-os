@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import LanguageSelector from "@/components/language/LanguageSelector";
 import { useTranslation } from "@/components/i18n";
@@ -38,13 +39,19 @@ function roleLabel(user: User | null, memberships: Membership[]) {
   return "Perfil institucional por configurar";
 }
 
-export default function Topbar() {
+export default function Topbar({ mobileNavOpen = false, sidebarCollapsed = false, onMobileMenuClick, onDesktopCollapseClick }: { mobileNavOpen?: boolean; sidebarCollapsed?: boolean; onMobileMenuClick?: () => void; onDesktopCollapseClick?: () => void }) {
   const { t } = useTranslation();
+  const router = useRouter();
   const menuRef = useRef<HTMLDivElement>(null);
+  const quickSearchRef = useRef<HTMLInputElement>(null);
+  const quickSearchDialogRef = useRef<HTMLElement>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [memberships, setMemberships] = useState<Membership[]>([]);
+  const [fallbackRoleKeys, setFallbackRoleKeys] = useState<string[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [quickSearchOpen, setQuickSearchOpen] = useState(false);
+  const [quickSearchQuery, setQuickSearchQuery] = useState("");
   const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
@@ -62,14 +69,38 @@ export default function Topbar() {
           ]);
           if (active) {
             setProfile(profileResult.status === "fulfilled" ? profileResult.value : null);
-            setMemberships(accessResult.status === "fulfilled" ? accessResult.value.memberships ?? [] : []);
+            const resolvedMemberships = accessResult.status === "fulfilled" ? accessResult.value.memberships ?? [] : [];
+            setMemberships(resolvedMemberships);
+            if (resolvedMemberships.length > 0) {
+              setFallbackRoleKeys([]);
+            } else {
+              try {
+                const { data: rows, error: membershipError } = await supabase
+                  .from("organization_memberships")
+                  .select("role_id")
+                  .eq("user_id", current.id)
+                  .eq("status", "ACTIVE");
+                if (membershipError) throw membershipError;
+                const roleIds = [...new Set((rows ?? []).map((row) => row.role_id).filter(Boolean))];
+                if (!roleIds.length) {
+                  if (active) setFallbackRoleKeys([]);
+                } else {
+                  const { data: roles, error: rolesError } = await supabase.from("roles").select("key").in("id", roleIds);
+                  if (rolesError) throw rolesError;
+                  if (active) setFallbackRoleKeys((roles ?? []).map((role) => role.key).filter(Boolean));
+                }
+              } catch {
+                if (active) setFallbackRoleKeys([]);
+              }
+            }
           }
         } else if (active) {
           setProfile(null);
           setMemberships([]);
+          setFallbackRoleKeys([]);
         }
       } catch {
-        if (active) { setUser(null); setProfile(null); setMemberships([]); }
+        if (active) { setUser(null); setProfile(null); setMemberships([]); setFallbackRoleKeys([]); }
       }
     };
     void loadIdentity();
@@ -97,6 +128,117 @@ export default function Topbar() {
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [menuOpen]);
+
+  const quickLinks = useMemo(() => {
+    const common = [
+      { label: "Painel principal", description: "Visão geral da organização", path: "/dashboard", keywords: "início home dashboard" },
+      { label: "Comunidade RESA", description: "Publicações e comunidade", path: "/resa", keywords: "social feed publicações" },
+      { label: "Motor de Estudo Bíblico", description: "Pesquisa e estudo das Escrituras", path: "/bible-engine", keywords: "bíblia escrituras estudo" },
+      { label: "Escola Sabatina", description: "Lições, classes e actividades", path: "/sabbath-school", keywords: "lição classes sabado" },
+      { label: "Devoção diária", description: "Leitura e reflexão espiritual", path: "/devotion", keywords: "devocional diário" },
+      { label: "Crescimento espiritual", description: "Desafios e progresso espiritual", path: "/spiritual-growth", keywords: "crescimento desafio" },
+      { label: "Experiência espiritual", description: "Registos de vida espiritual", path: "/spiritual-experience", keywords: "experiência testemunho" },
+      { label: "Fontes Adventistas", description: "Biblioteca de referências", path: "/adventist-canon", keywords: "fontes biblioteca ellen white" },
+      { label: "Assistente espiritual", description: "Conversa e orientação bíblica", path: "/spiritual-chat", keywords: "chat inteligência artificial assistente" },
+      { label: "O meu perfil", description: "Dados e identidade pessoal", path: "/profile", keywords: "conta perfil" },
+      { label: "Conta e segurança", description: "Sessão e protecção da conta", path: "/account", keywords: "segurança autenticação password" },
+    ];
+    const roles = [...memberships.map((item) => item.role?.key ?? ""), ...fallbackRoleKeys];
+    const isGlobalAdmin = user?.app_metadata?.zion_global_role === "global_admin" && user?.app_metadata?.zion_verified === true;
+    const hasRole = (...keys: string[]) => isGlobalAdmin || roles.some((key) => keys.includes(key));
+    const isStewardshipManager = !isGlobalAdmin && hasRole("stewardship_manager");
+    const privileged = [
+      ...(isGlobalAdmin ? [
+        { label: "Administração global", description: "Controlo institucional global", path: "/admin", keywords: "admin global" },
+        { label: "Verificação de contas", description: "Revisão de perfis e documentos", path: "/admin/verification", keywords: "verificar identidade" },
+      ] : []),
+      ...(hasRole("organization_owner", "organization_admin", "organization_leader") ? [
+        { label: "Administração da igreja", description: "Estrutura e gestão da organização", path: "/church-administration", keywords: "igreja organização" },
+        { label: "Ministérios e departamentos", description: "Gestão dos ministérios locais", path: "/ministry", keywords: "departamentos ministérios" },
+      ] : []),
+      ...(hasRole("youth_director", "organization_owner", "organization_admin", "organization_leader", "pastor", "ministry_leader", "department_leader") ? [
+        { label: "Ministério Jovem", description: "Clubes, actividades e operações juvenis", path: "/youth", keywords: "jovens desbravadores aventureiros" },
+      ] : []),
+      ...(isStewardshipManager ? [
+        { label: "Mordomia Cristã", description: "Recursos e participação", path: "/stewardship", keywords: "mordomia" },
+      ] : []),
+      ...(hasRole("secretary", "organization_owner", "organization_admin") ? [
+        { label: "Secretaria", description: "Membros e registos institucionais", path: "/secretariat", keywords: "secretariado membros" },
+      ] : []),
+      ...(hasRole("finance_manager", "organization_owner", "organization_admin") ? [
+        { label: "Finanças", description: "Gestão financeira", path: "/finance", keywords: "tesouraria finanças" },
+      ] : []),
+      ...(hasRole("hr_manager", "organization_owner", "organization_admin") ? [
+        { label: "Recursos humanos", description: "Gestão de pessoas", path: "/hr", keywords: "rh pessoal" },
+      ] : []),
+      ...(hasRole("payroll_manager", "organization_owner", "organization_admin") ? [
+        { label: "Processamento salarial", description: "Folha de salários", path: "/payroll", keywords: "salário payroll" },
+      ] : []),
+      ...(hasRole("organization_owner", "organization_admin") ? [
+        { label: "Relatórios", description: "Relatórios institucionais", path: "/reports", keywords: "relatórios documentos" },
+      ] : []),
+    ];
+    return [...common, ...privileged];
+  }, [fallbackRoleKeys, memberships, user]);
+
+  const filteredQuickLinks = useMemo(() => {
+    const query = quickSearchQuery.trim().toLocaleLowerCase();
+    if (!query) return quickLinks.slice(0, 8);
+    return quickLinks.filter((item) =>
+      [item.label, item.description, item.path, item.keywords].join(" ").toLocaleLowerCase().includes(query),
+    ).slice(0, 10);
+  }, [quickLinks, quickSearchQuery]);
+
+  function openQuickSearch() {
+    setMenuOpen(false);
+    setQuickSearchOpen(true);
+    setQuickSearchQuery("");
+  }
+
+  function navigateQuickLink(path: string) {
+    setQuickSearchOpen(false);
+    setQuickSearchQuery("");
+    router.push(path);
+  }
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setMenuOpen(false);
+        setQuickSearchQuery("");
+        setQuickSearchOpen(true);
+      }
+      if (event.key === "Escape") setQuickSearchOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  useEffect(() => {
+    if (!quickSearchOpen) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    quickSearchRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const focusable = quickSearchDialogRef.current?.querySelectorAll<HTMLElement>('input:not([disabled]), button:not([disabled])');
+      if (!focusable?.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      previousFocus?.focus();
+    };
+  }, [quickSearchOpen]);
 
   const displayName = useMemo<string>(() => {
     return profile?.display_name?.trim() ||
@@ -126,22 +268,53 @@ export default function Topbar() {
 
   return (
     <header className="sticky top-0 z-30 flex h-[68px] shrink-0 items-center justify-between gap-2 border-b border-slate-200/80 bg-white/90 px-2 backdrop-blur-xl sm:px-6">
-      <div className="flex min-w-0 items-center gap-2 sm:gap-5">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+        <button type="button" onClick={onMobileMenuClick} aria-label={mobileNavOpen ? "Fechar navegação" : "Abrir navegação"} aria-controls="primary-navigation" aria-expanded={mobileNavOpen} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[#0B2D4D] transition hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8A24A] md:hidden">
+          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+        </button>
+        <button type="button" onClick={onDesktopCollapseClick} aria-label={sidebarCollapsed ? "Expandir navegação" : "Recolher navegação"} aria-controls="primary-navigation" aria-expanded={!sidebarCollapsed} className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-[#0B2D4D] transition hover:border-[#C8A24A] hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8A24A] md:flex">
+          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d={sidebarCollapsed ? "M9 5l7 7-7 7" : "M15 5l-7 7 7 7"} /></svg>
+        </button>
         <div className="min-w-0">
           <h2 className="text-[14px] font-semibold tracking-[0.08em] text-[#0B2D4D] sm:text-[18px] sm:tracking-[0.12em]">ZION OS</h2>
           <p className="mt-0.5 hidden truncate text-[11px] text-slate-500 sm:block">{t("brandDescription")}</p>
         </div>
-        <div className="hidden min-w-[260px] max-w-[420px] flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 md:flex">
-          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" strokeLinecap="round" /></svg>
-          <span className="text-xs text-slate-400">{t("search")}</span>
-        </div>
+        <button type="button" onClick={openQuickSearch} aria-label="Abrir pesquisa e acesso rápido" aria-keyshortcuts="Control+K Meta+K" className="hidden min-w-[220px] max-w-[420px] flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-left transition hover:border-[#C8A24A] hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8A24A] md:flex">
+          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" strokeLinecap="round" /></svg>
+          <span className="min-w-0 flex-1 truncate text-xs text-slate-500">Pesquisar módulos e páginas…</span>
+          <kbd className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] text-slate-400">Ctrl K</kbd>
+        </button>
+        <button type="button" onClick={openQuickSearch} aria-label="Pesquisar" className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-[#C8A24A] hover:text-[#0B2D4D] md:hidden">
+          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" strokeLinecap="round" /></svg>
+        </button>
       </div>
+
+      {quickSearchOpen && (
+        <div className="fixed inset-0 z-[80] flex items-start justify-center bg-[#07152b]/55 px-3 pt-[12vh] backdrop-blur-sm sm:px-6" onMouseDown={(event) => { if (event.target === event.currentTarget) setQuickSearchOpen(false); }}>
+          <section ref={quickSearchDialogRef} role="dialog" aria-modal="true" aria-labelledby="zion-quick-search-title" className="w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_30px_100px_rgba(0,0,0,0.3)]">
+            <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
+              <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" strokeLinecap="round" /></svg>
+              <label id="zion-quick-search-title" className="sr-only" htmlFor="zion-quick-search-input">Pesquisar módulos e páginas</label>
+              <input id="zion-quick-search-input" ref={quickSearchRef} autoComplete="off" value={quickSearchQuery} onChange={(event) => setQuickSearchQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && filteredQuickLinks[0]) navigateQuickLink(filteredQuickLinks[0].path); }} placeholder="Pesquisar módulos e páginas…" className="min-w-0 flex-1 bg-transparent py-2 text-sm text-[#0B2D4D] outline-none placeholder:text-slate-400" />
+              <button type="button" onClick={() => setQuickSearchOpen(false)} aria-label="Fechar pesquisa" className="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50">Esc</button>
+            </div>
+            <div className="max-h-[min(60vh,460px)] overflow-y-auto p-2">
+              <p className="px-3 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">{quickSearchQuery.trim() ? "Resultados" : "Acesso rápido"}</p>
+              {filteredQuickLinks.length ? filteredQuickLinks.map((item) => (
+                <button key={item.path} type="button" onClick={() => navigateQuickLink(item.path)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-none">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#0B2D4D]/5 text-[#0B2D4D]"><svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 5h16v14H4zM8 9h8M8 13h5" strokeLinecap="round" /></svg></span>
+                  <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-[#0B2D4D]">{item.label}</span><span className="mt-0.5 block truncate text-xs text-slate-500">{item.description}</span></span>
+                  <span className="text-xs text-slate-300">↗</span>
+                </button>
+              )) : <p className="px-3 py-8 text-center text-sm text-slate-500">Nenhum módulo corresponde à pesquisa.</p>}
+            </div>
+            <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/70 px-4 py-2.5 text-[10px] text-slate-400"><span>Os acessos continuam sujeitos às permissões da conta.</span><span>Enter para abrir</span></div>
+          </section>
+        </div>
+      )}
 
       <div className="flex min-w-0 shrink-0 items-center gap-1 sm:gap-2.5">
         <LanguageSelector />
-        <button type="button" aria-label="Tema" className="hidden h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-[#C8A24A] hover:text-[#0B2D4D] sm:flex">
-          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4" strokeLinecap="round" /><circle cx="12" cy="12" r="3.5" /></svg>
-        </button>
         <NotificationBell />
 
         <div ref={menuRef} className="relative ml-0.5 border-l border-slate-200 pl-1.5 sm:ml-1 sm:pl-3">
