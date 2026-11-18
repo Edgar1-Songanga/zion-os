@@ -307,6 +307,17 @@ using (
       and m.user_id = (select auth.uid())
   )
 );
+create policy resa_call_participants_insert on public.resa_call_participants
+for insert to authenticated
+with check (
+  user_id = (select auth.uid())
+  and exists (
+    select 1 from public.resa_calls c
+    join public.resa_conversation_members m on m.conversation_id = c.conversation_id
+    where c.id = resa_call_participants.call_id
+      and m.user_id = (select auth.uid())
+  )
+);
 grant usage on schema private to authenticated;
 grant usage on schema auth to authenticated;
 grant execute on function auth.uid() to authenticated;
