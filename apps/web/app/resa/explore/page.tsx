@@ -5,7 +5,7 @@ import Link from "next/link";
 import { resaRequest } from "@/lib/resa/api";
 import { resolveResaMediaUrls } from "@/lib/resa/media";
 
-type SearchType = "all" | "content" | "profile" | "topic" | "community" | "event";
+type SearchType = "all" | "content" | "institutional" | "profile" | "topic" | "community" | "event";
 type Result = {
   id: string;
   entity_id?: string;
@@ -32,6 +32,7 @@ type Result = {
 const filters: Array<{ value: SearchType; label: string }> = [
   { value: "all", label: "Tudo" },
   { value: "content", label: "Publicações" },
+  { value: "institutional", label: "Instituições" },
   { value: "profile", label: "Pessoas" },
   { value: "topic", label: "Tópicos" },
   { value: "community", label: "Comunidades" },
