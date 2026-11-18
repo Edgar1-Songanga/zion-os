@@ -75,14 +75,22 @@ declare
   v_target uuid;
 begin
   if tg_op = 'UPDATE'
-     and row(new.id, new.conversation_id, new.sender_id, new.parent_message_id, new.created_at)
+     and row(new.id, new.conversation_id, new.sender_id, new.created_at)
        is distinct from
-         row(old.id, old.conversation_id, old.sender_id, old.parent_message_id, old.created_at) then
+         row(old.id, old.conversation_id, old.sender_id, old.created_at) then
     raise exception 'Message identity and attribution are immutable' using errcode = '42501';
   end if;
 
-  if new.sender_id is distinct from (select auth.uid()) then
+  if tg_op = 'INSERT' and new.sender_id is distinct from (select auth.uid()) then
     raise exception 'message sender must match authenticated user' using errcode = '42501';
+  end if;
+  if tg_op = 'UPDATE' and new.sender_id is distinct from old.sender_id then
+    raise exception 'Message sender cannot be reassigned' using errcode = '42501';
+  end if;
+  if tg_op = 'UPDATE'
+     and row(new.body, new.status) is not distinct from row(old.body, old.status) then
+    -- Permit foreign-key ON DELETE SET NULL to detach replies without changing their author/content.
+    return new;
   end if;
 
   select kind into v_kind
@@ -208,7 +216,8 @@ begin
     raise exception 'Call participant identity is immutable' using errcode = '42501';
   end if;
 
-  if auth.uid() is distinct from old.user_id then
+  if current_user not in ('postgres', 'service_role')
+     and auth.uid() is distinct from old.user_id then
     raise exception 'Only the call participant can change their own state' using errcode = '42501';
   end if;
 
@@ -264,8 +273,63 @@ $function$;
 revoke all on function public.expire_unanswered_resa_call(uuid) from public, anon;
 grant execute on function public.expire_unanswered_resa_call(uuid) to authenticated;
 
--- Meeting audit events: participants can report their own presence/invitation
--- lifecycle; administrative events require an accepted host or moderator.
+-- Meeting audit events: the authorization helper runs as its owner so invitation
+-- decline events remain verifiable even though declined members cannot read the roster.
+create or replace function private.resa_group_meeting_event_actor_allowed(
+  p_meeting_id uuid,
+  p_actor_id uuid,
+  p_event_type text
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = pg_catalog
+as $function$
+  select
+    p_actor_id is not distinct from auth.uid()
+    and case
+      when p_event_type = 'INVITATION_ACCEPTED' then exists (
+        select 1 from public.resa_group_meeting_participants p
+        where p.meeting_id = p_meeting_id and p.user_id = p_actor_id and p.status = 'ACCEPTED'
+      )
+      when p_event_type = 'INVITATION_DECLINED' then exists (
+        select 1 from public.resa_group_meeting_participants p
+        where p.meeting_id = p_meeting_id and p.user_id = p_actor_id and p.status = 'DECLINED'
+      )
+      when p_event_type = 'PARTICIPANT_JOINED' then exists (
+        select 1 from public.resa_group_meeting_participants p
+        where p.meeting_id = p_meeting_id and p.user_id = p_actor_id and p.status = 'PRESENT'
+      )
+      when p_event_type = 'PARTICIPANT_LEFT' then exists (
+        select 1 from public.resa_group_meeting_participants p
+        where p.meeting_id = p_meeting_id and p.user_id = p_actor_id and p.status = 'LEFT'
+      )
+      when p_event_type in (
+        'MEETING_CREATED', 'INVITATION_SENT', 'PARTICIPANT_REMOVED',
+        'ROLE_CHANGED', 'ROOM_OPENED', 'ROOM_CLOSED', 'ROOM_LOCKED',
+        'ROOM_UNLOCKED', 'MODERATOR_ACTION', 'MEETING_ENDED'
+      ) then exists (
+        select 1 from public.resa_group_meeting_participants p
+        where p.meeting_id = p_meeting_id
+          and p.user_id = p_actor_id
+          and p.participant_role in ('HOST', 'MODERATOR')
+          and p.status in ('ACCEPTED', 'PRESENT')
+      )
+      when p_event_type in ('SCREEN_SHARE_STARTED', 'SCREEN_SHARE_STOPPED') then exists (
+        select 1 from public.resa_group_meeting_participants p
+        where p.meeting_id = p_meeting_id
+          and p.user_id = p_actor_id
+          and p.participant_role in ('HOST', 'MODERATOR', 'PRESENTER')
+          and p.status = 'PRESENT'
+      )
+      else false
+    end;
+$function$;
+
+revoke all on function private.resa_group_meeting_event_actor_allowed(uuid, uuid, text) from public, anon;
+grant execute on function private.resa_group_meeting_event_actor_allowed(uuid, uuid, text) to authenticated;
+
 drop policy if exists resa_group_meeting_events_insert on public.resa_group_meeting_events;
 
 create policy resa_group_meeting_events_insert
@@ -273,64 +337,8 @@ create policy resa_group_meeting_events_insert
   for insert to authenticated
   with check (
     actor_user_id = (select auth.uid())
-    and (
-      (
-        event_type = 'INVITATION_ACCEPTED'
-        and exists (
-          select 1 from public.resa_group_meeting_participants p
-          where p.meeting_id = resa_group_meeting_events.meeting_id
-            and p.user_id = (select auth.uid())
-            and p.status = 'ACCEPTED'
-        )
-      )
-      or (
-        event_type = 'INVITATION_DECLINED'
-        and exists (
-          select 1 from public.resa_group_meeting_participants p
-          where p.meeting_id = resa_group_meeting_events.meeting_id
-            and p.user_id = (select auth.uid())
-            and p.status = 'DECLINED'
-        )
-      )
-      or (
-        event_type = 'PARTICIPANT_JOINED'
-        and exists (
-          select 1 from public.resa_group_meeting_participants p
-          where p.meeting_id = resa_group_meeting_events.meeting_id
-            and p.user_id = (select auth.uid())
-            and p.status = 'PRESENT'
-        )
-      )
-      or (
-        event_type = 'PARTICIPANT_LEFT'
-        and exists (
-          select 1 from public.resa_group_meeting_participants p
-          where p.meeting_id = resa_group_meeting_events.meeting_id
-            and p.user_id = (select auth.uid())
-            and p.status = 'LEFT'
-        )
-      )
-      or (
-        event_type in (
-          'MEETING_CREATED', 'INVITATION_SENT', 'PARTICIPANT_REMOVED',
-          'ROLE_CHANGED', 'ROOM_OPENED', 'ROOM_CLOSED', 'ROOM_LOCKED',
-          'ROOM_UNLOCKED', 'MODERATOR_ACTION', 'MEETING_ENDED'
-        )
-        and private.resa_is_group_meeting_moderator(
-          resa_group_meeting_events.meeting_id, (select auth.uid())
-        )
-      )
-      or (
-        event_type in ('SCREEN_SHARE_STARTED', 'SCREEN_SHARE_STOPPED')
-        and exists (
-          select 1 from public.resa_group_meeting_participants p
-          where p.meeting_id = resa_group_meeting_events.meeting_id
-            and p.user_id = (select auth.uid())
-            and p.status = 'PRESENT'
-            and p.participant_role in ('HOST', 'MODERATOR', 'PRESENTER')
-        )
-      )
+    and private.resa_group_meeting_event_actor_allowed(
+      meeting_id, actor_user_id, event_type
     )
   );
-
 commit;
