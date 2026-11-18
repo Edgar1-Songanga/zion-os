@@ -17,12 +17,16 @@ export default function ForgotPasswordPage() {
     setMessage("");
     setLoading(true);
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/update-password`,
-    });
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/auth/update-password`,
+      });
 
-    if (error) setError(error.message);
-    else setMessage("Se o endereço estiver associado a uma conta, receberá instruções para redefinir a palavra-passe.");
+      if (error) setError(error.message);
+      else setMessage("Se o endereço estiver associado a uma conta, receberá instruções para redefinir a palavra-passe.");
+    } catch {
+      setError("Não foi possível contactar o serviço de recuperação. Verifique a ligação e tente novamente.");
+    }
 
     setLoading(false);
   }
