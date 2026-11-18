@@ -11,6 +11,7 @@ export const FRAME_AUDIT_ACTIONS = [
   'frame.migration.execution_succeeded',
   'frame.migration.execution_failed',
   'frame.migration.execution_blocked',
+  'frame.migration.audit_failure',
 ] as const;
 
 export type FrameAuditAction = (typeof FRAME_AUDIT_ACTIONS)[number];
