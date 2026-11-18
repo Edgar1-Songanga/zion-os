@@ -10,6 +10,8 @@ type Result = {
   id: string;
   entity_id?: string;
   entity_type?: string;
+  is_institutional?: boolean;
+  institution_name?: string | null;
   title?: string | null;
   body?: string | null;
   display_name?: string | null;
