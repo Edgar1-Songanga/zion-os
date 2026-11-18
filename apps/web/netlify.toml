@@ -1,0 +1,11 @@
+[build]
+command = "pnpm --filter web build"
+publish = "apps/web/.next"
+
+[build.environment]
+NODE_VERSION = "22"
+PNPM_VERSION = "10.32.1"
+PNPM_FLAGS = "--shamefully-hoist"
+
+[[plugins]]
+package = "@netlify/plugin-nextjs"
