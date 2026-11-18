@@ -50,13 +50,19 @@ function SignInForm() {
         setLoading(false);
         return;
       }
-      const { error: verifyError } = await supabase.auth.mfa.verify({
-        factorId,
-        challengeId,
-        code: mfaCode,
-      });
-      if (verifyError) {
-        setError(verifyError.message);
+      try {
+        const { error: verifyError } = await supabase.auth.mfa.verify({
+          factorId,
+          challengeId,
+          code: mfaCode,
+        });
+        if (verifyError) {
+          setError(verifyError.message);
+          setLoading(false);
+          return;
+        }
+      } catch {
+        setError("Não foi possível validar o código MFA. Verifique a ligação e tente novamente.");
         setLoading(false);
         return;
       }
@@ -70,9 +76,15 @@ function SignInForm() {
       setLoading(false);
       return;
     }
-    const { error: signInError } = await supabase.auth.signInWithPassword(credentials);
-    if (signInError) {
-      setError(signInError.message);
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword(credentials);
+      if (signInError) {
+        setError(signInError.message);
+        setLoading(false);
+        return;
+      }
+    } catch {
+      setError("Não foi possível contactar o serviço de autenticação. Verifique a ligação e tente novamente.");
       setLoading(false);
       return;
     }
