@@ -349,6 +349,40 @@ describe('ResaGroupMeetingService', () => {
     expect(postSpy).not.toHaveBeenCalled();
   });
 
+  it('records a participant leaving after a confirmed meeting presence', async () => {
+    actorId = PARTICIPANT_ID;
+    getSpy.mockResolvedValueOnce([{
+      meeting_id: MEETING_ID, user_id: PARTICIPANT_ID, participant_role: 'PARTICIPANT', status: 'PRESENT',
+    }] as never);
+    patchSpy.mockResolvedValueOnce([{
+      meeting_id: MEETING_ID, user_id: PARTICIPANT_ID, status: 'LEFT',
+    }] as never);
+    postSpy.mockResolvedValueOnce([{ event_type: 'PARTICIPANT_LEFT' }] as never);
+
+    const result = await service.setPresence('session-token', MEETING_ID, 'LEFT');
+
+    expect(patchSpy).toHaveBeenCalledWith('resa_group_meeting_participants', 'session-token',
+      expect.objectContaining({ status: 'LEFT' }),
+      expect.stringContaining('status=eq.PRESENT'));
+    expect(postSpy).toHaveBeenCalledWith('resa_group_meeting_events', 'session-token',
+      expect.objectContaining({ event_type: 'PARTICIPANT_LEFT' }));
+    expect(result.status).toBe('LEFT');
+  });
+
+  it('treats repeated meeting leave presence updates as idempotent', async () => {
+    actorId = PARTICIPANT_ID;
+    getSpy.mockResolvedValueOnce([{
+      meeting_id: MEETING_ID, user_id: PARTICIPANT_ID, participant_role: 'PARTICIPANT', status: 'LEFT',
+      joined_at: new Date().toISOString(), left_at: new Date().toISOString(),
+    }] as never);
+
+    const result = await service.setPresence('session-token', MEETING_ID, 'LEFT');
+
+    expect(result.status).toBe('LEFT');
+    expect(patchSpy).not.toHaveBeenCalled();
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+
   it('allows a participant already marked present to reconnect', async () => {
     actorId = PARTICIPANT_ID;
     patchSpy.mockResolvedValueOnce([{

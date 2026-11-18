@@ -53,6 +53,7 @@ export default function ResaGroupMeetingRoom({
   const remoteScreenRef = useRef<HTMLDivElement | null>(null);
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(true);
+  const [reconnecting, setReconnecting] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
   const [microphoneOn, setMicrophoneOn] = useState(false);
   const [screenShareOn, setScreenShareOn] = useState(false);
@@ -133,6 +134,8 @@ export default function ResaGroupMeetingRoom({
   useEffect(() => {
     let active = true;
     let presenceSet = false;
+    let presenceAttempted = false;
+    let disconnectObserved = false;
     const room = new Room({ adaptiveStream: true, dynacast: true });
     roomRef.current = room;
 
@@ -216,8 +219,45 @@ export default function ResaGroupMeetingRoom({
       .on(RoomEvent.LocalTrackUnpublished, (publication) => {
         if (publication.source === Track.Source.ScreenShare) setScreenShareOn(false);
       })
+      .on(RoomEvent.Reconnecting, () => {
+        if (!active) return;
+        setConnected(false);
+        setReconnecting(true);
+        setError(null);
+      })
+      .on(RoomEvent.Reconnected, () => {
+        if (!active) return;
+        setConnected(true);
+        setConnecting(false);
+        setReconnecting(false);
+        setError(null);
+        refreshPeople(room);
+        void loadChat();
+      })
       .on(RoomEvent.Disconnected, () => {
-        if (active) setConnected(false);
+        if (!active) return;
+        setConnected(false);
+        setConnecting(false);
+        setReconnecting(false);
+        setCameraOn(false);
+        setMicrophoneOn(false);
+        setScreenShareOn(false);
+        setPeople([]);
+        remoteRef.current?.replaceChildren();
+        remoteScreenRef.current?.replaceChildren();
+        setError("A ligação à reunião foi interrompida. Verifica a rede; se não recuperar, sai e volta a entrar.");
+        // A terminal disconnect is no longer an active meeting presence.
+        // Do not leave a ghost participant marked as PRESENT in the roster.
+        disconnectObserved = true;
+        if (presenceSet) {
+          presenceSet = false;
+          void resaRequest(`/v1/resa/group-meetings/${meetingId}/presence`, {
+            method: "POST",
+            body: JSON.stringify({ status: "LEFT" }),
+          }).then(() => onRefresh()).catch(() => {
+            if (active) setError("A ligação terminou, mas não foi possível atualizar a presença. Sai da reunião e tenta novamente.");
+          });
+        }
       });
 
     async function connect() {
@@ -230,19 +270,42 @@ export default function ResaGroupMeetingRoom({
           room.disconnect();
           return;
         }
+        // The presence request can race with a terminal disconnect or an
+        // unmount. Record the attempt, then reconcile LEFT after the request
+        // settles so a late PRESENT response cannot leave a ghost attendee.
+        presenceAttempted = true;
         await resaRequest(`/v1/resa/group-meetings/${meetingId}/presence`, {
           method: "POST",
           body: JSON.stringify({ status: "PRESENT" }),
         });
         presenceSet = true;
+        if (!active || disconnectObserved) {
+          presenceSet = false;
+          await resaRequest(`/v1/resa/group-meetings/${meetingId}/presence`, {
+            method: "POST",
+            body: JSON.stringify({ status: "LEFT" }),
+          });
+          if (active) onRefresh();
+          return;
+        }
         setConnected(true);
         setConnecting(false);
         refreshPeople(room);
         await loadChat();
       } catch (cause) {
+        if (presenceAttempted) {
+          presenceSet = false;
+          // A network error may have happened after the server committed
+          // PRESENT. Best-effort reconciliation is safe if no row was changed.
+          void resaRequest(`/v1/resa/group-meetings/${meetingId}/presence`, {
+            method: "POST",
+            body: JSON.stringify({ status: "LEFT" }),
+          }).then(() => onRefresh()).catch(() => {});
+        }
         if (active) {
           setError(cause instanceof Error ? cause.message : "Não foi possível entrar na reunião.");
           setConnecting(false);
+          setReconnecting(false);
         }
         room.disconnect();
       }
@@ -407,7 +470,7 @@ export default function ResaGroupMeetingRoom({
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-sky-300">Reunião RESA</p>
           <h2 className="mt-1 text-lg font-semibold">{title}</h2>
-          <p className="mt-1 text-xs text-slate-400">{connected ? "Ligado ao espaço de reunião" : connecting ? "A estabelecer ligação..." : "Ligação encerrada"}</p>
+          <p className="mt-1 text-xs text-slate-400">{connected ? "Ligado ao espaço de reunião" : reconnecting ? "A recuperar ligação..." : connecting ? "A estabelecer ligação..." : "Ligação encerrada"}</p>
         </div>
         <button onClick={onLeave} className="rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10">Sair da reunião</button>
       </header>
