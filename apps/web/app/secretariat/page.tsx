@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { OrganizationSelector, type ZionOrganization } from "@/components/organization/OrganizationSelector";
 import { ResaApiError, resaRequest } from "@/lib/resa/api";
 import SecretariatOfflineSyncPanel from "@/components/secretariat/SecretariatOfflineSyncPanel";
@@ -221,17 +221,22 @@ export default function SecretariatPage() {
     if (organizationId) void loadMembers(organizationId);
   }, [organizationId, loadMembers]);
 
+  const archiveRequestSequence = useRef(0);
+
   const loadArchive = useCallback(async (status: "DECEASED" | "REMOVED") => {
+    const requestId = ++archiveRequestSequence.current;
     setArchiveLoading(true);
     setArchiveError("");
     try {
       const data = await resaRequest<Member[]>(`/v1/church-members/status/${status}`);
+      if (requestId !== archiveRequestSequence.current) return;
       setArchiveMembers(data);
     } catch (reason) {
+      if (requestId !== archiveRequestSequence.current) return;
       setArchiveMembers([]);
       setArchiveError(reason instanceof Error ? reason.message : "Não foi possível consultar o arquivo de membros.");
     } finally {
-      setArchiveLoading(false);
+      if (requestId === archiveRequestSequence.current) setArchiveLoading(false);
     }
   }, []);
 
