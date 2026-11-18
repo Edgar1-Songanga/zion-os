@@ -123,6 +123,14 @@ jobs:
       - name: Test target-bound Frame production plan
         run: node --test apps/api/scripts/frame-production-plan.test.cjs
 
+      - name: Setup Python for Frame executor regression tests
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Test fail-closed Frame executor plan validation
+        run: python apps/api/scripts/test_frame_execute_locked.py
+
       - name: Start disposable PostgreSQL for Frame audit guard
         run: |
           docker run --rm -d --name zion-frame-audit-postgres \
