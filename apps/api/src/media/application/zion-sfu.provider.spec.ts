@@ -162,6 +162,57 @@ describe('ZionSfuProvider source-scoped participant permissions', () => {
     expect(mockMutePublishedTrack).not.toHaveBeenCalled();
   });
 
+  it('stops already-published screen tracks when the room-wide attendee publishing lock is applied', async () => {
+    mockListParticipants
+      .mockResolvedValueOnce([
+        { identity: 'host-1', tracks: [] },
+        { identity: 'attendee-1', tracks: [] },
+      ])
+      .mockResolvedValueOnce([{
+        identity: 'attendee-1',
+        tracks: [
+          { sid: 'camera-1', source: 1, type: 'VIDEO' },
+          { sid: 'mic-1', source: 2, type: 'AUDIO' },
+          { sid: 'screen-1', source: 3, type: 'VIDEO' },
+          { sid: 'screen-audio-1', source: 4, type: 'AUDIO' },
+        ],
+      }]);
+
+    await provider.setRoomPublishingForAttendees({
+      roomId: 'live-room-1',
+      hostIdentity: 'host-1',
+      canPublish: false,
+    });
+
+    expect(mockUpdateParticipant).toHaveBeenCalledWith('live-room-1', 'attendee-1', {
+      permission: {
+        canPublish: false,
+        canSubscribe: true,
+        canPublishData: true,
+      },
+    });
+    expect(mockUpdateParticipant).not.toHaveBeenCalledWith('live-room-1', 'host-1', expect.anything());
+    expect(mockMutePublishedTrack).toHaveBeenCalledTimes(2);
+    expect(mockMutePublishedTrack).toHaveBeenCalledWith('live-room-1', 'attendee-1', 'screen-1', true);
+    expect(mockMutePublishedTrack).toHaveBeenCalledWith('live-room-1', 'attendee-1', 'screen-audio-1', true);
+  });
+
+  it('fails closed when an active attendee screen track cannot be stopped by the room publishing lock', async () => {
+    mockListParticipants
+      .mockResolvedValueOnce([{ identity: 'attendee-1', tracks: [] }])
+      .mockResolvedValueOnce([{
+        identity: 'attendee-1',
+        tracks: [{ sid: 'screen-1', source: 3, type: 'VIDEO' }],
+      }]);
+    mockMutePublishedTrack.mockRejectedValueOnce(new Error('SFU mute failed'));
+
+    await expect(provider.setRoomPublishingForAttendees({
+      roomId: 'live-room-1',
+      hostIdentity: 'host-1',
+      canPublish: false,
+    })).rejects.toThrow('SFU mute failed');
+  });
+
   it('mutes only microphone tracks for a connected participant', async () => {
     mockListParticipants.mockResolvedValueOnce([{
       identity: 'participant-1',

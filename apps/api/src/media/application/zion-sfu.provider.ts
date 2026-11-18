@@ -149,8 +149,11 @@ export class ZionSfuProvider implements MediaProvider {
       const participants = await client.listParticipants(input.roomId);
       await Promise.all(participants
         .filter((participant) => participant.identity !== input.hostIdentity)
-        .map((participant) => client.updateParticipant(input.roomId, participant.identity, {
-          permission: { canPublish: false, canSubscribe: true, canPublishData: true },
+        .map((participant) => this.setParticipantPermissions({
+          roomId: input.roomId,
+          identity: participant.identity,
+          canPublish: false,
+          canPublishSources: [],
         })));
     } catch (error) {
       throw new BadGatewayException(error instanceof Error ? error.message : 'Room publishing policy could not be applied');
