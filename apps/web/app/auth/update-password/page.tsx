@@ -14,10 +14,16 @@ export default function UpdatePasswordPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
+    let active = true;
+    void supabase.auth.getSession().then(({ data, error: sessionError }) => {
+      if (!active) return;
       setReady(Boolean(data.session));
-      if (!data.session) setError("O link de recuperação é inválido ou expirou.");
+      if (sessionError) setError("Não foi possível validar a sessão de recuperação. Abra novamente o link recebido por email.");
+      else if (!data.session) setError("O link de recuperação é inválido ou expirou.");
+    }).catch(() => {
+      if (active) setError("Não foi possível validar o link de recuperação. Verifique a ligação e tente novamente.");
     });
+    return () => { active = false; };
   }, [supabase.auth]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -35,13 +41,20 @@ export default function UpdatePasswordPage() {
     }
 
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({ password });
-    if (error) setError(error.message);
-    else {
-      setMessage("Palavra-passe atualizada. Pode entrar novamente.");
-      await supabase.auth.signOut();
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) {
+        setError(error.message);
+      } else {
+        setMessage("Palavra-passe atualizada. Pode entrar novamente.");
+        const { error: signOutError } = await supabase.auth.signOut();
+        if (signOutError) setError("A palavra-passe foi atualizada, mas não foi possível terminar a sessão automaticamente. Termine a sessão antes de voltar a entrar.");
+      }
+    } catch {
+      setError("Não foi possível atualizar a palavra-passe. Verifique a ligação e tente novamente.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   return (
@@ -61,8 +74,8 @@ export default function UpdatePasswordPage() {
             onChange={(e) => setConfirmPassword(e.target.value)}
             className="w-full rounded-xl border border-[var(--zion-border)] bg-white px-4 py-3 outline-none transition focus:border-[var(--zion-sky)] focus:ring-4 focus:ring-[var(--zion-sky)]/10"
             placeholder="Confirmar palavra-passe" />
-          {error && <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
-          {message && <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</p>}
+          {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+          {message && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</p>}
           <button type="submit" disabled={loading || !ready}
             className="w-full rounded-xl bg-[var(--zion-primary)] px-4 py-3 font-semibold text-white shadow-sm transition hover:bg-[var(--zion-primary-deep)] disabled:opacity-60">
             {loading ? "A atualizar..." : "Atualizar palavra-passe"}
