@@ -19,6 +19,9 @@ values
  ('60000000-0000-4000-8000-000000000007','10000000-0000-4000-8000-000000000001','group','Authorization regression destination')
 on conflict (id) do nothing;
 
+-- The membership guard requires a real actor even though fixture setup runs as postgres.
+select set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000001',false);
+
 insert into public.resa_conversation_members(conversation_id,user_id,role) values
  ('60000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000001','owner'),
  ('60000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000002','member'),
