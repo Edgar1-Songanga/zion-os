@@ -244,9 +244,12 @@ grant select, insert, delete on public.resa_follows to authenticated;
 create table public.resa_messages (
   id uuid primary key default gen_random_uuid(),
   conversation_id uuid not null references public.resa_conversations(id) on delete cascade,
-  sender_id uuid not null references auth.users(id) on delete cascade,
-  body text not null,
-  created_at timestamptz not null default now()
+  sender_id uuid not null references auth.users(id) on delete restrict,
+  body text not null check (length(trim(body)) between 1 and 10000),
+  status text not null default 'active' check (status in ('active','deleted','moderated')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  parent_message_id uuid references public.resa_messages(id) on delete set null
 );
 alter table public.resa_messages enable row level security;
 create policy resa_messages_member on public.resa_messages for all to authenticated
@@ -298,6 +301,17 @@ create policy resa_call_participants_select on public.resa_call_participants
 for select to authenticated
 using (
   exists (
+    select 1 from public.resa_calls c
+    join public.resa_conversation_members m on m.conversation_id = c.conversation_id
+    where c.id = resa_call_participants.call_id
+      and m.user_id = (select auth.uid())
+  )
+);
+create policy resa_call_participants_insert on public.resa_call_participants
+for insert to authenticated
+with check (
+  user_id = (select auth.uid())
+  and exists (
     select 1 from public.resa_calls c
     join public.resa_conversation_members m on m.conversation_id = c.conversation_id
     where c.id = resa_call_participants.call_id

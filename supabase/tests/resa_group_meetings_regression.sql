@@ -240,6 +240,37 @@ values (
   'PARTICIPANT_JOINED',
   '{"source":"regression"}'::jsonb
 );
+
+-- An ordinary accepted participant cannot forge administrative audit events.
+do $test$
+begin
+  begin
+    insert into public.resa_group_meeting_events(meeting_id, actor_user_id, event_type, payload)
+    values ('97100000-0000-4000-8000-000000000001','97000000-0000-4000-8000-000000000003','MEETING_ENDED','{}'::jsonb);
+    raise exception 'Ordinary participant forged MEETING_ENDED';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    insert into public.resa_group_meeting_events(meeting_id, actor_user_id, event_type, payload)
+    values ('97100000-0000-4000-8000-000000000001','97000000-0000-4000-8000-000000000003','ROLE_CHANGED','{"target_user_id":"97000000-0000-4000-8000-000000000001"}'::jsonb);
+    raise exception 'Ordinary participant forged ROLE_CHANGED';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    insert into public.resa_group_meeting_events(meeting_id, actor_user_id, event_type, payload)
+    values ('97100000-0000-4000-8000-000000000001','97000000-0000-4000-8000-000000000003','MODERATOR_ACTION','{"action":"ROOM_LOCKED"}'::jsonb);
+    raise exception 'Ordinary participant forged MODERATOR_ACTION';
+  exception when insufficient_privilege then null;
+  end;
+end;
+$test$;
+reset role;
+
+-- An accepted moderator can still write the legitimate moderation audit event.
+select set_config('request.jwt.claim.sub','97000000-0000-4000-8000-000000000002',false);
+set role authenticated;
+insert into public.resa_group_meeting_events(meeting_id, actor_user_id, event_type, payload)
+values ('97100000-0000-4000-8000-000000000001','97000000-0000-4000-8000-000000000002','MODERATOR_ACTION','{"action":"REGRESSION_ALLOWED"}'::jsonb);
 reset role;
 
 -- Moderator can grant/revoke presenter permission dynamically, but cannot appoint another moderator.

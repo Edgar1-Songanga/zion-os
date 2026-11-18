@@ -248,14 +248,14 @@ export default function ResaCallControls({ conversationId, peerName = "Membro RE
       if (insertError) throw insertError;
       created = data as CallRow;
       callRef.current = created; setCall(created); setCallStatus("ringing");
-      // Start the 45-second unanswered-call window at creation, not after media setup.
+      // The database, not the browser, decides when an unanswered call becomes missed.
       callTimeoutRef.current = window.setTimeout(() => {
         callTimeoutRef.current = null;
         void (async () => {
-          const { data: expired, error: expiryError } = await supabase.from("resa_calls")
-            .update({ status: "missed", ended_at: new Date().toISOString() })
-            .eq("id", created!.id).eq("status", "ringing")
-            .select("id").maybeSingle();
+          const { data: expired, error: expiryError } = await supabase.rpc(
+            "expire_unanswered_resa_call",
+            { p_call_id: created!.id },
+          );
           if (expiryError) {
             setError("Não foi possível finalizar automaticamente a chamada não atendida. Termine-a manualmente.");
             return;
