@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { resaRequest } from "@/lib/resa/api";
 import { OrganizationSelector, type ZionOrganization } from "@/components/organization/OrganizationSelector";
 import { YOUTH_PROGRAMS } from "@/components/youth/core/YouthProgram";
@@ -79,7 +78,6 @@ export default function YouthClubOperations() {
   const [leaderRole, setLeaderRole] = useState("Dirigente do clube");
   const [peopleLoading, setPeopleLoading] = useState(false);
   const [peopleSaving, setPeopleSaving] = useState(false);
-  const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState("");
   const logoInputRef = useRef<HTMLInputElement>(null);
 
@@ -119,7 +117,6 @@ export default function YouthClubOperations() {
       coverImageUrl: club.coverImageUrl ?? "",
       logoUrl: club.logoUrl ?? "",
     });
-    setLogoFile(null);
     setLogoPreview(club.logoUrl ?? "");
     setError(null);
     setMessage(null);
@@ -132,28 +129,6 @@ export default function YouthClubOperations() {
     setLogoPreview("");
     setError(null);
     setMessage(null);
-  }
-
-  useEffect(() => {
-    if (!logoFile) return;
-    const url = URL.createObjectURL(logoFile);
-    setLogoPreview(url);
-    return () => URL.revokeObjectURL(url);
-  }, [logoFile]);
-
-  function selectClubLogo(file?: File) {
-    if (!file) return;
-    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-      setError("Escolha uma fotografia JPG, PNG ou WebP.");
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setError("A fotografia do clube não pode ultrapassar 5 MB.");
-      return;
-    }
-    setError(null);
-    setMessage(null);
-    setLogoFile(file);
   }
 
   async function loadPeople(club: YouthClubRecord) {
@@ -280,17 +255,7 @@ export default function YouthClubOperations() {
     setError(null);
     setMessage(null);
     try {
-      let logoUrl = form.logoUrl.trim() || null;
-      if (logoFile) {
-        const supabase = createClient();
-        const { data: userData, error: userError } = await supabase.auth.getUser();
-        if (userError || !userData.user) throw new Error("A sessão expirou. Entre novamente para carregar a fotografia.");
-        const extension = logoFile.name.split(".").pop()?.toLowerCase() || "jpg";
-        const path = `${userData.user.id}/youth-clubs/${editingId ?? crypto.randomUUID()}/profile-${crypto.randomUUID()}.${extension}`;
-        const upload = await supabase.storage.from("resa-media").upload(path, logoFile, { contentType: logoFile.type, upsert: false });
-        if (upload.error) throw new Error(upload.error.message);
-        logoUrl = supabase.storage.from("resa-media").getPublicUrl(path).data.publicUrl;
-      }
+      const logoUrl = form.logoUrl.trim() || null;
       const payload = {
       name: form.name.trim(),
       program_id: form.programId,
@@ -410,20 +375,20 @@ export default function YouthClubOperations() {
               </label>
               <div className="rounded-2xl border border-[#E5D8B2] bg-white p-4 shadow-sm">
                 <p className="text-sm font-semibold text-[#0C1A3D]">Fotografia de perfil do clube</p>
-                <p className="mt-1 text-xs leading-5 text-slate-500">Carregue uma fotografia real do seu clube. Até lá, o ZION apresenta a imagem oficial do programa. JPG, PNG ou WebP até 5 MB.</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">O carregamento de fotografias está temporariamente suspenso até a moderação segura de imagens estar activa. A imagem oficial do programa continua disponível como referência.</p>
                 <div className="mt-4 flex items-center gap-4">
-                  <button type="button" onClick={() => logoInputRef.current?.click()} className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-[#C8A24A] bg-gradient-to-br from-[#0C1A3D] to-[#233D70] text-xl font-bold text-white shadow-lg ring-4 ring-[#C8A24A]/15" aria-label="Escolher fotografia de perfil do clube">
+                  <button type="button" disabled className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-[#C8A24A] bg-gradient-to-br from-[#0C1A3D] to-[#233D70] text-xl font-bold text-white shadow-lg ring-4 ring-[#C8A24A]/15 disabled:cursor-not-allowed" aria-label="Fotografia de perfil temporariamente indisponível">
                     {logoPreview || form.logoUrl ? <img src={logoPreview || form.logoUrl} alt="Pré-visualização da fotografia do clube" className="h-full w-full object-cover" /> : getMinistryCatalogEntry(CATALOG_ID_BY_PROGRAM[form.programId])?.profileImage ? <img src={getMinistryCatalogEntry(CATALOG_ID_BY_PROGRAM[form.programId])!.profileImage!} alt="Fotografia oficial de referência do programa selecionado" className="h-full w-full object-cover" /> : getMinistryCatalogEntry(CATALOG_ID_BY_PROGRAM[form.programId])?.coverImage ? <img src={getMinistryCatalogEntry(CATALOG_ID_BY_PROGRAM[form.programId])!.coverImage} alt="Emblema oficial de referência do programa selecionado" className="h-full w-full bg-white object-contain p-1" /> : <span>{form.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "Z"}</span>}
                   </button>
                   <div className="min-w-0">
-                    <button type="button" onClick={() => logoInputRef.current?.click()} className="rounded-lg bg-[#0C1A3D] px-3 py-2 text-xs font-semibold text-white">Carregar fotografia</button>
-                    <p className="mt-2 text-xs text-slate-500">A imagem será guardada na biblioteca multimédia do ZION.</p>
-                    <input ref={logoInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(event) => selectClubLogo(event.target.files?.[0])} />
+                    <button type="button" disabled className="rounded-lg bg-slate-300 px-3 py-2 text-xs font-semibold text-slate-600 disabled:cursor-not-allowed">Carregamento suspenso</button>
+                    <p className="mt-2 text-xs text-slate-500">A substituição será reactivada quando o fluxo de análise e aprovação estiver disponível.</p>
                   </div>
                 </div>
               </div>
-              <label className="block text-sm font-medium text-slate-700">URL HTTPS da fotografia de capa
-                <input type="url" value={form.coverImageUrl} onChange={(event) => setForm({ ...form, coverImageUrl: event.target.value })} className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 outline-none focus:border-[#C8A24A]" placeholder="https://…" />
+              <label className="block text-sm font-medium text-slate-700">Fotografia de capa
+                <input type="url" value={form.coverImageUrl} disabled className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-slate-500" aria-describedby="cover-media-note" />
+                <span id="cover-media-note" className="mt-1 block text-xs font-normal text-slate-500">A alteração da capa está temporariamente suspensa até à activação da moderação segura.</span>
               </label>
               <div className="flex flex-wrap gap-3 pt-1">
                 <button type="submit" disabled={saving || !form.name.trim()} className="rounded-xl bg-[#0C1A3D] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#182c58] disabled:opacity-50">{saving ? "A guardar…" : editingId ? "Guardar alterações" : "Registar clube"}</button>
