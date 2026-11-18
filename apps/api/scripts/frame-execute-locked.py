@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
-"""Run the Frame migration command under a PostgreSQL advisory lock and audit it.
+"""Run the exact, verified Frame migration plan under a PostgreSQL advisory lock.
 
-The lock is held on a dedicated PostgreSQL session while the Supabase CLI uses
-its own connection. Only Frame workflows are permitted to hold this lock.
+This executor is deliberately fail-closed. It independently validates the plan
+hash, commit, production target, complete migration inventory and every SQL
+file checksum before opening a database connection or running the CLI.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import uuid
-from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import psycopg
 from psycopg.types.json import Jsonb
@@ -24,6 +27,99 @@ ALLOWED_ACTIONS = {
     "succeeded": "frame.migration.execution_succeeded",
     "failed": "frame.migration.execution_failed",
 }
+MIGRATION_NAME = re.compile(r"^(\\d{8}|\\d{14})_[A-Za-z0-9][A-Za-z0-9_-]*\\.sql$")
+SHA256 = re.compile(r"^[a-f0-9]{64}$")
+COMMIT_SHA = re.compile(r"^[a-f0-9]{40}$")
+PROJECT_REF = re.compile(r"^[a-z0-9]{20}$")
+
+
+class PlanValidationError(ValueError):
+    """Raised when the plan does not bind to the exact approved source."""
+
+
+def validate_plan(
+    plan: Any,
+    *,
+    expected_hash: str,
+    expected_commit: str,
+    expected_project_ref: str,
+    migrations_dir: Path,
+) -> dict[str, Any]:
+    if not isinstance(plan, dict):
+        raise PlanValidationError("Frame plan must be a JSON object.")
+    if plan.get("schema_version") != 1 or plan.get("target") != "production":
+        raise PlanValidationError("Frame plan schema or target is invalid.")
+    if not COMMIT_SHA.fullmatch(expected_commit or ""):
+        raise PlanValidationError("Expected full commit SHA is missing or invalid.")
+    if not PROJECT_REF.fullmatch(expected_project_ref or ""):
+        raise PlanValidationError("Expected Supabase project ref is missing or invalid.")
+    if plan.get("commit_sha") != expected_commit:
+        raise PlanValidationError("Frame plan commit does not match the checked-out commit.")
+    if plan.get("project_ref") != expected_project_ref:
+        raise PlanValidationError("Frame plan target does not match the configured production project.")
+    if not SHA256.fullmatch(expected_hash or "") or plan.get("plan_sha256") != expected_hash:
+        raise PlanValidationError("Frame plan hash does not match the approved hash.")
+
+    manifest = plan.get("manifest")
+    if not isinstance(manifest, dict) or manifest.get("mode") != "read-only":
+        raise PlanValidationError("Frame migration manifest is invalid.")
+    migrations = manifest.get("migrations")
+    if not isinstance(migrations, list) or not migrations:
+        raise PlanValidationError("Frame migration inventory is empty or invalid.")
+    if manifest.get("count") != len(migrations):
+        raise PlanValidationError("Frame migration inventory count does not match.")
+
+    # Match Node's JSON.stringify(payload) byte-for-byte for the plan hash.
+    payload = {
+        "schema_version": plan["schema_version"],
+        "target": plan["target"],
+        "project_ref": plan["project_ref"],
+        "commit_sha": plan["commit_sha"],
+        "manifest": manifest,
+    }
+    canonical = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    computed_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    if computed_hash != expected_hash:
+        raise PlanValidationError("Frame plan canonical hash verification failed.")
+
+    expected_names: list[str] = []
+    previous_name = ""
+    for item in migrations:
+        if not isinstance(item, dict):
+            raise PlanValidationError("Frame migration entry is invalid.")
+        name = item.get("name")
+        version = item.get("version")
+        digest = item.get("sha256")
+        size = item.get("bytes")
+        if not isinstance(name, str) or not MIGRATION_NAME.fullmatch(name):
+            raise PlanValidationError("Frame migration filename is invalid.")
+        if name <= previous_name:
+            raise PlanValidationError("Frame migration inventory is not strictly sorted.")
+        previous_name = name
+        if version != name.split("_", 1)[0]:
+            raise PlanValidationError("Frame migration version does not match its filename.")
+        if not isinstance(digest, str) or not SHA256.fullmatch(digest):
+            raise PlanValidationError("Frame migration checksum is invalid.")
+        if not isinstance(size, int) or isinstance(size, bool) or size < 0:
+            raise PlanValidationError("Frame migration byte count is invalid.")
+        expected_names.append(name)
+
+    if not migrations_dir.is_dir():
+        raise PlanValidationError("Supabase migration directory is missing.")
+    actual_names = sorted(path.name for path in migrations_dir.glob("*.sql"))
+    if actual_names != expected_names:
+        raise PlanValidationError("Repository migration files differ from the approved inventory.")
+
+    for item in migrations:
+        migration_path = migrations_dir / item["name"]
+        content = migration_path.read_bytes()
+        if len(content) != item["bytes"]:
+            raise PlanValidationError(f"Frame migration size drift detected: {item['name']}")
+        digest = hashlib.sha256(content).hexdigest()
+        if digest != item["sha256"]:
+            raise PlanValidationError(f"Frame migration checksum drift detected: {item['name']}")
+
+    return plan
 
 
 def main() -> int:
@@ -33,49 +129,42 @@ def main() -> int:
 
     database_url = os.environ.get("ZION_SUPABASE_DB_URL", "")
     plan_path = os.environ.get("FRAME_PLAN_FILE", "")
+    expected_hash = os.environ.get("EXPECTED_PLAN_SHA256", "")
+    expected_commit = os.environ.get("GITHUB_SHA", "")
+    expected_project_ref = os.environ.get("ZION_SUPABASE_PROJECT_REF", "")
     if not database_url or not plan_path:
         print("Frame requires ZION_SUPABASE_DB_URL and FRAME_PLAN_FILE.", file=sys.stderr)
         return 78
 
     try:
         plan = json.loads(Path(plan_path).read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        print("Frame plan file is missing or invalid.", file=sys.stderr)
-        return 78
-
-    plan_hash = plan.get("plan_sha256")
-    commit_sha = plan.get("commit_sha")
-    project_ref = plan.get("project_ref")
-    migrations = plan.get("manifest", {}).get("migrations", [])
-    if (
-        not isinstance(plan_hash, str)
-        or len(plan_hash) != 64
-        or not isinstance(commit_sha, str)
-        or len(commit_sha) != 40
-        or not isinstance(project_ref, str)
-        or not isinstance(migrations, list)
-    ):
-        print("Frame plan metadata failed validation.", file=sys.stderr)
+        repo_root = Path(__file__).resolve().parents[3]
+        validate_plan(
+            plan,
+            expected_hash=expected_hash,
+            expected_commit=expected_commit,
+            expected_project_ref=expected_project_ref,
+            migrations_dir=repo_root / "supabase" / "migrations",
+        )
+    except (OSError, json.JSONDecodeError, PlanValidationError) as error:
+        print(f"Frame plan validation failed ({type(error).__name__}): {error}", file=sys.stderr)
         return 78
 
     execution_id = str(uuid.uuid4())
     metadata = {
-        "plan_sha256": plan_hash,
-        "migration_count": len(migrations),
-        "migration_versions": [m.get("version") for m in migrations if isinstance(m, dict)],
+        "plan_sha256": expected_hash,
+        "migration_count": len(plan["manifest"]["migrations"]),
+        "migration_versions": [m["version"] for m in plan["manifest"]["migrations"]],
         "execution_id": execution_id,
         "reason": "github_actions_frame_executor",
-    }
-    metadata.update({
-        "commit_sha": commit_sha,
-        "project_ref": project_ref,
+        "commit_sha": expected_commit,
+        "project_ref": expected_project_ref,
         "github_actor": os.environ.get("GITHUB_ACTOR", "unknown")[:100],
         "github_run_id": os.environ.get("GITHUB_RUN_ID", "unknown")[:100],
-    })
+    }
 
     conn = None
     locked = False
-    outcome = "failed"
     return_code = 1
     try:
         conn = psycopg.connect(database_url, autocommit=True, connect_timeout=15)
@@ -100,26 +189,19 @@ def main() -> int:
         completed = subprocess.run(sys.argv[2:], check=False)
         return_code = completed.returncode
         if return_code == 0:
-            outcome = "succeeded"
-            conn.execute(
-                """
-                INSERT INTO public.audit_logs
-                  (organization_id, actor_user_id, action, resource_type, resource_id, metadata)
-                VALUES (NULL, NULL, %s, 'frame_migration', NULL, %s)
-                """,
-                (ALLOWED_ACTIONS["succeeded"], Jsonb(metadata)),
-            )
+            action = ALLOWED_ACTIONS["succeeded"]
         else:
             metadata["failure_code"] = "supabase_cli_nonzero_exit"
             metadata["reason"] = f"migration_command_exit_{return_code}"
-            conn.execute(
-                """
-                INSERT INTO public.audit_logs
-                  (organization_id, actor_user_id, action, resource_type, resource_id, metadata)
-                VALUES (NULL, NULL, %s, 'frame_migration', NULL, %s)
-                """,
-                (ALLOWED_ACTIONS["failed"], Jsonb(metadata)),
-            )
+            action = ALLOWED_ACTIONS["failed"]
+        conn.execute(
+            """
+            INSERT INTO public.audit_logs
+              (organization_id, actor_user_id, action, resource_type, resource_id, metadata)
+            VALUES (NULL, NULL, %s, 'frame_migration', NULL, %s)
+            """,
+            (action, Jsonb(metadata)),
+        )
         return return_code
     except Exception as error:  # never print connection strings or SQL parameters
         print(f"Frame execution failed ({type(error).__name__}).", file=sys.stderr)
