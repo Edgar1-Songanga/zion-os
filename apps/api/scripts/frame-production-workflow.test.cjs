@@ -17,6 +17,7 @@ test('push to main runs a read-only Frame plan for relevant changes', () => {
   assert.match(workflow, /push:\n\s+branches:\n\s+- main/);
   assert.match(workflow, /paths:\n\s+- 'supabase\/migrations\/\*\*'/);
   assert.match(workflow, /- 'apps\/api\/scripts\/frame-migration-manifest\.cjs'/);
+  assert.match(workflow, /- 'apps\/api\/scripts\/frame-production-workflow\.test\.cjs'/);
   assert.match(workflow, /- '\.github\/workflows\/frame-production-migrations\.yml'/);
   assert.match(planJob, /FRAME_MODE: \$\{\{ inputs\.mode \|\| 'plan' \}\}/);
 });
