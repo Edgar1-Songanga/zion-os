@@ -1,11 +1,11 @@
 # Frame production migration gate — implementation contract
 
-**Status: design/audit only. No production database writes were performed.**
+**Status: implementation in progress. No production database writes were performed.**
 
 ## Current verified gap (2026-10-17)
 
 - `.github/workflows/ci.yml` validates migration filenames and duplicate timestamps; it does not validate migration SQL against a disposable database and does not apply migrations.
-- `apps/api/src/audit/audit.module.ts` is currently an empty NestJS module.
+- `AuditModule` now provides an authenticated Frame approval endpoint (pending PR #373 CI/merge); approval issuance is restricted to verified global administrators.
 - `PlatformModule` exposes platform search, events, analytics and jobs; it is not a migration executor and must not become one by accident.
 - The API runtime config contains the Supabase URL and publishable key, not a privileged migration credential.
 - Production migration history was previously read-only checked through `20261017151020_department_operations_phase2`. The following repository migrations were not present in that history at the last check:
