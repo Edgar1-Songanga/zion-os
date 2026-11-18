@@ -14,6 +14,7 @@ import re
 import subprocess
 import sys
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,7 @@ from psycopg.types.json import Jsonb
 LOCK_CLASS_ID = 1_487_216_022
 LOCK_OBJECT_ID = 2_026_111_010
 ALLOWED_ACTIONS = {
+    "consumed": "frame.migration.approval_consumed",
     "started": "frame.migration.execution_started",
     "succeeded": "frame.migration.execution_succeeded",
     "failed": "frame.migration.execution_failed",
@@ -132,8 +134,14 @@ def main() -> int:
     expected_hash = os.environ.get("EXPECTED_PLAN_SHA256", "")
     expected_commit = os.environ.get("GITHUB_SHA", "")
     expected_project_ref = os.environ.get("ZION_SUPABASE_PROJECT_REF", "")
+    approval_id = os.environ.get("FRAME_APPROVAL_ID", "")
     if not database_url or not plan_path:
         print("Frame requires ZION_SUPABASE_DB_URL and FRAME_PLAN_FILE.", file=sys.stderr)
+        return 78
+    try:
+        uuid.UUID(approval_id)
+    except (ValueError, AttributeError):
+        print("Frame requires a valid one-use administrator approval ID.", file=sys.stderr)
         return 78
 
     try:
@@ -161,30 +169,100 @@ def main() -> int:
         "project_ref": expected_project_ref,
         "github_actor": os.environ.get("GITHUB_ACTOR", "unknown")[:100],
         "github_run_id": os.environ.get("GITHUB_RUN_ID", "unknown")[:100],
+        "approval_id": approval_id,
     }
 
     conn = None
+    actor_user_id = None
     locked = False
     return_code = 1
     try:
-        conn = psycopg.connect(database_url, autocommit=True, connect_timeout=15)
+        conn = psycopg.connect(database_url, autocommit=False, connect_timeout=15)
         row = conn.execute(
             "SELECT pg_try_advisory_lock(%s, %s)",
             (LOCK_CLASS_ID, LOCK_OBJECT_ID),
         ).fetchone()
         locked = bool(row and row[0])
+        conn.commit()
         if not locked:
             print("Frame database advisory lock is already held; refusing concurrent execution.", file=sys.stderr)
             return 75
+
+        # The approval is an append-only audit row written through the ZION API
+        # using a signed Supabase session and verified global-admin claims.
+        approvals = conn.execute(
+            """
+            SELECT actor_user_id, metadata
+              FROM public.audit_logs
+             WHERE action = 'frame.migration.plan_approved'
+               AND metadata ->> 'approval_id' = %s
+             FOR UPDATE
+            """,
+            (approval_id,),
+        ).fetchall()
+        if len(approvals) != 1:
+            raise PlanValidationError("Frame approval is missing or ambiguous.")
+        actor_user_id, approval = approvals[0]
+        if not actor_user_id or not isinstance(approval, dict):
+            raise PlanValidationError("Frame approval has no authenticated administrator identity.")
+        expires_at = approval.get("expires_at")
+        try:
+            expiry = datetime.fromisoformat(str(expires_at).replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            raise PlanValidationError("Frame approval expiry is invalid.")
+        if expiry.tzinfo is None or expiry <= datetime.now(timezone.utc):
+            raise PlanValidationError("Frame approval has expired.")
+        approved_versions = approval.get("migration_versions")
+        actual_versions = [item["version"] for item in plan["manifest"]["migrations"]]
+        expected_approval = {
+            "plan_sha256": expected_hash,
+            "commit_sha": expected_commit,
+            "project_ref": expected_project_ref,
+            "target": "production",
+            "migration_count": len(actual_versions),
+            "migration_versions": actual_versions,
+        }
+        if any(approval.get(key) != value for key, value in expected_approval.items()):
+            raise PlanValidationError("Frame approval does not match the exact plan, commit, target, or migration list.")
+        if not isinstance(approved_versions, list):
+            raise PlanValidationError("Frame approval migration inventory is invalid.")
+
+        already_consumed = conn.execute(
+            """
+            SELECT 1
+              FROM public.audit_logs
+             WHERE action = %s
+               AND metadata ->> 'approval_id' = %s
+             LIMIT 1
+            """,
+            (ALLOWED_ACTIONS["consumed"], approval_id),
+        ).fetchone()
+        if already_consumed:
+            raise PlanValidationError("Frame approval has already been consumed.")
+
+        # Consume and commit the approval before any migration command starts.
+        # A failed/partial migration burns the approval; retry requires a new
+        # explicit administrator approval and cannot replay the same grant.
+        metadata["approved_by_user_id"] = str(actor_user_id)
+        conn.execute(
+            """
+            INSERT INTO public.audit_logs
+              (organization_id, actor_user_id, action, resource_type, resource_id, metadata)
+            VALUES (NULL, %s, %s, 'frame_migration', NULL, %s)
+            """,
+            (actor_user_id, ALLOWED_ACTIONS["consumed"], Jsonb(metadata)),
+        )
+        conn.commit()
 
         conn.execute(
             """
             INSERT INTO public.audit_logs
               (organization_id, actor_user_id, action, resource_type, resource_id, metadata)
-            VALUES (NULL, NULL, %s, 'frame_migration', NULL, %s)
+            VALUES (NULL, %s, %s, 'frame_migration', NULL, %s)
             """,
-            (ALLOWED_ACTIONS["started"], Jsonb(metadata)),
+            (actor_user_id, ALLOWED_ACTIONS["started"], Jsonb(metadata)),
         )
+        conn.commit()
 
         completed = subprocess.run(sys.argv[2:], check=False)
         return_code = completed.returncode
@@ -198,25 +276,28 @@ def main() -> int:
             """
             INSERT INTO public.audit_logs
               (organization_id, actor_user_id, action, resource_type, resource_id, metadata)
-            VALUES (NULL, NULL, %s, 'frame_migration', NULL, %s)
+            VALUES (NULL, %s, %s, 'frame_migration', NULL, %s)
             """,
-            (action, Jsonb(metadata)),
+            (actor_user_id, action, Jsonb(metadata)),
         )
+        conn.commit()
         return return_code
     except Exception as error:  # never print connection strings or SQL parameters
         print(f"Frame execution failed ({type(error).__name__}).", file=sys.stderr)
-        if conn is not None and locked:
+        if conn is not None and locked and actor_user_id is not None:
             try:
+                conn.rollback()
                 metadata["failure_code"] = "frame_executor_exception"
                 metadata["reason"] = type(error).__name__
                 conn.execute(
                     """
                     INSERT INTO public.audit_logs
                       (organization_id, actor_user_id, action, resource_type, resource_id, metadata)
-                    VALUES (NULL, NULL, %s, 'frame_migration', NULL, %s)
+                    VALUES (NULL, %s, %s, 'frame_migration', NULL, %s)
                     """,
-                    (ALLOWED_ACTIONS["failed"], Jsonb(metadata)),
+                    (actor_user_id, ALLOWED_ACTIONS["failed"], Jsonb(metadata)),
                 )
+                conn.commit()
             except Exception:
                 print("Frame could not persist the failure audit event.", file=sys.stderr)
         return 1
@@ -228,6 +309,7 @@ def main() -> int:
                         "SELECT pg_advisory_unlock(%s, %s)",
                         (LOCK_CLASS_ID, LOCK_OBJECT_ID),
                     )
+                    conn.commit()
                 except Exception:
                     print("Frame advisory lock release could not be confirmed; the session will close.", file=sys.stderr)
             conn.close()
