@@ -28,6 +28,8 @@ ALLOWED_ACTIONS = {
     "started": "frame.migration.execution_started",
     "succeeded": "frame.migration.execution_succeeded",
     "failed": "frame.migration.execution_failed",
+    "blocked": "frame.migration.execution_blocked",
+    "audit_failure": "frame.migration.audit_failure",
 }
 MIGRATION_NAME = re.compile(r"^(\d{8}|\d{14})_[A-Za-z0-9][A-Za-z0-9_-]*\.sql$")
 SHA256 = re.compile(r"^[a-f0-9]{64}$")
@@ -214,6 +216,8 @@ def main() -> int:
     actor_user_id = None
     locked = False
     return_code = 1
+    command_started = False
+    command_finished = False
     try:
         conn = psycopg.connect(database_url, autocommit=False, connect_timeout=15)
         row = conn.execute(
@@ -289,7 +293,9 @@ def main() -> int:
         )
         conn.commit()
 
+        command_started = True
         completed = subprocess.run(sys.argv[2:], check=False)
+        command_finished = True
         return_code = completed.returncode
         if return_code == 0:
             action = ALLOWED_ACTIONS["succeeded"]
@@ -314,13 +320,19 @@ def main() -> int:
                 conn.rollback()
                 metadata["failure_code"] = "frame_executor_exception"
                 metadata["reason"] = type(error).__name__
+                if command_finished and return_code == 0:
+                    failure_action = ALLOWED_ACTIONS["audit_failure"]
+                elif command_started:
+                    failure_action = ALLOWED_ACTIONS["failed"]
+                else:
+                    failure_action = ALLOWED_ACTIONS["blocked"]
                 conn.execute(
                     """
                     INSERT INTO public.audit_logs
                       (organization_id, actor_user_id, action, resource_type, resource_id, metadata)
                     VALUES (NULL, %s, %s, 'frame_migration', NULL, %s)
                     """,
-                    (actor_user_id, ALLOWED_ACTIONS["failed"], Jsonb(metadata)),
+                    (actor_user_id, failure_action, Jsonb(metadata)),
                 )
                 conn.commit()
             except Exception:
