@@ -166,7 +166,7 @@ class FramePlanValidationTests(unittest.TestCase):
             )
 
     def test_rejects_approval_without_authenticated_actor(self):
-        with self.assertRaisesRegex(executor.PlanValidationError, "authenticated administrator"):
+        with self.assertRaisesRegex(executor.PlanValidationError, "currently verified ZION global administrator"):
             executor.validate_approval(
                 self.make_approval(), None,
                 {"zion_global_role": "global_admin", "zion_verified": "true"},
