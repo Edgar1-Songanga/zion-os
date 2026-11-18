@@ -1,6 +1,7 @@
 import {
   BadGatewayException,
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -263,17 +264,60 @@ export class ResaGroupMeetingService {
     if (!room || room.status !== 'READY') throw new BadRequestException('Meeting room is not ready');
     await this.media.openRoom({ meetingId: id, providerRoomId: room.provider_room_id });
     try {
-      const roomRows = await this.db.patch<any[]>('resa_group_meeting_rooms', token, { status: 'OPEN' }, `?meeting_id=eq.${id}`);
+      // Compare-and-set the room state. A concurrent start request must never
+      // roll back a room that another request has already opened successfully.
+      const roomRows = await this.db.patch<any[]>('resa_group_meeting_rooms', token,
+        { status: 'OPEN' }, `?meeting_id=eq.${id}&status=eq.READY`);
+      if (!roomRows[0]) {
+        const [currentMeetings, currentRooms] = await Promise.all([
+          this.db.get<any[]>('resa_group_meetings', token, `?select=id,status&id=eq.${id}&limit=1`),
+          this.db.get<any[]>('resa_group_meeting_rooms', token, `?select=status&meeting_id=eq.${id}&limit=1`),
+        ]);
+        const currentMeeting = currentMeetings[0];
+        const currentRoom = currentRooms[0];
+        if (currentMeeting?.status === 'OPEN' && currentRoom?.status === 'OPEN') return currentMeeting;
+        if (currentMeeting?.status === 'SCHEDULED' && currentRoom?.status === 'OPEN') {
+          throw new ConflictException('Meeting start is already in progress');
+        }
+        throw new Error('Meeting room state changed before it could be started');
+      }
+
       const meetingRows = await this.db.patch<any[]>('resa_group_meetings', token,
         { status: 'OPEN', started_at: new Date().toISOString() }, `?id=eq.${id}&status=eq.SCHEDULED`);
-      if (!roomRows[0] || !meetingRows[0]) throw new Error('Meeting state transition was not persisted');
+      if (!meetingRows[0]) {
+        const currentMeetings = await this.db.get<any[]>('resa_group_meetings', token,
+          `?select=id,status&id=eq.${id}&limit=1`);
+        if (currentMeetings[0]?.status === 'OPEN') return currentMeetings[0];
+        throw new Error('Meeting state transition was not persisted');
+      }
+
       await this.recordEvent(token, id, actor.id, 'ROOM_OPENED', {});
       return meetingRows[0];
-    } catch {
+    } catch (error) {
+      if (error instanceof ConflictException) throw error;
+
+      // Only compensate while the meeting is still scheduled. If another
+      // request has completed the transition, closing the SFU room here would
+      // take down a valid meeting for every participant.
       try {
-        await this.media.closeRoom({ meetingId: id, providerRoomId: room.provider_room_id });
-        await this.db.patch('resa_group_meeting_rooms', token, { status: 'READY' }, `?meeting_id=eq.${id}`);
-      } catch { /* Cleanup failure is handled by the room monitor. */ }
+        const [currentMeetings, currentRooms] = await Promise.all([
+          this.db.get<any[]>('resa_group_meetings', token, `?select=status&id=eq.${id}&limit=1`),
+          this.db.get<any[]>('resa_group_meeting_rooms', token, `?select=status&meeting_id=eq.${id}&limit=1`),
+        ]);
+        const currentMeeting = currentMeetings[0];
+        const currentRoom = currentRooms[0];
+        if (currentMeeting?.status === 'OPEN' && currentRoom?.status === 'OPEN') return currentMeeting;
+        if (currentMeeting?.status === 'SCHEDULED') {
+          await this.media.closeRoom({ meetingId: id, providerRoomId: room.provider_room_id });
+          if (currentRoom?.status === 'OPEN') {
+            await this.db.patch('resa_group_meeting_rooms', token, { status: 'READY' },
+              `?meeting_id=eq.${id}&status=eq.OPEN`);
+          }
+        }
+      } catch {
+        // Cleanup failure is handled by the room monitor; never overwrite a
+        // room whose latest state could not be confirmed.
+      }
       throw new BadGatewayException('Meeting could not be started safely');
     }
   }

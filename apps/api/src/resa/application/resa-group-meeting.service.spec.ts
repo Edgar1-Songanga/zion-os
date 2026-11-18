@@ -1,4 +1,4 @@
-import { BadGatewayException, ForbiddenException } from '@nestjs/common';
+import { BadGatewayException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 import { ResaGroupMeetingService } from './resa-group-meeting.service';
 
@@ -100,6 +100,76 @@ describe('ResaGroupMeetingService', () => {
     });
     expect(patchSpy).toHaveBeenCalledWith('resa_group_meetings', 'session-token',
       { status: 'CANCELLED' }, '?id=eq.' + MEETING_ID);
+  });
+
+  it('opens a group meeting with compare-and-set room state before marking the meeting open', async () => {
+    getSpy
+      .mockResolvedValueOnce([{ participant_role: 'HOST', status: 'ACCEPTED' }] as never)
+      .mockResolvedValueOnce([{ id: MEETING_ID, status: 'SCHEDULED' }] as never)
+      .mockResolvedValueOnce([{ provider_room_id: 'zion-group-' + MEETING_ID, status: 'READY' }] as never);
+    patchSpy
+      .mockResolvedValueOnce([{ meeting_id: MEETING_ID, status: 'OPEN' }] as never)
+      .mockResolvedValueOnce([{ id: MEETING_ID, status: 'OPEN' }] as never);
+
+    const result = await service.start('session-token', MEETING_ID);
+
+    expect(media.openRoom).toHaveBeenCalledWith({ meetingId: MEETING_ID, providerRoomId: 'zion-group-' + MEETING_ID });
+    expect(patchSpy).toHaveBeenNthCalledWith(1, 'resa_group_meeting_rooms', 'session-token',
+      { status: 'OPEN' }, `?meeting_id=eq.${MEETING_ID}&status=eq.READY`);
+    expect(patchSpy).toHaveBeenNthCalledWith(2, 'resa_group_meetings', 'session-token',
+      expect.objectContaining({ status: 'OPEN' }), `?id=eq.${MEETING_ID}&status=eq.SCHEDULED`);
+    expect(result.status).toBe('OPEN');
+    expect(media.closeRoom).not.toHaveBeenCalled();
+  });
+
+  it('does not close a room while another concurrent request is completing the start transition', async () => {
+    getSpy
+      .mockResolvedValueOnce([{ participant_role: 'HOST', status: 'ACCEPTED' }] as never)
+      .mockResolvedValueOnce([{ id: MEETING_ID, status: 'SCHEDULED' }] as never)
+      .mockResolvedValueOnce([{ provider_room_id: 'zion-group-' + MEETING_ID, status: 'READY' }] as never)
+      .mockResolvedValueOnce([{ id: MEETING_ID, status: 'SCHEDULED' }] as never)
+      .mockResolvedValueOnce([{ status: 'OPEN' }] as never);
+    patchSpy.mockResolvedValueOnce([] as never);
+
+    await expect(service.start('session-token', MEETING_ID)).rejects.toBeInstanceOf(ConflictException);
+
+    expect(media.closeRoom).not.toHaveBeenCalled();
+    expect(patchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns the already-open meeting when a concurrent start request has completed', async () => {
+    getSpy
+      .mockResolvedValueOnce([{ participant_role: 'HOST', status: 'ACCEPTED' }] as never)
+      .mockResolvedValueOnce([{ id: MEETING_ID, status: 'SCHEDULED' }] as never)
+      .mockResolvedValueOnce([{ provider_room_id: 'zion-group-' + MEETING_ID, status: 'READY' }] as never)
+      .mockResolvedValueOnce([{ id: MEETING_ID, status: 'OPEN' }] as never)
+      .mockResolvedValueOnce([{ status: 'OPEN' }] as never);
+    patchSpy.mockResolvedValueOnce([] as never);
+
+    const result = await service.start('session-token', MEETING_ID);
+
+    expect(result.status).toBe('OPEN');
+    expect(media.closeRoom).not.toHaveBeenCalled();
+  });
+
+  it('compensates a failed start only while the meeting remains scheduled', async () => {
+    getSpy
+      .mockResolvedValueOnce([{ participant_role: 'HOST', status: 'ACCEPTED' }] as never)
+      .mockResolvedValueOnce([{ id: MEETING_ID, status: 'SCHEDULED' }] as never)
+      .mockResolvedValueOnce([{ provider_room_id: 'zion-group-' + MEETING_ID, status: 'READY' }] as never)
+      .mockResolvedValueOnce([{ status: 'SCHEDULED' }] as never)
+      .mockResolvedValueOnce([{ status: 'SCHEDULED' }] as never)
+      .mockResolvedValueOnce([{ status: 'OPEN' }] as never);
+    patchSpy
+      .mockResolvedValueOnce([{ meeting_id: MEETING_ID, status: 'OPEN' }] as never)
+      .mockResolvedValueOnce([] as never)
+      .mockResolvedValueOnce([{ meeting_id: MEETING_ID, status: 'READY' }] as never);
+
+    await expect(service.start('session-token', MEETING_ID)).rejects.toBeInstanceOf(BadGatewayException);
+
+    expect(media.closeRoom).toHaveBeenCalledWith({ meetingId: MEETING_ID, providerRoomId: 'zion-group-' + MEETING_ID });
+    expect(patchSpy).toHaveBeenLastCalledWith('resa_group_meeting_rooms', 'session-token',
+      { status: 'READY' }, `?meeting_id=eq.${MEETING_ID}&status=eq.OPEN`);
   });
 
   it('issues camera and microphone only to ordinary participants', async () => {
