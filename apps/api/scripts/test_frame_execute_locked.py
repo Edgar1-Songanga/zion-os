@@ -4,6 +4,8 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
+import subprocess
 import sys
 import tempfile
 import types
@@ -75,6 +77,30 @@ class FramePlanValidationTests(unittest.TestCase):
 
     def test_accepts_exact_plan_and_inventory(self):
         self.assertEqual(self.validate(), self.plan)
+
+    def test_validates_the_complete_repository_migration_inventory(self):
+        repo_root = SCRIPT.resolve().parents[3]
+        env = os.environ.copy()
+        env["GITHUB_SHA"] = "d" * 40
+        env["ZION_SUPABASE_PROJECT_REF"] = "w" * 20
+        completed = subprocess.run(
+            ["node", str(SCRIPT.with_name("frame-production-plan.cjs"))],
+            check=True,
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        real_plan = json.loads(completed.stdout)
+        self.assertEqual(
+            executor.validate_plan(
+                real_plan,
+                expected_hash=real_plan["plan_sha256"],
+                expected_commit=env["GITHUB_SHA"],
+                expected_project_ref=env["ZION_SUPABASE_PROJECT_REF"],
+                migrations_dir=repo_root / "supabase" / "migrations",
+            ),
+            real_plan,
+        )
 
     def test_rejects_modified_plan_hash(self):
         with self.assertRaisesRegex(executor.PlanValidationError, "approved hash"):
