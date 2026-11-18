@@ -99,8 +99,12 @@ class FramePlanValidationTests(unittest.TestCase):
     def test_rejects_path_traversal_and_unsorted_inventory(self):
         bad = self.make_plan()
         bad["manifest"]["migrations"][0]["name"] = "../unapproved.sql"
+        payload = {key: bad[key] for key in ("schema_version", "target", "project_ref", "commit_sha", "manifest")}
+        canonical = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+        bad_hash = hashlib.sha256(canonical.encode()).hexdigest()
+        bad["plan_sha256"] = bad_hash
         with self.assertRaisesRegex(executor.PlanValidationError, "filename is invalid"):
-            self.validate(bad)
+            self.validate(bad, expected_hash=bad_hash)
 
 
 if __name__ == "__main__":
