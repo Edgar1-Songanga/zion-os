@@ -1,0 +1,46 @@
+name: Generate RESA authorization migration with Supabase CLI
+
+on:
+  push:
+    branches:
+      - "security/resa-authz-hardening*"
+    paths:
+      - "supabase/migration-patches/resa_authorization_hardening.sql"
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    if: github.repository == 'Edgar1-Songanga/zion-os'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout security branch
+        uses: actions/checkout@v4
+
+      - name: Install pinned Supabase CLI
+        uses: supabase/setup-cli@v3.2.0
+        with:
+          version: 2.122.1
+
+      - name: Generate timestamped migration using Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch="supabase/migration-patches/resa_authorization_hardening.sql"
+          test -s "$patch"
+          generated="$(find supabase/migrations -maxdepth 1 -type f -name '*_resa_authorization_hardening.sql' -print -quit)"
+          if [[ -z "$generated" ]]; then
+            supabase migration new resa_authorization_hardening
+            generated="$(find supabase/migrations -maxdepth 1 -type f -name '*_resa_authorization_hardening.sql' -print -quit)"
+          fi
+          test -n "$generated"
+          cp "$patch" "$generated"
+          rm "$patch"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$generated"
+          git rm -- "$patch"
+          git commit -m "fix(db): generate RESA authorization hardening migration"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
