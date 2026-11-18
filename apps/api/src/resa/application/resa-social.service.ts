@@ -130,7 +130,7 @@ export class ResaSocialService {
     // Original publications and repost events are independent feed entries.
     // Both streams use the same (created_at,id) cursor, so pagination remains
     // chronological and does not collapse two reposts of the same publication.
-    const contentQuery = `?select=id,author_id,type,title,body,visibility,language,created_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&moderation_status=eq.active&type=neq.story&visibility=in.(public,followers,community,organization)${authorFilter}&order=created_at.desc,id.desc&limit=${size + 1}${cursorFilter}`;
+    const contentQuery = `?select=id,author_id,type,title,body,visibility,language,created_at,edited_at,media_type,media_url,organization_id,ministry_id,scripture_references,quoted_content_id,community_id&moderation_status=eq.active&type=neq.story&visibility=in.(public,followers,community,organization)${authorFilter}&order=created_at.desc,id.desc&limit=${size + 1}${cursorFilter}`;
     const shareQuery = `?select=id,content_id,user_id,created_at&share_type=eq.repost${shareAuthorFilter}&order=created_at.desc,id.desc&limit=${size + 1}${cursorFilter}`;
     const institutionalCursorFilter = cursorFilter.replaceAll('created_at', 'published_at');
     const institutionalQuery = `?select=id,source_type,source_id,organization_id,organization_name,organization_type,ministry_id,ministry_name,title,body,starts_at,ends_at,location,meeting_day,meeting_time,room_label,activity_type,status,published_at&is_active=eq.true&order=published_at.desc,id.desc&limit=${size + 1}${institutionalCursorFilter}`;
@@ -538,6 +538,59 @@ export class ResaSocialService {
     if (!body.body && !body.title) throw new BadRequestException('title or body is required');
     const rows = await this.db.post<any[]>('resa_contents', token, body); return rows[0];
   }
+  async updateContent(token: string, contentId: string, input: { title?: unknown; body?: unknown }) {
+    const actor = await this.actor(token);
+    const id = this.clean(contentId, 'content_id', 80);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+      throw new BadRequestException('Identificador da publicação inválido.');
+    }
+    const owned = await this.db.get<any[]>('resa_contents', token,
+      `?select=id,author_id,title,body,moderation_status&id=eq.${encodeURIComponent(id)}&author_id=eq.${encodeURIComponent(actor.id)}&limit=1`);
+    if (!owned[0] || owned[0].author_id !== actor.id) throw new NotFoundException('Publicação não encontrada ou não pertence à tua conta.');
+    if (owned[0].moderation_status && owned[0].moderation_status !== 'active') {
+      throw new ForbiddenException('Esta publicação não pode ser editada enquanto estiver sob moderação.');
+    }
+    const patch: Record<string, unknown> = {};
+    if (Object.prototype.hasOwnProperty.call(input, 'title')) {
+      if (input.title !== null && typeof input.title !== 'string') throw new BadRequestException('Título inválido.');
+      const title = typeof input.title === 'string' ? input.title.trim() : '';
+      if (title.length > 180) throw new BadRequestException('O título não pode exceder 180 caracteres.');
+      patch.title = title || null;
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'body')) {
+      if (input.body !== null && typeof input.body !== 'string') throw new BadRequestException('Texto inválido.');
+      const body = typeof input.body === 'string' ? input.body.trim() : '';
+      if (body.length > 10000) throw new BadRequestException('O texto não pode exceder 10000 caracteres.');
+      patch.body = body || null;
+    }
+    if (!Object.keys(patch).length) throw new BadRequestException('Indica o título ou o texto que pretendes actualizar.');
+    const nextTitle = Object.prototype.hasOwnProperty.call(patch, 'title') ? patch.title : owned[0].title;
+    const nextBody = Object.prototype.hasOwnProperty.call(patch, 'body') ? patch.body : owned[0].body;
+    if (!(typeof nextTitle === 'string' && nextTitle.trim()) && !(typeof nextBody === 'string' && nextBody.trim())) {
+      throw new BadRequestException('A publicação não pode ficar sem título e sem texto.');
+    }
+    patch.edited_at = new Date().toISOString();
+    patch.updated_at = new Date().toISOString();
+    const rows = await this.db.patch<any[]>('resa_contents', token, patch,
+      `?id=eq.${encodeURIComponent(id)}&author_id=eq.${encodeURIComponent(actor.id)}`);
+    if (!rows[0]) throw new NotFoundException('Publicação não encontrada ou sem autorização para editar.');
+    return rows[0];
+  }
+
+  async deleteContent(token: string, contentId: string) {
+    const actor = await this.actor(token);
+    const id = this.clean(contentId, 'content_id', 80);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+      throw new BadRequestException('Identificador da publicação inválido.');
+    }
+    const owned = await this.db.get<any[]>('resa_contents', token,
+      `?select=id,author_id&id=eq.${encodeURIComponent(id)}&author_id=eq.${encodeURIComponent(actor.id)}&limit=1`);
+    if (!owned[0]) throw new NotFoundException('Publicação não encontrada ou não pertence à tua conta.');
+    await this.db.delete('resa_contents', token,
+      `?id=eq.${encodeURIComponent(id)}&author_id=eq.${encodeURIComponent(actor.id)}`);
+    return { deleted: true, id };
+  }
+
   async comment(token: string, contentId: string, input: { body: string; parent_id?: string | null }) {
     const actor = await this.actor(token);
     const contentIdValue = this.clean(contentId, 'content_id', 80);
@@ -614,7 +667,7 @@ export class ResaSocialService {
     ]);
     profile.viewer_has_blocked = blocks.length > 0;
     profile.viewer_has_muted = mutes.length > 0;
-    const contents = profile.private_locked ? [] : await this.db.get<any[]>('resa_contents', token, `?select=id,author_id,type,title,body,created_at,media_type,media_url,language&moderation_status=eq.active&type=neq.story&author_id=eq.${encodeURIComponent(id)}&visibility=in.(public,followers,community,organization)&order=created_at.desc&limit=20`);
+    const contents = profile.private_locked ? [] : await this.db.get<any[]>('resa_contents', token, `?select=id,author_id,type,title,body,created_at,edited_at,media_type,media_url,language&moderation_status=eq.active&type=neq.story&author_id=eq.${encodeURIComponent(id)}&visibility=in.(public,followers,community,organization)&order=created_at.desc&limit=20`);
     return { profile, contents };
   }
 

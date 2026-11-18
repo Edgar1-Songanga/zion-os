@@ -41,6 +41,72 @@ describe('ResaSocialService feeds', () => {
   afterEach(() => jest.restoreAllMocks());
 
 
+  it('allows an author to edit only the title and body of their active publication', async () => {
+    getSpy.mockResolvedValueOnce([{
+      id: '55555555-5555-4555-8555-555555555555',
+      author_id: ACTOR_ID,
+      title: 'Old title',
+      body: 'Old body',
+      moderation_status: 'active',
+    }] as never);
+    const patchSpy = jest.spyOn(SupabaseRestClient.prototype, 'patch').mockResolvedValue([{
+      id: '55555555-5555-4555-8555-555555555555',
+      title: 'New title',
+      body: 'New body',
+    }] as never);
+
+    await service.updateContent('session-token', '55555555-5555-4555-8555-555555555555', {
+      title: ' New title ',
+      body: ' New body ',
+    });
+
+    expect(patchSpy).toHaveBeenCalledWith('resa_contents', 'session-token', expect.objectContaining({
+      title: 'New title',
+      body: 'New body',
+      edited_at: expect.any(String),
+      updated_at: expect.any(String),
+    }), expect.stringContaining('author_id=eq.' + ACTOR_ID));
+  });
+
+  it('does not edit another member publication or a publication under moderation', async () => {
+    getSpy.mockResolvedValueOnce([{
+      id: '55555555-5555-4555-8555-555555555555',
+      author_id: FOLLOWED_ID,
+      title: 'Other title',
+      body: 'Other body',
+      moderation_status: 'active',
+    }] as never);
+    const patchSpy = jest.spyOn(SupabaseRestClient.prototype, 'patch');
+    await expect(service.updateContent('session-token', '55555555-5555-4555-8555-555555555555', { body: 'Changed' }))
+      .rejects.toThrow('Publicação não encontrada ou não pertence à tua conta.');
+    expect(patchSpy).not.toHaveBeenCalled();
+
+    getSpy.mockResolvedValueOnce([{
+      id: '55555555-5555-4555-8555-555555555555',
+      author_id: ACTOR_ID,
+      title: 'Held title',
+      body: 'Held body',
+      moderation_status: 'removed',
+    }] as never);
+    await expect(service.updateContent('session-token', '55555555-5555-4555-8555-555555555555', { body: 'Changed' }))
+      .rejects.toThrow('Esta publicação não pode ser editada enquanto estiver sob moderação.');
+    expect(patchSpy).not.toHaveBeenCalled();
+  });
+
+  it('allows an author to delete only their own publication', async () => {
+    getSpy.mockResolvedValueOnce([{
+      id: '55555555-5555-4555-8555-555555555555',
+      author_id: ACTOR_ID,
+    }] as never);
+    const deleteSpy = jest.spyOn(SupabaseRestClient.prototype, 'delete').mockResolvedValue([] as never);
+
+    const result = await service.deleteContent('session-token', '55555555-5555-4555-8555-555555555555');
+
+    expect(deleteSpy).toHaveBeenCalledWith('resa_contents', 'session-token',
+      expect.stringContaining('author_id=eq.' + ACTOR_ID));
+    expect(result).toEqual({ deleted: true, id: '55555555-5555-4555-8555-555555555555' });
+  });
+
   it('rejects follows to private profiles before writing a social edge', async () => {
     getSpy.mockImplementation(async (table: string) => {
       if (table === 'profiles') return [{ id: FOLLOWED_ID, privacy: { profile_visibility: 'private', follow_policy: 'auto' } }] as never;

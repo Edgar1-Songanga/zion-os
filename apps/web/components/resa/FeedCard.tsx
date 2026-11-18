@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
+import { createClient } from "@/lib/supabase/client";
 import { resolveResaMediaUrl } from "@/lib/resa/media";
 import ResaIcon from "./core/ResaIcon";
 import { useTranslation } from "@/components/i18n";
@@ -18,6 +19,7 @@ type ResaContent = {
   visibility: string;
   language: string;
   created_at: string;
+  edited_at?: string | null;
   media_type?: "image" | "video" | null;
   media_url?: string | null;
   viewer_reacted?: boolean;
@@ -75,6 +77,15 @@ function renderLinkedText(value: string) {
 export default function FeedCard({ content }: { content: ResaContent }) {
   const { t, locale } = useTranslation();
   const [mediaUrl, setMediaUrl] = useState<string | null>(content.media_url ?? null);
+  const [viewerId, setViewerId] = useState<string | null>(null);
+  const isOwner = !content.is_institutional && viewerId === content.author_id;
+  const [postBody, setPostBody] = useState(content.body ?? "");
+  const [postTitle, setPostTitle] = useState(content.title ?? "");
+  const [editing, setEditing] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleted, setDeleted] = useState(false);
+  const [wasEdited, setWasEdited] = useState(Boolean(content.edited_at));
   const [reaction, setReaction] = useState(Boolean(content.viewer_reacted));
   const [saved, setSaved] = useState(Boolean(content.viewer_saved));
   const [reactionCount, setReactionCount] = useState(content.reaction_count ?? 0);
@@ -101,6 +112,10 @@ export default function FeedCard({ content }: { content: ResaContent }) {
 
   useEffect(() => {
     let active = true;
+    const supabase = createClient();
+    void supabase.auth.getUser().then(({ data }) => {
+      if (active) setViewerId(data.user?.id ?? null);
+    }).catch(() => { if (active) setViewerId(null); });
     setMediaUrl(content.media_url ?? null);
     if (!content.media_url && content.media_type) {
       void resolveResaMediaUrl(content.id).then((url) => {
@@ -273,6 +288,38 @@ export default function FeedCard({ content }: { content: ResaContent }) {
     }
   }
 
+  async function saveEdit() {
+    if (savingEdit) return;
+    setSavingEdit(true);
+    setActionFeedback(null);
+    try {
+      const updated = await resaRequest<{ edited_at?: string | null }>("/v1/resa/content/" + content.id, {
+        method: "PATCH",
+        body: JSON.stringify({ title: postTitle, body: postBody }),
+      });
+      setEditing(false);
+      setWasEdited(true);
+      setActionFeedback("Publicação actualizada.");
+    } catch (error) {
+      setActionFeedback(error instanceof Error ? error.message : "Não foi possível editar a publicação.");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  async function deletePost() {
+    if (deleting || !window.confirm("Apagar definitivamente esta publicação? Esta acção não pode ser anulada.")) return;
+    setDeleting(true);
+    setActionFeedback(null);
+    try {
+      await resaRequest("/v1/resa/content/" + content.id, { method: "DELETE" });
+      setDeleted(true);
+    } catch (error) {
+      setActionFeedback(error instanceof Error ? error.message : "Não foi possível apagar a publicação.");
+      setDeleting(false);
+    }
+  }
+
   async function repost() {
     if (repostBusyRef.current) return;
     repostBusyRef.current = true;
@@ -332,8 +379,9 @@ export default function FeedCard({ content }: { content: ResaContent }) {
         </header>
 
         <div className="mt-6">
-          {content.title && <h4 className="mb-2 text-lg font-semibold tracking-tight text-[#0C1A3D]">{content.title}</h4>}
-          {content.body && <p className="whitespace-pre-wrap text-[15px] leading-7 text-slate-700">{renderLinkedText(content.body)}</p>}
+          {postTitle && <h4 className="mb-2 text-lg font-semibold tracking-tight text-[#0C1A3D]">{postTitle}</h4>}
+          {wasEdited && <span className="mb-2 inline-flex rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-500">Editada</span>}
+          {postBody && <p className="whitespace-pre-wrap text-[15px] leading-7 text-slate-700">{renderLinkedText(postBody)}</p>}
           {content.is_institutional && (
             <div className="mt-4 flex flex-wrap gap-2 rounded-2xl border border-blue-100 bg-blue-50/50 p-3 text-xs text-slate-600">
               {content.type === "institutional_class" && typeof content.meeting_day === "number" && (
@@ -383,9 +431,31 @@ export default function FeedCard({ content }: { content: ResaContent }) {
           <ResaIcon name="share" size={17} />
           Partilhar
         </button>
+        {isOwner && (
+          <>
+            <button type="button" onClick={() => { setEditing((value) => !value); setShowShare(false); setShowReport(false); }} className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium text-[#0C1A3D] transition hover:bg-white" aria-expanded={editing}>
+              <ResaIcon name="edit" size={15} />Editar
+            </button>
+            <button type="button" onClick={() => void deletePost()} disabled={deleting} className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium text-red-700 transition hover:bg-white disabled:opacity-50">
+              <ResaIcon name="trash" size={15} />{deleting ? "A apagar…" : "Apagar"}
+            </button>
+          </>
+        )}
         <button type="button" onClick={() => { setShowReport((v) => !v); setShowShare(false); }} className="inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium text-slate-500 transition hover:bg-white hover:text-red-700" aria-expanded={showReport}>
           Denunciar
         </button>
+
+        {editing && isOwner && (
+          <div className="basis-full rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-sm font-semibold text-[#0C1A3D]">Editar publicação</p>
+            <input value={postTitle} onChange={(event) => setPostTitle(event.target.value)} maxLength={180} placeholder="Título (opcional)" className="mt-3 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+            <textarea value={postBody} onChange={(event) => setPostBody(event.target.value)} maxLength={10000} rows={4} placeholder="Texto da publicação" className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm" />
+            <div className="mt-3 flex justify-end gap-2">
+              <button type="button" onClick={() => { setPostTitle(content.title ?? ""); setPostBody(content.body ?? ""); setEditing(false); }} className="rounded-xl px-3 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-50">Cancelar</button>
+              <button type="button" onClick={() => void saveEdit()} disabled={savingEdit || (!postTitle.trim() && !postBody.trim())} className="rounded-xl bg-[#0C1A3D] px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">{savingEdit ? "A guardar…" : "Guardar alterações"}</button>
+            </div>
+          </div>
+        )}
 
         {showReport && (
           <div className="absolute bottom-full right-4 z-30 mb-3 w-[min(380px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_20px_60px_rgba(15,23,42,0.16)]">

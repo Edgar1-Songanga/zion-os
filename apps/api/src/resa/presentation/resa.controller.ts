@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Headers, Param, Post, Query, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query, UnauthorizedException } from '@nestjs/common';
 import { ResaSocialService } from '../application/resa-social.service';
 
 @Controller('v1/resa')
@@ -17,6 +17,8 @@ export class ResaController {
   @Get('stories/:storyId/views') storyViews(@Headers('authorization') a: string | undefined, @Param('storyId') id: string) { return this.resa.storyViews(this.token(a), id); }
   @Get('stories/archive') archivedStories(@Headers('authorization') a: string | undefined, @Query('limit') limit?: string) { return this.resa.archivedStories(this.token(a), Number(limit) || 60); }
   @Post('content') createContent(@Headers('authorization') a: string | undefined, @Body() b: any) { return this.resa.createContent(this.token(a), b); }
+  @Patch('content/:contentId') updateContent(@Headers('authorization') a: string | undefined, @Param('contentId') id: string, @Body() b: { title?: unknown; body?: unknown }) { return this.resa.updateContent(this.token(a), id, b); }
+  @Delete('content/:contentId') deleteContent(@Headers('authorization') a: string | undefined, @Param('contentId') id: string) { return this.resa.deleteContent(this.token(a), id); }
   @Get('content/:contentId/comments') comments(@Headers('authorization') a: string | undefined, @Param('contentId') id: string, @Query('limit') limit?: string, @Query('before') before?: string) { return this.resa.comments(this.token(a), id, Number(limit) || 50, before); }
   @Post('content/:contentId/comments') comment(@Headers('authorization') a: string | undefined, @Param('contentId') id: string, @Body() b: any) { return this.resa.comment(this.token(a), id, b); }
   @Post('content/:contentId/reactions') react(@Headers('authorization') a: string | undefined, @Param('contentId') id: string, @Body() b: { reaction_type: string }) { return this.resa.react(this.token(a), id, b.reaction_type); }
