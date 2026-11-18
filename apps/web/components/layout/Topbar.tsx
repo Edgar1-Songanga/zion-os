@@ -39,7 +39,7 @@ function roleLabel(user: User | null, memberships: Membership[]) {
   return "Perfil institucional por configurar";
 }
 
-export default function Topbar({ sidebarCollapsed = false, onMobileMenuClick, onDesktopCollapseClick }: { sidebarCollapsed?: boolean; onMobileMenuClick?: () => void; onDesktopCollapseClick?: () => void }) {
+export default function Topbar({ mobileNavOpen = false, sidebarCollapsed = false, onMobileMenuClick, onDesktopCollapseClick }: { mobileNavOpen?: boolean; sidebarCollapsed?: boolean; onMobileMenuClick?: () => void; onDesktopCollapseClick?: () => void }) {
   const { t } = useTranslation();
   const router = useRouter();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -222,7 +222,7 @@ export default function Topbar({ sidebarCollapsed = false, onMobileMenuClick, on
   return (
     <header className="sticky top-0 z-30 flex h-[68px] shrink-0 items-center justify-between gap-2 border-b border-slate-200/80 bg-white/90 px-2 backdrop-blur-xl sm:px-6">
       <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-        <button type="button" onClick={onMobileMenuClick} aria-label="Abrir navegação" aria-controls="primary-navigation" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[#0B2D4D] transition hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8A24A] md:hidden">
+        <button type="button" onClick={onMobileMenuClick} aria-label="Abrir navegação" aria-controls="primary-navigation" aria-expanded={mobileNavOpen} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[#0B2D4D] transition hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8A24A] md:hidden">
           <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
         </button>
         <button type="button" onClick={onDesktopCollapseClick} aria-label={sidebarCollapsed ? "Expandir navegação" : "Recolher navegação"} aria-controls="primary-navigation" aria-expanded={!sidebarCollapsed} className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-[#0B2D4D] transition hover:border-[#C8A24A] hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8A24A] md:flex">
