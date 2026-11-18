@@ -593,12 +593,22 @@ export class ResaOperationalService {
       providerRoomId: 'zion-live-' + id,
       userId: actor.id,
       name: displayName,
+      ttl: '10m',
       // Viewers receive subscribe-only grants. Host/moderators can publish;
       // a viewer is granted publishing later only after an explicit speak approval.
       canPublish: isModerator,
     });
     if (config.mode !== 'SFU' || !config.joinUrl || !config.token) {
       throw new BadGatewayException('LiveKit is not configured for RESA live sessions');
+    }
+    // A moderator can be demoted while the SFU token is being minted. Never
+    // return a publish-capable token unless the moderator grant still exists.
+    if (isModerator && !isHost) {
+      const currentModerators = await this.db.get<any[]>('resa_live_moderators', token,
+        `?select=moderator_user_id&live_id=eq.${id}&moderator_user_id=eq.${actor.id}&limit=1`);
+      if (!currentModerators[0]) {
+        throw new ForbiddenException('Live moderator permissions changed; request a new join token');
+      }
     }
     return {
       ...config,
@@ -629,18 +639,61 @@ export class ResaOperationalService {
     const id = this.id(liveId, 'live_id');
     const moderatorId = this.id(identity, 'moderator_user_id');
     if (moderatorId === actor.id) throw new BadRequestException('The host cannot assign moderator privileges to themselves');
-    const live = (await this.db.get<any[]>('resa_live_sessions', token, `?select=id,host_id,status&id=eq.${id}&limit=1`))[0];
+    const live = (await this.db.get<any[]>('resa_live_sessions', token,
+      `?select=id,host_id,status&id=eq.${id}&limit=1`))[0];
     if (!live || live.host_id !== actor.id) throw new NotFoundException('Live session not found or you are not its host');
     if (live.status !== 'live') throw new BadRequestException('Only a live session can be moderated');
+
+    const roomId = 'zion-live-' + id;
     if (enabled) {
-      const existing = await this.db.get<any[]>('resa_live_moderators', token, `?select=moderator_user_id&live_id=eq.${id}&moderator_user_id=eq.${moderatorId}&limit=1`);
+      if (!this.media.listParticipants || !this.media.setParticipantPermissions) {
+        throw new BadGatewayException('Live moderator changes require participant-aware SFU permissions');
+      }
+      const existing = await this.db.get<any[]>( 'resa_live_moderators', token,
+        `?select=moderator_user_id&live_id=eq.${id}&moderator_user_id=eq.${moderatorId}&limit=1`);
+      let inserted = false;
       if (!existing.length) {
-        const rows = await this.db.post<any[]>('resa_live_moderators', token, { live_id: id, moderator_user_id: moderatorId, granted_by: actor.id });
+        const rows = await this.db.post<any[]>('resa_live_moderators', token, {
+          live_id: id,
+          moderator_user_id: moderatorId,
+          granted_by: actor.id,
+        });
         if (!rows?.length) throw new BadGatewayException('Moderator assignment could not be saved');
+        inserted = true;
+      }
+
+      try {
+        const participants = await this.media.listParticipants({ roomId });
+        if (participants.some((participant) => participant.identity === moderatorId)) {
+          await this.media.setParticipantPermissions({
+            roomId,
+            identity: moderatorId,
+            canPublish: true,
+            canPublishSources: ['camera', 'microphone', 'screen_share', 'screen_share_audio'],
+          });
+        }
+      } catch {
+        if (inserted) {
+          try {
+            await this.db.delete('resa_live_moderators', token,
+              `?live_id=eq.${id}&moderator_user_id=eq.${moderatorId}`);
+          } catch {
+            console.error(JSON.stringify({ event: 'resa_live_moderator_grant_rollback_failed', liveId: id }));
+          }
+        }
+        throw new BadGatewayException('Moderator permissions could not be applied safely');
       }
       return { liveId: id, moderatorUserId: moderatorId, enabled: true };
     }
-    await this.db.delete('resa_live_moderators', token, `?live_id=eq.${id}&moderator_user_id=eq.${moderatorId}`);
+
+    // Persist the demotion before revoking the SFU participant so a concurrent
+    // join-token request cannot observe the old moderator grant.
+    if (!this.media.removeParticipant) {
+      throw new BadGatewayException('Live moderator revocation requires participant credential revocation');
+    }
+    await this.db.delete('resa_live_moderators', token,
+      `?live_id=eq.${id}&moderator_user_id=eq.${moderatorId}`);
+    await this.media.removeParticipant({ roomId, identity: moderatorId });
     return { liveId: id, moderatorUserId: moderatorId, enabled: false };
   }
 
