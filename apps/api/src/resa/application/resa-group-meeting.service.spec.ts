@@ -515,6 +515,48 @@ describe('ResaGroupMeetingService', () => {
     });
   });
 
+  it('fails closed when LiveKit rejects a presenter permission change', async () => {
+    actorId = MODERATOR_ID;
+    getSpy
+      .mockResolvedValueOnce([{ participant_role: 'MODERATOR', status: 'PRESENT' }] as never)
+      .mockResolvedValueOnce([{ participant_role: 'PARTICIPANT', status: 'PRESENT' }] as never)
+      .mockResolvedValueOnce([{ provider_room_id: 'zion-group-' + MEETING_ID }] as never);
+    media.setParticipantPermissions.mockRejectedValueOnce(new Error('SFU unavailable'));
+
+    await expect(service.setPresenter('session-token', MEETING_ID, PARTICIPANT_ID, true))
+      .rejects.toThrow('SFU unavailable');
+
+    expect(patchSpy).not.toHaveBeenCalled();
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+
+  it('rolls back live presenter permissions when the database role update fails', async () => {
+    actorId = MODERATOR_ID;
+    getSpy
+      .mockResolvedValueOnce([{ participant_role: 'MODERATOR', status: 'PRESENT' }] as never)
+      .mockResolvedValueOnce([{ participant_role: 'PARTICIPANT', status: 'PRESENT' }] as never)
+      .mockResolvedValueOnce([{ provider_room_id: 'zion-group-' + MEETING_ID }] as never)
+      .mockResolvedValueOnce([{ provider_room_id: 'zion-group-' + MEETING_ID }] as never);
+    patchSpy.mockRejectedValueOnce(new Error('database unavailable'));
+
+    await expect(service.setPresenter('session-token', MEETING_ID, PARTICIPANT_ID, true))
+      .rejects.toBeInstanceOf(BadGatewayException);
+
+    expect(media.setParticipantPermissions).toHaveBeenNthCalledWith(1, {
+      roomId: 'zion-group-' + MEETING_ID,
+      identity: PARTICIPANT_ID,
+      canPublish: true,
+      canPublishSources: ['camera', 'microphone', 'screen_share', 'screen_share_audio'],
+    });
+    expect(media.setParticipantPermissions).toHaveBeenNthCalledWith(2, {
+      roomId: 'zion-group-' + MEETING_ID,
+      identity: PARTICIPANT_ID,
+      canPublish: true,
+      canPublishSources: ['camera', 'microphone'],
+    });
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+
   it('does not attempt an SFU permission update for an offline participant', async () => {
     actorId = MODERATOR_ID;
     getSpy
