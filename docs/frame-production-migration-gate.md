@@ -41,6 +41,14 @@ CI may lint and test migrations in a disposable/non-production database. CI pass
 - Keep rollback/compensation explicit. Forward-only migrations may require a reviewed corrective migration rather than destructive rollback.
 - Add tests for unauthorized users, expired/invalid approval, changed checksum, duplicate execution, concurrent requests, partial failure, and secret redaction.
 
+## Current implementation added in PR #373
+
+- `POST /audit/frame/approvals` creates a 15-minute approval in the existing append-only `audit_logs` table and requires a signed Supabase session with verified server-managed global-admin claims.
+- The approval binds the exact plan SHA-256, commit, production project, target, ordered migration versions, actor UUID and expiry.
+- The execute workflow requires the approval UUID. The executor validates the approval against the checked-out plan, obtains the PostgreSQL advisory lock, rejects replay and commits the consumption event before starting the CLI.
+- A failed or partial execution burns the approval. Post-execution audit persistence failures are recorded as audit incidents, not as migration rollback claims.
+- No new production migration was introduced. PR CI covers API, Python plan/approval validation and append-only audit behavior. A disposable PostgreSQL test for actual single-use consumption and concurrent lock rejection is being added in the current follow-up.
+
 ## Implementation sequence
 
 1. Inspect the existing identity, governance and audit contracts before choosing the authorization model.
