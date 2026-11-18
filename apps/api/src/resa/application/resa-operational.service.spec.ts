@@ -67,9 +67,15 @@ describe('ResaOperationalService live permissions', () => {
     ]);
   });
 
-  it('unifies content, profile, topic, community and event discovery', async () => {
+  it('unifies content, profile, institutional, topic, community and event discovery', async () => {
     getSpy.mockImplementation(async (table: string) => {
       if (table === 'resa_contents') return [{ id: LIVE_ID, title: 'Community post', body: 'A shared reflection' }] as never;
+      if (table === 'resa_institutional_publications') return [{
+        id: 'institutional-1', source_type: 'YOUTH_ACTIVITY', source_id: TARGET_ID,
+        organization_id: '77777777-7777-4777-8777-777777777777', organization_name: 'Igreja Central',
+        organization_type: 'LOCAL_CHURCH', title: 'Hope gathering', body: 'A public church activity',
+        published_at: '2026-11-18T08:00:00.000Z', is_active: true,
+      }] as never;
       if (table === 'resa_topics') return [{ id: CONVERSATION_ID, name: 'Hope', normalized_name: 'hope' }] as never;
       if (table === 'resa_communities') return [{ id: TARGET_ID, name: 'Hope Community', description: 'A place to grow' }] as never;
       if (table === 'resa_events') return [{ id: ACTOR_ID, title: 'Hope gathering', description: 'Meet together' }] as never;
@@ -82,11 +88,33 @@ describe('ResaOperationalService live permissions', () => {
     const results = await service.search('session-token', 'hope');
 
     expect(results.map((item) => item.entity_type)).toEqual(
-      expect.arrayContaining(['content', 'profile', 'topic', 'community', 'event']),
+      expect.arrayContaining(['content', 'profile', 'institutional', 'topic', 'community', 'event']),
     );
-    expect(getSpy).toHaveBeenCalledTimes(4);
+    expect(getSpy).toHaveBeenCalledTimes(7);
     expect(getSpy).toHaveBeenCalledWith('resa_contents', 'session-token', expect.stringContaining('type=neq.story'));
+    expect(getSpy).toHaveBeenCalledWith('resa_institutional_publications', 'session-token',
+      expect.stringContaining('is_active=eq.true'));
+    expect(results).toContainEqual(expect.objectContaining({
+      entity_type: 'institutional',
+      institution_name: 'Igreja Central',
+      institutional_source_type: 'YOUTH_ACTIVITY',
+    }));
     expect(getSpy).toHaveBeenCalledWith('resa_communities', 'session-token', expect.stringContaining('status=eq.active'));
+  });
+
+  it('excludes muted or blocked authors and institutions from search results', async () => {
+    const mutedId = '77777777-7777-4777-8777-777777777777';
+    getSpy.mockImplementation(async (table: string) => {
+      if (table === 'resa_user_mutes') return [{ muted_id: mutedId }] as never;
+      if (table === 'resa_user_blocks') return [{ blocked_id: TARGET_ID }] as never;
+      if (table === 'resa_institutional_publications') return [] as never;
+      return [] as never;
+    });
+
+    await service.search('session-token', 'Hope', 'institutional');
+
+    expect(getSpy).toHaveBeenCalledWith('resa_institutional_publications', 'session-token',
+      expect.stringContaining('organization_id=not.in.(' + mutedId + ',' + TARGET_ID + ')'));
   });
 
   it('allows an authorized live viewer to resolve the trusted moderator roster', async () => {
