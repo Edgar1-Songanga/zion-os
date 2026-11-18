@@ -20,6 +20,7 @@ export default function SignUpPage() {
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
   const [awaitingPhone, setAwaitingPhone] = useState(false);
+  const [emailConfirmationPending, setEmailConfirmationPending] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -32,38 +33,71 @@ export default function SignUpPage() {
         setError("Introduza um número válido. Para Angola, escreva os 9 dígitos; acrescentamos +244.");
         setLoading(false); return;
       }
-      const { data, error: signupError } = await supabase.auth.signUp({
-        phone: normalized, password, options: { channel: "sms" },
-      });
-      if (signupError) setError(signupError.message);
-      else if (data.session) { window.location.replace("/dashboard"); return; }
-      else {
-        setPhone(normalized); setAwaitingPhone(true);
-        setMessage("Introduza o código SMS enviado para " + normalized + " para ativar a conta.");
+      try {
+        const { data, error: signupError } = await supabase.auth.signUp({
+          phone: normalized, password, options: { channel: "sms" },
+        });
+        if (signupError) setError(signupError.message);
+        else if (data.session) { window.location.replace("/dashboard"); return; }
+        else {
+          setPhone(normalized); setAwaitingPhone(true);
+          setMessage("Introduza o código SMS enviado para " + normalized + " para ativar a conta.");
+        }
+      } catch {
+        setError("Não foi possível contactar o serviço de autenticação. Verifique a ligação e tente novamente.");
       }
       setLoading(false); return;
     }
-    const { error: signupError } = await supabase.auth.signUp({
-      email, password,
-      options: { emailRedirectTo: window.location.origin + "/auth/callback?next=/dashboard" },
-    });
-    if (signupError) setError(signupError.message);
-    else setMessage("Conta criada. Verifique o seu email para concluir a ativação.");
+    try {
+      const { error: signupError } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: { emailRedirectTo: window.location.origin + "/auth/callback?next=/dashboard" },
+      });
+      if (signupError) setError(signupError.message);
+      else {
+        setEmailConfirmationPending(true);
+        setMessage("Conta criada. Verifique o seu email para concluir a ativação. Se não receber a mensagem, pode solicitar novo envio.");
+      }
+    } catch {
+      setError("Não foi possível contactar o serviço de autenticação. Verifique a ligação e tente novamente.");
+    }
     setLoading(false);
   }
 
   async function confirmPhone(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(""); setLoading(true);
-    const { error: verifyError } = await supabase.auth.verifyOtp({ phone: normalizePhone(phone), token: otp, type: "sms" });
-    if (verifyError) { setError(verifyError.message); setLoading(false); return; }
-    window.location.replace("/dashboard");
+    try {
+      const { error: verifyError } = await supabase.auth.verifyOtp({ phone: normalizePhone(phone), token: otp, type: "sms" });
+      if (verifyError) { setError(verifyError.message); setLoading(false); return; }
+      window.location.replace("/dashboard");
+    } catch {
+      setError("Não foi possível verificar o código neste momento. Verifique a ligação e tente novamente.");
+      setLoading(false);
+    }
   }
 
   async function resendCode() {
     setError(""); setMessage(""); setLoading(true);
-    const { error: resendError } = await supabase.auth.resend({ type: "sms", phone: normalizePhone(phone) });
-    if (resendError) setError(resendError.message);
-    else setMessage("Novo código solicitado. Verifique as mensagens SMS.");
+    try {
+      const { error: resendError } = await supabase.auth.resend({ type: "sms", phone: normalizePhone(phone) });
+      if (resendError) setError(resendError.message);
+      else setMessage("Novo código solicitado. Verifique as mensagens SMS.");
+    } catch {
+      setError("Não foi possível solicitar outro código SMS. Tente novamente.");
+    }
+    setLoading(false);
+  }
+
+  async function resendEmail() {
+    setError(""); setMessage(""); setLoading(true);
+    try {
+      const { error: resendError } = await supabase.auth.resend({ type: "signup", email: email.trim() });
+      if (resendError) setError(resendError.message);
+      else setMessage("Novo email de confirmação solicitado. Verifique também a pasta de spam.");
+    } catch {
+      setError("Não foi possível solicitar outro email de confirmação. Verifique a ligação e tente novamente.");
+    }
     setLoading(false);
   }
 
@@ -77,7 +111,7 @@ export default function SignUpPage() {
         <p className="mt-2 text-sm leading-6 text-[var(--zion-muted)]">Crie o seu acesso inicial ao ZION OS.</p>
         {!awaitingPhone ? <form onSubmit={handleSubmit} className="mt-8 space-y-5">
           <div className="grid grid-cols-2 rounded-xl bg-[var(--zion-light)] p-1" role="group" aria-label="Método de registo">
-            <button type="button" onClick={() => { setMethod("phone"); setError(""); setMessage(""); }} aria-pressed={method === "phone"} className={method === "phone" ? "rounded-lg bg-white px-3 py-2 text-sm font-semibold text-[var(--zion-primary)] shadow-sm" : "rounded-lg px-3 py-2 text-sm text-[var(--zion-muted)]"}>Telefone</button>
+            <button type="button" onClick={() => { setMethod("phone"); setEmailConfirmationPending(false); setError(""); setMessage(""); }} aria-pressed={method === "phone"} className={method === "phone" ? "rounded-lg bg-white px-3 py-2 text-sm font-semibold text-[var(--zion-primary)] shadow-sm" : "rounded-lg px-3 py-2 text-sm text-[var(--zion-muted)]"}>Telefone</button>
             <button type="button" onClick={() => { setMethod("email"); setError(""); setMessage(""); }} aria-pressed={method === "email"} className={method === "email" ? "rounded-lg bg-white px-3 py-2 text-sm font-semibold text-[var(--zion-primary)] shadow-sm" : "rounded-lg px-3 py-2 text-sm text-[var(--zion-muted)]"}>Email</button>
           </div>
           {method === "phone" ? <label className="block">
@@ -86,7 +120,7 @@ export default function SignUpPage() {
             <span className="mt-1 block text-xs text-[var(--zion-muted)]">Para números angolanos, pode escrever apenas os 9 dígitos.</span>
           </label> : <label className="block">
             <span className="text-sm font-medium text-[var(--zion-dark)]">Email</span>
-            <input type="email" required autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} className="mt-2 w-full rounded-xl border border-[var(--zion-border)] px-4 py-3 outline-none focus:border-[var(--zion-sky)] focus:ring-4 focus:ring-[var(--zion-sky)]/10" />
+            <input type="email" required autoComplete="email" value={email} onChange={e => { setEmail(e.target.value); setEmailConfirmationPending(false); }} className="mt-2 w-full rounded-xl border border-[var(--zion-border)] px-4 py-3 outline-none focus:border-[var(--zion-sky)] focus:ring-4 focus:ring-[var(--zion-sky)]/10" />
           </label>}
           <label className="block">
             <span className="text-sm font-medium text-[var(--zion-dark)]">Palavra-passe</span>
@@ -94,6 +128,7 @@ export default function SignUpPage() {
           </label>
           {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
           {message && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</p>}
+          {method === "email" && emailConfirmationPending && <button type="button" onClick={() => void resendEmail()} disabled={loading} className="w-full rounded-xl border border-[var(--zion-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--zion-dark)] disabled:opacity-60">Reenviar email de confirmação</button>}
           <button type="submit" disabled={loading} className="w-full rounded-xl bg-[var(--zion-primary)] px-4 py-3 font-semibold text-white shadow-sm hover:bg-[var(--zion-primary-deep)] disabled:opacity-60">{loading ? "A criar..." : "Criar conta"}</button>
         </form> : <form onSubmit={confirmPhone} className="mt-8 space-y-5">
           <div className="rounded-xl border border-[var(--zion-border)] bg-[var(--zion-light)] p-4">
