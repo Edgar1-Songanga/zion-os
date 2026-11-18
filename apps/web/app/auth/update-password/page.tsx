@@ -14,10 +14,17 @@ export default function UpdatePasswordPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setReady(Boolean(data.session));
-      if (!data.session) setError("O link de recuperação é inválido ou expirou.");
+    let active = true;
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!active) return;
+      setReady(Boolean(data.session) && !error);
+      if (error || !data.session) setError("O link de recuperação é inválido ou expirou. Solicite um novo email de recuperação.");
+    }).catch(() => {
+      if (!active) return;
+      setReady(false);
+      setError("Não foi possível validar o link de recuperação. Verifique a ligação e tente novamente.");
     });
+    return () => { active = false; };
   }, [supabase.auth]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -35,11 +42,17 @@ export default function UpdatePasswordPage() {
     }
 
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({ password });
-    if (error) setError(error.message);
-    else {
-      setMessage("Palavra-passe atualizada. Pode entrar novamente.");
-      await supabase.auth.signOut();
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) setError(error.message);
+      else {
+        const { error: signOutError } = await supabase.auth.signOut();
+        setMessage(signOutError
+          ? "Palavra-passe actualizada. Termine a sessão manualmente antes de voltar a entrar."
+          : "Palavra-passe actualizada. Pode entrar novamente.");
+      }
+    } catch {
+      setError("Não foi possível actualizar a palavra-passe. Verifique a ligação e tente novamente.");
     }
     setLoading(false);
   }
