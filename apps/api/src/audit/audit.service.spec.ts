@@ -17,6 +17,62 @@ describe('AuditService Frame events', () => {
     );
   });
 
+
+  it('creates a short-lived approval bound to the verified administrator and exact plan', async () => {
+    post.mockResolvedValue([]);
+    const result = await service.createFrameApproval('admin-token', {
+      plan_sha256: 'a'.repeat(64),
+      commit_sha: 'b'.repeat(40),
+      project_ref: 'w'.repeat(20),
+      target: 'production',
+      migration_versions: ['20261118050825', '20261118050826'],
+    });
+
+    expect(requireGlobalAdmin).toHaveBeenCalledWith('admin-token');
+    expect(result.single_use).toBe(true);
+    expect(result.approval_id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(Date.parse(result.expires_at)).toBeGreaterThan(Date.now());
+    expect(Date.parse(result.expires_at)).toBeLessThanOrEqual(Date.now() + 15 * 60 * 1000 + 1000);
+    expect(post).toHaveBeenCalledWith('audit_logs', 'admin-token', expect.objectContaining({
+      organization_id: null,
+      actor_user_id: 'admin-123',
+      action: 'frame.migration.plan_approved',
+      resource_type: 'frame_migration',
+      metadata: expect.objectContaining({
+        approval_id: result.approval_id,
+        plan_sha256: 'a'.repeat(64),
+        commit_sha: 'b'.repeat(40),
+        project_ref: 'w'.repeat(20),
+        target: 'production',
+        migration_count: 2,
+        migration_versions: ['20261118050825', '20261118050826'],
+      }),
+    }));
+  });
+
+  it('rejects malformed approval bindings and does not write an approval', async () => {
+    await expect(service.createFrameApproval('admin-token', {
+      plan_sha256: 'not-a-hash',
+      commit_sha: 'b'.repeat(40),
+      project_ref: 'w'.repeat(20),
+      target: 'production',
+      migration_versions: ['20261118050825'],
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('does not issue approvals to non-global administrators', async () => {
+    requireGlobalAdmin.mockRejectedValue(new ForbiddenException());
+    await expect(service.createFrameApproval('member-token', {
+      plan_sha256: 'a'.repeat(64),
+      commit_sha: 'b'.repeat(40),
+      project_ref: 'w'.repeat(20),
+      target: 'production',
+      migration_versions: ['20261118050825'],
+    })).rejects.toBeInstanceOf(ForbiddenException);
+    expect(post).not.toHaveBeenCalled();
+  });
+
   it('requires a verified global administrator before writing an event', async () => {
     requireGlobalAdmin.mockRejectedValue(new ForbiddenException());
 

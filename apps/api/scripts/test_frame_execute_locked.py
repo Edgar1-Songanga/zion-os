@@ -8,6 +8,7 @@ import os
 import subprocess
 import sys
 import tempfile
+from datetime import datetime, timedelta, timezone
 import types
 import unittest
 from pathlib import Path
@@ -122,6 +123,89 @@ class FramePlanValidationTests(unittest.TestCase):
         (self.migrations_dir / "20261118000102_unapproved.sql").write_text("select 3;")
         with self.assertRaisesRegex(executor.PlanValidationError, "differ from the approved inventory"):
             self.validate()
+
+
+    def make_approval(self, **overrides):
+        approval = {
+            "approval_id": "11111111-1111-4111-8111-111111111111",
+            "plan_sha256": self.expected_hash,
+            "commit_sha": self.commit,
+            "project_ref": self.project_ref,
+            "target": "production",
+            "migration_count": 1,
+            "migration_versions": ["20261118000101"],
+            "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat(),
+        }
+        approval.update(overrides)
+        return approval
+
+    def test_accepts_matching_authenticated_single_use_approval(self):
+        self.assertIsNone(executor.validate_approval(
+            self.make_approval(),
+            "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            approval_id="11111111-1111-4111-8111-111111111111",
+            expected_hash=self.expected_hash,
+            expected_commit=self.commit,
+            expected_project_ref=self.project_ref,
+            migration_versions=["20261118000101"],
+        ))
+
+    def test_rejects_approval_without_authenticated_actor(self):
+        with self.assertRaisesRegex(executor.PlanValidationError, "authenticated administrator"):
+            executor.validate_approval(
+                self.make_approval(), None,
+                approval_id="11111111-1111-4111-8111-111111111111",
+                expected_hash=self.expected_hash,
+                expected_commit=self.commit,
+                expected_project_ref=self.project_ref,
+                migration_versions=["20261118000101"],
+            )
+
+    def test_rejects_expired_approval(self):
+        expired = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
+        with self.assertRaisesRegex(executor.PlanValidationError, "expired"):
+            executor.validate_approval(
+                self.make_approval(expires_at=expired),
+                "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+                approval_id="11111111-1111-4111-8111-111111111111",
+                expected_hash=self.expected_hash,
+                expected_commit=self.commit,
+                expected_project_ref=self.project_ref,
+                migration_versions=["20261118000101"],
+            )
+
+    def test_rejects_replayed_or_mismatched_approval_identifier(self):
+        with self.assertRaisesRegex(executor.PlanValidationError, "identifier"):
+            executor.validate_approval(
+                self.make_approval(),
+                "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+                approval_id="22222222-2222-4222-8222-222222222222",
+                expected_hash=self.expected_hash,
+                expected_commit=self.commit,
+                expected_project_ref=self.project_ref,
+                migration_versions=["20261118000101"],
+            )
+
+    def test_rejects_plan_commit_target_and_migration_inventory_drift(self):
+        cases = [
+            ({"plan_sha256": "b" * 64}, self.expected_hash, self.commit, self.project_ref, ["20261118000101"]),
+            ({"commit_sha": "c" * 40}, self.expected_hash, self.commit, self.project_ref, ["20261118000101"]),
+            ({"project_ref": "x" * 20}, self.expected_hash, self.commit, self.project_ref, ["20261118000101"]),
+            ({"target": "staging"}, self.expected_hash, self.commit, self.project_ref, ["20261118000101"]),
+            ({"migration_versions": ["20261118000102"]}, self.expected_hash, self.commit, self.project_ref, ["20261118000101"]),
+        ]
+        for changes, plan_hash, commit, project_ref, versions in cases:
+            with self.subTest(changes=changes):
+                with self.assertRaisesRegex(executor.PlanValidationError, "does not match"):
+                    executor.validate_approval(
+                        self.make_approval(**changes),
+                        "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+                        approval_id="11111111-1111-4111-8111-111111111111",
+                        expected_hash=plan_hash,
+                        expected_commit=commit,
+                        expected_project_ref=project_ref,
+                        migration_versions=versions,
+                    )
 
     def test_rejects_path_traversal_and_unsorted_inventory(self):
         bad = self.make_plan()
