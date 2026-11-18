@@ -158,6 +158,7 @@ describe('ResaGroupMeetingService', () => {
       .mockResolvedValueOnce([{ id: MEETING_ID, status: 'SCHEDULED' }] as never)
       .mockResolvedValueOnce([{ provider_room_id: 'zion-group-' + MEETING_ID, status: 'READY' }] as never)
       .mockResolvedValueOnce([{ status: 'SCHEDULED' }] as never)
+      .mockResolvedValueOnce([{ status: 'SCHEDULED' }] as never)
       .mockResolvedValueOnce([{ status: 'OPEN' }] as never);
     patchSpy
       .mockResolvedValueOnce([{ meeting_id: MEETING_ID, status: 'OPEN' }] as never)
