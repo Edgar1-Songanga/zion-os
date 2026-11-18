@@ -339,10 +339,28 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
         }
       })
       .on(RoomEvent.Disconnected, () => {
-        if (mounted) {
-          setConnected(false);
-          setReconnecting(false);
-        }
+        if (!mounted) return;
+        setConnected(false);
+        setReconnecting(false);
+        setCamera(false);
+        setMicrophone(false);
+        setScreenShare(false);
+        setCanSpeak(false);
+        setParticipants([]);
+        setRaisedHands([]);
+        setHandRaised(false);
+        setAudioNeedsGesture(false);
+        // A terminal disconnect must stop local recording and any media-player
+        // tracks too; clearing the visible state alone would leave resources alive.
+        stopRecording();
+        void stopMediaBroadcast();
+        setRecording(false);
+        setMediaBroadcasting(false);
+        localVideoRef.current?.pause();
+        if (localVideoRef.current) localVideoRef.current.srcObject = null;
+        remoteRef.current?.replaceChildren();
+        remoteScreenRef.current?.replaceChildren();
+        setNotice("A ligação à Live foi encerrada. Volta a entrar para continuares a participar.");
       });
 
     void (async () => {
