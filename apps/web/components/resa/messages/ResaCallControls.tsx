@@ -248,26 +248,37 @@ export default function ResaCallControls({ conversationId, peerName = "Membro RE
       if (insertError) throw insertError;
       created = data as CallRow;
       callRef.current = created; setCall(created); setCallStatus("ringing");
-      // The database, not the browser, decides when an unanswered call becomes missed.
+      // The database decides expiry. If the RPC is not deployed yet, the server cron remains the fallback.
       callTimeoutRef.current = window.setTimeout(() => {
         callTimeoutRef.current = null;
         void (async () => {
-          const { data: expired, error: expiryError } = await supabase.rpc(
+          const { error: expiryError } = await supabase.rpc(
             "expire_unanswered_resa_call",
             { p_call_id: created!.id },
           );
-          if (expiryError) {
-            setError("Não foi possível finalizar automaticamente a chamada não atendida. Termine-a manualmente.");
+          const { data: latestCall, error: statusError } = await supabase
+            .from("resa_calls")
+            .select("status")
+            .eq("id", created!.id)
+            .maybeSingle();
+
+          if (statusError) {
+            setError("Não foi possível confirmar o estado da chamada. O servidor continuará a gerir a expiração.");
             return;
           }
-          if (expired && callRef.current?.id === created!.id) {
+
+          if (latestCall?.status !== "active" && callRef.current?.id === created!.id) {
             intentionalDisconnectRef.current = true;
             await roomRef.current?.disconnect(true);
             roomRef.current = null;
             intentionalDisconnectRef.current = false;
             callRef.current = null;
             setCall(null); setActive(false); setConnected(false); setReconnecting(false);
-            setError("A chamada não foi atendida. Pode tentar novamente.");
+            setError(
+              expiryError
+                ? "A chamada não foi atendida. O servidor irá finalizar automaticamente."
+                : "A chamada não foi atendida. Pode tentar novamente.",
+            );
           }
         })();
       }, 45_000);
