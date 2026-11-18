@@ -218,7 +218,7 @@ def consume_approval(
           JOIN auth.users AS u ON u.id = l.actor_user_id
          WHERE l.action = 'frame.migration.plan_approved'
            AND l.metadata ->> 'approval_id' = %s
-         FOR UPDATE OF l
+         FOR UPDATE OF l, u
         """,
         (approval_id,),
     ).fetchall()
