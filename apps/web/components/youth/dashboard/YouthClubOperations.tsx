@@ -124,8 +124,7 @@ export default function YouthClubOperations() {
   function cancelEdit() {
     setEditingId(null);
     setForm(EMPTY_FORM);
-    setLogoFile(null);
-    setLogoPreview("");
+setLogoPreview("");
     setError(null);
     setMessage(null);
   }
@@ -278,8 +277,7 @@ export default function YouthClubOperations() {
       });
       setEditingId(null);
       setForm(EMPTY_FORM);
-      setLogoFile(null);
-      setLogoPreview("");
+setLogoPreview("");
       setMessage(editingId ? "Perfil do clube atualizado." : "Clube registado com sucesso.");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível guardar o clube.");
