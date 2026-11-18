@@ -168,56 +168,84 @@ export default function SecretariatPage() {
   const [transferHistoryId, setTransferHistoryId] = useState("");
   const [transferHistory, setTransferHistory] = useState<TransferEvent[]>([]);
 
+  const loadRequestId = useRef(0);
+
   const loadMembers = useCallback(async (id: string) => {
     if (!id) return;
+    const requestId = ++loadRequestId.current;
     setLoading(true);
+    setTransfersLoading(true);
+    setFamilyLoading(true);
+    setBaptismsLoading(true);
     setError("");
-    try {
-      const data = await resaRequest<Member[]>(`/v1/organizations/${encodeURIComponent(id)}/church-members`);
-      setMembers(data);
-      setTransfersLoading(true);
-      setTransferError("");
-      try {
-        const transferItems = await resaRequest<MemberTransfer[]>(`/v1/organizations/${encodeURIComponent(id)}/church-member-transfers`);
-        setTransfers(transferItems);
-      } catch (transferReason) {
-        setTransfers([]);
-        setTransferError(transferReason instanceof Error ? transferReason.message : "Não foi possível carregar as transferências.");
-      } finally {
-        setTransfersLoading(false);
-      }
-      setFamilyLoading(true);
-      setFamilyError("");
-      try {
-        const relationships = await resaRequest<FamilyRelationship[]>(`/v1/organizations/${encodeURIComponent(id)}/church-member-families`);
-        setFamilyRelationships(relationships);
-      } catch (familyReason) {
-        setFamilyRelationships([]);
-        setFamilyError(familyReason instanceof Error ? familyReason.message : "Não foi possível carregar as relações familiares.");
-      } finally {
-        setFamilyLoading(false);
-      }
-      setBaptismsLoading(true);
-      setBaptismError("");
-      try {
-        const baptismItems = await resaRequest<BaptismRecord[]>(`/v1/organizations/${encodeURIComponent(id)}/church-baptisms`);
-        setBaptisms(baptismItems);
-      } catch (baptismReason) {
-        setBaptisms([]);
-        setBaptismError(baptismReason instanceof Error ? baptismReason.message : "Não foi possível carregar os registos de baptismo.");
-      } finally {
-        setBaptismsLoading(false);
-      }
-    } catch (reason) {
+    setTransferError("");
+    setFamilyError("");
+    setBaptismError("");
+
+    const [membersResult, transfersResult, familyResult, baptismsResult] = await Promise.allSettled([
+      resaRequest<Member[]>(`/v1/organizations/${encodeURIComponent(id)}/church-members`),
+      resaRequest<MemberTransfer[]>(`/v1/organizations/${encodeURIComponent(id)}/church-member-transfers`),
+      resaRequest<FamilyRelationship[]>(`/v1/organizations/${encodeURIComponent(id)}/church-member-families`),
+      resaRequest<BaptismRecord[]>(`/v1/organizations/${encodeURIComponent(id)}/church-baptisms`),
+    ]);
+
+    // Ignore late responses from a previous organization or superseded refresh.
+    if (requestId !== loadRequestId.current) return;
+
+    if (membersResult.status === "fulfilled") {
+      setMembers(membersResult.value);
+    } else {
       setMembers([]);
-      setError(reason instanceof Error ? reason.message : "Não foi possível carregar o registo de membros.");
-    } finally {
-      setLoading(false);
+      setError(membersResult.reason instanceof Error ? membersResult.reason.message : "Não foi possível carregar o registo de membros.");
     }
+
+    if (transfersResult.status === "fulfilled") {
+      setTransfers(transfersResult.value);
+    } else {
+      setTransfers([]);
+      setTransferError(transfersResult.reason instanceof Error ? transfersResult.reason.message : "Não foi possível carregar as transferências.");
+    }
+
+    if (familyResult.status === "fulfilled") {
+      setFamilyRelationships(familyResult.value);
+    } else {
+      setFamilyRelationships([]);
+      setFamilyError(familyResult.reason instanceof Error ? familyResult.reason.message : "Não foi possível carregar as relações familiares.");
+    }
+
+    if (baptismsResult.status === "fulfilled") {
+      setBaptisms(baptismsResult.value);
+    } else {
+      setBaptisms([]);
+      setBaptismError(baptismsResult.reason instanceof Error ? baptismsResult.reason.message : "Não foi possível carregar os registos de baptismo.");
+    }
+
+    setLoading(false);
+    setTransfersLoading(false);
+    setFamilyLoading(false);
+    setBaptismsLoading(false);
   }, []);
 
   useEffect(() => {
+    // Clear the previous tenant's data immediately when the organization changes.
+    setMembers([]);
+    setTransfers([]);
+    setFamilyRelationships([]);
+    setBaptisms([]);
+    setHistory([]);
+    setHistoryMemberId("");
+    setBaptismHistory([]);
+    setBaptismHistoryId("");
+    setTransferHistory([]);
+    setTransferHistoryId("");
     if (organizationId) void loadMembers(organizationId);
+    else {
+      loadRequestId.current += 1;
+      setLoading(false);
+      setTransfersLoading(false);
+      setFamilyLoading(false);
+      setBaptismsLoading(false);
+    }
   }, [organizationId, loadMembers]);
 
   const refreshMembersAfterOfflineSync = useCallback(() => {
@@ -692,7 +720,38 @@ export default function SecretariatPage() {
 
         <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-end sm:justify-between">
           <div className="w-full max-w-xl">
-            <OrganizationSelector value={organizationId} onChange={(id, selected) => { setIdentityCandidates([]); setNotice(""); setOrganization(selected); setOrganizationId(id); }} />
+            <OrganizationSelector value={organizationId} onChange={(id, selected) => {
+              if (id !== organizationId) {
+                loadRequestId.current += 1;
+                setMembers([]);
+                setTransfers([]);
+                setFamilyRelationships([]);
+                setBaptisms([]);
+                setHistory([]);
+                setHistoryMemberId("");
+                setBaptismHistory([]);
+                setBaptismHistoryId("");
+                setTransferHistory([]);
+                setTransferHistoryId("");
+                setIdentityCandidates([]);
+                setDestinationOrganizationId("");
+                setQuery("");
+                setLoading(false);
+                setTransfersLoading(false);
+                setFamilyLoading(false);
+                setBaptismsLoading(false);
+                setError("");
+                setTransferError("");
+                setFamilyError("");
+                setBaptismError("");
+                setTransferNotice("");
+                setFamilyNotice("");
+                setBaptismNotice("");
+                setNotice("");
+              }
+              setOrganization(selected);
+              setOrganizationId(id);
+            }} />
             {organization && <p className="mt-2 text-xs text-slate-500">Âmbito activo: <strong className="text-slate-700">{organization.name}</strong> · {organization.organization_type}</p>}
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
