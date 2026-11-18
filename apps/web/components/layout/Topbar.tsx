@@ -44,6 +44,7 @@ export default function Topbar({ mobileNavOpen = false, sidebarCollapsed = false
   const router = useRouter();
   const menuRef = useRef<HTMLDivElement>(null);
   const quickSearchRef = useRef<HTMLInputElement>(null);
+  const quickSearchDialogRef = useRef<HTMLElement>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [memberships, setMemberships] = useState<Membership[]>([]);
@@ -216,7 +217,27 @@ export default function Topbar({ mobileNavOpen = false, sidebarCollapsed = false
 
   useEffect(() => {
     if (!quickSearchOpen) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     quickSearchRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const focusable = quickSearchDialogRef.current?.querySelectorAll<HTMLElement>('input:not([disabled]), button:not([disabled])');
+      if (!focusable?.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      previousFocus?.focus();
+    };
   }, [quickSearchOpen]);
 
   const displayName = useMemo<string>(() => {
@@ -270,7 +291,7 @@ export default function Topbar({ mobileNavOpen = false, sidebarCollapsed = false
 
       {quickSearchOpen && (
         <div className="fixed inset-0 z-[80] flex items-start justify-center bg-[#07152b]/55 px-3 pt-[12vh] backdrop-blur-sm sm:px-6" onMouseDown={(event) => { if (event.target === event.currentTarget) setQuickSearchOpen(false); }}>
-          <section role="dialog" aria-modal="true" aria-labelledby="zion-quick-search-title" className="w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_30px_100px_rgba(0,0,0,0.3)]">
+          <section ref={quickSearchDialogRef} role="dialog" aria-modal="true" aria-labelledby="zion-quick-search-title" className="w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_30px_100px_rgba(0,0,0,0.3)]">
             <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
               <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" strokeLinecap="round" /></svg>
               <label id="zion-quick-search-title" className="sr-only" htmlFor="zion-quick-search-input">Pesquisar módulos e páginas</label>
