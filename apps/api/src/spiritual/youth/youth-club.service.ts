@@ -28,6 +28,9 @@ export class YouthClubService {
     const name = this.requiredText(input.name, 'name', 2, 160);
     const programId = this.programId(input.programId);
     const normalized = this.normalize(input, true);
+    if (normalized.logoUrl != null || normalized.coverImageUrl != null) {
+      throw new BadRequestException('Youth club images are temporarily unavailable until the secure media moderation flow is enabled.');
+    }
     return this.directory.create({ ...normalized, organizationId, name, programId }, token);
   }
 
@@ -43,6 +46,25 @@ export class YouthClubService {
     const clubId = this.uuid(id, 'club id');
     const normalized = this.normalize(input, false);
     if (Object.keys(normalized).length === 0) throw new BadRequestException('At least one youth club field must be provided.');
+
+    if (normalized.logoUrl !== undefined || normalized.coverImageUrl !== undefined) {
+      const current = await this.directory.getById(clubId, token);
+      if (!current) throw new NotFoundException('Youth club not found or access denied.');
+
+      const nextLogo = normalized.logoUrl === undefined
+        ? this.httpsUrl(current.logoUrl ?? null, 'logo_url')
+        : normalized.logoUrl;
+      const nextCover = normalized.coverImageUrl === undefined
+        ? this.httpsUrl(current.coverImageUrl ?? null, 'cover_image_url')
+        : normalized.coverImageUrl;
+      const currentLogo = this.httpsUrl(current.logoUrl ?? null, 'logo_url');
+      const currentCover = this.httpsUrl(current.coverImageUrl ?? null, 'cover_image_url');
+
+      if (nextLogo !== currentLogo || nextCover !== currentCover) {
+        throw new BadRequestException('Youth club images cannot be changed until the secure media moderation flow is enabled.');
+      }
+    }
+
     return this.directory.update(clubId, normalized, token);
   }
 
