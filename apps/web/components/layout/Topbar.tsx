@@ -118,14 +118,22 @@ export default function Topbar() {
       { label: "Conta e segurança", description: "Sessão e protecção da conta", path: "/account", keywords: "segurança autenticação password" },
     ];
     const roles = memberships.map((item) => item.role?.key ?? "");
-    const hasRole = (...keys: string[]) => user?.app_metadata?.zion_global_role === "global_admin" || roles.some((key) => keys.includes(key));
+    const isGlobalAdmin = user?.app_metadata?.zion_global_role === "global_admin" && user?.app_metadata?.zion_verified === true;
+    const hasRole = (...keys: string[]) => isGlobalAdmin || roles.some((key) => keys.includes(key));
     const privileged = [
-      ...(user?.app_metadata?.zion_global_role === "global_admin" ? [
+      ...(isGlobalAdmin ? [
         { label: "Administração global", description: "Controlo institucional global", path: "/admin", keywords: "admin global" },
         { label: "Verificação de contas", description: "Revisão de perfis e documentos", path: "/admin/verification", keywords: "verificar identidade" },
       ] : []),
       ...(hasRole("organization_owner", "organization_admin", "organization_leader") ? [
         { label: "Administração da igreja", description: "Estrutura e gestão da organização", path: "/church-administration", keywords: "igreja organização" },
+        { label: "Ministérios e departamentos", description: "Gestão dos ministérios locais", path: "/ministry", keywords: "departamentos ministérios" },
+      ] : []),
+      ...(hasRole("youth_director", "organization_owner", "organization_admin", "organization_leader", "pastor", "ministry_leader", "department_leader") ? [
+        { label: "Ministério Jovem", description: "Clubes, actividades e operações juvenis", path: "/youth", keywords: "jovens desbravadores aventureiros" },
+      ] : []),
+      ...(hasRole("stewardship_manager") ? [
+        { label: "Mordomia Cristã", description: "Recursos e participação", path: "/stewardship", keywords: "mordomia" },
       ] : []),
       ...(hasRole("secretary", "organization_owner", "organization_admin") ? [
         { label: "Secretaria", description: "Membros e registos institucionais", path: "/secretariat", keywords: "secretariado membros" },
@@ -158,7 +166,6 @@ export default function Topbar() {
     setMenuOpen(false);
     setQuickSearchOpen(true);
     setQuickSearchQuery("");
-    window.requestAnimationFrame(() => quickSearchRef.current?.focus());
   }
 
   function navigateQuickLink(path: string) {
@@ -171,13 +178,15 @@ export default function Topbar() {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        openQuickSearch();
+        setMenuOpen(false);
+        setQuickSearchQuery("");
+        setQuickSearchOpen(true);
       }
       if (event.key === "Escape") setQuickSearchOpen(false);
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  });
+  }, []);
 
   useEffect(() => {
     if (!quickSearchOpen) return;
@@ -217,7 +226,7 @@ export default function Topbar() {
           <h2 className="text-[14px] font-semibold tracking-[0.08em] text-[#0B2D4D] sm:text-[18px] sm:tracking-[0.12em]">ZION OS</h2>
           <p className="mt-0.5 hidden truncate text-[11px] text-slate-500 sm:block">{t("brandDescription")}</p>
         </div>
-        <button type="button" onClick={openQuickSearch} aria-label="Abrir pesquisa e acesso rápido" className="hidden min-w-[220px] max-w-[420px] flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-left transition hover:border-[#C8A24A] hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8A24A] md:flex">
+        <button type="button" onClick={openQuickSearch} aria-label="Abrir pesquisa e acesso rápido" aria-keyshortcuts="Control+K Meta+K" className="hidden min-w-[220px] max-w-[420px] flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-left transition hover:border-[#C8A24A] hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8A24A] md:flex">
           <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4.5 4.5" strokeLinecap="round" /></svg>
           <span className="min-w-0 flex-1 truncate text-xs text-slate-500">Pesquisar módulos e páginas…</span>
           <kbd className="rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] text-slate-400">Ctrl K</kbd>
