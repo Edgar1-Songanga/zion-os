@@ -26,12 +26,12 @@ Initial event taxonomy:
 - `page_view`: approved static page key.
 - `bible_search_submitted`: success, translation and result count; never the query or verse text.
 - `bible_quiz_started`: play mode and level.
-- `bible_quiz_level_completed`: mode, level, correct count, question count and pass/fail.
-- `devotion_saved`: reference count and whether a prayer field was included; never devotion or prayer text.
+- `bible_quiz_level_completed`: play mode and level only. No score, answer, question text or pass/fail data is currently collected.
+- `devotion_saved`: event occurrence only; no devotion, prayer, reference or content metadata is currently collected.
 - `reel_reaction`: like/unlike action; never content or author ID.
 - `live_created`: visibility class only; never title, password or description.
 
-The API validates product/module/event combinations and accepts only event-specific properties. Unknown keys, free text and invalid values are rejected. The browser helper sends events asynchronously and does not block product interactions.
+The API validates product/module/event combinations and accepts only event-specific properties. Unknown keys, free text and invalid values are rejected. The event registry is authoritative: metric definitions must not assume attributes that are not explicitly present in that registry. The browser helper sends events asynchronously and does not block product interactions.
 
 ## Initial metric catalogue
 
@@ -44,8 +44,8 @@ The API validates product/module/event combinations and accepts only event-speci
 | D1 / D7 / D30 retention | Cohort users returning on the specified elapsed day/window | Awaiting event history |
 | Feature funnel | Ordered eligible events / preceding step, with a defined conversion window | Awaiting event history |
 | Bible search success | Successful searches / submitted searches | Awaiting sufficient telemetry |
-| Bible Quiz completion | Completed levels / started levels | Awaiting sufficient telemetry |
-| Devotion completion | Saved devotion entries / devotion page visits | Awaiting sufficient telemetry |
+| Bible Quiz completion | Completed-level events / started-level events, grouped by mode and level | Awaiting sufficient telemetry |
+| Devotion save rate | Save events / devotion page visits; this is a save proxy, not proof of reading completion | Awaiting sufficient telemetry |
 | RESA Reels engagement | Valid reactions / eligible reel impressions | Awaiting impression event contract |
 | Live conversion | Joined live sessions / created or scheduled sessions | Awaiting join event coverage |
 
