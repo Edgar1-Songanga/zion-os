@@ -54,10 +54,11 @@ No metric may be labelled live until its formula, denominator, event coverage, s
 ## Security and privacy
 
 - Current ingestion is authenticated. It attributes events to the verified Supabase actor on the server; the client cannot choose an actor ID.
+- Collection is disabled by default. The account privacy preference `product_analytics` must be explicitly enabled; the browser checks the preference and the API independently enforces it against the stored profile.
 - Do not collect search text, Bible passage text, prayer/devotion content, message content, email, phone, passwords, meeting titles, content IDs or precise location in Product Analytics.
 - Product-level aggregate access must be restricted to verified global administrators. Existing actor-scoped RLS must not be broadened.
 - Global aggregate queries require a reviewed database function/read model with explicit `app_metadata` authorization, bounded date windows, suppression for small groups where appropriate, and audit logging.
-- Consent, retention, deletion and user-facing privacy notice must be aligned with the ZION privacy policy before broad passive telemetry is enabled.
+- Before production rollout, the user-facing privacy notice, purpose limitation, retention period, access audit, and deletion/export workflow must be aligned with the ZION privacy policy. The opt-in is not a substitute for these governance controls.
 - Operational logs and analytics events are separate datasets with separate retention and access policies.
 
 ## Delivery gates
