@@ -45,13 +45,15 @@ type IntelligenceResponse = {
 };
 
 const numberFormat = new Intl.NumberFormat("pt-PT");
-const metricCards: Array<{ key: keyof IntelligenceResponse["metrics"]; label: string; description: string }> = [
-  { key: "active_organizations", label: "Organizações activas", description: "Dentro do âmbito autorizado" },
-  { key: "active_departments", label: "Departamentos activos", description: "Unidades administrativas registadas" },
+const primaryMetrics: Array<{ key: keyof IntelligenceResponse["metrics"]; label: string; description: string }> = [
+  { key: "active_organizations", label: "Organizações activas", description: "No âmbito autorizado" },
   { key: "active_ministries", label: "Ministérios activos", description: "Com estado ACTIVE" },
-  { key: "active_programs", label: "Programas activos", description: "Associados a ministérios activos" },
   { key: "pending_ministry_reports", label: "Relatórios pendentes", description: "Aguardam apreciação" },
-  { key: "approved_ministry_reports", label: "Relatórios aprovados", description: "Com aprovação registada" },
+];
+const secondaryMetrics: Array<{ key: keyof IntelligenceResponse["metrics"]; label: string }> = [
+  { key: "active_departments", label: "Departamentos" },
+  { key: "active_programs", label: "Programas" },
+  { key: "approved_ministry_reports", label: "Relatórios aprovados" },
 ];
 
 export default function InstitutionalIntelligencePanel({ organizationId }: { organizationId: string }) {
@@ -94,7 +96,7 @@ export default function InstitutionalIntelligencePanel({ organizationId }: { org
       </div>
 
       {error && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{error}</div>}
-      {loading && !data && <div className="grid grid-cols-2 gap-3 lg:grid-cols-3"><div className="h-24 animate-pulse rounded-xl bg-slate-100" /><div className="h-24 animate-pulse rounded-xl bg-slate-100" /><div className="h-24 animate-pulse rounded-xl bg-slate-100" /></div>}
+      {loading && !data && <div className="grid gap-3 lg:grid-cols-3"><div className="h-28 animate-pulse rounded-2xl bg-slate-100" /><div className="h-28 animate-pulse rounded-2xl bg-slate-100" /><div className="h-28 animate-pulse rounded-2xl bg-slate-100" /></div>}
       {data && (
         <>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
@@ -103,19 +105,28 @@ export default function InstitutionalIntelligencePanel({ organizationId }: { org
             <span>Dados até: {data.data_quality.data_as_of ? new Intl.DateTimeFormat("pt-PT", { dateStyle: "medium", timeStyle: "short" }).format(new Date(data.data_quality.data_as_of)) : "Sem actividade registada"}</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-            {metricCards.map((metric) => (
-              <article key={metric.key} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
-                <p className="text-xs font-medium text-slate-500">{metric.label}</p>
-                <p className="mt-3 text-3xl font-semibold tracking-tight text-[#0C1A3D] tabular-nums">{numberFormat.format(data.metrics[metric.key] as number)}</p>
+          <div className="grid gap-3 lg:grid-cols-3">
+            {primaryMetrics.map((metric, index) => (
+              <article key={metric.key} className={index === 0 ? "relative overflow-hidden rounded-2xl border border-[#19385B] bg-[#0B2544] p-5 text-white shadow-[0_12px_30px_rgba(7,21,43,0.12)]" : "rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_6px_22px_rgba(15,23,42,0.03)]"}>
+                <p className={index === 0 ? "text-xs font-medium text-slate-300" : "text-xs font-medium text-slate-500"}>{metric.label}</p>
+                <p className={"mt-3 text-3xl font-semibold tracking-tight tabular-nums " + (index === 0 ? "text-[#E2C477]" : "text-[#0C1A3D]")}>{numberFormat.format(data.metrics[metric.key] as number)}</p>
                 <p className="mt-1 text-xs text-slate-400">{metric.description}</p>
               </article>
             ))}
-            <article className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
-              <p className="text-xs font-medium text-slate-500">Membros eclesiásticos activos</p>
-              <p className="mt-3 text-3xl font-semibold tracking-tight text-[#0C1A3D] tabular-nums">{data.metrics.active_church_members.value === null ? "—" : numberFormat.format(data.metrics.active_church_members.value)}</p>
-              <p className="mt-1 text-xs text-slate-400">{data.metrics.active_church_members.value === null ? "Valor protegido: grupo inferior ao mínimo de cinco" : "Registos do cadastro oficial da Igreja"}</p>
-            </article>
+          </div>
+
+          <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-slate-200 bg-white sm:grid-cols-4">
+            {secondaryMetrics.map((metric, index) => (
+              <div key={metric.key} className={"px-4 py-4 sm:px-5 " + (index > 0 ? "sm:border-l sm:border-slate-100" : "")}>
+                <p className="text-[11px] font-medium text-slate-500">{metric.label}</p>
+                <p className="mt-2 text-xl font-semibold tabular-nums text-[#0C1A3D]">{numberFormat.format(data.metrics[metric.key] as number)}</p>
+              </div>
+            ))}
+            <div className="border-t border-slate-100 px-4 py-4 sm:border-l sm:border-t-0 sm:px-5">
+              <p className="text-[11px] font-medium text-slate-500">Membros activos</p>
+              <p className="mt-2 text-xl font-semibold tabular-nums text-[#0C1A3D]">{data.metrics.active_church_members.value === null ? "—" : numberFormat.format(data.metrics.active_church_members.value)}</p>
+              <p className="mt-1 text-[10px] leading-4 text-slate-400">{data.metrics.active_church_members.value === null ? "Protegido por privacidade" : "Cadastro oficial"}</p>
+            </div>
           </div>
 
           <div className="overflow-hidden rounded-2xl border border-slate-200">
@@ -151,16 +162,18 @@ export default function InstitutionalIntelligencePanel({ organizationId }: { org
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-xl border border-slate-200 p-4">
-              <p className="text-xs font-semibold text-slate-700">Qualidade e privacidade dos dados</p>
-              <p className="mt-2 text-xs leading-5 text-slate-500">Membresia: {data.data_quality.membership_aggregate === "AVAILABLE" ? "agregado disponível" : "agregado protegido pelo limiar mínimo de cinco registos"}.</p>
-              <p className="mt-1 text-xs leading-5 text-slate-500">Comparação histórica: ainda indisponível; não existe base histórica validada para este conjunto de indicadores.</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 p-4">
-              <p className="text-xs font-semibold text-slate-700">Metodologia</p>
-              <p className="mt-2 text-xs leading-5 text-slate-500">Cálculo no servidor · versão {data.lineage.calculation_version} · gerado {new Intl.DateTimeFormat("pt-PT", { dateStyle: "medium", timeStyle: "short" }).format(new Date(data.generated_at))}.</p>
-              <p className="mt-1 text-xs leading-5 text-slate-500">Previsões e recomendações automáticas permanecem desactivadas até existir histórico suficiente e validado.</p>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <p className="text-xs font-semibold text-slate-700">Qualidade e privacidade</p>
+                <p className="mt-2 text-xs leading-5 text-slate-500">Membresia: {data.data_quality.membership_aggregate === "AVAILABLE" ? "agregado disponível" : "agregado protegido pelo limiar mínimo de cinco registos"}.</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">Comparação histórica indisponível: ainda não existe base histórica validada para estes indicadores.</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-slate-700">Metodologia e actualidade</p>
+                <p className="mt-2 text-xs leading-5 text-slate-500">Cálculo no servidor · versão {data.lineage.calculation_version} · gerado {new Intl.DateTimeFormat("pt-PT", { dateStyle: "medium", timeStyle: "short" }).format(new Date(data.generated_at))}.</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">Previsões e recomendações automáticas permanecem desactivadas até existir histórico suficiente e validado.</p>
+              </div>
             </div>
           </div>
         </>

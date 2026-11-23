@@ -497,8 +497,13 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
             <p className="mt-1 text-sm text-slate-300">{level.subtitle}</p>
             <p className="mt-3 text-xs text-slate-400">120 perguntas · 6 níveis progressivos · revisão espaçada</p>
             {dueReviewCount > 0 && <p className="mt-2 inline-flex rounded-full border border-[#E2C477]/25 bg-[#E2C477]/10 px-3 py-1.5 text-[11px] font-medium text-[#E2C477]">{dueReviewCount} pergunta(s) prontas para rever</p>}
-            <p className="mt-2 text-[10px] text-slate-400" role="status">{reviewSyncStatus === "loading" ? "A preparar as tuas revisões…" : reviewSyncStatus === "synced" ? "Revisões associadas à tua conta" : "Revisões guardadas neste dispositivo; inicia sessão para sincronizar"}</p>
-            <p className="mt-1 text-[10px] text-slate-400" role="status">{!progressHydrated || challengeSyncStatus === "loading" ? "A carregar a tua jornada…" : challengeSyncStatus === "synced" ? "Progresso da jornada sincronizado" : "Progresso guardado localmente; a sincronização será retomada quando possível"}</p>
+            <p className="mt-2 text-[10px] leading-5 text-slate-400" role="status">
+              {challengeSyncStatus === "synced" && reviewSyncStatus === "synced"
+                ? "Jornada e revisões sincronizadas"
+                : challengeSyncStatus === "local" || reviewSyncStatus === "local"
+                  ? "Progresso disponível neste dispositivo; sincronização pendente"
+                  : "A sincronizar a tua jornada e as revisões…"}
+            </p>
           </div>
           <div className="flex gap-2">
             <div className="rounded-2xl border border-white/15 bg-white/[0.07] px-3 py-3 text-right">
@@ -512,7 +517,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
           </div>
         </div>
 
-        <div className="relative mt-5 flex gap-2" aria-label={"Nível " + (levelIndex + 1) + " de " + LEVELS.length}>
+        <div className="relative mt-5 flex gap-2" role="progressbar" aria-label="Progresso dos níveis" aria-valuemin={1} aria-valuemax={LEVELS.length} aria-valuenow={levelIndex + 1}>
           {LEVELS.map((item, index) => (
             <div key={item.title} title={item.title} className={"h-1.5 flex-1 rounded-full " + (index <= levelIndex ? "bg-[#D4AF37]" : "bg-white/15")} />
           ))}

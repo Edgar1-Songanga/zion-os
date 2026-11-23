@@ -33,10 +33,6 @@ type YouthReport = {
   by_program?: Array<{ program_id: string; clubs: number; active_memberships: number; activities: number }>;
 };
 
-function count(values: Array<{ status?: string }> | undefined, status: string) {
-  return (values ?? []).filter((value) => value.status?.toUpperCase() === status).length;
-}
-
 function numberLabel(value: number | undefined) {
   return typeof value === "number" ? value.toLocaleString("pt-PT") : "—";
 }
@@ -110,10 +106,6 @@ export default function ReportsPage() {
     return () => { active = false; clearInterval(interval); };
   }, [organizationId, refresh]);
 
-  const allReports = ministries.flatMap((ministry) => (ministry.reports ?? []).map((report) => ({ ...report, ministryName: ministry.name })));
-  const activePrograms = ministries.reduce((total, ministry) => total + count(ministry.programs, "ACTIVE"), 0);
-  const pendingReports = count(allReports, "PENDING");
-  const approvedReports = count(allReports, "APPROVED");
   const leaders = ministries.reduce((total, ministry) => total + (ministry.leadership?.length ?? 0), 0);
   const members = ministries.reduce((total, ministry) => total + (ministry.metrics?.members ?? 0), 0);
 
@@ -157,25 +149,17 @@ export default function ReportsPage() {
           onSubmitted={() => { if (organizationId) void refresh(organizationId, true); }}
         />
 
-        <section>
-          <div className="mb-4"><p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9B7A34]">Resumo executivo</p><h2 className="mt-2 text-2xl font-semibold tracking-tight">Indicadores dos registos existentes</h2></div>
+        <section aria-labelledby="complementary-metrics-title">
+          <div className="mb-4"><p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9B7A34]">Indicadores complementares</p><h2 id="complementary-metrics-title" className="mt-2 text-xl font-semibold tracking-tight">Participação e liderança</h2><p className="mt-1 text-sm text-slate-500">Métricas operacionais que complementam — sem repetir — os indicadores institucionais acima.</p></div>
           <div className="grid gap-3 grid-cols-2 xl:grid-cols-4">
             {[
-              { label: "Ministérios", value: ministryDataAvailable ? numberLabel(ministries.length) : "—", detail: "Registados na organização" },
-              { label: "Membros nos ministérios", value: ministryDataAvailable ? numberLabel(members) : "—", detail: "Soma das adesões por ministério; pode incluir membros em mais de um" },
-              { label: "Liderança registada", value: ministryDataAvailable ? numberLabel(leaders) : "—", detail: "Dirigentes associados" },
-              { label: "Programas ativos", value: ministryDataAvailable ? numberLabel(activePrograms) : "—", detail: "Programas com estado ativo" },
-              { label: "Relatórios pendentes", value: ministryDataAvailable ? numberLabel(pendingReports) : "—", detail: "Aguardam revisão" },
-              { label: "Relatórios aprovados", value: ministryDataAvailable ? numberLabel(approvedReports) : "—", detail: "Registos aprovados" },
-              { label: "Clubes jovens ativos", value: numberLabel(youth?.clubs_active), detail: "Ministério Jovem" },
-              { label: "Membros jovens únicos", value: numberLabel(youth?.active_members_unique), detail: "Membros ativos deduplicados entre clubes" },
-            ].map((item) => (
-              <article key={item.label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_8px_25px_rgba(15,23,42,0.03)] sm:p-5">
-                <p className="text-xs font-medium text-slate-500">{item.label}</p>
-                <p className="mt-3 text-3xl font-semibold tracking-tight text-[#0C1A3D]">{item.value}</p>
-                <p className="mt-2 text-xs leading-5 text-slate-400">{item.detail}</p>
-              </article>
-            ))}
+              { label: "Membros nos ministérios", value: ministryDataAvailable ? numberLabel(members) : "—", detail: "Soma de adesões; uma pessoa pode participar em vários ministérios" },
+              { label: "Liderança registada", value: ministryDataAvailable ? numberLabel(leaders) : "—", detail: "Dirigentes associados aos ministérios" },
+              { label: "Clubes jovens activos", value: youth ? numberLabel(youth.clubs_active) : "—", detail: "Ministério Jovem" },
+              { label: "Membros jovens únicos", value: youth ? numberLabel(youth.active_members_unique) : "—", detail: "Deduplicados entre clubes" },
+            ].map((item) => <article key={item.label} className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_6px_22px_rgba(15,23,42,0.025)] sm:p-5">
+              <p className="text-xs font-medium text-slate-500">{item.label}</p><p className="mt-3 text-3xl font-semibold tracking-tight text-[#0C1A3D] tabular-nums">{item.value}</p><p className="mt-2 text-xs leading-5 text-slate-400">{item.detail}</p>
+            </article>)}
           </div>
         </section>
 
