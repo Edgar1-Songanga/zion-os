@@ -101,3 +101,39 @@ The central Product Analytics workspace is for verified global administrators an
 7. **Decision context:** show period, timezone, metric definition, source, freshness and limitations beside every chart. Provide explicit empty, insufficient-sample, stale and error states.
 
 Visual direction: restrained premium enterprise interface, strong information hierarchy, low visual noise, compact chart chrome, accessible contrast and keyboard navigation. Mobile should prioritize the executive overview and allow progressive disclosure of detailed analysis. Never use fabricated sample values in a production dashboard.
+
+
+## Retention, consent withdrawal and deletion lifecycle
+
+This lifecycle is a mandatory release gate, not an assumption that the current event table already implements it.
+
+### Consent state transitions
+
+- **Disabled by default:** no product event may be accepted unless the authenticated profile currently has `privacy.product_analytics = true`.
+- **Opt-in:** the API reads the persisted profile preference for every ingestion request. A browser cache is only a convenience and is never authoritative.
+- **Withdrawal:** once the stored preference is false, new events are rejected immediately. The browser must refresh consent after a profile privacy update and stop dispatching queued telemetry. A consent withdrawal does **not** currently delete previously collected events; the product must not imply otherwise.
+- **Re-enable:** collection resumes only after a new explicit opt-in. No historical events are backfilled.
+
+### Data lifecycle requirements
+
+1. Maintain a documented purpose, lawful basis/consent wording, data owner, retention schedule and deletion SLA before enabling broad collection.
+2. Keep event-level rows identifiable only by the server-derived actor while needed for the approved analytics purpose. Do not use session IDs as cross-session identity.
+3. Enforce retention with a scheduled, idempotent database-side purge. It must be observable, retryable, auditable and tested against boundary timestamps; a UI-only filter is not deletion.
+4. On an approved user erasure/account-deletion request, remove that actor's event-level rows and any actor-linked derived records. Preserve only aggregates that have been irreversibly de-identified and cannot reasonably be linked back to the person; document exceptions required by law or institutional recordkeeping.
+5. A consent withdrawal and an erasure request are distinct actions. Provide a clear route to request erasure/export; do not silently treat opt-out as erasure.
+6. Backups and replicas must have a defined expiry/rotation policy. A successful primary-table purge must not be represented as immediate removal from every backup.
+7. Retention jobs must not delete operational audit evidence or institutional records governed by separate policies. Product Analytics must have its own data lifecycle.
+8. Record deletion requests and execution outcomes in a restricted audit trail without copying deleted event payloads into the audit record.
+
+### Decisions that remain intentionally unapproved
+
+No retention duration, legal basis, deletion SLA, minimum cohort threshold or backup expiry is invented in this engineering PR. These values must be approved by the ZION data/privacy owner with legal review for the jurisdictions served, then encoded as versioned policy configuration and database enforcement. Until that approval and implementation exist, Product Analytics remains a controlled engineering foundation and must not be presented as a fully governed production analytics service.
+
+### Required verification before release
+
+- Opt-out rejects ingestion on the next API request, including when the browser still has a stale consent cache.
+- Erasure removes all event rows for the verified actor without allowing the actor to delete another user's rows.
+- Retention purge is idempotent, bounded, monitored and cannot be invoked by ordinary clients.
+- Aggregate outputs are checked for re-identification risk after source-row deletion.
+- Backup expiry and audit evidence are verified separately from primary-table deletion.
+- User-facing privacy copy accurately distinguishes collection opt-in, withdrawal, export and erasure.
