@@ -379,6 +379,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
     requiredCorrect,
     totalScore,
     bestStreak,
+    deckVersion,
   ]);
 
   useEffect(() => {
