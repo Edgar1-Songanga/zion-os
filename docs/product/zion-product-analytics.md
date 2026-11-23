@@ -159,3 +159,16 @@ The connected production project was inspected without changing schema, data, po
 5. Reconcile repository migration files against the live ledger before preparing any migration, then follow the exclusive Frame gate in issue #82. The production audit above was read-only; no migration or SQL mutation was executed.
 
 **Release-blocking finding:** account deletion currently anonymizes the actor foreign key but leaves analytics event rows. Until a reviewed erasure path and retention purge are implemented and tested, the product must not claim that consent withdrawal or account deletion removes previously collected Product Analytics data.
+
+## Application lifecycle implementation audit — 2026-11-23
+
+A read-only review of the current Product Analytics branch traced the application-side consent and identity lifecycle:
+
+- `ProfileService.getOrCreate` defaults `privacy.product_analytics` to `false`, including legacy profiles where the field is absent.
+- `ProfileService.update` validates the consent value as a boolean, merges it with the persisted privacy object, and writes only the authenticated user's profile. The account settings UI calls `refreshProductAnalyticsConsent` after a successful privacy update.
+- The browser telemetry helper caches consent only within the current JavaScript context; the API independently reads the persisted profile preference for every event. A stale tab/cache therefore cannot override a withdrawal at ingestion time.
+- The API ingestion test suite covers the negative case: when the stored preference is false, the request is rejected and no event insert is attempted.
+- The identity API currently exposes identity lookup and profile GET/PATCH routes. The inspected identity module/controller/service contain no account-erasure endpoint or auth-user deletion orchestration. This is an implementation gap, not merely a missing analytics-table policy.
+- The analytics table has no actor-scoped DELETE policy in the production policy audit. Consequently, neither the current profile UI nor the current identity API can fulfill a user's analytics erasure request end-to-end.
+
+**Implementation decision:** do not add an ad-hoc DELETE route to the profile controller or grant users direct table DELETE. Account erasure must be designed as an authenticated, auditable lifecycle operation that coordinates Supabase Auth deletion, actor-linked application records, analytics event deletion, and separately governed institutional/audit records. It must be idempotent, ordered safely before auth identity removal where actor attribution is still required, and covered by cross-user negative tests. This remains blocked on the approved data-retention policy and the Frame migration gate.
