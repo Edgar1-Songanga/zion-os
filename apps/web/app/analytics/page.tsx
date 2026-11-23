@@ -17,7 +17,7 @@ export default function AnalyticsPage() {
     void resaRequest<Summary>("/v1/platform/analytics/summary")
       .then((result) => { if (active) setData(result); })
       .catch((reason: unknown) => {
-        if (active) setError(reason instanceof Error ? reason.message : "Não foi possível carregar a utilização do produto.");
+        if (active) setError("Verifique a ligação e tente novamente.");
       })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -43,7 +43,7 @@ export default function AnalyticsPage() {
         <section aria-labelledby="usage-summary-title" className="grid gap-4 md:grid-cols-[0.8fr_1.2fr]">
           <article className="relative overflow-hidden rounded-2xl border border-[#19385B] bg-[#0B2544] p-6 text-white shadow-[0_12px_30px_rgba(7,21,43,0.12)] sm:p-7">
             <p id="usage-summary-title" className="text-xs font-medium text-slate-300">Eventos registados</p>
-            {loading ? <div className="mt-4 h-10 w-28 animate-pulse rounded-lg bg-white/10" /> : <p className="mt-3 text-4xl font-semibold tracking-tight tabular-nums text-[#E2C477]">{numberFormat.format(data?.total ?? 0)}</p>}
+            {loading ? <div className="mt-4 h-10 w-28 animate-pulse rounded-lg bg-white/10" /> : <p className="mt-3 text-4xl font-semibold tracking-tight tabular-nums text-[#E2C477]">{data ? numberFormat.format(data.total) : "—"}</p>}
             <p className="mt-3 text-xs leading-5 text-slate-400">Total devolvido pelo serviço de analytics para a conta autenticada.</p>
           </article>
 
