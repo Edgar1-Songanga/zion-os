@@ -231,3 +231,11 @@ The first implementation block is not a visual-only dashboard. It comprises:
 - CI, operational logging and production release evidence.
 
 No predictive model or AI-generated recommendation should be enabled until this evidence foundation is complete and the underlying historical data passes quality checks.
+
+
+### Additional authorization finding
+
+- `apps/web/lib/auth/require-role.ts` implements a route gate that checks whether the authenticated user has any one of the supplied role keys across their active memberships. It does not itself bind the role to the organization selected in the report. It must not be treated as the complete authorization boundary for institutional analytics.
+- `zion_get_organization_hierarchy(uuid)` in `supabase/migrations/20261106220312_institutional_organization_hierarchy.sql` validates active membership in the exact requested organization (or organization creator / verified global administrator) and returns the selected organization plus its ancestors. It is not a Union-to-descendant-organization reporting scope function.
+- `zion_list_institutional_organizations()` is currently restricted to verified global administrators. It is not a safe substitute for an institutional manager's scoped descendant list.
+- Consequently, the first institutional reporting API must resolve and enforce the actor's authorized organization scope server-side. A Union-level user must not gain visibility into all subordinate organizations merely by selecting an organization ID or by holding a role key on another membership. The authorization model must distinguish view-own-organization, view-descendant-aggregates, and access-to-identifiable-records, with finance and HR permissions separate.
