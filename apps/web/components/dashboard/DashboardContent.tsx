@@ -25,7 +25,7 @@ export default function DashboardContent() {
             <Link href="/resa" className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-white/20 bg-white/[0.07] px-6 py-3 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/[0.12] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">{copy("resa")}</Link>
           </div>
         </div>
-        <div className="relative mt-8 flex flex-wrap gap-x-6 gap-y-2 border-t border-white/12 pt-5 text-xs text-slate-300">
+        <div className="relative mt-8 flex flex-wrap gap-x-6 gap-y-2 border-t border-white/[0.12] pt-5 text-xs text-slate-300">
           {(["dashBenefitLearn", "dashBenefitPace", "dashBenefitCommunity"] as const).map((key) => <p key={key} className="flex items-center gap-2"><span className="h-1.5 w-1.5 rounded-full bg-[#E2C477]" />{copy(key)}</p>)}
         </div>
       </section>
