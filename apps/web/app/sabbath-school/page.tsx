@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import { LocalizedText } from "@/components/i18n/LocalizedText";
+import ProductPageView from "@/components/analytics/ProductPageView";
 
 type DailySection = {
   day: string;
@@ -87,6 +88,7 @@ export default function SabbathSchoolPage() {
 
   return (
     <main className="min-h-screen bg-[#f6f8fb] px-4 py-5 sm:px-8 sm:py-8">
+      <ProductPageView product="zion_os" module="sabbath_school" page="sabbath_school" />
       <div className="mx-auto max-w-7xl">
         <header className="relative overflow-hidden rounded-[32px] bg-[#08152f] px-6 py-8 text-white shadow-[0_24px_80px_rgba(8,21,47,0.16)] sm:px-10 sm:py-10">
           <div className="absolute -right-20 -top-20 h-56 w-56 rounded-full bg-white/[0.05] blur-2xl" />
