@@ -6,6 +6,44 @@ describe("product analytics event registry", () => {
     expect(Object.keys(PRODUCT_EVENT_REGISTRY)).toContain("page_view");
   });
 
+  it("accepts only the declared page-to-product attribution map", () => {
+    const pages = [
+      ["zion_os", "dashboard", "dashboard"],
+      ["zion_os", "bible_engine", "bible_engine"],
+      ["zion_os", "devotion", "devotion"],
+      ["zion_os", "sabbath_school", "sabbath_school"],
+      ["resa", "feed", "resa_home"],
+      ["resa", "reels", "resa_reels"],
+      ["resa", "live", "resa_live"],
+      ["resa", "communities", "resa_communities"],
+      ["resa", "messages", "resa_messages"],
+      ["resa", "meetings", "resa_meetings"],
+      ["resa", "events", "resa_events"],
+      ["resa", "prayer", "resa_prayer"],
+      ["zion_os", "meetings", "meeting_room"],
+      ["resa", "meetings", "meeting_room"],
+    ] as const;
+
+    for (const [productKey, moduleKey, pageKey] of pages) {
+      expect(validateProductAnalyticsEvent({
+        productKey,
+        moduleKey,
+        eventName: "page_view",
+        sessionId: "a9b3d77d-0a4c-4b43-8b6f-cc4cbf0d7f21",
+        eventVersion: 1,
+        properties: { page_key: pageKey },
+      }).properties.page_key).toBe(pageKey);
+    }
+    expect(() => validateProductAnalyticsEvent({
+      productKey: "resa",
+      moduleKey: "meetings",
+      eventName: "page_view",
+      sessionId: "a9b3d77d-0a4c-4b43-8b6f-cc4cbf0d7f21",
+      eventVersion: 1,
+      properties: { page_key: "unknown_page" },
+    })).toThrow(/Page view key does not match/);
+  });
+
   it("accepts a versioned, allowlisted Bible Engine search event", () => {
     const result = validateProductAnalyticsEvent({
       productKey: "zion_os",
