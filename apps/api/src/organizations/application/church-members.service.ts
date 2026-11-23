@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { IdentityService } from '../../identity/application/identity.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 
@@ -23,7 +23,7 @@ type MemberRecord = {
   notes: string | null;
   created_at: string;
   updated_at: string;
-  row_version: number;
+  row_version?: number;
 };
 
 type IdentityCandidateSearchInput = {
@@ -57,10 +57,10 @@ export class ChurchMembersService {
   async list(accessToken: string, organizationId: string) {
     this.assertUuid(organizationId, 'organizationId');
     await this.identity.getCurrentUser(accessToken);
-    return this.db.get<MemberRecord[]>(
-      'church_member_records',
+    return this.getMemberRowsWithOptionalVersion(
       accessToken,
       `?select=id,organization_id,member_number,first_name,last_name,birth_date,gender,phone,email,address,baptism_date,membership_status,joined_on,notes,created_at,updated_at,row_version&organization_id=eq.${organizationId}&order=last_name.asc,first_name.asc&limit=100`,
+      `?select=id,organization_id,member_number,first_name,last_name,birth_date,gender,phone,email,address,baptism_date,membership_status,joined_on,notes,created_at,updated_at&organization_id=eq.${organizationId}&order=last_name.asc,first_name.asc&limit=100`,
     );
   }
 
@@ -217,10 +217,10 @@ export class ChurchMembersService {
     const searchFilter = normalizedSearch
       ? `&or=${encodeURIComponent(`(member_number.ilike."*${escapedSearch}*",first_name.ilike."*${escapedSearch}*",last_name.ilike."*${escapedSearch}*")`)}`
       : '';
-    const rows = await this.db.get<MemberRecord[]>(
-      'church_member_records',
+    const rows = await this.getMemberRowsWithOptionalVersion(
       accessToken,
       `?select=id,organization_id,member_number,first_name,last_name,birth_date,gender,membership_status,joined_on,updated_at,row_version&membership_status=eq.${status}${searchFilter}&order=last_name.asc,first_name.asc,id.asc&limit=${limit + 1}&offset=${offset}`,
+      `?select=id,organization_id,member_number,first_name,last_name,birth_date,gender,membership_status,joined_on,updated_at&membership_status=eq.${status}${searchFilter}&order=last_name.asc,first_name.asc,id.asc&limit=${limit + 1}&offset=${offset}`,
     );
     const items = rows.slice(0, limit);
     return {
@@ -253,6 +253,27 @@ export class ChurchMembersService {
       accessToken,
       `?select=id,organization_id,member_record_id,previous_status,new_status,note,changed_by,changed_at&organization_id=eq.${organizationId}&member_record_id=eq.${memberId}&order=changed_at.desc&limit=100`,
     );
+  }
+
+  private async getMemberRowsWithOptionalVersion(
+    accessToken: string,
+    versionedQuery: string,
+    compatibleQuery: string,
+  ): Promise<MemberRecord[]> {
+    try {
+      return await this.db.get<MemberRecord[]>('church_member_records', accessToken, versionedQuery);
+    } catch (error) {
+      // Keep Secretariat online reads compatible with databases awaiting the
+      // row_version migration. Once installed, the primary query also enables
+      // optimistic concurrency and offline updates without a second code release.
+      if (
+        !(error instanceof ServiceUnavailableException)
+        || error.message !== 'A estrutura da base de dados precisa de ser sincronizada com a versão atual do ZION OS.'
+      ) {
+        throw error;
+      }
+      return this.db.get<MemberRecord[]>('church_member_records', accessToken, compatibleQuery);
+    }
   }
 
   private normalize(input: MemberInput, creating: boolean): Record<string, unknown> {
