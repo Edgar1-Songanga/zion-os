@@ -31,6 +31,11 @@ export class PlatformController {
     return this.platform.analyticsMetricCatalog(this.token(authorization));
   }
 
+  @Get('analytics/product/metrics')
+  productAnalyticsMetricCatalog(@Headers('authorization') authorization: string | undefined) {
+    return this.platform.productAnalyticsMetricCatalog(this.token(authorization));
+  }
+
   @Get('analytics/institutional')
   institutionalIntelligence(
     @Headers('authorization') authorization: string | undefined,
