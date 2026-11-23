@@ -33,8 +33,8 @@ export default function AnalyticsPage() {
           <div aria-hidden="true" className="absolute -right-12 -top-24 h-72 w-72 rounded-full border border-white/10" />
           <div className="relative max-w-3xl">
             <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#E2C477]">ZION OS · Product intelligence</p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-5xl">Utilização do produto</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">Actividade registada para a tua conta. Este painel mede utilização do produto; não representa os indicadores institucionais da Igreja.</p>
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-5xl">Minha actividade</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">Eventos associados à tua conta autenticada. Este resumo é pessoal e não representa a utilização agregada dos produtos ZION OS e RESA.</p>
           </div>
         </header>
 
@@ -42,17 +42,17 @@ export default function AnalyticsPage() {
 
         <section aria-labelledby="usage-summary-title" className="grid gap-4 md:grid-cols-[0.8fr_1.2fr]">
           <article className="relative overflow-hidden rounded-2xl border border-[#19385B] bg-[#0B2544] p-6 text-white shadow-[0_12px_30px_rgba(7,21,43,0.12)] sm:p-7">
-            <p id="usage-summary-title" className="text-xs font-medium text-slate-300">Eventos registados</p>
+            <p id="usage-summary-title" className="text-xs font-medium text-slate-300">Eventos desta conta</p>
             {loading ? <div className="mt-4 h-10 w-28 animate-pulse rounded-lg bg-white/10" /> : <p className="mt-3 text-4xl font-semibold tracking-tight tabular-nums text-[#E2C477]">{data ? numberFormat.format(data.total) : "—"}</p>}
-            <p className="mt-3 text-xs leading-5 text-slate-400">Total devolvido pelo serviço de analytics para a conta autenticada.</p>
+            <p className="mt-3 text-xs leading-5 text-slate-400">Total devolvido para a tua conta autenticada; não é o total global da plataforma.</p>
           </article>
 
           <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_6px_24px_rgba(15,23,42,0.035)] sm:p-7">
             <div className="flex items-center justify-between gap-3">
-              <div><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#9B7A34]">Leitura dos dados</p><h2 className="mt-1 text-lg font-semibold">O que está a ser utilizado</h2></div>
+              <div><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#9B7A34]">Leitura dos dados</p><h2 className="mt-1 text-lg font-semibold">Actividade registada</h2></div>
               <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-semibold text-slate-500">Conta actual</span>
             </div>
-            <p className="mt-3 text-sm leading-6 text-slate-500">A distribuição abaixo é calculada directamente a partir dos eventos devolvidos pela API. Não são estimativas nem métricas de outras organizações.</p>
+            <p className="mt-3 text-sm leading-6 text-slate-500">A distribuição abaixo mostra apenas eventos associados à tua conta. O painel executivo de Product Analytics terá agregação própria, com acesso restrito à administração global.</p>
           </article>
         </section>
 
@@ -73,7 +73,7 @@ export default function AnalyticsPage() {
                 </div>)}
               </div>}
         </section>
-        <p className="text-center text-xs leading-5 text-slate-400">A análise institucional, relatórios de igrejas e comparações hierárquicas pertencem ao Centro de Relatórios e obedecem às permissões organizacionais.</p>
+        <p className="text-center text-xs leading-5 text-slate-400">Este ecrã não apresenta métricas globais de adopção, retenção ou conversão dos produtos.</p>
       </div>
     </main>
   );
