@@ -3,6 +3,7 @@ import { IdentityService } from '../identity/application/identity.service';
 import { SupabaseRestClient } from '../common/supabase/supabase-rest.client';
 import { AutomationPolicyEngine } from '@zion/automation-engine';
 import { PLATFORM_ANALYTICS_METRICS } from './analytics/metric-registry';
+import { validateProductAnalyticsEvent } from './analytics/product-event-registry';
 
 @Injectable()
 export class PlatformService {
@@ -98,17 +99,50 @@ export class PlatformService {
     return { event, automation: plan, evaluation_job: jobs[0] };
   }
 
-  async recordAnalytics(token: string, input: { event_name: unknown; entity_type?: unknown; entity_id?: unknown; properties?: unknown; occurred_at?: unknown }) {
+  async recordAnalytics(token: string, input: {
+    event_name: unknown;
+    entity_type?: unknown;
+    entity_id?: unknown;
+    properties?: unknown;
+    occurred_at?: unknown;
+    product_key?: unknown;
+    module_key?: unknown;
+    event_version?: unknown;
+    session_id?: unknown;
+  }) {
     const actor = await this.actor(token);
-    const eventName = this.text(input.event_name, 'event_name').toLowerCase();
+    let eventName = this.text(input.event_name, 'event_name').toLowerCase();
     if (!/^[a-z0-9][a-z0-9_.-]{1,119}$/.test(eventName)) throw new BadRequestException('event_name is invalid');
     const occurredAt = input.occurred_at ? new Date(String(input.occurred_at)) : new Date();
     if (Number.isNaN(occurredAt.getTime())) throw new BadRequestException('occurred_at is invalid');
+
+    let properties = input.properties && typeof input.properties === 'object' && !Array.isArray(input.properties)
+      ? input.properties as Record<string, unknown>
+      : {};
+    const productEnvelopePresent = input.product_key !== undefined || input.module_key !== undefined ||
+      input.event_version !== undefined || input.session_id !== undefined;
+    if (productEnvelopePresent) {
+      try {
+        const validated = validateProductAnalyticsEvent({
+          productKey: input.product_key,
+          moduleKey: input.module_key,
+          eventName,
+          sessionId: input.session_id,
+          eventVersion: input.event_version,
+          properties,
+        });
+        eventName = validated.eventName;
+        properties = validated.properties;
+      } catch (error) {
+        throw new BadRequestException(error instanceof Error ? error.message : 'Product analytics event is invalid.');
+      }
+    }
+
     const rows = await this.db.post<any[]>('zion_analytics_events', token, {
       event_name: eventName, actor_user_id: actor.id,
       entity_type: input.entity_type ? this.text(input.entity_type, 'entity_type', 80) : null,
       entity_id: input.entity_id ? this.uuid(input.entity_id, 'entity_id') : null,
-      properties: input.properties && typeof input.properties === 'object' ? input.properties : {},
+      properties,
       occurred_at: occurredAt.toISOString(),
     });
     return rows[0];
