@@ -16,10 +16,22 @@ type ProductEventDefinition = {
   properties: Readonly<Record<string, PropertyRule>>;
 };
 
-const PAGE_KEYS = [
-  "dashboard", "bible_engine", "devotion", "sabbath_school",
-  "resa_home", "resa_reels", "resa_live", "resa_communities", "resa_messages", "resa_meetings", "resa_events", "resa_prayer", "meeting_room",
-] as const;
+const PAGE_MODULES: Readonly<Record<string, { product: ProductKey; module: ProductModuleKey }>> = {
+  dashboard: { product: "zion_os", module: "dashboard" },
+  bible_engine: { product: "zion_os", module: "bible_engine" },
+  devotion: { product: "zion_os", module: "devotion" },
+  sabbath_school: { product: "zion_os", module: "sabbath_school" },
+  resa_home: { product: "resa", module: "feed" },
+  resa_reels: { product: "resa", module: "reels" },
+  resa_live: { product: "resa", module: "live" },
+  resa_communities: { product: "resa", module: "communities" },
+  resa_messages: { product: "resa", module: "messages" },
+  resa_meetings: { product: "resa", module: "meetings" },
+  resa_events: { product: "resa", module: "events" },
+  resa_prayer: { product: "resa", module: "prayer" },
+  meeting_room: { product: "zion_os", module: "meetings" },
+} as const;
+const PAGE_KEYS = Object.keys(PAGE_MODULES);
 
 export const PRODUCT_EVENT_REGISTRY = {
   page_view: {
@@ -95,6 +107,14 @@ export function validateProductAnalyticsEvent(input: {
   const definition = PRODUCT_EVENT_REGISTRY[eventName as ProductEventName] as ProductEventDefinition;
   if (!definition.products.includes(productKey) || !definition.modules.includes(moduleKey as ProductModuleKey)) {
     throw new Error("This event is not valid for the selected product module.");
+  }
+  if (eventName === "page_view") {
+    const pageKey = (input.properties as Record<string, unknown> | null)?.page_key;
+    const pageContract = typeof pageKey === "string" ? PAGE_MODULES[pageKey] : undefined;
+    const isSharedMeetingRoom = pageKey === "meeting_room" && productKey === "resa" && moduleKey === "meetings";
+    if (!pageContract || (!isSharedMeetingRoom && (pageContract.product !== productKey || pageContract.module !== moduleKey))) {
+      throw new Error("Page view key does not match the selected product module.");
+    }
   }
   const source = input.properties && typeof input.properties === "object" && !Array.isArray(input.properties)
     ? input.properties as Record<string, unknown>
