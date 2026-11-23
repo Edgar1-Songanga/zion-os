@@ -3,7 +3,7 @@ import { resaRequest } from "@/lib/resa/api";
 export type ProductKey = "zion_os" | "resa";
 export type ProductModuleKey =
   | "dashboard" | "bible_engine" | "bible_quiz" | "sabbath_school" | "devotion" | "meetings"
-  | "feed" | "reels" | "live" | "communities" | "messages";
+  | "feed" | "reels" | "live" | "communities" | "messages" | "events" | "prayer";
 
 export type ProductEventName =
   | "page_view"
