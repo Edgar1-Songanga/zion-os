@@ -32,7 +32,7 @@ export default function AnalyticsPage() {
         <header className="relative isolate overflow-hidden rounded-[2rem] bg-[#071126] px-6 py-8 text-white shadow-[0_24px_70px_rgba(7,17,38,0.15)] sm:px-10 sm:py-10">
           <div aria-hidden="true" className="absolute -right-12 -top-24 h-72 w-72 rounded-full border border-white/10" />
           <div className="relative max-w-3xl">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#E2C477]">ZION OS · Product intelligence</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#E2C477]">ZION OS · Actividade da conta</p>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-5xl">Minha actividade</h1>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">Eventos associados à tua conta autenticada. Este resumo é pessoal e não representa a utilização agregada dos produtos ZION OS e RESA.</p>
           </div>
