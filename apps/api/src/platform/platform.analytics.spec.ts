@@ -153,3 +153,50 @@ describe("PlatformService product metric catalogue", () => {
     await expect(service.productAnalyticsMetricCatalog("member-token")).rejects.toThrow("forbidden");
   });
 });
+
+
+describe("PlatformService personal analytics summary", () => {
+  const actorId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const identity = {
+    getCurrentUser: jest.fn().mockResolvedValue({ id: actorId }),
+  } as unknown as IdentityService;
+  let service: PlatformService;
+  let get: jest.SpyInstance;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    service = new PlatformService(identity, {} as AutomationPolicyEngine);
+    get = jest.spyOn(SupabaseRestClient.prototype, "get").mockResolvedValue([
+      { event_name: "page_view", occurred_at: "2026-11-23T10:00:00.000Z" },
+      { event_name: "bible_search_submitted", occurred_at: "2026-11-23T10:01:00.000Z" },
+    ] as never);
+  });
+
+  afterEach(() => get.mockRestore());
+
+  it("limits personal activity queries to the authenticated actor", async () => {
+    const result = await service.analyticsSummary("member-token", undefined, 25);
+    expect(get).toHaveBeenCalledWith(
+      "zion_analytics_events",
+      "member-token",
+      `?select=event_name,occurred_at&actor_user_id=eq.${actorId}&order=occurred_at.desc&limit=25`,
+    );
+    expect(result).toEqual({
+      total: 2,
+      by_event: { page_view: 1, bible_search_submitted: 1 },
+      events: [
+        { event_name: "page_view", occurred_at: "2026-11-23T10:00:00.000Z" },
+        { event_name: "bible_search_submitted", occurred_at: "2026-11-23T10:01:00.000Z" },
+      ],
+    });
+  });
+
+  it("keeps the event-name filter inside the actor-scoped query", async () => {
+    await service.analyticsSummary("member-token", "page_view", 10);
+    expect(get).toHaveBeenCalledWith(
+      "zion_analytics_events",
+      "member-token",
+      `?select=event_name,occurred_at&actor_user_id=eq.${actorId}&order=occurred_at.desc&limit=10&event_name=eq.page_view`,
+    );
+  });
+});
