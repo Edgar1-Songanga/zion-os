@@ -5,6 +5,7 @@ import ResaIcon from "@/components/resa/core/ResaIcon";
 import ResaGroupMeetingRoom from "@/components/resa/meetings/ResaGroupMeetingRoom";
 import { createClient } from "@/lib/supabase/client";
 import { resaRequest } from "@/lib/resa/api";
+import ProductPageView from "@/components/analytics/ProductPageView";
 
 type MeetingRole = "HOST" | "MODERATOR" | "PRESENTER" | "PARTICIPANT" | "VIEWER";
 type MeetingStatus = "SCHEDULED" | "OPEN" | "ENDED" | "CANCELLED";
@@ -218,6 +219,7 @@ export default function ResaGroupMeetingsPage() {
   if (inRoom && details) {
     return (
       <main className="min-h-screen bg-slate-100 p-3 sm:p-6">
+        <ProductPageView product="resa" module="meetings" page="resa_meetings" />
         <div className="mx-auto max-w-7xl">
           <ResaGroupMeetingRoom
             meetingId={details.id}
@@ -235,6 +237,7 @@ export default function ResaGroupMeetingsPage() {
 
   return (
     <main className="min-h-screen bg-slate-100 px-3 py-5 sm:px-6 sm:py-8">
+      <ProductPageView product="resa" module="meetings" page="resa_meetings" />
       <div className="mx-auto max-w-7xl">
         <section className="overflow-hidden rounded-[28px] bg-[#071b34] p-6 text-white shadow-[0_20px_60px_rgba(8,21,47,0.15)] sm:p-8">
           <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
