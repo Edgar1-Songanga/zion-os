@@ -33,10 +33,6 @@ type YouthReport = {
   by_program?: Array<{ program_id: string; clubs: number; active_memberships: number; activities: number }>;
 };
 
-function count(values: Array<{ status?: string }> | undefined, status: string) {
-  return (values ?? []).filter((value) => value.status?.toUpperCase() === status).length;
-}
-
 function numberLabel(value: number | undefined) {
   return typeof value === "number" ? value.toLocaleString("pt-PT") : "—";
 }
@@ -110,10 +106,6 @@ export default function ReportsPage() {
     return () => { active = false; clearInterval(interval); };
   }, [organizationId, refresh]);
 
-  const allReports = ministries.flatMap((ministry) => (ministry.reports ?? []).map((report) => ({ ...report, ministryName: ministry.name })));
-  const activePrograms = ministries.reduce((total, ministry) => total + count(ministry.programs, "ACTIVE"), 0);
-  const pendingReports = count(allReports, "PENDING");
-  const approvedReports = count(allReports, "APPROVED");
   const leaders = ministries.reduce((total, ministry) => total + (ministry.leadership?.length ?? 0), 0);
   const members = ministries.reduce((total, ministry) => total + (ministry.metrics?.members ?? 0), 0);
 
