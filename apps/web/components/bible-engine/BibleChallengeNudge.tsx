@@ -63,6 +63,13 @@ export default function BibleChallengeNudge() {
     }
   }
 
+  function handlePointerCancel(event: React.PointerEvent<HTMLButtonElement>) {
+    const drag = dragState.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    dragState.current = null;
+    suppressClick.current = false;
+  }
+
   function handleClick() {
     if (suppressClick.current) {
       suppressClick.current = false;
@@ -79,7 +86,7 @@ export default function BibleChallengeNudge() {
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
         aria-label="Abrir Quiz bíblico — arraste para mover"
         aria-haspopup="dialog"
         aria-expanded={open}
