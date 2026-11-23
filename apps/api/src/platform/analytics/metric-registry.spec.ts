@@ -1,6 +1,6 @@
-import { PLATFORM_ANALYTICS_METRICS, validateMetricRegistry } from "./metric-registry";
+import { INSTITUTIONAL_ANALYTICS_METRICS, validateMetricRegistry } from "./metric-registry";
 
-describe("platform analytics metric registry", () => {
+describe("institutional analytics metric registry", () => {
   it("contains unique, traceable, live aggregate definitions", () => {
     expect(validateMetricRegistry(PLATFORM_ANALYTICS_METRICS)).toBe(true);
     expect(new Set(PLATFORM_ANALYTICS_METRICS.map((metric) => metric.id)).size).toBe(PLATFORM_ANALYTICS_METRICS.length);
