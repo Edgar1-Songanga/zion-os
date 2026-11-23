@@ -31,7 +31,7 @@ on conflict do nothing;
 create or replace function public.zion_institutional_intelligence(p_organization_id uuid)
 returns jsonb
 language plpgsql
-stable
+volatile
 security definer
 set search_path = pg_catalog, public, private, auth
 as $function$
