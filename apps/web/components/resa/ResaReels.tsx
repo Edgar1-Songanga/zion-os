@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { resaRequest } from "@/lib/resa/api";
 import { resolveResaMediaUrls } from "@/lib/resa/media";
+import { trackProductEvent } from "@/lib/analytics/product-analytics";
 
 type Reel = {
   id: string;
@@ -85,6 +86,7 @@ export default function ResaReels() {
       await resaRequest(`/v1/resa/content/${id}/reactions`, next
         ? { method: "POST", body: JSON.stringify({ reaction_type: "like" }) }
         : { method: "DELETE" });
+      trackProductEvent("resa", "reels", "reel_reaction", { action: next ? "like" : "unlike" });
     } catch {
       setLiked((current) => ({ ...current, [id]: !next }));
       setItems((current) => current.map((item) => item.id === id
