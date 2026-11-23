@@ -172,3 +172,21 @@ A read-only review of the current Product Analytics branch traced the applicatio
 - The analytics table has no actor-scoped DELETE policy in the production policy audit. Consequently, neither the current profile UI nor the current identity API can fulfill a user's analytics erasure request end-to-end.
 
 **Implementation decision:** do not add an ad-hoc DELETE route to the profile controller or grant users direct table DELETE. Account erasure must be designed as an authenticated, auditable lifecycle operation that coordinates Supabase Auth deletion, actor-linked application records, analytics event deletion, and separately governed institutional/audit records. It must be idempotent, ordered safely before auth identity removal where actor attribution is still required, and covered by cross-user negative tests. This remains blocked on the approved data-retention policy and the Frame migration gate.
+
+
+## Executive aggregate API contract — implementation staged, database pending
+
+The API exposes `GET /v1/platform/analytics/product/summary?from=YYYY-MM-DD&to=YYYY-MM-DD` on the analytics feature branch. It verifies the caller through `IdentityService.requireGlobalAdmin`, validates real UTC calendar dates, rejects reversed ranges, and caps each request at 90 inclusive calendar days. The service delegates to `zion_product_analytics_summary(p_from_date, p_to_date)`; it does not query event rows directly and does not return personal activity history.
+
+**Important deployment dependency:** the aggregate RPC is not present in the audited production migration ledger. This API contract is staged only; it is not production-functional until the matching database function is implemented, tested and applied through Frame. Do not merge/deploy this endpoint as a complete analytics release while the RPC is absent.
+
+The database function contract must independently:
+- Revalidate `auth.jwt() -> app_metadata` for `zion_global_role = global_admin` and `zion_verified = true`; never rely only on the API check.
+- Keep the existing actor-scoped table RLS policies unchanged. If a tightly scoped `SECURITY DEFINER` function is needed to aggregate across actors, pin its search path, restrict execute grants, avoid dynamic SQL, and return aggregate rows only.
+- Accept only the bounded date interval passed by the API and use UTC date buckets.
+- Return only aggregate product/module/event/date dimensions and metric counts/ratios. Never return actor IDs, session IDs, event IDs, raw JSON properties or individual histories.
+- Apply a data-owner-approved minimum cohort threshold before exposing cohort/funnel results. The numeric threshold remains intentionally unset pending approval; small groups must be suppressed rather than guessed.
+- Write an append-only aggregate-access audit record containing the verified administrator, date interval, metric/catalogue version and outcome, without copying event payloads.
+- Be covered by SQL regression tests for unauthorized JWT claims, ordinary members, local/institutional roles, unverified global admins, out-of-range dates, small cohorts, and attempts to retrieve raw event data.
+
+The current code tests the API authorization boundary, date parsing, range limit and RPC delegation. These tests do not prove the database function exists or that its SQL authorization, suppression, audit and query plan are correct.
