@@ -239,3 +239,35 @@ No predictive model or AI-generated recommendation should be enabled until this 
 - `zion_get_organization_hierarchy(uuid)` in `supabase/migrations/20261106220312_institutional_organization_hierarchy.sql` validates active membership in the exact requested organization (or organization creator / verified global administrator) and returns the selected organization plus its ancestors. It is not a Union-to-descendant-organization reporting scope function.
 - `zion_list_institutional_organizations()` is currently restricted to verified global administrators. It is not a safe substitute for an institutional manager's scoped descendant list.
 - Consequently, the first institutional reporting API must resolve and enforce the actor's authorized organization scope server-side. A Union-level user must not gain visibility into all subordinate organizations merely by selecting an organization ID or by holding a role key on another membership. The authorization model must distinguish view-own-organization, view-descendant-aggregates, and access-to-identifiable-records, with finance and HR permissions separate.
+
+
+### Source-domain and hierarchy authorization audit — 2026-11-23
+
+The first candidate source domains have now been inspected at service, API and migration level.
+
+#### Organization hierarchy semantics
+- `private.has_org_permission_in_hierarchy(target_org, permission_key)` in `20261007154500_hierarchical_hr_finance_access.sql` walks from the target organization upward through its ancestors, then checks active memberships and role permissions on that ancestor chain. This supports a Union-level permission being evaluated against a descendant organization, provided the permission exists on the Union membership.
+- This helper is not a general-purpose user-to-organization tree listing API. It answers one permission question for one target organization.
+- `zion_get_organization_hierarchy` remains an exact-membership/creator/global-admin function returning the selected organization and ancestors; it does not enumerate descendant organizations.
+- The institutional intelligence API therefore needs a server-side scope resolver that enumerates only descendant organizations for which the actor has a defined reporting permission, and must still apply the appropriate aggregate/identifiable-data policy.
+
+#### Ministry source domain
+- `ministries`, `ministry_programs`, `ministry_members`, `ministry_reports` and `ministry_leaders` are persisted with organization/ministry relationships.
+- Current read RLS for ministries, programs and reports uses `private.is_org_member(organization_id)` (or its ministry join), which is exact-organization membership, not the hierarchy permission helper.
+- The current ministry directory hydrates each ministry through multiple reads (organization, leaders, programs, reports and members). This is adequate for an operational page but not an efficient institution-wide aggregation path.
+- The current read policy for `ministry_reports` allows an organization member to read report rows in their own organization. Executive intelligence should consume only approved, privacy-reviewed aggregate facts by default; it must not expose report content or individual submissions to broader institutional scopes.
+
+#### Youth source domain
+- `youth_ministry_operational_report(uuid)` is a database-side aggregate and is explicitly `SECURITY INVOKER`, which is the correct default for respecting caller RLS.
+- However, the function currently checks `private.has_org_permission(p_organization_id, 'membership.read')` or `organization.manage`, both exact-organization permissions. It does not use `private.has_org_permission_in_hierarchy`.
+- As a result, the existing youth report function does not currently support an authorized Union/Mission-level actor requesting a subordinate church's report solely through a hierarchy permission. The existing operational Reports page and youth endpoint should not be presented as a complete institutional roll-up.
+- The youth aggregate contains counts for clubs, active members, activities, progression, investitures and attendance. It should be extended only through a reviewed, hierarchy-aware aggregate contract; do not change it to `SECURITY DEFINER` or bypass RLS as a shortcut.
+
+#### Executive Intelligence implementation contract
+1. Create a dedicated server-side organization-scope resolver, with explicit permissions for self-organization aggregate, descendant aggregate, and identifiable detail. No client-supplied organization ID is trusted without a server authorization check.
+2. Build a read-only aggregate layer over ministry and youth source domains. Do not fetch entire member or report row sets into the API process and count them in memory.
+3. Keep the aggregate response free of names, user IDs, notes, report bodies, pastoral data and other individual-level attributes.
+4. Return metric definitions, source domain, source timestamp/freshness, reporting window, calculation version and data-quality/completeness state alongside each value.
+5. Preserve `SECURITY INVOKER`/RLS protections. If a new RPC is required, explicitly grant only authenticated execution, validate hierarchy permission inside the function, and add negative tests for unrelated organizations and roles.
+6. Do not widen existing ministry/youth RLS policies globally to make dashboards work. The reporting capability must have a separate, narrow aggregate contract.
+7. Compare only periods for which source records contain reliable timestamps. The current ministry program table has `created_at` but no `updated_at`; ministry report submissions have `submitted_at`; youth activity tables have event timestamps. Metric definitions must reflect those differences instead of implying complete historical coverage.
