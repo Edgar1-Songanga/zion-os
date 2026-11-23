@@ -31,7 +31,7 @@ export class PlatformService {
   }
 
   private limit(value: unknown, fallback: number, maximum: number) {
-    return Math.min(Math.max(Number(value) || fallback, 1), maximum);
+    return Math.floor(Math.min(Math.max(Number(value) || fallback, 1), maximum));
   }
 
   async upsertSearchDocument(token: string, input: { entity_type: unknown; entity_id: unknown; title: unknown; body?: unknown; language?: unknown; visibility?: unknown; organization_id?: unknown }) {
