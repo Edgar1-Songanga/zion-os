@@ -3,7 +3,8 @@ import { IdentityService } from '../identity/application/identity.service';
 import { SupabaseRestClient } from '../common/supabase/supabase-rest.client';
 import { AutomationPolicyEngine } from '@zion/automation-engine';
 import { INSTITUTIONAL_ANALYTICS_METRICS } from './analytics/metric-registry';
-import { validateProductAnalyticsEvent } from './analytics/product-event-registry';
+import { PRODUCT_EVENT_REGISTRY, validateProductAnalyticsEvent } from './analytics/product-event-registry';
+import { PRODUCT_METRIC_REGISTRY } from './analytics/product-metric-registry';
 
 @Injectable()
 export class PlatformService {
@@ -162,6 +163,20 @@ export class PlatformService {
       actor_id: actor.id,
       scope: 'institutional_intelligence',
       metrics: INSTITUTIONAL_ANALYTICS_METRICS,
+    };
+  }
+
+
+  async productAnalyticsMetricCatalog(token: string) {
+    const actor = await this.identity.requireGlobalAdmin(token);
+    return {
+      catalog_version: '2026-11-23.1',
+      scope: 'product_analytics',
+      status: 'EVENT_INSTRUMENTATION_IN_PROGRESS',
+      generated_at: new Date().toISOString(),
+      actor_id: actor.id,
+      event_names: Object.keys(PRODUCT_EVENT_REGISTRY),
+      metrics: PRODUCT_METRIC_REGISTRY,
     };
   }
 
