@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type PointerEvent } from "react";
 import BibleQuiz from "@/components/bible-engine/quiz/BibleQuiz";
 
 type FloatingPosition = { left: number; top: number };
@@ -22,7 +22,7 @@ export default function BibleChallengeNudge() {
   const dragState = useRef<DragState | null>(null);
   const suppressClick = useRef(false);
 
-  function handlePointerDown(event: React.PointerEvent<HTMLButtonElement>) {
+  function handlePointerDown(event: PointerEvent<HTMLButtonElement>) {
     if (event.button !== 0) return;
     const rect = event.currentTarget.getBoundingClientRect();
     dragState.current = {
