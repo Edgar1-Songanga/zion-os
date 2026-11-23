@@ -17,6 +17,7 @@ export type ProductEventName =
 type EventProperties = Record<string, string | number | boolean>;
 
 const SESSION_KEY = "zion:product-analytics-session:v1";
+let consentPromise: Promise<boolean> | null = null;
 
 function createSessionId() {
   const cryptoApi = window.crypto;
@@ -47,6 +48,19 @@ function getSessionId() {
   }
 }
 
+function readProductAnalyticsConsent() {
+  if (!consentPromise) {
+    consentPromise = resaRequest<{ privacy?: { product_analytics?: boolean } }>("/v1/identity/profile")
+      .then((profile) => profile.privacy?.product_analytics === true)
+      .catch(() => false);
+  }
+  return consentPromise;
+}
+
+export async function refreshProductAnalyticsConsent() {
+  consentPromise = null;
+  return readProductAnalyticsConsent();
+}
 /**
  * Product telemetry is deliberately low-cardinality: no free text, content IDs,
  * email, phone, prayer text, Bible search query or other personal content.
@@ -59,16 +73,19 @@ export function trackProductEvent(
   properties: EventProperties,
 ) {
   if (typeof window === "undefined") return;
-  const payload = {
-    event_name: eventName,
-    product_key: productKey,
-    module_key: moduleKey,
-    event_version: 1,
-    session_id: getSessionId(),
-    properties,
-  };
-  void resaRequest("/v1/platform/analytics", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  }).catch(() => undefined);
+  void (async () => {
+    if (!(await readProductAnalyticsConsent())) return;
+    const payload = {
+      event_name: eventName,
+      product_key: productKey,
+      module_key: moduleKey,
+      event_version: 1,
+      session_id: getSessionId(),
+      properties,
+    };
+    await resaRequest("/v1/platform/analytics", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  })().catch(() => undefined);
 }
