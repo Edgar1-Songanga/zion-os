@@ -113,14 +113,19 @@ export class PlatformService {
     const actor = await this.actor(token);
     let eventName = this.text(input.event_name, 'event_name').toLowerCase();
     if (!/^[a-z0-9][a-z0-9_.-]{1,119}$/.test(eventName)) throw new BadRequestException('event_name is invalid');
-    const occurredAt = input.occurred_at ? new Date(String(input.occurred_at)) : new Date();
+    const productEnvelopePresent = input.product_key !== undefined || input.module_key !== undefined ||
+      input.event_version !== undefined || input.session_id !== undefined;
+    if (productEnvelopePresent && (input.entity_type !== undefined || input.entity_id !== undefined || input.occurred_at !== undefined)) {
+      throw new BadRequestException('Product analytics events cannot include entity identifiers or client timestamps.');
+    }
+    const occurredAt = productEnvelopePresent
+      ? new Date()
+      : input.occurred_at ? new Date(String(input.occurred_at)) : new Date();
     if (Number.isNaN(occurredAt.getTime())) throw new BadRequestException('occurred_at is invalid');
 
     let properties = input.properties && typeof input.properties === 'object' && !Array.isArray(input.properties)
       ? input.properties as Record<string, unknown>
       : {};
-    const productEnvelopePresent = input.product_key !== undefined || input.module_key !== undefined ||
-      input.event_version !== undefined || input.session_id !== undefined;
     if (productEnvelopePresent) {
       try {
         const validated = validateProductAnalyticsEvent({
