@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import { createClient } from "@/lib/supabase/client";
 import { bibleQuestions, type BibleChallengeQuestion } from "@/data/bible/questions";
+import { trackProductEvent } from "@/lib/analytics/product-analytics";
 
 const LEVELS = [
   { title: "Descoberta", subtitle: "As primeiras histórias da Palavra", points: 10, marker: "I" },
@@ -46,6 +47,8 @@ function shuffle<T,>(items: T[]): T[] {
 }
 
 export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
+  const startedAttempts = useRef(new Set<string>());
+  const completedAttempts = useRef(new Set<string>());
   const [levelIndex, setLevelIndex] = useState(0);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [totalScore, setTotalScore] = useState(0);
@@ -328,6 +331,14 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
       return;
     }
 
+    const attemptKey = levelIndex + ":" + deckVersion;
+    if (!completedAttempts.current.has(attemptKey)) {
+      completedAttempts.current.add(attemptKey);
+      trackProductEvent("zion_os", "bible_quiz", "bible_quiz_level_completed", {
+        mode: playMode, level: levelIndex + 1, correct_count: Math.min(levelCorrect, 100),
+        question_count: Math.min(questions.length, 100), passed: levelCorrect >= requiredCorrect,
+      });
+    }
     setLevelFinished(true);
     setSavingProgress(true);
     setSyncMessage("");
@@ -384,6 +395,11 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
 
   function chooseAnswer(option: string) {
     if (selectedOption !== null || levelFinished || !question) return;
+    const attemptKey = levelIndex + ":" + deckVersion;
+    if (!startedAttempts.current.has(attemptKey)) {
+      startedAttempts.current.add(attemptKey);
+      trackProductEvent("zion_os", "bible_quiz", "bible_quiz_started", { mode: playMode, level: levelIndex + 1 });
+    }
     scheduleReview(question.id, option === question.answer);
     setSelectedOption(option);
     if (option === question.answer) {
@@ -409,6 +425,11 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
 
   function skipQuestion() {
     if (selectedOption !== null || !question) return;
+    const attemptKey = levelIndex + ":" + deckVersion;
+    if (!startedAttempts.current.has(attemptKey)) {
+      startedAttempts.current.add(attemptKey);
+      trackProductEvent("zion_os", "bible_quiz", "bible_quiz_started", { mode: playMode, level: levelIndex + 1 });
+    }
     scheduleReview(question.id, false);
     setCurrentStreak(0);
     setSelectedOption("__skip__");
