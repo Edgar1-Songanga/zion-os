@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import MeetingRoom from "@/components/governance/MeetingRoom";
+import ProductPageView from "@/components/analytics/ProductPageView";
 
 export const dynamic = "force-dynamic";
 
@@ -13,5 +14,5 @@ export default async function MeetingRoomPage({ params }: { params: Promise<{ me
   }
 
   const { meetingId } = await params;
-  return <MeetingRoom meetingId={meetingId} />;
+  return <><ProductPageView product="zion_os" module="meetings" page="meeting_room" /><MeetingRoom meetingId={meetingId} /></>;
 }
