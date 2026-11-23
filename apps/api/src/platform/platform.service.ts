@@ -173,7 +173,6 @@ export class PlatformService {
       scope: 'product_analytics',
       status: 'EVENT_INSTRUMENTATION_IN_PROGRESS',
       generated_at: new Date().toISOString(),
-      actor_id: actor.id,
       event_names: Object.keys(PRODUCT_EVENT_REGISTRY),
       metrics: PRODUCT_METRIC_REGISTRY,
     };
