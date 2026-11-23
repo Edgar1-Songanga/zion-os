@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { IdentityService } from '../identity/application/identity.service';
 import { SupabaseRestClient } from '../common/supabase/supabase-rest.client';
 import { AutomationPolicyEngine } from '@zion/automation-engine';
@@ -132,6 +132,15 @@ export class PlatformService {
       });
     } catch (error) {
       throw new BadRequestException(error instanceof Error ? error.message : 'Product analytics event is invalid.');
+    }
+
+    const profiles = await this.db.get<Array<{ privacy?: { product_analytics?: boolean } }>>(
+      'profiles',
+      token,
+      `?select=privacy&id=eq.${actor.id}&limit=1`,
+    );
+    if (profiles[0]?.privacy?.product_analytics !== true) {
+      throw new ForbiddenException('Product analytics collection requires the account preference to be enabled.');
     }
 
     const rows = await this.db.post<any[]>('zion_analytics_events', token, {
