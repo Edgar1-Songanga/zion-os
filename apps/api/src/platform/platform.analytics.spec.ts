@@ -99,6 +99,42 @@ describe("PlatformService product analytics ingestion", () => {
       session_id: sessionId,
       properties: { page_key: "resa_home" },
     })).rejects.toBeInstanceOf(BadRequestException);
+
+    await expect(service.recordAnalytics("access-token", {
+      event_name: "page_view",
+      product_key: "zion_os",
+      module_key: "dashboard",
+      event_version: 1,
+      session_id: sessionId,
+      occurred_at: "2020-01-01T00:00:00.000Z",
+      properties: { page_key: "dashboard" },
+    })).rejects.toBeInstanceOf(BadRequestException);
     expect(post).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("PlatformService product metric catalogue", () => {
+  it("requires a verified global administrator before exposing product metric definitions", async () => {
+    const identity = {
+      requireGlobalAdmin: jest.fn().mockResolvedValue({ id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" }),
+    } as unknown as IdentityService;
+    const service = new PlatformService(identity, {} as AutomationPolicyEngine);
+    const result = await service.productAnalyticsMetricCatalog("admin-token");
+    expect(identity.requireGlobalAdmin).toHaveBeenCalledWith("admin-token");
+    expect(result).toMatchObject({
+      scope: "product_analytics",
+      status: "EVENT_INSTRUMENTATION_IN_PROGRESS",
+      actor_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    });
+    expect(result.metrics.length).toBeGreaterThan(0);
+  });
+
+  it("does not return a product catalogue when global-admin verification fails", async () => {
+    const identity = {
+      requireGlobalAdmin: jest.fn().mockRejectedValue(new Error("forbidden")),
+    } as unknown as IdentityService;
+    const service = new PlatformService(identity, {} as AutomationPolicyEngine);
+    await expect(service.productAnalyticsMetricCatalog("member-token")).rejects.toThrow("forbidden");
   });
 });
