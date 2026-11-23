@@ -219,7 +219,6 @@ export default function ResaGroupMeetingsPage() {
   if (inRoom && details) {
     return (
       <main className="min-h-screen bg-slate-100 p-3 sm:p-6">
-        <ProductPageView product="resa" module="meetings" page="resa_meetings" />
         <div className="mx-auto max-w-7xl">
           <ResaGroupMeetingRoom
             meetingId={details.id}
