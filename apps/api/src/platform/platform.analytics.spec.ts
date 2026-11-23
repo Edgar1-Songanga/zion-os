@@ -50,14 +50,16 @@ describe("PlatformService product analytics ingestion", () => {
   const automation = {} as AutomationPolicyEngine;
   let service: PlatformService;
   let post: jest.SpyInstance;
+  let get: jest.SpyInstance;
 
   beforeEach(() => {
     jest.clearAllMocks();
     service = new PlatformService(identity, automation);
     post = jest.spyOn(SupabaseRestClient.prototype, "post").mockResolvedValue([{ id: "event-id" }] as never);
+    get = jest.spyOn(SupabaseRestClient.prototype, "get").mockResolvedValue([{ privacy: { product_analytics: true } }] as never);
   });
 
-  afterEach(() => post.mockRestore());
+  afterEach(() => { post.mockRestore(); get.mockRestore(); });
 
   it("stores a versioned product event with the verified actor and sanitized properties", async () => {
     await service.recordAnalytics("access-token", {
@@ -68,6 +70,7 @@ describe("PlatformService product analytics ingestion", () => {
       session_id: sessionId,
       properties: { success: true, translation: "almeida-livre", result_count: 1 },
     });
+    expect(get).toHaveBeenCalledWith("profiles", "access-token", "?select=privacy&id=eq." + actorId + "&limit=1");
     expect(post).toHaveBeenCalledWith("zion_analytics_events", "access-token", expect.objectContaining({
       event_name: "bible_search_submitted",
       actor_user_id: actorId,
@@ -79,6 +82,19 @@ describe("PlatformService product analytics ingestion", () => {
         success: true,
       }),
     }));
+  });
+
+  it("rejects event collection when the account has not opted in", async () => {
+    get.mockResolvedValue([{ privacy: { product_analytics: false } }] as never);
+    await expect(service.recordAnalytics("access-token", {
+      event_name: "page_view",
+      product_key: "zion_os",
+      module_key: "dashboard",
+      event_version: 1,
+      session_id: sessionId,
+      properties: { page_key: "dashboard" },
+    })).rejects.toThrow("requires the account preference");
+    expect(post).not.toHaveBeenCalled();
   });
 
   it("rejects client-supplied personal content and cross-product module spoofing", async () => {
