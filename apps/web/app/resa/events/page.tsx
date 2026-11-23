@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { resaRequest } from "@/lib/resa/api";
+import ProductPageView from "@/components/analytics/ProductPageView";
 
 type CommunityOption = { id: string; name: string; membership_status?: string };
 type OrganizationOption = { id: string; name: string };
@@ -152,6 +153,7 @@ export default function EventsPage() {
 
   return (
     <main className="min-h-screen bg-[#f5f7fb] px-4 py-8 sm:px-6 lg:px-10">
+      <ProductPageView product="resa" module="events" page="resa_events" />
       <div className="mx-auto max-w-7xl">
         <header className="rounded-[2rem] bg-[#0C1A3D] p-7 text-white shadow-xl sm:p-10">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-200">RESA · Eventos</p>
