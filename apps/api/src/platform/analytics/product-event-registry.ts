@@ -47,17 +47,11 @@ export const PRODUCT_EVENT_REGISTRY = {
     properties: {
       mode: { type: "enum", values: ["junior", "classic", "hyper"] },
       level: { type: "integer", min: 1, max: 6 },
-      correct_count: { type: "integer", min: 0, max: 100 },
-      question_count: { type: "integer", min: 1, max: 100 },
-      passed: { type: "boolean" },
     },
   },
   devotion_saved: {
     products: ["zion_os"], modules: ["devotion"],
-    properties: {
-      scripture_count: { type: "integer", min: 1, max: 10 },
-      prayer_included: { type: "boolean" },
-    },
+    properties: {},
   },
   reel_reaction: {
     products: ["resa"], modules: ["reels"],
