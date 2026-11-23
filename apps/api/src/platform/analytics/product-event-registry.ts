@@ -1,7 +1,7 @@
 export type ProductKey = "zion_os" | "resa";
 export type ProductModuleKey =
   | "dashboard" | "bible_engine" | "bible_quiz" | "sabbath_school" | "devotion" | "meetings"
-  | "feed" | "reels" | "live" | "communities" | "messages";
+  | "feed" | "reels" | "live" | "communities" | "messages" | "events" | "prayer";
 
 type PropertyRule = {
   type: "boolean" | "integer" | "enum";
@@ -18,13 +18,13 @@ type ProductEventDefinition = {
 
 const PAGE_KEYS = [
   "dashboard", "bible_engine", "devotion", "sabbath_school",
-  "resa_home", "resa_reels", "resa_live", "meeting_room",
+  "resa_home", "resa_reels", "resa_live", "resa_communities", "resa_messages", "resa_meetings", "resa_events", "resa_prayer", "meeting_room",
 ] as const;
 
 export const PRODUCT_EVENT_REGISTRY = {
   page_view: {
     products: ["zion_os", "resa"],
-    modules: ["dashboard", "bible_engine", "bible_quiz", "sabbath_school", "devotion", "meetings", "feed", "reels", "live", "communities", "messages"],
+    modules: ["dashboard", "bible_engine", "bible_quiz", "sabbath_school", "devotion", "meetings", "feed", "reels", "live", "communities", "messages", "events", "prayer"],
     properties: { page_key: { type: "enum", values: PAGE_KEYS } },
   },
   bible_search_submitted: {
@@ -74,7 +74,7 @@ export type ProductEventProperties = Record<string, string | number | boolean>;
 
 const PRODUCT_MODULES: Record<ProductKey, readonly ProductModuleKey[]> = {
   zion_os: ["dashboard", "bible_engine", "bible_quiz", "sabbath_school", "devotion", "meetings"],
-  resa: ["feed", "reels", "live", "communities", "messages", "meetings"],
+  resa: ["feed", "reels", "live", "communities", "messages", "meetings", "events", "prayer"],
 };
 
 export function validateProductAnalyticsEvent(input: {
