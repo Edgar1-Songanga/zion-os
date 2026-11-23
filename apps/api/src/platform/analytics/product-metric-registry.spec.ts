@@ -5,7 +5,7 @@ describe("product analytics metric registry", () => {
     expect(validateProductMetricRegistry(PRODUCT_METRIC_REGISTRY)).toBe(true);
     expect(new Set(PRODUCT_METRIC_REGISTRY.map((metric) => metric.id)).size).toBe(PRODUCT_METRIC_REGISTRY.length);
     expect(PRODUCT_METRIC_REGISTRY.every((metric) => metric.formula && metric.event_dependencies.length && metric.caveats.length)).toBe(true);
-    expect(PRODUCT_METRIC_REGISTRY.every((metric) => metric.availability !== "LIVE")).toBe(true);
+    expect(PRODUCT_METRIC_REGISTRY.every((metric) => ["AWAITING_TELEMETRY", "AWAITING_AGGREGATION", "NOT_YET_MEASURABLE"].includes(metric.availability))).toBe(true);
   });
 
   it("rejects duplicate metric identifiers", () => {
