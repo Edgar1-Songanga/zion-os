@@ -92,7 +92,7 @@ export function validateProductAnalyticsEvent(input: {
   }
   if (eventVersion !== 1) throw new Error("Unsupported analytics event version.");
 
-  const definition = PRODUCT_EVENT_REGISTRY[eventName as ProductEventName];
+  const definition = PRODUCT_EVENT_REGISTRY[eventName as ProductEventName] as ProductEventDefinition;
   if (!definition.products.includes(productKey) || !definition.modules.includes(moduleKey as ProductModuleKey)) {
     throw new Error("This event is not valid for the selected product module.");
   }
