@@ -335,8 +335,7 @@ export default function BibleQuiz({ compact = false }: { compact?: boolean }) {
     if (!completedAttempts.current.has(attemptKey)) {
       completedAttempts.current.add(attemptKey);
       trackProductEvent("zion_os", "bible_quiz", "bible_quiz_level_completed", {
-        mode: playMode, level: levelIndex + 1, correct_count: Math.min(levelCorrect, 100),
-        question_count: Math.min(questions.length, 100), passed: levelCorrect >= requiredCorrect,
+        mode: playMode, level: levelIndex + 1,
       });
     }
     setLevelFinished(true);
