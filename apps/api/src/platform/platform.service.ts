@@ -179,6 +179,33 @@ export class PlatformService {
   }
 
 
+  private analyticsDate(value: unknown, field: string) {
+    if (typeof value !== 'string' || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) {
+      throw new BadRequestException(`${field} must use YYYY-MM-DD`);
+    }
+    const parsed = new Date(`${value}T00:00:00.000Z`);
+    if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
+      throw new BadRequestException(`${field} is not a valid calendar date`);
+    }
+    return value;
+  }
+
+  async productAnalyticsSummary(token: string, fromDate: unknown, toDate: unknown) {
+    await this.identity.requireGlobalAdmin(token);
+    const from = this.analyticsDate(fromDate, 'from');
+    const to = this.analyticsDate(toDate, 'to');
+    const fromTime = Date.parse(`${from}T00:00:00.000Z`);
+    const toTime = Date.parse(`${to}T00:00:00.000Z`);
+    const dayRange = Math.floor((toTime - fromTime) / 86_400_000) + 1;
+    if (dayRange < 1 || dayRange > 90) {
+      throw new BadRequestException('Product analytics date range must be between 1 and 90 days.');
+    }
+    return this.db.rpc<Record<string, unknown>>('zion_product_analytics_summary', token, {
+      p_from_date: from,
+      p_to_date: to,
+    });
+  }
+
   async institutionalIntelligence(token: string, organizationId: unknown) {
     await this.actor(token);
     const id = typeof organizationId === 'string' ? organizationId.trim() : '';
