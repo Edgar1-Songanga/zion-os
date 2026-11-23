@@ -36,13 +36,11 @@ export default function DevotionPage() {
     if (!userId || !title.trim() || !scripture.trim() || !reflection.trim()) return;
     setSaving(true); setError("");
     try {
-      const scriptureCount = scripture.split(",").map((item) => item.trim()).filter(Boolean).length;
-      const prayerIncluded = Boolean(prayer.trim());
       const created = await resaRequest<Devotion>("/v1/spiritual/devotion", {
         method: "POST",
         body: JSON.stringify({ userId, title, scriptureReferences: scripture.split(",").map((item) => item.trim()).filter(Boolean), reflection, prayer: prayer.trim() || undefined }),
       });
-      trackProductEvent("zion_os", "devotion", "devotion_saved", { scripture_count: Math.max(1, Math.min(scriptureCount, 10)), prayer_included: prayerIncluded });
+      trackProductEvent("zion_os", "devotion", "devotion_saved", {});
       setEntries((current) => [created, ...current]); setTitle(""); setScripture(""); setReflection(""); setPrayer("");
     } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível guardar a devoção."); }
     finally { setSaving(false); }
