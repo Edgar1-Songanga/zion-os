@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import { OrganizationSelector, type ZionOrganization } from "@/components/organization/OrganizationSelector";
 import ReportIntakePanel from "@/components/reports/ReportIntakePanel";
+import InstitutionalIntelligencePanel from "@/components/reports/InstitutionalIntelligencePanel";
 
 type MinistryReportRow = { id: string; title: string; status: string; submitted_at?: string };
 type MinistryRow = {
@@ -147,6 +148,8 @@ export default function ReportsPage() {
         </section>
 
         {errors.length > 0 && <div role="alert" className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{errors.map((error) => <p key={error}>{error}</p>)}</div>}
+
+        <InstitutionalIntelligencePanel organizationId={organizationId} />
 
         <ReportIntakePanel
           organizationId={organizationId}
