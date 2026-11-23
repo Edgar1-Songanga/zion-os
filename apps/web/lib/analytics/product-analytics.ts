@@ -5,6 +5,10 @@ export type ProductModuleKey =
   | "dashboard" | "bible_engine" | "bible_quiz" | "sabbath_school" | "devotion" | "meetings"
   | "feed" | "reels" | "live" | "communities" | "messages" | "events" | "prayer";
 
+export type ProductPageKey =
+  | "dashboard" | "bible_engine" | "devotion" | "sabbath_school"
+  | "resa_home" | "resa_reels" | "resa_live" | "resa_communities" | "resa_messages" | "resa_meetings" | "resa_events" | "resa_prayer" | "meeting_room";
+
 export type ProductEventName =
   | "page_view"
   | "bible_search_submitted"
