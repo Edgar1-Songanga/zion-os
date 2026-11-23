@@ -70,3 +70,19 @@ No metric may be labelled live until its formula, denominator, event coverage, s
 5. Reconciliation, privacy, cross-role negative tests, performance and production smoke validation.
 
 **Current known limitation:** the production analytics table returned no event rows during the initial read-only audit on 2026-11-23. Historical retention and trend metrics therefore cannot be calculated yet.
+
+
+## Aggregate read-model contract — next gated implementation
+
+The executive workspace must not read `zion_analytics_events` directly through the Data API. The next database block must introduce a narrow aggregate interface:
+
+- A bounded, read-only RPC for a verified global administrator, checked against server-managed `app_metadata` (`zion_global_role=global_admin` and `zion_verified=true`). Never trust user-editable metadata or client-supplied role claims.
+- Keep the existing actor-scoped RLS policy unchanged. Do not add a global-admin row-level SELECT policy and do not expose raw event rows to the browser.
+- Return aggregate-only dimensions: product, module, UTC date bucket and event name. Never return actor IDs, session IDs, raw properties or individual event histories.
+- Bound the requested window (maximum 90 days per query), page or bucket the result, and apply a minimum cohort threshold before publishing small-group retention or conversion results.
+- Calculate DAU/WAU/MAU, product-to-module adoption, D1/D7/D30 cohort retention and supported feature funnels server-side. Every metric must use the registered formula and report its time zone, denominator, freshness and caveats.
+- Record aggregate access in the existing audit domain with actor, requested period, filters and metric catalogue version.
+- Add query indexes for product/module/time and actor/time access patterns, plus ingestion idempotency and server-side rate limiting. Validate query plans against realistic event volumes.
+- Reconcile aggregates against controlled fixtures and negative-test ordinary members, local church administrators, institutional roles and unverified global administrators.
+
+This read model and its SQL migration must be created through the Supabase CLI migration workflow and executed only through Frame after the repository migration ledger and production schema have been reconciled. The current PR deliberately does not bypass that gate.
