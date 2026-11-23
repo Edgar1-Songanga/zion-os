@@ -86,3 +86,18 @@ The executive workspace must not read `zion_analytics_events` directly through t
 - Reconcile aggregates against controlled fixtures and negative-test ordinary members, local church administrators, institutional roles and unverified global administrators.
 
 This read model and its SQL migration must be created through the Supabase CLI migration workflow and executed only through Frame after the repository migration ledger and production schema have been reconciled. The current PR deliberately does not bypass that gate.
+
+
+## Executive workspace UX contract
+
+The central Product Analytics workspace is for verified global administrators and must be a decision surface, not a wall of decorative cards.
+
+1. **Executive overview:** DAU, WAU, MAU, D1/D7/D30 retention and active-product adoption, each with a comparison period, definition tooltip and data-freshness timestamp.
+2. **Product comparison:** ZION OS versus RESA, with distinct active users and engagement trends; cross-product unique users are deduplicated by the authenticated actor.
+3. **Module adoption:** ranked module usage within each parent product, with denominator and eligible population visible.
+4. **Journey funnels:** Bible search, Bible Quiz progression, devotion save, RESA discovery/reaction and Live creation/joining only where every funnel step has validated event coverage.
+5. **Retention cohorts:** cohort matrix for D1/D7/D30, with immature cohorts clearly marked and small cohorts suppressed.
+6. **Operational quality:** link out to Platform Operations for uptime, API latency and errors; do not mix reliability measures into product engagement KPIs.
+7. **Decision context:** show period, timezone, metric definition, source, freshness and limitations beside every chart. Provide explicit empty, insufficient-sample, stale and error states.
+
+Visual direction: restrained premium enterprise interface, strong information hierarchy, low visual noise, compact chart chrome, accessible contrast and keyboard navigation. Mobile should prioritize the executive overview and allow progressive disclosure of detailed analysis. Never use fabricated sample values in a production dashboard.
