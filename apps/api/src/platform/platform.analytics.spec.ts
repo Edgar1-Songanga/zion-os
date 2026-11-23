@@ -199,4 +199,20 @@ describe("PlatformService personal analytics summary", () => {
       `?select=event_name,occurred_at&actor_user_id=eq.${actorId}&order=occurred_at.desc&limit=10&event_name=eq.page_view`,
     );
   });
+
+  it("normalizes fractional limits to whole rows and caps oversized requests", async () => {
+    await service.analyticsSummary("member-token", undefined, 12.8);
+    expect(get).toHaveBeenCalledWith(
+      "zion_analytics_events",
+      "member-token",
+      `?select=event_name,occurred_at&actor_user_id=eq.${actorId}&order=occurred_at.desc&limit=12`,
+    );
+    get.mockClear();
+    await service.analyticsSummary("member-token", undefined, 9000);
+    expect(get).toHaveBeenCalledWith(
+      "zion_analytics_events",
+      "member-token",
+      `?select=event_name,occurred_at&actor_user_id=eq.${actorId}&order=occurred_at.desc&limit=500`,
+    );
+  });
 });
