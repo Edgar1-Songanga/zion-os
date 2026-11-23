@@ -11,10 +11,11 @@ type ProfilePrivacy = {
   call_policy: 'everyone' | 'followers' | 'following' | 'none';
   group_invite_policy: 'everyone' | 'followers' | 'following' | 'none';
   follow_policy: 'auto' | 'none';
+  product_analytics: boolean;
 };
 const DEFAULT_PRIVACY: ProfilePrivacy = {
   profile_visibility: 'friends', bio_visibility: 'friends', country_visibility: 'friends', timezone_visibility: 'private',
-  message_policy: 'everyone', call_policy: 'everyone', group_invite_policy: 'everyone', follow_policy: 'auto',
+  message_policy: 'everyone', call_policy: 'everyone', group_invite_policy: 'everyone', follow_policy: 'auto', product_analytics: false,
 };
 
 type Profile = {
@@ -47,7 +48,7 @@ export class ProfileService {
       'profiles', accessToken,
       `?select=id,display_name,first_name,last_name,avatar_url,bio,country_code,locale,timezone,privacy&id=eq.${user.id}&limit=1`,
     );
-    if (rows[0]) return rows[0];
+    if (rows[0]) return { ...rows[0], privacy: { ...DEFAULT_PRIVACY, ...(rows[0].privacy ?? {}), product_analytics: rows[0].privacy?.product_analytics === true } };
     const created = await this.db.post<Profile[]>(
       'profiles', accessToken, { id: user.id, display_name: user.email ?? null, privacy: DEFAULT_PRIVACY },
     );
@@ -111,6 +112,9 @@ export class ProfileService {
       }
       if (privacy.follow_policy !== undefined && !['auto','none'].includes(privacy.follow_policy)) {
         throw new UnauthorizedException('Invalid privacy value for follow_policy');
+      }
+      if (privacy.product_analytics !== undefined && typeof privacy.product_analytics !== 'boolean') {
+        throw new UnauthorizedException('Invalid privacy value for product_analytics');
       }
       updates.privacy = { ...DEFAULT_PRIVACY, ...privacy };
     }
