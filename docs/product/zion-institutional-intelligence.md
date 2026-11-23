@@ -191,3 +191,43 @@ These are substantial product capability blocks, not promises that each already 
 ### Release gate
 
 Production-ready means more than a successful build: verified data correctness, role and tenant isolation, sensitive-data controls, automated regression coverage, performance budgets, operational monitoring, backup/recovery expectations, documented ownership and successful production smoke tests. Any unmet release gate must be explicitly disclosed; do not label the block production-ready until evidence exists.
+
+
+## 14. Existing implementation audit (main branch snapshot reviewed 2026-11-23)
+
+This section records concrete existing code so the implementation plan reuses current capabilities rather than creating a parallel dashboard.
+
+### Existing user interfaces
+- `apps/web/app/reports/page.tsx`: operational organization report. It selects an organization and reads `/v1/ministries/organization/:organizationId` and `/v1/youth/activities/organization/:organizationId/report`. It derives ministry/program/leader/report counts and youth operational totals from those responses, refreshes while the page is open, and supports browser print-to-PDF. It does not currently provide cross-period analytics, metric lineage, forecasting, evidence-linked diagnostic insights or a decision log.
+- `apps/web/app/reports/layout.tsx`: route-level role gate currently allows `organization_owner` and `organization_admin`. Union and other institutional roles must be mapped explicitly and tested before this can become the Union executive workspace.
+- `apps/web/app/analytics/page.tsx`: separate lightweight product-usage page calling `/v1/platform/analytics/summary`. Its own page text describes events and usage for the current account; it is not institutional analytics and must not be repurposed as a Union dashboard.
+- `apps/web/components/organization/OrganizationSelector.tsx`: existing organization selector backed by `/v1/organizations`; reuse only after confirming server-side scope and authorized hierarchy semantics.
+
+### Existing API and data foundations
+- `apps/api/src/platform/platform.controller.ts` and `platform.service.ts`: platform event ingestion and product analytics endpoints exist. `analyticsSummary` filters `zion_analytics_events` by the authenticated actor's user ID and returns counts from a bounded recent event list. This is account-level product telemetry, not church membership, finance or department KPIs.
+- `supabase/migrations/20261002_platform_runtime.sql`: `zion_analytics_events` is RLS-enabled with insert/select policies scoped to `actor_user_id = auth.uid()`. This is correct for personal event telemetry but cannot safely serve institutional reporting as-is.
+- `apps/api/src/organizations/application/organizations.service.ts`: organization list, hierarchy, institutional listing and membership reads already exist. The hierarchy function is authorization-sensitive and must be reviewed for upward/downward visibility before leadership drill-down is exposed.
+- Existing domain modules include Spiritual/Ministry, Youth, Finance, HR/Payroll, Governance, Audit and Identity. These remain the source domains; analytics must not duplicate their transactional records.
+- `apps/api/src/finance/finance.service.ts` contains financial account and journal operations. Financial analytics must be exposed through finance-specific authorization and must not inherit generic report permissions.
+
+### Confirmed gaps and architectural implications
+1. Current Reports UI is an operational summary for a selected organization, not an institutional intelligence centre.
+2. Current Analytics UI is actor-scoped product telemetry, not institutional analytics. Do not broaden its RLS policy or reuse it for church-level insights.
+3. The current Reports route gate only names local organization owner/admin roles. A separate explicit institutional permission matrix is required for Union, Mission/Association, Conference and local church roles.
+4. A new metric registry and analytics read model are required. Metric definitions must identify source domain, organization scope, reporting period, formula, numerator/denominator, freshness, data-quality state and access policy.
+5. First release should aggregate only non-sensitive operational data already represented by stable domain records. Finance remains a separately authorized capability. Pastoral counselling, safeguarding and sensitive personal data are excluded from general intelligence and AI summaries.
+6. Before implementation, inspect the exact policies and query contracts for ministry, youth, organization membership and finance tables; validate hierarchy semantics and cross-organization negative tests. Do not infer access from frontend selector contents.
+
+### First complete engineering block — Executive Intelligence Foundation
+The first implementation block is not a visual-only dashboard. It comprises:
+- a governed metric registry and definitions;
+- an organization-scoped reporting API with explicit institutional authorization;
+- deterministic aggregate queries over existing source domains;
+- data freshness, completeness and lineage metadata;
+- a responsive Executive Intelligence workspace reusing the design system;
+- comparison periods only where timestamped source data supports them;
+- source-level reconciliation and cross-tenant authorization tests;
+- accessible chart and table equivalents, plus export metadata;
+- CI, operational logging and production release evidence.
+
+No predictive model or AI-generated recommendation should be enabled until this evidence foundation is complete and the underlying historical data passes quality checks.
