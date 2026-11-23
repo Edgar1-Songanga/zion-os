@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { IdentityService } from '../identity/application/identity.service';
 import { SupabaseRestClient } from '../common/supabase/supabase-rest.client';
 import { AutomationPolicyEngine } from '@zion/automation-engine';
+import { PLATFORM_ANALYTICS_METRICS } from './analytics/metric-registry';
 
 @Injectable()
 export class PlatformService {
@@ -111,6 +112,17 @@ export class PlatformService {
       occurred_at: occurredAt.toISOString(),
     });
     return rows[0];
+  }
+
+  async analyticsMetricCatalog(token: string) {
+    const actor = await this.actor(token);
+    return {
+      catalog_version: '2026-11-23.1',
+      status: 'CATALOG_ONLY',
+      generated_at: new Date().toISOString(),
+      actor_id: actor.id,
+      metrics: PLATFORM_ANALYTICS_METRICS,
+    };
   }
 
   async analyticsSummary(token: string, eventName?: unknown, limit?: unknown) {
