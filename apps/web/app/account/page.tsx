@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { refreshProductAnalyticsConsent } from "@/lib/analytics/product-analytics";
 import { resaRequest } from "@/lib/resa/api";
 
 type TotpFactor = {
@@ -29,7 +30,7 @@ export default function AccountPage() {
   const [mfaCode, setMfaCode] = useState("");
   const [privacy, setPrivacy] = useState({
     profile_visibility: "friends", bio_visibility: "friends", country_visibility: "friends", timezone_visibility: "private",
-    message_policy: "everyone", call_policy: "everyone", group_invite_policy: "everyone", follow_policy: "auto",
+    message_policy: "everyone", call_policy: "everyone", group_invite_policy: "everyone", follow_policy: "auto", product_analytics: false,
   });
 
   const loadMfa = async () => {
@@ -77,7 +78,7 @@ export default function AccountPage() {
 
   async function updatePrivacy() {
     setError(""); setMessage(""); setMfaBusy(true);
-    try { await resaRequest("/v1/identity/profile", { method: "PATCH", body: JSON.stringify({ privacy }) }); setMessage("Preferências de privacidade atualizadas."); }
+    try { await resaRequest("/v1/identity/profile", { method: "PATCH", body: JSON.stringify({ privacy }) }); await refreshProductAnalyticsConsent(); setMessage("Preferências de privacidade actualizadas."); }
     catch (e) { setError(e instanceof Error ? e.message : "Não foi possível atualizar a privacidade."); }
     finally { setMfaBusy(false); }
   }
@@ -214,6 +215,10 @@ export default function AccountPage() {
             {([["profile_visibility","Quem pode ver o perfil"],["bio_visibility","Quem pode ver a biografia"],["country_visibility","Quem pode ver o país"],["timezone_visibility","Quem pode ver o fuso horário"]] as const).map(([key,label]) => <label key={key} className="rounded-xl border border-[var(--zion-border)] bg-[var(--zion-light)] p-4"><span className="block text-sm font-semibold text-[var(--zion-dark)]">{label}</span><select value={privacy[key]} onChange={(e)=>setPrivacy(p=>({...p,[key]:e.target.value}))} className="mt-2 w-full rounded-lg border border-[var(--zion-border)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--zion-sky)]"><option value="public">Público</option><option value="friends">Amigos</option><option value="friends_of_friends">Amigos dos amigos</option><option value="private">Privado</option></select></label>)}
             {([["message_policy","Quem pode enviar mensagens"],["call_policy","Quem pode iniciar chamadas"],["group_invite_policy","Quem pode convidar para grupos"]] as const).map(([key,label]) => <label key={key} className="rounded-xl border border-[var(--zion-border)] bg-[var(--zion-light)] p-4"><span className="block text-sm font-semibold text-[var(--zion-dark)]">{label}</span><select value={privacy[key]} onChange={(e)=>setPrivacy(p=>({...p,[key]:e.target.value}))} className="mt-2 w-full rounded-lg border border-[var(--zion-border)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--zion-sky)]"><option value="everyone">Todos os membros</option><option value="followers">Apenas seguidores</option><option value="following">Pessoas que sigo</option><option value="none">Ninguém</option></select></label>)}
             <label className="rounded-xl border border-[var(--zion-border)] bg-[var(--zion-light)] p-4"><span className="block text-sm font-semibold text-[var(--zion-dark)]">Pedidos para seguir</span><select value={privacy.follow_policy} onChange={(e)=>setPrivacy(p=>({...p,follow_policy:e.target.value}))} className="mt-2 w-full rounded-lg border border-[var(--zion-border)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--zion-sky)]"><option value="auto">Aceitar automaticamente</option><option value="none">Não permitir novos seguidores</option></select></label>
+            <label className="flex items-start gap-3 rounded-xl border border-[var(--zion-border)] bg-[var(--zion-light)] p-4 sm:col-span-2">
+              <input type="checkbox" checked={privacy.product_analytics} onChange={(e)=>setPrivacy(p=>({...p,product_analytics:e.target.checked}))} className="mt-1 h-4 w-4 accent-[#0C1A3D]" />
+              <span><span className="block text-sm font-semibold text-[var(--zion-dark)]">Permitir análise agregada de utilização dos produtos</span><span className="mt-1 block text-xs leading-5 text-[var(--zion-muted)]">Ajuda a melhorar o ZION OS e o RESA através de eventos de utilização. Não recolhe pesquisas bíblicas, textos de devoção ou oração, mensagens, títulos ou conteúdo privado. Pode alterar esta preferência a qualquer momento.</span></span>
+            </label>
           </div>
           <button type="button" onClick={updatePrivacy} disabled={mfaBusy} className="mt-5 rounded-xl bg-[var(--zion-primary)] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--zion-primary-deep)] disabled:opacity-50">Guardar privacidade</button>
         </section>
