@@ -90,7 +90,7 @@ export function validateProductAnalyticsEvent(input: {
   if (typeof moduleKey !== "string" || !PRODUCT_MODULES[productKey].includes(moduleKey as ProductModuleKey)) {
     throw new Error("Unsupported analytics module for this product.");
   }
-  if (typeof eventName !== "string" || !(eventName in PRODUCT_EVENT_REGISTRY)) {
+  if (typeof eventName !== "string" || !Object.prototype.hasOwnProperty.call(PRODUCT_EVENT_REGISTRY, eventName)) {
     throw new Error("Unsupported product analytics event.");
   }
   if (typeof sessionId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sessionId)) {
@@ -119,7 +119,7 @@ export function validateProductAnalyticsEvent(input: {
       }
       sanitized[key] = value;
     } else {
-      if (typeof value !== "string" || !rule.values?.includes(value)) throw new Error(`Invalid analytics property: ${key}`);
+      if (typeof value !== "string" || !rule.values?.some((allowed) => allowed === value)) throw new Error(`Invalid analytics property: ${key}`);
       sanitized[key] = value;
     }
   }
