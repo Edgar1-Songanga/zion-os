@@ -216,3 +216,53 @@ describe("PlatformService personal analytics summary", () => {
     );
   });
 });
+
+
+describe("PlatformService executive product analytics aggregate contract", () => {
+  const identity = {
+    requireGlobalAdmin: jest.fn().mockResolvedValue({ id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" }),
+  } as unknown as IdentityService;
+  let service: PlatformService;
+  let rpc: jest.SpyInstance;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    service = new PlatformService(identity, {} as AutomationPolicyEngine);
+    rpc = jest.spyOn(SupabaseRestClient.prototype, "rpc").mockResolvedValue({
+      products: [], modules: [], daily_active_users: [],
+    } as never);
+  });
+
+  afterEach(() => rpc.mockRestore());
+
+  it("requires global-admin verification and delegates only a bounded date window to the aggregate RPC", async () => {
+    const result = await service.productAnalyticsSummary("admin-token", "2026-11-01", "2026-11-30");
+    expect(identity.requireGlobalAdmin).toHaveBeenCalledWith("admin-token");
+    expect(rpc).toHaveBeenCalledWith("zion_product_analytics_summary", "admin-token", {
+      p_from_date: "2026-11-01",
+      p_to_date: "2026-11-30",
+    });
+    expect(result).toEqual({ products: [], modules: [], daily_active_users: [] });
+  });
+
+  it("rejects invalid calendar dates and reversed ranges before database access", async () => {
+    await expect(service.productAnalyticsSummary("admin-token", "2026-02-30", "2026-03-01"))
+      .rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.productAnalyticsSummary("admin-token", "2026-11-02", "2026-11-01"))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects windows longer than 90 inclusive UTC calendar days", async () => {
+    await expect(service.productAnalyticsSummary("admin-token", "2026-01-01", "2026-04-01"))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when global-admin verification fails", async () => {
+    (identity.requireGlobalAdmin as jest.Mock).mockRejectedValueOnce(new Error("forbidden"));
+    await expect(service.productAnalyticsSummary("member-token", "2026-11-01", "2026-11-30"))
+      .rejects.toThrow("forbidden");
+    expect(rpc).not.toHaveBeenCalled();
+  });
+});
