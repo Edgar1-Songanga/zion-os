@@ -160,7 +160,6 @@ export class PlatformService {
       catalog_version: '2026-11-23.1',
       status: 'LIVE_AGGREGATE',
       generated_at: new Date().toISOString(),
-      actor_id: actor.id,
       scope: 'institutional_intelligence',
       metrics: INSTITUTIONAL_ANALYTICS_METRICS,
     };
@@ -168,7 +167,7 @@ export class PlatformService {
 
 
   async productAnalyticsMetricCatalog(token: string) {
-    const actor = await this.identity.requireGlobalAdmin(token);
+    await this.identity.requireGlobalAdmin(token);
     return {
       catalog_version: '2026-11-23.1',
       scope: 'product_analytics',
