@@ -38,7 +38,6 @@ as $function$
 declare
   v_root record;
   v_result jsonb;
-  v_data_as_of timestamptz;
 begin
   if auth.uid() is null then
     raise exception 'authentication_required' using errcode = '42501';
@@ -102,7 +101,15 @@ begin
       (select count(*)::bigint
          from public.church_member_records cm
          join org_scope s on s.id = cm.organization_id
-        where cm.membership_status = 'ACTIVE') as active_church_members
+        where cm.membership_status = 'ACTIVE') as active_church_members,
+      greatest(
+        coalesce((select max(o.updated_at) from public.organizations o where o.id in (select id from org_scope)), '-infinity'::timestamptz),
+        coalesce((select max(u.updated_at) from public.organization_units u where u.organization_id in (select id from org_scope)), '-infinity'::timestamptz),
+        coalesce((select max(m.updated_at) from public.ministries m where m.organization_id in (select id from org_scope)), '-infinity'::timestamptz),
+        coalesce((select max(p.created_at) from public.ministry_programs p join public.ministries m on m.id = p.ministry_id where m.organization_id in (select id from org_scope)), '-infinity'::timestamptz),
+        coalesce((select max(r.submitted_at) from public.ministry_reports r join public.ministries m on m.id = r.ministry_id where m.organization_id in (select id from org_scope)), '-infinity'::timestamptz),
+        coalesce((select max(cm.updated_at) from public.church_member_records cm where cm.organization_id in (select id from org_scope)), '-infinity'::timestamptz)
+      ) as data_as_of
   ),
   per_organization as (
     select coalesce(
@@ -172,7 +179,7 @@ begin
       end,
       'historical_comparison', 'INSUFFICIENT_HISTORY',
       'forecasting', 'NOT_ENABLED',
-      'data_as_of', v_data_as_of
+      'data_as_of', nullif(metrics.data_as_of, '-infinity'::timestamptz)
     ),
     'lineage', jsonb_build_object(
       'organizations', 'public.organizations',
@@ -188,24 +195,6 @@ begin
   from metrics
   cross join per_organization;
 
-  with recursive org_scope(id) as (
-    select p_organization_id
-    union all
-    select child.id
-    from public.organizations child
-    join org_scope parent on child.parent_id = parent.id
-  )
-  select nullif(greatest(
-    coalesce((select max(o.updated_at) from public.organizations o where o.id in (select id from org_scope)), '-infinity'::timestamptz),
-    coalesce((select max(u.updated_at) from public.organization_units u where u.organization_id in (select id from org_scope)), '-infinity'::timestamptz),
-    coalesce((select max(m.updated_at) from public.ministries m where m.organization_id in (select id from org_scope)), '-infinity'::timestamptz),
-    coalesce((select max(p.created_at) from public.ministry_programs p join public.ministries m on m.id = p.ministry_id where m.organization_id in (select id from org_scope)), '-infinity'::timestamptz),
-    coalesce((select max(r.submitted_at) from public.ministry_reports r join public.ministries m on m.id = r.ministry_id where m.organization_id in (select id from org_scope)), '-infinity'::timestamptz),
-    coalesce((select max(cm.updated_at) from public.church_member_records cm where cm.organization_id in (select id from org_scope)), '-infinity'::timestamptz)
-  ), '-infinity'::timestamptz)
-  into v_data_as_of;
-
-  v_result := jsonb_set(v_result, '{data_quality,data_as_of}', coalesce(to_jsonb(v_data_as_of), 'null'::jsonb), true);
 
   insert into public.audit_logs (
     organization_id, actor_user_id, action, resource_type, resource_id, metadata
