@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ServiceUnavailableException } from '@nestjs/common';
 import { IdentityService } from '../../identity/application/identity.service';
 import { SupabaseRestClient } from '../../common/supabase/supabase-rest.client';
 import { ChurchMembersService } from './church-members.service';
@@ -31,6 +31,32 @@ describe('ChurchMembersService', () => {
       accessToken,
       expect.stringContaining(`organization_id=eq.${organizationId}`),
     );
+  });
+
+  it('falls back to the pre-row_version schema for Secretariat member lists', async () => {
+    getSpy.mockRejectedValueOnce(new ServiceUnavailableException(
+      'A estrutura da base de dados precisa de ser sincronizada com a versão atual do ZION OS.',
+    ));
+
+    await service.list(accessToken, organizationId);
+
+    expect(getSpy).toHaveBeenCalledTimes(2);
+    expect(getSpy.mock.calls[0][2]).toContain('row_version');
+    expect(getSpy.mock.calls[1][2]).not.toContain('row_version');
+    expect(getSpy.mock.calls[1][2]).toContain(`organization_id=eq.${organizationId}`);
+  });
+
+  it('falls back to the pre-row_version schema for archive lists', async () => {
+    getSpy.mockRejectedValueOnce(new ServiceUnavailableException(
+      'A estrutura da base de dados precisa de ser sincronizada com a versão atual do ZION OS.',
+    ));
+
+    await service.listByStatus(accessToken, 'DECEASED');
+
+    expect(getSpy).toHaveBeenCalledTimes(2);
+    expect(getSpy.mock.calls[0][2]).toContain('row_version');
+    expect(getSpy.mock.calls[1][2]).not.toContain('row_version');
+    expect(getSpy.mock.calls[1][2]).toContain('membership_status=eq.DECEASED');
   });
 
   it('searches cross-church identity candidates through the permission-scoped RPC', async () => {
