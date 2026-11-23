@@ -15,7 +15,7 @@ describe("product analytics metric registry", () => {
     expect(quiz?.formula).toContain("stable, privacy-safe attempt identifier");
     expect(devotion?.name).toContain("salvamento");
     expect(devotion?.formula).toContain("proxy save rate");
-    expect(devotion?.formula).not.toContain("completion rate");
+    expect(devotion?.formula).toContain("not a completion rate");
   });
 
   it("rejects duplicate metric identifiers", () => {
