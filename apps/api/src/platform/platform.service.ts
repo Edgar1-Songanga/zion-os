@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { IdentityService } from '../identity/application/identity.service';
 import { SupabaseRestClient } from '../common/supabase/supabase-rest.client';
 import { AutomationPolicyEngine } from '@zion/automation-engine';
-import { PLATFORM_ANALYTICS_METRICS } from './analytics/metric-registry';
+import { INSTITUTIONAL_ANALYTICS_METRICS } from './analytics/metric-registry';
 import { validateProductAnalyticsEvent } from './analytics/product-event-registry';
 
 @Injectable()
@@ -155,7 +155,8 @@ export class PlatformService {
       status: 'LIVE_AGGREGATE',
       generated_at: new Date().toISOString(),
       actor_id: actor.id,
-      metrics: PLATFORM_ANALYTICS_METRICS,
+      scope: 'institutional_intelligence',
+      metrics: INSTITUTIONAL_ANALYTICS_METRICS,
     };
   }
 
