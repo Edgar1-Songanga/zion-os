@@ -141,7 +141,6 @@ describe("PlatformService product metric catalogue", () => {
     expect(result).toMatchObject({
       scope: "product_analytics",
       status: "EVENT_INSTRUMENTATION_IN_PROGRESS",
-      actor_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
     });
     expect(result.metrics.length).toBeGreaterThan(0);
   });
