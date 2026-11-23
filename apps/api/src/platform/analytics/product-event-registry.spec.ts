@@ -27,6 +27,12 @@ describe("product analytics event registry", () => {
     };
     expect(() => validateProductAnalyticsEvent({ ...base, productKey: "zion_os", moduleKey: "feed", eventName: "page_view" })).toThrow(/module/);
     expect(() => validateProductAnalyticsEvent({
+      ...base, productKey: "zion_os", moduleKey: "dashboard", eventName: "page_view",
+    })).toThrow(/Page view key does not match/);
+    expect(() => validateProductAnalyticsEvent({
+      ...base, productKey: "resa", moduleKey: "reels", eventName: "page_view",
+    })).toThrow(/Page view key does not match/);
+    expect(() => validateProductAnalyticsEvent({
       productKey: "zion_os", moduleKey: "bible_engine", eventName: "bible_search_submitted",
       sessionId: base.sessionId, eventVersion: 1,
       properties: { success: true, translation: "almeida-livre", result_count: 1, search_query: "João 3:16" },
