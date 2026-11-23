@@ -7,7 +7,7 @@
 Product Analytics measures how people discover, adopt and use ZION OS and RESA. It is not the same as Institutional Intelligence (church, department, ministry and membership indicators) or Platform Operations (uptime, latency, errors and infrastructure).
 
 - **ZION OS:** dashboard, Bible Engine, Bible Quiz, Sabbath School, Devotion and meetings.
-- **RESA:** home/feed, Reels, Live, communities, messaging and meetings.
+- **RESA:** home/feed, Reels, Live, communities, messaging, meetings, events and prayer.
 
 Meeting usage is attributed to the product surface where the user entered the experience. Cross-product reporting must avoid counting one person as two distinct users in the same platform-level total.
 
