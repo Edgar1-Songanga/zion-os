@@ -160,3 +160,34 @@ Before enabling Union-wide reporting, obtain formal agreement on:
 ## 12. Product promise
 
 ZION should help leaders make better-informed decisions, not make decisions on their behalf. The system's credibility comes from traceable evidence, transparent methodology, privacy protection and disciplined uncertainty—not from futuristic graphics or unsupported AI claims.
+
+
+## 13. Enterprise product and delivery standard
+
+This product is not to be delivered as a sequence of disconnected micro-features, cosmetic increments or demo-only screens. Work is organized into complete, outcome-based vertical capability blocks. Each block includes, as applicable, domain model, APIs, persistence, authorization, auditability, responsive UI, interaction design, observability, automated tests, documentation and deployment readiness.
+
+A block is accepted only when its end-to-end user journey works against real authorized data, failure states are handled, security boundaries are tested, accessibility and responsive behavior are checked, and the change is integrated into the mainline with passing CI. No placeholder data, fake AI insights, static mock dashboards or hidden unfinished flows may be represented as production functionality.
+
+### Experience standard
+
+- Premium, clean, precise, modern enterprise interface; information hierarchy before decoration.
+- Fast, predictable interactions with progressive disclosure rather than crowded dashboards.
+- Consistent design system, keyboard accessibility, screen-reader semantics and responsive behavior across mobile, tablet and desktop.
+- Data visualizations must be legible, interactive where useful, exportable and accompanied by accessible tabular equivalents.
+- Loading, empty, stale, partial, permission-denied, error and offline states are first-class UX states.
+- Avoid gratuitous motion, noisy gradients, excessive cards, gamified institutional scores and visual effects that reduce trust.
+
+### Complete capability blocks
+
+1. **Institutional Data & Governance Foundation** — metric registry, source lineage, organization hierarchy, access matrix, audit, data quality and reconciliation.
+2. **Executive Intelligence Workspace** — executive overview, role-aware navigation, period comparisons, drill-down, saved views and board-ready export.
+3. **Operational Intelligence Suite** — membership, church, department, governance and authorized finance analytics, each with approved definitions and evidence.
+4. **Insight & Action Management** — explainable variance/anomaly insights, evidence bundles, assignments, decisions and outcome tracking.
+5. **Forecast & Scenario Studio** — validated forecasting, back-testing, confidence intervals, assumptions and scenario comparison.
+6. **AI Decision Briefing** — evidence-grounded summaries and options, source references, human review and audit trail.
+
+These are substantial product capability blocks, not promises that each already exists. They should be sequenced by dependency and delivered as complete vertical outcomes. Shared foundations must be built once and reused; avoid parallel one-off implementations.
+
+### Release gate
+
+Production-ready means more than a successful build: verified data correctness, role and tenant isolation, sensitive-data controls, automated regression coverage, performance budgets, operational monitoring, backup/recovery expectations, documented ownership and successful production smoke tests. Any unmet release gate must be explicitly disclosed; do not label the block production-ready until evidence exists.
