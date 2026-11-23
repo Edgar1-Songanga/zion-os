@@ -137,3 +137,25 @@ No retention duration, legal basis, deletion SLA, minimum cohort threshold or ba
 - Aggregate outputs are checked for re-identification risk after source-row deletion.
 - Backup expiry and audit evidence are verified separately from primary-table deletion.
 - User-facing privacy copy accurately distinguishes collection opt-in, withdrawal, export and erasure.
+
+
+## Production schema audit — 2026-11-23 (read-only)
+
+The connected production project was inspected without changing schema, data, policies or migration history. These observations supersede assumptions based only on repository documentation:
+
+- `public.zion_analytics_events` exists, RLS is enabled, and the table contained **0 rows** at audit time.
+- Current columns are `id`, `event_name`, `actor_user_id`, `entity_type`, `entity_id`, `properties`, `occurred_at` and `created_at`. Product, module, event version and session ID are currently carried inside validated JSONB properties, not dedicated relational columns.
+- Current RLS policies allow authenticated inserts only when `actor_user_id = auth.uid()`, and selects only for the same actor. There is no DELETE policy in the inspected policy set. Do not broaden these policies for executive analytics.
+- Current indexes include primary key, `(event_name, occurred_at DESC)`, `(actor_user_id, occurred_at DESC)` and `(entity_type, entity_id, occurred_at DESC)`. There is no dedicated product/module/time index in the inspected index set.
+- The actor foreign key currently uses `ON DELETE SET NULL`. Consequently, deleting an auth user does **not** erase that user's event rows; it nulls the actor reference and leaves the event payload in place. This does not meet the erasure requirement in this specification.
+- The production migration ledger currently ends at `20261113095841` (`resa_call_alert_lifecycle_cleanup`). No Product Analytics aggregate, retention or erasure migration is recorded after it in the connected ledger.
+
+### Consequences and next database change set
+
+1. Do not treat the current `ON DELETE SET NULL` behavior as an erasure mechanism. The next reviewed migration must choose and test an explicit actor-erasure strategy (for example, actor-scoped deletion before account removal or a tightly controlled database lifecycle hook). A simple foreign-key cascade must not be introduced without reviewing the account-deletion transaction and other legal retention obligations.
+2. Keep actor-scoped SELECT and INSERT policies intact. The executive read model must be a separate, narrowly granted aggregate interface with server-side global-admin verification, bounded windows, minimum cohort suppression and audit evidence; it must never expose raw rows.
+3. Evaluate typed columns or expression indexes for product/module/time aggregation against query plans and expected volume. Do not add indexes speculatively before measuring the aggregate query plan.
+4. Add a service-only retention purge with explicit approved duration, bounded batches, idempotency and audit evidence. Do not grant ordinary authenticated users a table-wide DELETE capability.
+5. Reconcile repository migration files against the live ledger before preparing any migration, then follow the exclusive Frame gate in issue #82. The production audit above was read-only; no migration or SQL mutation was executed.
+
+**Release-blocking finding:** account deletion currently anonymizes the actor foreign key but leaves analytics event rows. Until a reviewed erasure path and retention purge are implemented and tested, the product must not claim that consent withdrawal or account deletion removes previously collected Product Analytics data.
