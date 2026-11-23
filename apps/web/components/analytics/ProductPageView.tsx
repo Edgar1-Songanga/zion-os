@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { trackProductEvent, type ProductKey, type ProductModuleKey } from "@/lib/analytics/product-analytics";
+import { trackProductEvent, type ProductKey, type ProductModuleKey, type ProductPageKey } from "@/lib/analytics/product-analytics";
 
 export default function ProductPageView({
   product,
@@ -10,7 +10,7 @@ export default function ProductPageView({
 }: {
   product: ProductKey;
   module: ProductModuleKey;
-  page: string;
+  page: ProductPageKey;
 }) {
   const sent = useRef(false);
   useEffect(() => {
