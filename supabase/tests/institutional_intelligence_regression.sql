@@ -1,0 +1,52 @@
+begin;
+do $test$
+declare
+  union_id uuid; mission_id uuid; church_id uuid;
+  analyst_id uuid := 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  unrelated_id uuid := 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  global_admin_id uuid := 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  role_id uuid; result jsonb; rejected boolean := false;
+begin
+  insert into public.organizations(name, organization_type) values ('Test Union', 'UNION') returning id into union_id;
+  insert into public.organizations(name, organization_type, parent_id) values ('Test Mission', 'MISSION', union_id) returning id into mission_id;
+  insert into public.organizations(name, organization_type, parent_id) values ('Test Church', 'LOCAL_CHURCH', mission_id) returning id into church_id;
+  select id into role_id from public.roles where key = 'secretary';
+  insert into public.organization_memberships(organization_id, user_id, role_id, status) values (union_id, analyst_id, role_id, 'ACTIVE');
+  insert into public.organization_units(organization_id, name, unit_type) values (mission_id, 'Secretariat', 'DEPARTMENT'), (church_id, 'Youth', 'DEPARTMENT');
+  insert into public.ministries(organization_id, name, status) values (mission_id, 'Family Ministry', 'ACTIVE'), (church_id, 'Youth Ministry', 'ACTIVE');
+  insert into public.ministry_programs(ministry_id, name, status) select id, 'Active program', 'ACTIVE' from public.ministries where name = 'Youth Ministry';
+  insert into public.ministry_programs(ministry_id, name, status) select id, 'Planned program', 'PLANNED' from public.ministries where name = 'Family Ministry';
+  insert into public.ministry_reports(ministry_id, title, status) select id, 'Pending report', 'PENDING' from public.ministries where name = 'Family Ministry';
+  insert into public.ministry_reports(ministry_id, title, status) select id, 'Approved report', 'APPROVED' from public.ministries where name = 'Youth Ministry';
+  insert into public.church_member_records(organization_id, first_name, last_name) values
+    (church_id, 'MemberA', 'Test'), (church_id, 'MemberB', 'Test'), (church_id, 'MemberC', 'Test'), (church_id, 'MemberD', 'Test');
+  perform set_config('request.jwt.claim.sub', analyst_id::text, true);
+  perform set_config('request.jwt.claims', jsonb_build_object('sub', analyst_id)::text, true);
+  result := public.zion_institutional_intelligence(union_id);
+  if result->>'status' <> 'LIVE_AGGREGATE' then raise exception 'Expected LIVE_AGGREGATE status'; end if;
+  if (result #>> '{scope,included_organizations}')::integer <> 3 then raise exception 'Authorized subtree did not include all three organizations'; end if;
+  if (result #>> '{metrics,active_organizations}')::integer <> 3 then raise exception 'Active organization aggregate is incorrect'; end if;
+  if (result #>> '{metrics,active_departments}')::integer <> 2 then raise exception 'Active department aggregate is incorrect'; end if;
+  if (result #>> '{metrics,active_ministries}')::integer <> 2 then raise exception 'Active ministry aggregate is incorrect'; end if;
+  if (result #>> '{metrics,active_programs}')::integer <> 1 then raise exception 'Active program aggregate is incorrect'; end if;
+  if (result #>> '{metrics,pending_ministry_reports}')::integer <> 1 or (result #>> '{metrics,approved_ministry_reports}')::integer <> 1 then raise exception 'Ministry report aggregates are incorrect'; end if;
+  if result #>> '{metrics,active_church_members,status}' <> 'SUPPRESSED' or result #>> '{metrics,active_church_members,value}' is not null then raise exception 'Membership aggregate below five was not suppressed'; end if;
+  if jsonb_array_length(result->'by_organization') <> 3 then raise exception 'Per-organization aggregate breakdown is incomplete'; end if;
+  if result::text like '%MemberA%' then raise exception 'Individual member data leaked into the aggregate response'; end if;
+  if result #>> '{data_quality,historical_comparison}' <> 'INSUFFICIENT_HISTORY' then raise exception 'Insufficient history must not be represented as a trend'; end if;
+  insert into public.church_member_records(organization_id, first_name, last_name) values (church_id, 'MemberE', 'Test'), (church_id, 'MemberF', 'Test');
+  result := public.zion_institutional_intelligence(union_id);
+  if result #>> '{metrics,active_church_members,status}' <> 'AVAILABLE' or (result #>> '{metrics,active_church_members,value}')::integer <> 6 then raise exception 'Membership aggregate did not become available at the minimum threshold'; end if;
+  perform set_config('request.jwt.claim.sub', unrelated_id::text, true);
+  perform set_config('request.jwt.claims', jsonb_build_object('sub', unrelated_id)::text, true);
+  rejected := false;
+  begin perform public.zion_institutional_intelligence(union_id); exception when insufficient_privilege then rejected := true; end;
+  if not rejected then raise exception 'An unrelated user was able to read institutional intelligence'; end if;
+  perform set_config('request.jwt.claim.sub', global_admin_id::text, true);
+  perform set_config('request.jwt.claims', jsonb_build_object('sub', global_admin_id, 'app_metadata', jsonb_build_object('zion_global_role', 'global_admin', 'zion_verified', true))::text, true);
+  result := public.zion_institutional_intelligence(union_id);
+  if result->>'status' <> 'LIVE_AGGREGATE' then raise exception 'Verified global administrator could not read aggregate intelligence'; end if;
+  if (select count(*) from public.audit_logs where action = 'institutional.analytics.viewed') <> 3 then raise exception 'Institutional intelligence access was not audited'; end if;
+end;
+$test$;
+rollback;
