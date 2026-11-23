@@ -27,6 +27,18 @@ export class PlatformController {
     return this.platform.recordAnalytics(this.token(authorization), body);
   }
 
+  @Get('analytics/metrics') analyticsMetricCatalog(@Headers('authorization') authorization: string | undefined) {
+    return this.platform.analyticsMetricCatalog(this.token(authorization));
+  }
+
+  @Get('analytics/institutional')
+  institutionalIntelligence(
+    @Headers('authorization') authorization: string | undefined,
+    @Query('organization_id') organizationId?: string,
+  ) {
+    return this.platform.institutionalIntelligence(this.token(authorization), organizationId);
+  }
+
   @Get('analytics/summary') analyticsSummary(@Headers('authorization') authorization: string | undefined, @Query('event_name') eventName?: string, @Query('limit') limit?: string) {
     return this.platform.analyticsSummary(this.token(authorization), eventName, limit);
   }

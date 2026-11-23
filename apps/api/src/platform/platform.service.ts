@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { IdentityService } from '../identity/application/identity.service';
 import { SupabaseRestClient } from '../common/supabase/supabase-rest.client';
 import { AutomationPolicyEngine } from '@zion/automation-engine';
+import { PLATFORM_ANALYTICS_METRICS } from './analytics/metric-registry';
 
 @Injectable()
 export class PlatformService {
@@ -111,6 +112,29 @@ export class PlatformService {
       occurred_at: occurredAt.toISOString(),
     });
     return rows[0];
+  }
+
+  async analyticsMetricCatalog(token: string) {
+    const actor = await this.actor(token);
+    return {
+      catalog_version: '2026-11-23.1',
+      status: 'LIVE_AGGREGATE',
+      generated_at: new Date().toISOString(),
+      actor_id: actor.id,
+      metrics: PLATFORM_ANALYTICS_METRICS,
+    };
+  }
+
+
+  async institutionalIntelligence(token: string, organizationId: unknown) {
+    await this.actor(token);
+    const id = typeof organizationId === 'string' ? organizationId.trim() : '';
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+      throw new BadRequestException('organization_id must be a valid UUID');
+    }
+    return this.db.rpc<Record<string, unknown>>('zion_institutional_intelligence', token, {
+      p_organization_id: id,
+    });
   }
 
   async analyticsSummary(token: string, eventName?: unknown, limit?: unknown) {
