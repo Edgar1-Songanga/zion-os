@@ -116,7 +116,12 @@ export class ProfileService {
       if (privacy.product_analytics !== undefined && typeof privacy.product_analytics !== 'boolean') {
         throw new UnauthorizedException('Invalid privacy value for product_analytics');
       }
-      updates.privacy = { ...DEFAULT_PRIVACY, ...privacy };
+      const existingProfiles = await this.db.get<Array<{ privacy?: Partial<ProfilePrivacy> }>>(
+        'profiles',
+        accessToken,
+        `?select=privacy&id=eq.${user.id}&limit=1`,
+      );
+      updates.privacy = { ...DEFAULT_PRIVACY, ...(existingProfiles[0]?.privacy ?? {}), ...privacy };
     }
     if ('country_code' in updates && updates.country_code) {
       updates.country_code = updates.country_code.trim().toUpperCase();
