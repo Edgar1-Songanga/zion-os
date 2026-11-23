@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import ResaIcon from "@/components/resa/core/ResaIcon";
 import { resaRequest } from "@/lib/resa/api";
 import LiveStudio from "@/components/resa/live/LiveStudio";
+import ProductPageView from "@/components/analytics/ProductPageView";
+import { trackProductEvent } from "@/lib/analytics/product-analytics";
 
 type OrganizationOption = { id: string; name: string };
 type UnitOption = { id: string; name: string; unit_type?: string; is_active?: boolean };
@@ -101,6 +103,7 @@ export default function LivePage() {
           ministry_id: ministryId || null,
         }),
       });
+      trackProductEvent("resa", "live", "live_created", { visibility });
       setTitle("");
       setDescription("");
       setScheduledAt("");
@@ -133,6 +136,7 @@ export default function LivePage() {
 
   return (
     <main className="min-h-screen bg-slate-100 p-4 sm:p-6 lg:p-8">
+      <ProductPageView product="resa" module="live" page="resa_live" />
       <div className="mx-auto max-w-7xl">
         <section className="rounded-[28px] bg-[#08152f] p-6 text-white shadow-[0_20px_60px_rgba(8,21,47,0.16)] sm:p-8">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
