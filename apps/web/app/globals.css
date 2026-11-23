@@ -44,3 +44,21 @@ body {
   background: rgba(200, 162, 74, 0.28);
   color: var(--zion-primary-deep);
 }
+
+
+@keyframes quiz-float {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -6px, 0); }
+}
+
+@keyframes quiz-halo {
+  0%, 100% { opacity: 0.35; transform: scale(0.98); }
+  50% { opacity: 0.85; transform: scale(1.035); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-quiz-float,
+  .animate-quiz-halo {
+    animation: none !important;
+  }
+}
