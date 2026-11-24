@@ -4,6 +4,7 @@ import BibleBookExplorer from "@/components/bible-engine/BibleBookExplorer";
 import KnowledgeCards from "@/components/bible-engine/KnowledgeCards";
 import BibleQuiz from "@/components/bible-engine/quiz/BibleQuiz";
 import BibleChallengeInvite from "@/components/bible-engine/BibleChallengeInvite";
+import ProductPageView from "@/components/analytics/ProductPageView";
 
 const sections = [
   { href: "#bible-search", label: "Pesquisar" },
@@ -15,6 +16,7 @@ const sections = [
 export default function BibleEngine() {
   return (
     <main className="min-h-screen bg-[#F4F6FA] px-4 py-6 text-[#0C1A3D] sm:px-8 sm:py-9">
+      <ProductPageView product="zion_os" module="bible_engine" page="bible_engine" />
       <div className="mx-auto max-w-7xl space-y-7">
         <header className="relative isolate overflow-hidden rounded-[2rem] bg-[#071126] px-6 py-8 text-white shadow-[0_24px_70px_rgba(7,17,38,0.15)] sm:px-10 sm:py-10">
           <div aria-hidden="true" className="absolute -right-12 -top-24 h-72 w-72 rounded-full border border-white/10" />

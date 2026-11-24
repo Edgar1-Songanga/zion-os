@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { refreshProductAnalyticsConsent } from "@/lib/analytics/product-analytics";
 import { resaRequest } from "@/lib/resa/api";
 
 type TotpFactor = {
@@ -29,7 +30,7 @@ export default function AccountPage() {
   const [mfaCode, setMfaCode] = useState("");
   const [privacy, setPrivacy] = useState({
     profile_visibility: "friends", bio_visibility: "friends", country_visibility: "friends", timezone_visibility: "private",
-    message_policy: "everyone", call_policy: "everyone", group_invite_policy: "everyone", follow_policy: "auto",
+    message_policy: "everyone", call_policy: "everyone", group_invite_policy: "everyone", follow_policy: "auto", product_analytics: false,
   });
 
   const loadMfa = async () => {
@@ -77,7 +78,7 @@ export default function AccountPage() {
 
   async function updatePrivacy() {
     setError(""); setMessage(""); setMfaBusy(true);
-    try { await resaRequest("/v1/identity/profile", { method: "PATCH", body: JSON.stringify({ privacy }) }); setMessage("Preferências de privacidade atualizadas."); }
+    try { await resaRequest("/v1/identity/profile", { method: "PATCH", body: JSON.stringify({ privacy }) }); await refreshProductAnalyticsConsent(); setMessage("Preferências de privacidade actualizadas."); }
     catch (e) { setError(e instanceof Error ? e.message : "Não foi possível atualizar a privacidade."); }
     finally { setMfaBusy(false); }
   }
@@ -209,11 +210,15 @@ export default function AccountPage() {
         {message && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</div>}
 
         <section className="rounded-2xl border border-[var(--zion-border)] bg-white p-6 shadow-[var(--zion-shadow-sm)] sm:p-7">
-          <div className="border-b border-[var(--zion-border)] pb-5"><h2 className="text-xl font-semibold tracking-tight text-[var(--zion-dark)]">Privacidade</h2><p className="mt-1 text-sm text-[var(--zion-muted)]">Defina quem pode ver os seus dados de perfil.</p><Link href="/account/privacy" className="mt-3 inline-flex text-sm font-semibold text-[var(--zion-primary)] underline">Configurar visibilidade avançada do perfil</Link></div>
+          <div className="border-b border-[var(--zion-border)] pb-5"><h2 className="text-xl font-semibold tracking-tight text-[var(--zion-dark)]">Privacidade</h2><p className="mt-1 text-sm text-[var(--zion-muted)]">Defina quem pode ver os seus dados de perfil e se permite a recolha de eventos de utilização para análise agregada.</p><Link href="/account/privacy" className="mt-3 inline-flex text-sm font-semibold text-[var(--zion-primary)] underline">Configurar visibilidade avançada do perfil</Link></div>
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
             {([["profile_visibility","Quem pode ver o perfil"],["bio_visibility","Quem pode ver a biografia"],["country_visibility","Quem pode ver o país"],["timezone_visibility","Quem pode ver o fuso horário"]] as const).map(([key,label]) => <label key={key} className="rounded-xl border border-[var(--zion-border)] bg-[var(--zion-light)] p-4"><span className="block text-sm font-semibold text-[var(--zion-dark)]">{label}</span><select value={privacy[key]} onChange={(e)=>setPrivacy(p=>({...p,[key]:e.target.value}))} className="mt-2 w-full rounded-lg border border-[var(--zion-border)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--zion-sky)]"><option value="public">Público</option><option value="friends">Amigos</option><option value="friends_of_friends">Amigos dos amigos</option><option value="private">Privado</option></select></label>)}
             {([["message_policy","Quem pode enviar mensagens"],["call_policy","Quem pode iniciar chamadas"],["group_invite_policy","Quem pode convidar para grupos"]] as const).map(([key,label]) => <label key={key} className="rounded-xl border border-[var(--zion-border)] bg-[var(--zion-light)] p-4"><span className="block text-sm font-semibold text-[var(--zion-dark)]">{label}</span><select value={privacy[key]} onChange={(e)=>setPrivacy(p=>({...p,[key]:e.target.value}))} className="mt-2 w-full rounded-lg border border-[var(--zion-border)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--zion-sky)]"><option value="everyone">Todos os membros</option><option value="followers">Apenas seguidores</option><option value="following">Pessoas que sigo</option><option value="none">Ninguém</option></select></label>)}
             <label className="rounded-xl border border-[var(--zion-border)] bg-[var(--zion-light)] p-4"><span className="block text-sm font-semibold text-[var(--zion-dark)]">Pedidos para seguir</span><select value={privacy.follow_policy} onChange={(e)=>setPrivacy(p=>({...p,follow_policy:e.target.value}))} className="mt-2 w-full rounded-lg border border-[var(--zion-border)] bg-white px-3 py-2 text-sm outline-none focus:border-[var(--zion-sky)]"><option value="auto">Aceitar automaticamente</option><option value="none">Não permitir novos seguidores</option></select></label>
+            <label className="flex items-start gap-3 rounded-xl border border-[var(--zion-border)] bg-[var(--zion-light)] p-4 sm:col-span-2">
+              <input type="checkbox" checked={privacy.product_analytics} onChange={(e)=>setPrivacy(p=>({...p,product_analytics:e.target.checked}))} className="mt-1 h-4 w-4 accent-[#0C1A3D]" />
+              <span><span className="block text-sm font-semibold text-[var(--zion-dark)]">Permitir recolha de eventos de utilização (Product Analytics)</span><span className="mt-1 block text-xs leading-5 text-[var(--zion-muted)]">Regista eventos mínimos associados à tua conta para gerar métricas agregadas do ZION OS e do RESA. Não recolhe pesquisas bíblicas, textos de devoção ou oração, mensagens, títulos ou conteúdo privado; os relatórios executivos não mostram histórico individual. Desactivar interrompe novas recolhas, mas não elimina eventos já recolhidos. A eliminação e exportação de dados analíticos ainda não estão disponíveis nesta área.</span></span>
+            </label>
           </div>
           <button type="button" onClick={updatePrivacy} disabled={mfaBusy} className="mt-5 rounded-xl bg-[var(--zion-primary)] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--zion-primary-deep)] disabled:opacity-50">Guardar privacidade</button>
         </section>

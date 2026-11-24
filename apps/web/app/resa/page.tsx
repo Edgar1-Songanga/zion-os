@@ -3,6 +3,7 @@ import CommunityCard from "@/components/resa/CommunityCard";
 import ResaMinistryHub from "@/components/resa/ResaMinistryHub";
 import Link from "next/link";
 import ResaIcon from "@/components/resa/core/ResaIcon";
+import ProductPageView from "@/components/analytics/ProductPageView";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -17,6 +18,7 @@ const destinations = [
 export default function RESA() {
   return (
     <main className="mx-auto max-w-[1440px]">
+      <ProductPageView product="resa" module="feed" page="resa_home" />
       <section className="relative mb-6 overflow-hidden rounded-[30px] border border-[#dce5f0] bg-white shadow-[0_18px_55px_rgba(15,35,65,0.06)]">
         <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(circle_at_90%_0%,rgba(87,145,221,0.13),transparent_34%),linear-gradient(115deg,#fff_0%,#f8fbff_62%,#eef4ff_100%)]" />
         <div className="relative flex flex-col gap-5 px-5 py-6 sm:px-8 sm:py-7 lg:flex-row lg:items-end lg:justify-between">

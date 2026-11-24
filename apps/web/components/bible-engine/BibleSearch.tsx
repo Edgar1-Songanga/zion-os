@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
+import { trackProductEvent } from "@/lib/analytics/product-analytics";
 
 type BibleResult = {
   reference: { book: string; chapter: number; verseStart?: number; verseEnd?: number };
@@ -28,12 +29,14 @@ export default function BibleSearch() {
       const results = await resaRequest<BibleResult[]>(
         `/v1/spiritual/bible/search?q=${encodeURIComponent(value)}&translation=${encodeURIComponent(translation)}`,
       );
+      trackProductEvent("zion_os", "bible_engine", "bible_search_submitted", { success: results.length > 0, translation, result_count: Math.min(results.length, 100) });
       if (!results[0]) {
         setError("Referência não encontrada. Experimente, por exemplo, João 3:16 ou Salmos 23.");
       } else {
         setResult(results[0]);
       }
     } catch (e) {
+      trackProductEvent("zion_os", "bible_engine", "bible_search_submitted", { success: false, translation, result_count: 0 });
       setError(e instanceof Error ? e.message : "Não foi possível consultar a Bíblia.");
     } finally {
       setLoading(false);

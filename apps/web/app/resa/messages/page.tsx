@@ -6,6 +6,7 @@ import ResaIcon from "@/components/resa/core/ResaIcon";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import ResaCallControls from "@/components/resa/messages/ResaCallControls";
+import ProductPageView from "@/components/analytics/ProductPageView";
 
 type ConversationMember = {
   id: string;
@@ -369,6 +370,7 @@ export default function MessagesPage() {
 
   return (
     <main className="min-h-screen bg-[#f6f8fb] pb-10 pt-5">
+      <ProductPageView product="resa" module="messages" page="resa_messages" />
       <div className="mx-auto max-w-[1180px] px-4 sm:px-6">
         <header className="mb-5 flex items-center justify-between gap-4">
           <div>

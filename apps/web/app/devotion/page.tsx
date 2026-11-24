@@ -3,6 +3,8 @@
 import { FormEvent, useEffect, useState } from "react";
 import { resaRequest } from "@/lib/resa/api";
 import { createClient } from "@/lib/supabase/client";
+import ProductPageView from "@/components/analytics/ProductPageView";
+import { trackProductEvent } from "@/lib/analytics/product-analytics";
 
 type Devotion = {
   id: string; title: string; scriptureReferences: string[]; reflection: string; prayer?: string; completedAt: string;
@@ -38,12 +40,13 @@ export default function DevotionPage() {
         method: "POST",
         body: JSON.stringify({ userId, title, scriptureReferences: scripture.split(",").map((item) => item.trim()).filter(Boolean), reflection, prayer: prayer.trim() || undefined }),
       });
+      trackProductEvent("zion_os", "devotion", "devotion_saved", {});
       setEntries((current) => [created, ...current]); setTitle(""); setScripture(""); setReflection(""); setPrayer("");
     } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível guardar a devoção."); }
     finally { setSaving(false); }
   }
 
-  return <main className="min-h-screen bg-[var(--zion-light)] px-4 py-6 sm:px-8"><div className="mx-auto max-w-6xl">
+  return <main className="min-h-screen bg-[var(--zion-light)] px-4 py-6 sm:px-8"><ProductPageView product="zion_os" module="devotion" page="devotion" /><div className="mx-auto max-w-6xl">
     <section className="relative overflow-hidden rounded-[32px] bg-[var(--zion-primary-deep)] px-6 py-9 text-white shadow-[var(--zion-shadow-lg)] sm:px-10">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(200,162,74,0.2),transparent_40%)]" />
       <div className="relative"><p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/50">ZION OS · Spiritual Layer</p>

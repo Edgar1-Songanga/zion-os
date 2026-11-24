@@ -1,8 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { IdentityService } from '../identity/application/identity.service';
 import { SupabaseRestClient } from '../common/supabase/supabase-rest.client';
 import { AutomationPolicyEngine } from '@zion/automation-engine';
-import { PLATFORM_ANALYTICS_METRICS } from './analytics/metric-registry';
+import { INSTITUTIONAL_ANALYTICS_METRICS } from './analytics/metric-registry';
+import { PRODUCT_EVENT_REGISTRY, validateProductAnalyticsEvent } from './analytics/product-event-registry';
+import { PRODUCT_METRIC_REGISTRY } from './analytics/product-metric-registry';
 
 @Injectable()
 export class PlatformService {
@@ -29,7 +31,7 @@ export class PlatformService {
   }
 
   private limit(value: unknown, fallback: number, maximum: number) {
-    return Math.min(Math.max(Number(value) || fallback, 1), maximum);
+    return Math.floor(Math.min(Math.max(Number(value) || fallback, 1), maximum));
   }
 
   async upsertSearchDocument(token: string, input: { entity_type: unknown; entity_id: unknown; title: unknown; body?: unknown; language?: unknown; visibility?: unknown; organization_id?: unknown }) {
@@ -98,18 +100,56 @@ export class PlatformService {
     return { event, automation: plan, evaluation_job: jobs[0] };
   }
 
-  async recordAnalytics(token: string, input: { event_name: unknown; entity_type?: unknown; entity_id?: unknown; properties?: unknown; occurred_at?: unknown }) {
+  async recordAnalytics(token: string, input: {
+    event_name: unknown;
+    entity_type?: unknown;
+    entity_id?: unknown;
+    properties?: unknown;
+    occurred_at?: unknown;
+    product_key: unknown;
+    module_key: unknown;
+    event_version: unknown;
+    session_id: unknown;
+  }) {
     const actor = await this.actor(token);
     const eventName = this.text(input.event_name, 'event_name').toLowerCase();
     if (!/^[a-z0-9][a-z0-9_.-]{1,119}$/.test(eventName)) throw new BadRequestException('event_name is invalid');
-    const occurredAt = input.occurred_at ? new Date(String(input.occurred_at)) : new Date();
-    if (Number.isNaN(occurredAt.getTime())) throw new BadRequestException('occurred_at is invalid');
+    if (input.entity_type !== undefined || input.entity_id !== undefined || input.occurred_at !== undefined) {
+      throw new BadRequestException('Product analytics events cannot include entity identifiers or client timestamps.');
+    }
+    const sourceProperties = input.properties && typeof input.properties === 'object' && !Array.isArray(input.properties)
+      ? input.properties as Record<string, unknown>
+      : {};
+    let validated: ReturnType<typeof validateProductAnalyticsEvent>;
+    try {
+      validated = validateProductAnalyticsEvent({
+        productKey: input.product_key,
+        moduleKey: input.module_key,
+        eventName,
+        sessionId: input.session_id,
+        eventVersion: input.event_version,
+        properties: sourceProperties,
+      });
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : 'Product analytics event is invalid.');
+    }
+
+    const profiles = await this.db.get<Array<{ privacy?: { product_analytics?: boolean } }>>(
+      'profiles',
+      token,
+      `?select=privacy&id=eq.${actor.id}&limit=1`,
+    );
+    if (profiles[0]?.privacy?.product_analytics !== true) {
+      throw new ForbiddenException('Product analytics collection requires the account preference to be enabled.');
+    }
+
     const rows = await this.db.post<any[]>('zion_analytics_events', token, {
-      event_name: eventName, actor_user_id: actor.id,
-      entity_type: input.entity_type ? this.text(input.entity_type, 'entity_type', 80) : null,
-      entity_id: input.entity_id ? this.uuid(input.entity_id, 'entity_id') : null,
-      properties: input.properties && typeof input.properties === 'object' ? input.properties : {},
-      occurred_at: occurredAt.toISOString(),
+      event_name: validated.eventName,
+      actor_user_id: actor.id,
+      entity_type: null,
+      entity_id: null,
+      properties: validated.properties,
+      occurred_at: new Date().toISOString(),
     });
     return rows[0];
   }
@@ -120,11 +160,51 @@ export class PlatformService {
       catalog_version: '2026-11-23.1',
       status: 'LIVE_AGGREGATE',
       generated_at: new Date().toISOString(),
-      actor_id: actor.id,
-      metrics: PLATFORM_ANALYTICS_METRICS,
+      scope: 'institutional_intelligence',
+      metrics: INSTITUTIONAL_ANALYTICS_METRICS,
     };
   }
 
+
+  async productAnalyticsMetricCatalog(token: string) {
+    await this.identity.requireGlobalAdmin(token);
+    return {
+      catalog_version: '2026-11-23.1',
+      scope: 'product_analytics',
+      status: 'EVENT_INSTRUMENTATION_IN_PROGRESS',
+      generated_at: new Date().toISOString(),
+      event_names: Object.keys(PRODUCT_EVENT_REGISTRY),
+      metrics: PRODUCT_METRIC_REGISTRY,
+    };
+  }
+
+
+  private analyticsDate(value: unknown, field: string) {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      throw new BadRequestException(`${field} must use YYYY-MM-DD`);
+    }
+    const parsed = new Date(`${value}T00:00:00.000Z`);
+    if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
+      throw new BadRequestException(`${field} is not a valid calendar date`);
+    }
+    return value;
+  }
+
+  async productAnalyticsSummary(token: string, fromDate: unknown, toDate: unknown) {
+    await this.identity.requireGlobalAdmin(token);
+    const from = this.analyticsDate(fromDate, 'from');
+    const to = this.analyticsDate(toDate, 'to');
+    const fromTime = Date.parse(`${from}T00:00:00.000Z`);
+    const toTime = Date.parse(`${to}T00:00:00.000Z`);
+    const dayRange = Math.floor((toTime - fromTime) / 86_400_000) + 1;
+    if (dayRange < 1 || dayRange > 90) {
+      throw new BadRequestException('Product analytics date range must be between 1 and 90 days.');
+    }
+    return this.db.rpc<Record<string, unknown>>('zion_product_analytics_summary', token, {
+      p_from_date: from,
+      p_to_date: to,
+    });
+  }
 
   async institutionalIntelligence(token: string, organizationId: unknown) {
     await this.actor(token);

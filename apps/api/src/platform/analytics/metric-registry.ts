@@ -14,7 +14,7 @@ export type AnalyticsMetricDefinition = {
   limitations: string[];
 };
 
-export const PLATFORM_ANALYTICS_METRICS: readonly AnalyticsMetricDefinition[] = [
+export const INSTITUTIONAL_ANALYTICS_METRICS: readonly AnalyticsMetricDefinition[] = [
   {
     id: "membership.active.count",
     name: "Membros eclesiásticos activos",
@@ -131,3 +131,6 @@ export function validateMetricRegistry(metrics: readonly AnalyticsMetricDefiniti
   }
   return true;
 }
+
+// Backward-compatible export name; these definitions are institutional, not product-usage metrics.
+export const PLATFORM_ANALYTICS_METRICS = INSTITUTIONAL_ANALYTICS_METRICS;

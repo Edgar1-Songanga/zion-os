@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import CreateCommunity from "@/components/resa/communities/CreateCommunity";
 import { resaRequest } from "@/lib/resa/api";
+import ProductPageView from "@/components/analytics/ProductPageView";
 
 type Community = {
   id: string; name: string; slug: string; description?: string | null; visibility: string;
@@ -55,6 +56,7 @@ export default function CommunitiesPage() {
 
   return (
     <main className="min-h-screen bg-[#f5f7fb] px-4 py-8 sm:px-6 lg:px-10">
+      <ProductPageView product="resa" module="communities" page="resa_communities" />
       <div className="mx-auto max-w-7xl">
         <header className="rounded-[2rem] bg-[#0C1A3D] p-7 text-white shadow-xl sm:p-10">
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-200">RESA · Comunidades</p>

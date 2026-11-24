@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import DashboardExperience from "@/components/dashboard/DashboardExperience";
 import DashboardContent from "@/components/dashboard/DashboardContent";
 import { createClient } from "@/lib/supabase/server";
+import ProductPageView from "@/components/analytics/ProductPageView";
 
 export const dynamic = "force-dynamic";
 
@@ -113,6 +114,7 @@ export default async function Dashboard() {
 
   return (
     <DashboardExperience>
+      <ProductPageView product="zion_os" module="dashboard" page="dashboard" />
       <section className="mx-auto mb-8 w-full max-w-7xl px-4 pt-6 sm:px-8" aria-labelledby="work-area-title">
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
