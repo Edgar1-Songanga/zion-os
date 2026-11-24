@@ -190,3 +190,17 @@ The database function contract must independently:
 - Be covered by SQL regression tests for unauthorized JWT claims, ordinary members, local/institutional roles, unverified global admins, out-of-range dates, small cohorts, and attempts to retrieve raw event data.
 
 The current code tests the API authorization boundary, date parsing, range limit and RPC delegation. These tests do not prove the database function exists or that its SQL authorization, suppression, audit and query plan are correct.
+
+
+## Live migration reconciliation — 2026-11-24 (read-only)
+
+The connected production Supabase project was checked again through its migration ledger. Its latest applied migration remains **20261113095841** (`resa_call_alert_lifecycle_cleanup`). The repository's current `main` tree contains a later migration, `20261123170000_institutional_intelligence_aggregation.sql`, which is **not present in the live production ledger**. This establishes migration drift beyond Product Analytics: the repository migration queue and production database are not yet reconciled.
+
+Consequences:
+- Do not create or apply a Product Analytics migration in production as an isolated change.
+- The Frame plan must first enumerate and reconcile every repository migration after `20261113095841`, including the existing Institutional Intelligence aggregation migration, against the live ledger and the exact target project.
+- Do not mark Institutional Intelligence's SQL migration as deployed merely because it exists on `main` or its tests pass.
+- Product Analytics remains blocked until the full pending queue has a reviewed Frame plan, disposable-Postgres regression coverage, protected-environment approval and post-execution ledger verification.
+- The live project is currently reported as `ACTIVE_HEALTHY`; that status confirms project availability only, not migration parity or application deployment health.
+
+No SQL, schema, data, RLS policy or migration ledger was changed during this check.
