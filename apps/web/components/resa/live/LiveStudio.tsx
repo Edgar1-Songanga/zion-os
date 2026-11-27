@@ -231,13 +231,16 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
         const identity = participant?.identity || "system";
         const name = packet.name || participant?.name || identity;
         if (packet.type === "chat" && packet.text?.trim()) {
-          setMessages((current) => [...current, {
+          const message: LiveMessage = {
             id: typeof packet.messageId === "string" && packet.messageId.trim() ? packet.messageId : identity + "-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7),
             identity,
             name,
             text: packet.text.trim().slice(0, 1000),
             sentAt: Date.now(),
-          }].slice(-200));
+          };
+          setMessages((current) => current.some((item) => item.id === message.id)
+            ? current
+            : [...current, message].slice(-200));
         } else if (packet.type === "hand_raise") {
           if (room.localParticipant.identity !== identity) setNotice(name + " levantou a mão. A fila está a sincronizar.");
         } else if (packet.type === "hand_raise_declined" && identity !== room.localParticipant.identity && trustedModeratorIdentitiesRef.current.has(identity)) {
@@ -703,13 +706,16 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
         method: "POST",
         body: JSON.stringify({ body: text }),
       });
-      setMessages((current) => [...current, {
+      const message: LiveMessage = {
         id: saved.id,
         identity: saved.sender_id,
         name: saved.name || "Tu",
         text: saved.text,
         sentAt: Date.parse(saved.sent_at) || Date.now(),
-      }].slice(-200));
+      };
+      setMessages((current) => current.some((item) => item.id === message.id)
+        ? current
+        : [...current, message].slice(-200));
       setDraft("");
       try {
         await sendPacket({ type: "chat", messageId: saved.id, text: saved.text, name: saved.name || "Participante" });
