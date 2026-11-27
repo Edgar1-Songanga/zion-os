@@ -9,7 +9,7 @@ type LiveMessage = { id: string; identity: string; name: string; text: string; s
 type PersistedLiveMessage = { id: string; sender_id: string; name: string; text: string; sent_at: string };
 type Participant = { identity: string; name: string; requestId?: string };
 type LivePacket =
-  | { type: "chat"; text: string; name?: string }
+  | { type: "chat"; messageId?: string; text: string; name?: string }
   | { type: "hand_raise"; name?: string }
   | { type: "hand_raise_declined"; name?: string }
   | { type: "speak_granted"; name?: string }
@@ -231,13 +231,16 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
         const identity = participant?.identity || "system";
         const name = packet.name || participant?.name || identity;
         if (packet.type === "chat" && packet.text?.trim()) {
-          setMessages((current) => [...current, {
-            id: identity + "-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7),
+          const message: LiveMessage = {
+            id: typeof packet.messageId === "string" && packet.messageId.trim() ? packet.messageId : identity + "-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7),
             identity,
             name,
             text: packet.text.trim().slice(0, 1000),
             sentAt: Date.now(),
-          }].slice(-200));
+          };
+          setMessages((current) => current.some((item) => item.id === message.id)
+            ? current
+            : [...current, message].slice(-200));
         } else if (packet.type === "hand_raise") {
           if (room.localParticipant.identity !== identity) setNotice(name + " levantou a mão. A fila está a sincronizar.");
         } else if (packet.type === "hand_raise_declined" && identity !== room.localParticipant.identity && trustedModeratorIdentitiesRef.current.has(identity)) {
@@ -284,7 +287,18 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
   const loadMessageHistory = () => {
       void resaRequest<PersistedLiveMessage[]>("/v1/resa/live/" + liveId + "/messages?limit=100")
         .then((history) => {
-          if (mounted) setMessages(history.map((item) => ({ id: item.id, identity: item.sender_id, name: item.name, text: item.text, sentAt: Date.parse(item.sent_at) || Date.now() })));
+          if (mounted) setMessages((current) => {
+            const merged = new Map<string, LiveMessage>();
+            current.forEach((message) => merged.set(message.id, message));
+            history.forEach((item) => merged.set(item.id, {
+              id: item.id,
+              identity: item.sender_id,
+              name: item.name,
+              text: item.text,
+              sentAt: Date.parse(item.sent_at) || Date.now(),
+            }));
+            return Array.from(merged.values()).sort((a, b) => a.sentAt - b.sentAt).slice(-200);
+          });
         })
         .catch(() => {
           if (mounted) setNotice("O chat está ligado, mas o histórico não pôde ser carregado. As novas mensagens continuam disponíveis.");
@@ -658,17 +672,28 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
     if (!connected) return;
     const text = "✦ Convite espiritual: vem fazer o Bible Challenge comigo no ZION OS! Explora as Escrituras e avança ao teu ritmo: " + window.location.origin + "/bible-engine#bible-challenge";
     try {
-      await sendPacket({ type: "chat", text, name: roomRef.current?.localParticipant.name || "Participante" });
-      setMessages((current) => [...current, {
-        id: selfIdentity + "-bible-challenge-" + Date.now(),
-        identity: selfIdentity,
-        name: "Tu",
-        text,
-        sentAt: Date.now(),
-      }].slice(-200));
-      setNotice("Convite para o Bible Challenge enviado ao chat desta Live.");
+      const saved = await resaRequest<PersistedLiveMessage>("/v1/resa/live/" + liveId + "/messages", {
+        method: "POST",
+        body: JSON.stringify({ body: text }),
+      });
+      setMessages((current) => {
+        const next = current.filter((message) => message.id !== saved.id);
+        return [...next, {
+          id: saved.id,
+          identity: saved.sender_id,
+          name: saved.name || "Tu",
+          text: saved.text,
+          sentAt: Date.parse(saved.sent_at) || Date.now(),
+        }].slice(-200);
+      });
+      try {
+        await sendPacket({ type: "chat", messageId: saved.id, text: saved.text, name: saved.name || "Participante" });
+        setNotice("Convite para o Bible Challenge guardado e enviado ao chat da Live.");
+      } catch {
+        setNotice("Convite guardado no histórico. A entrega em tempo real pode estar atrasada.");
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Não foi possível partilhar o convite no chat da Live.");
+      setError(e instanceof Error ? e.message : "Não foi possível guardar o convite no chat da Live.");
     }
   }
 
@@ -681,16 +706,19 @@ export default function LiveStudio({ liveId, title, isPrivate = false, isHostSes
         method: "POST",
         body: JSON.stringify({ body: text }),
       });
-      setMessages((current) => [...current, {
+      const message: LiveMessage = {
         id: saved.id,
         identity: saved.sender_id,
         name: saved.name || "Tu",
         text: saved.text,
         sentAt: Date.parse(saved.sent_at) || Date.now(),
-      }].slice(-200));
+      };
+      setMessages((current) => current.some((item) => item.id === message.id)
+        ? current
+        : [...current, message].slice(-200));
       setDraft("");
       try {
-        await sendPacket({ type: "chat", text: saved.text, name: saved.name || "Participante" });
+        await sendPacket({ type: "chat", messageId: saved.id, text: saved.text, name: saved.name || "Participante" });
       } catch {
         setNotice("Mensagem guardada no histórico. A entrega em tempo real pode estar atrasada.");
       }
